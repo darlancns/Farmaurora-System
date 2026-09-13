@@ -1,14 +1,20 @@
-import { defineNuxtRouteMiddleware, navigateTo } from "#app";
+import { defineNuxtRouteMiddleware, navigateTo, useRequestEvent } from "#app";
 import type { Session } from "@supabase/supabase-js";
 import { getSupabaseClient } from "../utils/supabaseClient";
 import { useAuth } from "../composables/useAuth";
 
 /**
- * Guarda global de sessão (client-side).
+ * Guarda global de sessão.
  *
- * No SSR não faz nada — deixa a página renderizar e o client refaz a checagem
- * após a hidratação, evitando erro de SSR antes de os cookies estarem
- * disponíveis no contexto do browser.
+ * No SSR, lê `event.context.user` — já populado por server/middleware/auth.ts
+ * a partir do cookie via @supabase/ssr — e redireciona ali mesmo quando não
+ * há sessão. Antes, o SSR não fazia nada aqui e deixava a página protegida
+ * renderizar inteira; só o client (depois da hidratação) redirecionava, e o
+ * Vue acabava hidratando a página errada contra o DOM da página protegida,
+ * disparando "Hydration completed but contains mismatches" em produção.
+ *
+ * No client, refaz a checagem (getSession) pra cobrir navegação client-side
+ * (SPA) entre páginas, onde não há um novo request/middleware de servidor.
  *
  * A autorização por cargo fica no `authz.global.ts` (roda depois deste).
  *
@@ -21,7 +27,12 @@ import { useAuth } from "../composables/useAuth";
 const PUBLIC_ROUTES = ["/login", "/redefinir-senha"];
 
 export default defineNuxtRouteMiddleware(async (to) => {
-  if (import.meta.server) return;
+  if (import.meta.server) {
+    if (PUBLIC_ROUTES.includes(to.path)) return;
+    const event = useRequestEvent();
+    if (!event?.context.user) return navigateTo("/login");
+    return;
+  }
 
   let session: Session | null = null;
   try {
