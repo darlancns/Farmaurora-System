@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+@theme {
+  --color-paper: #eef2f1;
+  --color-paper-raised: #ffffff;
+  --color-ink: #14242b;
+  --color-ink-soft: #4c6069;
+  --color-hairline: #c9d3d1;
+  --color-accent-dark: #0b3956;
+  --color-farm-blue: #1c6fa5;
+  --color-farm-blue-soft: #e3eef6;
+  --color-mainz-gold: #a6791c;
+  --color-mainz-gold-soft: #f5edda;
+  --color-danger: #a5402f;
+
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* Headings (ex-Source Serif 4): mesma família do corpo, só com tracking
+   mais fechado pra manter a leitura de "display" — o peso continua vindo
+   do font-semibold/font-medium já aplicado em cada uso. */
+@utility font-display {
+  font-family: var(--font-sans);
+  letter-spacing: -0.02em;
+}

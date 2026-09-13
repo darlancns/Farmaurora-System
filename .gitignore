@@ -1,0 +1,37 @@
+# Nuxt
+.nuxt/
+.output/
+.data/
+dist/
+
+# Dependencies
+node_modules/
+
+# Local data — NUNCA versionar. Contém dados reais de pacientes/financeiros
+# (patients/processos/pagamentos) e chaves PIX com CPF/CNPJ
+# (pagamentos-*-pix.json). O diretório é mantido no repo via data/.gitkeep.
+data/*.json
+!data/.gitkeep
+
+# Patient attachments (uploaded screenshots) — sensitive, never commit
+public/uploads/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Vercel
+.vercel/
+
+# Editors / OS
+.DS_Store
+*.log
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+
+# Coverage
+coverage/

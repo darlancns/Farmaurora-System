@@ -1,0 +1,39 @@
+{
+  "name": "prestacao-contas-crm",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "typecheck": "vue-tsc --noEmit",
+    "test:e2e": "playwright test",
+    "test:unit": "vitest run",
+    "test:integration": "node scripts/integration/run-all.mjs"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.116.0",
+    "docxtemplater": "^3.69.3",
+    "docxtemplater-image-module-free": "^1.1.1",
+    "h3": "^1.15.11",
+    "modern-screenshot": "^4.7.0",
+    "nuxt": "^4.5.2",
+    "pizzip": "^3.2.0",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^26.2.0",
+    "playwright": "^1.62.1",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.7.3",
+    "vitest": "^5.0.0",
+    "vue-tsc": "^3.3.9"
+  },
+  "overrides": {
+    "xmldom": "npm:@xmldom/xmldom@^0.9.0"
+  }
+}
