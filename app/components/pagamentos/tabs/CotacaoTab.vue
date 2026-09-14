@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref } from "vue";
 import type {
   AtualizarCotacaoDTO,
   BancoCambio,
@@ -11,8 +11,8 @@ import type {
 import { BANCO_CAMBIO_LABEL } from "#shared/constants/pagamentos";
 import { parseBrCurrency } from "../../../utils/formatters";
 import { montarCotacao } from "../../../utils/pagamentoCalculations";
+import { useCotacaoDrafts } from "../../../composables/useCotacaoDrafts";
 import CotacaoBancoCard from "../cards/CotacaoBancoCard.vue";
-import type { CotacaoDraft } from "../../../types/cotacao";
 import FechamentoRendimentoModal from "../modals/FechamentoRendimentoModal.vue";
 
 const props = withDefaults(
@@ -43,55 +43,13 @@ const emit = defineEmits<{
   "salvar-taxas": [loteId: string, opcoes: NonNullable<AtualizarCotacaoDTO["opcoes"]>];
 }>();
 
-// Rascunho editável por lote. É salvo automaticamente (debounce ao digitar +
-// imediato ao sair do campo) — não há botão "Salvar taxas".
-const drafts = reactive<Record<string, CotacaoDraft[]>>({});
-
-function taxaParaStr(taxa: number | null): string {
-  return taxa === null ? "" : String(taxa).replace(".", ",");
-}
-function corretagemParaStr(v: number): string {
-  return v ? String(v).replace(".", ",") : "";
-}
-
-// Snapshot do que estava persistido na última sincronização, por lote/banco.
-// Serve pro merge 3-vias: se o rascunho ainda bate com o snapshot anterior,
-// adota o novo valor do servidor; se o usuário mexeu (edição pendente), preserva.
-let persistidoSnapshot: Record<string, Record<string, { taxa: number | null; corretagem: number }>> = {};
-
-function snapshotDoLote(lote: LoteBanco): Record<string, { taxa: number | null; corretagem: number }> {
-  const m: Record<string, { taxa: number | null; corretagem: number }> = {};
-  for (const o of lote.opcoes) m[o.banco] = { taxa: o.taxa, corretagem: o.taxaCorretagem };
-  return m;
-}
-
-function reconciliarDrafts(): void {
-  const novoSnapshot: typeof persistidoSnapshot = {};
-  for (const lote of props.lotes) {
-    novoSnapshot[lote.id] = snapshotDoLote(lote);
-    const existente = drafts[lote.id];
-    if (!existente) {
-      drafts[lote.id] = lote.opcoes.map((o) => ({
-        banco: o.banco,
-        taxaStr: taxaParaStr(o.taxa),
-        corretagemStr: corretagemParaStr(o.taxaCorretagem),
-      }));
-      continue;
-    }
-    const anterior = persistidoSnapshot[lote.id];
-    for (const o of lote.opcoes) {
-      const d = existente.find((x) => x.banco === o.banco);
-      if (!d) continue;
-      const ant = anterior?.[o.banco];
-      if (!ant || parseTaxa(d.taxaStr) === ant.taxa) d.taxaStr = taxaParaStr(o.taxa);
-      const corretagemDraft = d.corretagemStr.trim() ? parseBrCurrency(d.corretagemStr) : 0;
-      if (!ant || corretagemDraft === ant.corretagem) d.corretagemStr = corretagemParaStr(o.taxaCorretagem);
-    }
-  }
-  persistidoSnapshot = novoSnapshot;
-}
-
-watch(() => props.lotes, reconciliarDrafts, { immediate: true, deep: true });
+// Rascunho editável por lote (com merge de 3 vias contra o snapshot anterior
+// e o dado novo do servidor) — ver useCotacaoDrafts.ts. É salvo
+// automaticamente (debounce ao digitar + imediato ao sair do campo) — não há
+// botão "Salvar taxas".
+const { drafts, draftDo, draftToOpcoes, parseTaxa } = useCotacaoDrafts({
+  lotes: () => props.lotes,
+});
 
 // ── Auto-save ──────────────────────────────────────────────────────────────
 const AUTOSAVE_MS = 700;
@@ -142,25 +100,6 @@ function viewsDoLote(lote: LoteBanco) {
   const base =
     lote.bancoEscolhido !== null ? lancs.map((l) => ({ ...l, valorReais: null })) : lancs;
   return montarCotacao(draftToOpcoes(lote.id), base);
-}
-
-function draftDo(loteId: string, banco: BancoCambio): CotacaoDraft {
-  const lista = drafts[loteId] ?? [];
-  return lista.find((d) => d.banco === banco) ?? { banco, taxaStr: "", corretagemStr: "" };
-}
-
-function parseTaxa(str: string): number | null {
-  if (!str.trim()) return null;
-  const v = parseBrCurrency(str);
-  return v > 0 ? v : null;
-}
-
-function draftToOpcoes(loteId: string): NonNullable<AtualizarCotacaoDTO["opcoes"]> {
-  return (drafts[loteId] ?? []).map((d) => ({
-    banco: d.banco,
-    taxaCorretagem: d.corretagemStr.trim() ? parseBrCurrency(d.corretagemStr) : 0,
-    taxa: parseTaxa(d.taxaStr),
-  }));
 }
 
 // Fechamento por ordem (Rendimento): o modal fica aberto com os pendentes do lote.
