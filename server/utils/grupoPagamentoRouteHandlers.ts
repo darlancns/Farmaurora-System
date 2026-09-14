@@ -6,11 +6,13 @@ import {
   editarItemGrupo,
   removerItemGrupo,
   pagarGrupoPagamento,
+} from "./pagamentosStore";
+import {
   getDespachantePix,
   getTransportadoraPix,
   salvarDespachantePix,
   salvarTransportadoraPix,
-} from "./pagamentosStore";
+} from "./pagamentosPixStore";
 import {
   isValidNovoGrupoPagamento,
   isValidAtualizarItemGrupo,

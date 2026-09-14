@@ -7,17 +7,11 @@
  * reexporta tudo, pra nenhum import existente em `server/api/pagamentos/**`
  * precisar mudar.
  *
- * As chaves PIX continuam em arquivo (`data/pagamentos-*-pix.json`) — não há
- * tabela pra elas. Moradas em `./pagamentosPixStore` (livre de Supabase) e
- * re-exportadas aqui para os endpoints não mudarem o import.
+ * As chaves PIX (`getDespachantePix`/`salvarDespachantePix`/
+ * `getTransportadoraPix`/`salvarTransportadoraPix`) moram em
+ * `./pagamentosPixStore` e devem ser importadas direto de lá — não são
+ * reexportadas aqui para evitar colisão de auto-import com o Nitro.
  */
 
 export * from "./pagamentos/bancoStore";
 export * from "./pagamentos/grupoStore";
-
-export {
-  getDespachantePix,
-  getTransportadoraPix,
-  salvarDespachantePix,
-  salvarTransportadoraPix,
-} from "./pagamentosPixStore";

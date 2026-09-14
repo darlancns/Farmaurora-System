@@ -14,8 +14,9 @@ import { createSupabaseAdminClient } from "./supabaseServerClient";
  * (tabela `pagamento_pix_chaves`, PK composta `(tipo, nome)`).
  *
  * A tabela guarda só os *overrides* do usuário; o valor efetivo é sempre
- * padrão (constante) + override. `pagamentosStore.ts` re-exporta as 4 funções
- * públicas — os endpoints seguem importando de `pagamentosStore`.
+ * padrão (constante) + override. As 4 funções públicas são importadas
+ * diretamente deste arquivo pelos endpoints (não são reexportadas por
+ * `pagamentosStore.ts`).
  *
  * Os arquivos `data/pagamentos-*-pix.json` continuam no disco como backup da
  * migração one-time, mas não são mais lidos nem escritos por este módulo.
