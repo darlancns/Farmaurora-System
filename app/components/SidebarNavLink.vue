@@ -12,7 +12,7 @@ defineProps<Props>();
 <template>
   <NuxtLink
     :to="to"
-    class="flex items-center gap-2.5 rounded-md px-2.5 py-2 font-display text-[15.5px] font-medium transition-colors"
+    class="flex items-center gap-2 rounded-md px-2 py-1.5 font-display text-[13.5px] font-medium transition-colors"
     :class="
       active
         ? 'bg-white/15 text-white'
@@ -26,7 +26,7 @@ defineProps<Props>();
       fill="none"
       stroke="currentColor"
       stroke-width="1.5"
-      class="h-[18px] w-[18px] shrink-0"
+      class="h-[15px] w-[15px] shrink-0"
     >
       <path
         stroke-linecap="round"
@@ -41,7 +41,7 @@ defineProps<Props>();
       fill="none"
       stroke="currentColor"
       stroke-width="1.5"
-      class="h-[18px] w-[18px] shrink-0"
+      class="h-[15px] w-[15px] shrink-0"
     >
       <path
         stroke-linecap="round"
@@ -56,7 +56,7 @@ defineProps<Props>();
       fill="none"
       stroke="currentColor"
       stroke-width="1.5"
-      class="h-[18px] w-[18px] shrink-0"
+      class="h-[15px] w-[15px] shrink-0"
     >
       <path
         stroke-linecap="round"
@@ -71,7 +71,7 @@ defineProps<Props>();
       fill="none"
       stroke="currentColor"
       stroke-width="1.5"
-      class="h-[18px] w-[18px] shrink-0"
+      class="h-[15px] w-[15px] shrink-0"
     >
       <path
         stroke-linecap="round"
@@ -81,13 +81,28 @@ defineProps<Props>();
       <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
     </svg>
     <svg
+      v-else-if="icon === 'cash'"
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      class="h-[15px] w-[15px] shrink-0"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        d="M12 3v18m3.75-14.25h-5.25a2.25 2.25 0 0 0 0 4.5h3a2.25 2.25 0 0 1 0 4.5H8"
+      />
+    </svg>
+    <svg
       v-else
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
       stroke-width="1.5"
-      class="h-[18px] w-[18px] shrink-0"
+      class="h-[15px] w-[15px] shrink-0"
     >
       <path
         stroke-linecap="round"

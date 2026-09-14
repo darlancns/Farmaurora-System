@@ -54,10 +54,10 @@ const activePath = computed<string>(() => route.path);
 <template>
   <nav
     id="sidebar-nav"
-    class="flex w-60 shrink-0 flex-col gap-1 border-r border-hairline bg-accent-dark px-3 py-6"
+    class="flex w-48 shrink-0 flex-col gap-1 border-r border-hairline bg-accent-dark px-3 py-6"
   >
     <img
-      src="/images/logo-branca.webp"
+      src="/images/logo_branca.png"
       alt="Farmaurora"
       class="mb-8 h-[50px] w-auto self-center"
     />

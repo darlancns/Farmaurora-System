@@ -22,7 +22,7 @@ async function handleLogout(): Promise<void> {
     id="logout-button"
     type="button"
     :disabled="loading"
-    class="flex items-center gap-2.5 rounded-md px-2.5 py-2 font-display text-[15.5px] font-medium text-white/70 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-60"
+    class="flex items-center gap-2 rounded-md px-2 py-1.5 font-display text-[13.5px] font-medium text-white/70 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-60"
     @click="handleLogout"
   >
     <svg
@@ -31,7 +31,7 @@ async function handleLogout(): Promise<void> {
       fill="none"
       stroke="currentColor"
       stroke-width="1.5"
-      class="h-[18px] w-[18px] shrink-0"
+      class="h-[15px] w-[15px] shrink-0"
     >
       <path
         stroke-linecap="round"
