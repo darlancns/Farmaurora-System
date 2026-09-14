@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { paisFornecedor, sanitizeNomeArquivo } from "../../app/utils/pagamentoExport";
+import { formatarDataLocalISO, paisFornecedor, sanitizeNomeArquivo } from "../../app/utils/pagamentoExport";
 
 // Só as funções puras de pagamentoExport. `copiarImagemParaClipboard` e
 // `baixarBlob` dependem de DOM/Clipboard e ficam fora daqui.
@@ -77,5 +77,30 @@ describe("sanitizeNomeArquivo", () => {
     expect(sanitizeNomeArquivo("   ")).toBe("");
     expect(sanitizeNomeArquivo("!!!")).toBe("");
     expect(sanitizeNomeArquivo("---")).toBe("");
+  });
+});
+
+describe("formatarDataLocalISO", () => {
+  // Regressão: toISOString() converte pra UTC antes de formatar. Um clique às
+  // 22h ou mais tarde em Brasília (UTC-3) já é dia seguinte em UTC, o que
+  // fazia o nome do arquivo avançar um dia. formatarDataLocalISO usa os
+  // componentes locais (getFullYear/getMonth/getDate) e não sofre disso.
+  it("usa a data local mesmo quando UTC já virou o dia seguinte", () => {
+    // 2026-03-05 22:30 no horário local (equivalente a UTC-3, ex: Brasília) —
+    // em UTC isso já seria 2026-03-06.
+    const d = new Date(2026, 2, 5, 22, 30);
+    expect(formatarDataLocalISO(d)).toBe("2026-03-05");
+  });
+
+  it("fica correta nos dois lados da virada de meia-noite local", () => {
+    const antesDaMeiaNoite = new Date(2026, 2, 5, 23, 59);
+    const depoisDaMeiaNoite = new Date(2026, 2, 6, 0, 1);
+    expect(formatarDataLocalISO(antesDaMeiaNoite)).toBe("2026-03-05");
+    expect(formatarDataLocalISO(depoisDaMeiaNoite)).toBe("2026-03-06");
+  });
+
+  it("preenche mês e dia com zero à esquerda quando necessário", () => {
+    expect(formatarDataLocalISO(new Date(2026, 0, 5, 10, 0))).toBe("2026-01-05");
+    expect(formatarDataLocalISO(new Date(2026, 8, 1, 10, 0))).toBe("2026-09-01");
   });
 });

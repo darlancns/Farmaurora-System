@@ -13,6 +13,10 @@ import { EMPRESA_EXPORT_HEADER_CLASS, paisFornecedor } from "../../../utils/paga
 const props = defineProps<{
   lote: LoteBanco;
   lancamentos: LancamentoBanco[];
+  // Momento do clique no botão de exportar — o lote ainda está aberto aqui
+  // (pagoEm é sempre null), então "hoje" é a melhor representação da
+  // intenção real (gerar o recibo pra pagar agora).
+  dataExibicao: Date;
 }>();
 
 // Sem banco escolhido: ainda não há taxa nem valor em reais, então o cartão
@@ -48,7 +52,7 @@ const taxaLabel = computed<string>(() => {
 });
 
 const dataLabel = computed<string>(() =>
-  new Date(`${props.lote.data}T00:00:00`).toLocaleDateString("pt-BR", {
+  props.dataExibicao.toLocaleDateString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

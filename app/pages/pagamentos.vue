@@ -77,6 +77,8 @@ const {
 const {
   exportGrupo,
   exportLote,
+  dataExibicaoGrupo,
+  dataExibicaoLote,
   grupoExportRef,
   loteExportRef,
   handleExportarGrupo,
@@ -236,12 +238,18 @@ const tabs: TabDef[] = [
 
     <!-- Cartões de exportação — fora da tela, só pra virarem imagem -->
     <div aria-hidden="true" class="pointer-events-none fixed top-0 left-[-9999px]">
-      <GrupoPagamentoExportCard v-if="exportGrupo" ref="grupoExportRef" :grupo="exportGrupo" />
+      <GrupoPagamentoExportCard
+        v-if="exportGrupo"
+        ref="grupoExportRef"
+        :grupo="exportGrupo"
+        :data-exibicao="dataExibicaoGrupo"
+      />
       <LoteBancoExportCard
         v-if="exportLote"
         ref="loteExportRef"
         :lote="exportLote.lote"
         :lancamentos="exportLote.lancamentos"
+        :data-exibicao="dataExibicaoLote"
       />
     </div>
   </div>

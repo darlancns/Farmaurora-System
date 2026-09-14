@@ -1,7 +1,7 @@
 import { nextTick, ref, type Ref } from "vue";
 import type { GrupoPagamento, LancamentoBanco, LoteBanco } from "#shared/types/Pagamento";
 import { useExportarImagem } from "./useExportarImagem";
-import { sanitizeNomeArquivo } from "../utils/pagamentoExport";
+import { formatarDataLocalISO, sanitizeNomeArquivo } from "../utils/pagamentoExport";
 import type GrupoPagamentoExportCard from "../components/pagamentos/cards/GrupoPagamentoExportCard.vue";
 import type LoteBancoExportCard from "../components/pagamentos/cards/LoteBancoExportCard.vue";
 
@@ -18,17 +18,23 @@ export function useLoteExport(deps: {
 
   const exportGrupo = ref<GrupoPagamento | null>(null);
   const exportLote = ref<{ lote: LoteBanco; lancamentos: LancamentoBanco[] } | null>(null);
+  // Momento do clique — os dois cards podem ficar montados (invisíveis) ao
+  // mesmo tempo, então cada um guarda seu próprio "hoje".
+  const dataExibicaoGrupo = ref<Date>(new Date());
+  const dataExibicaoLote = ref<Date>(new Date());
   const grupoExportRef = ref<InstanceType<typeof GrupoPagamentoExportCard> | null>(null);
   const loteExportRef = ref<InstanceType<typeof LoteBancoExportCard> | null>(null);
 
   async function handleExportarGrupo(grupo: GrupoPagamento): Promise<void> {
     exportGrupo.value = grupo;
+    dataExibicaoGrupo.value = new Date();
     await nextTick();
     const el = grupoExportRef.value?.$el as HTMLElement | undefined;
     if (!el) return;
     const tipo = sanitizeNomeArquivo(grupo.tipo);
     const nome = sanitizeNomeArquivo(grupo.nomeGrupo) || "sem-nome";
-    await exportarParaImagem(el, `pagamento-${tipo}-${nome}-${grupo.data}.png`);
+    const dataArquivo = formatarDataLocalISO(dataExibicaoGrupo.value);
+    await exportarParaImagem(el, `pagamento-${tipo}-${nome}-${dataArquivo}.png`);
   }
 
   async function handleExportarLote(loteId: string): Promise<void> {
@@ -38,15 +44,19 @@ export function useLoteExport(deps: {
       lote,
       lancamentos: deps.lancamentosBanco.value.filter((l) => l.loteId === loteId),
     };
+    dataExibicaoLote.value = new Date();
     await nextTick();
     const el = loteExportRef.value?.$el as HTMLElement | undefined;
     if (!el) return;
-    await exportarParaImagem(el, `pagamento-banco-${sanitizeNomeArquivo(lote.moeda)}-${lote.data}.png`);
+    const dataArquivo = formatarDataLocalISO(dataExibicaoLote.value);
+    await exportarParaImagem(el, `pagamento-banco-${sanitizeNomeArquivo(lote.moeda)}-${dataArquivo}.png`);
   }
 
   return {
     exportGrupo,
     exportLote,
+    dataExibicaoGrupo,
+    dataExibicaoLote,
     grupoExportRef,
     loteExportRef,
     handleExportarGrupo,

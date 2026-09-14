@@ -32,6 +32,17 @@ export const EMPRESA_EXPORT_HEADER_CLASS: Record<EmpresaPagamento, string> = {
   MAINZFARMA: "bg-mainz-gold",
 };
 
+// Formata a data LOCAL (não UTC) como yyyy-mm-dd. dataExibicao carrega a hora
+// real do clique — toISOString() converteria pra UTC antes de formatar, o que
+// erra o dia perto da virada de meia-noite local (ex: 22h em Brasília já é
+// dia seguinte em UTC).
+export function formatarDataLocalISO(d: Date): string {
+  const ano = d.getFullYear();
+  const mes = String(d.getMonth() + 1).padStart(2, "0");
+  const dia = String(d.getDate()).padStart(2, "0");
+  return `${ano}-${mes}-${dia}`;
+}
+
 export function sanitizeNomeArquivo(txt: string): string {
   return txt
     .normalize("NFD")

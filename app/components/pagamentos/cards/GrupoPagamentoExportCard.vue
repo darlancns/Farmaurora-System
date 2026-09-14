@@ -7,12 +7,16 @@ import { EMPRESA_EXPORT_HEADER_CLASS } from "../../../utils/pagamentoExport";
 
 const props = defineProps<{
   grupo: GrupoPagamento;
+  // Momento do clique no botão de exportar — o grupo ainda está aberto aqui
+  // (pagoEm é sempre null), então "hoje" é a melhor representação da
+  // intenção real (gerar o recibo pra pagar agora).
+  dataExibicao: Date;
 }>();
 
 const total = computed<number>(() => props.grupo.itens.reduce((soma, i) => soma + i.valor, 0));
 
 const dataLabel = computed<string>(() =>
-  new Date(`${props.grupo.data}T00:00:00`).toLocaleDateString("pt-BR", {
+  props.dataExibicao.toLocaleDateString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
