@@ -10,7 +10,9 @@ import {
 
 // Caracterização (Round 9-prep) — funções puras extraídas de PatientForm.vue.
 // Documenta o comportamento ATUAL, sem corrigir nada — achados suspeitos vão
-// no relatório em "COMPORTAMENTOS A REVISAR", não aqui.
+// no relatório em "COMPORTAMENTOS A REVISAR", não aqui. Exceção: countFilled
+// (ver nota acima do describe dela) recebeu uma correção deliberada de
+// comportamento, não é só caracterização.
 
 describe("sumFilledValues", () => {
   it("soma todos os valores quando todos estão preenchidos", () => {
@@ -30,6 +32,13 @@ describe("sumFilledValues", () => {
   });
 });
 
+// countFilled teve uma correção deliberada de comportamento em relação à
+// countSequentialFilled original (que parava no primeiro valor ≤0, contando
+// só o prefixo contíguo) — decidida e confirmada em revisão: a regra de
+// negócio é que uma remessa preenchida exige anexo independente de remessas
+// anteriores estarem vazias, então a contagem precisa ser de TODAS as
+// posições preenchidas, não só das contíguas a partir do início. Os casos
+// abaixo com "buraco" documentam esse comportamento corrigido, não o antigo.
 describe("countFilled", () => {
   it("conta todos quando a sequência inteira está preenchida (mesmo resultado de antes)", () => {
     expect(countFilled(["10,00", "20,00", "30,00"])).toBe(3);

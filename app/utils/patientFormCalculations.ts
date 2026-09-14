@@ -16,6 +16,15 @@ export function sumFilledValues(display: string[]): number {
 // Conta quantas posições estão preenchidas (parseBrCurrency(v) > 0),
 // independente de ordem ou de haver um "buraco" antes — vazio, "0", "0,00" ou
 // valor mal formatado nunca contam (todos caem em 0 via parseBrCurrency).
+//
+// Correção deliberada em relação à countSequentialFilled original (que parava
+// no primeiro valor ≤0, contando só o prefixo contíguo): decidida e
+// confirmada em revisão, porque a regra de negócio é que uma remessa
+// preenchida exige anexo independente de remessas anteriores estarem vazias.
+// Alimenta despachanteRemessas/transporteRemessas (via usePatientForm.ts),
+// que por sua vez decidem quantos slots de anexo são obrigatórios em
+// getRequiredSlots (anexoSlots.ts) — sub-contar aqui significa exigir menos
+// comprovante do que deveria.
 export function countFilled(display: string[]): number {
   return display.filter((value) => parseBrCurrency(value) > 0).length;
 }
