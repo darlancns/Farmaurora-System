@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from "vue";
+import { computed, onBeforeUnmount } from "vue";
 import type {
   AtualizarCotacaoDTO,
   BancoCambio,
@@ -9,9 +9,9 @@ import type {
   TaxaLancamentoRendimento,
 } from "#shared/types/Pagamento";
 import { BANCO_CAMBIO_LABEL } from "#shared/constants/pagamentos";
-import { parseBrCurrency } from "../../../utils/formatters";
 import { montarCotacao } from "../../../utils/pagamentoCalculations";
 import { useCotacaoDrafts } from "../../../composables/useCotacaoDrafts";
+import { useEscolherBanco } from "../../../composables/useEscolherBanco";
 import CotacaoBancoCard from "../cards/CotacaoBancoCard.vue";
 import FechamentoRendimentoModal from "../modals/FechamentoRendimentoModal.vue";
 
@@ -73,6 +73,17 @@ function agendarSalvar(loteId: string): void {
   );
 }
 
+// Cancela (sem disparar) o autosave debounced pendente do lote — usado por
+// useEscolherBanco no início de escolher(), mesmo efeito do bloco que existia
+// ali antes da extração.
+function cancelarAutoSave(loteId: string): void {
+  const t = timers.get(loteId);
+  if (t) {
+    clearTimeout(t);
+    timers.delete(loteId);
+  }
+}
+
 onBeforeUnmount(() => {
   for (const t of timers.values()) clearTimeout(t);
   timers.clear();
@@ -102,103 +113,34 @@ function viewsDoLote(lote: LoteBanco) {
   return montarCotacao(draftToOpcoes(lote.id), base);
 }
 
-// Fechamento por ordem (Rendimento): o modal fica aberto com os pendentes do lote.
-const modalRendimento = ref<{
-  loteId: string;
-  moeda: LoteBanco["moeda"];
-  lancamentos: LancamentoBanco[];
-  corretagem: number;
-} | null>(null);
-const rendimentoSalvando = ref(false);
-const rendimentoErro = ref<string | null>(null);
-
-// Banco/lote com uma escolha em voo (fora do modal — XP/Intex, e Rendimento
-// direto de 1 pendente). Desabilita o botão e troca o texto pra "Salvando..."
-// até a Promise resolver, evitando duplo clique e a falsa sensação de "nada
-// aconteceu" enquanto a requisição está em andamento.
-const salvando = ref<{ loteId: string; banco: BancoCambio } | null>(null);
-
-function fecharModalRendimento(): void {
-  modalRendimento.value = null;
-  rendimentoErro.value = null;
-}
-
-// "Usar este banco" grava o rascunho e escolhe o banco numa tacada só.
-// Rendimento fecha por ordem e abre o modal — MENOS quando há um só pendente:
-// aí não há variação possível, aplica a taxa do card direto (igual XP/Intex).
-async function escolher(loteId: string, banco: BancoCambio): Promise<void> {
-  const t = timers.get(loteId);
-  if (t) {
-    clearTimeout(t);
-    timers.delete(loteId);
-  }
-
-  if (banco === "RENDIMENTO") {
-    const lote = lotesAbertos.value.find((l) => l.id === loteId);
-    if (!lote) return;
-    // Persiste taxa de referência/corretagem digitadas antes de abrir o modal
-    // (paridade com XP/Intex, que salvam ao clicar "Usar este banco").
-    emit("salvar-taxas", loteId, draftToOpcoes(loteId));
-    const pendentes = lancamentosDoLote(loteId).filter((l) => l.valorReais === null);
-
-    if (pendentes.length === 1) {
-      const taxa = parseTaxa(draftDo(loteId, "RENDIMENTO").taxaStr);
-      if (taxa === null) return; // botão só habilita com a taxa preenchida
-      salvando.value = { loteId, banco };
-      try {
-        await props.escolherBancoRendimento(loteId, draftToOpcoes(loteId), [
-          { lancamentoId: pendentes[0]!.id, taxa },
-        ]);
-      } finally {
-        salvando.value = null;
-      }
-      return;
-    }
-
-    const corretagem = parseBrCurrency(draftDo(loteId, "RENDIMENTO").corretagemStr) || 0;
-    rendimentoErro.value = null;
-    modalRendimento.value = {
-      loteId,
-      moeda: lote.moeda,
-      lancamentos: pendentes,
-      corretagem,
-    };
-    return;
-  }
-
-  salvando.value = { loteId, banco };
-  try {
-    await props.escolherBanco(loteId, banco, draftToOpcoes(loteId));
-  } finally {
-    salvando.value = null;
-  }
-}
-
-// Só fecha o modal DEPOIS que a escolha for confirmada pelo servidor (o
-// `await` aqui é o ponto central do fix — antes o modal fechava assim que o
-// evento era emitido, sem esperar a resposta). Em caso de erro, mantém o
-// modal aberto com uma mensagem inline (o toast de erro do pai já dispara
-// também) e libera o botão pra nova tentativa.
-async function confirmarRendimento(taxas: TaxaLancamentoRendimento[]): Promise<void> {
-  const alvo = modalRendimento.value;
-  if (!alvo) return;
-  rendimentoSalvando.value = true;
-  rendimentoErro.value = null;
-  const ok = await props.escolherBancoRendimento(alvo.loteId, draftToOpcoes(alvo.loteId), taxas);
-  rendimentoSalvando.value = false;
-  if (ok) {
-    modalRendimento.value = null;
-  } else {
-    rendimentoErro.value = "Não foi possível confirmar o fechamento. Tente novamente.";
-  }
-}
-
-function podeEscolher(lote: LoteBanco, banco: BancoCambio): boolean {
-  if (props.readonly) return false;
-  if (salvando.value?.loteId === lote.id) return false;
-  const d = drafts[lote.id]?.find((x) => x.banco === banco);
-  return !!d && parseTaxa(d.taxaStr) !== null;
-}
+// Regra de "usar este banco" (XP/Intex direto; Rendimento 1 pendente direto,
+// 2+ abre o modal de fechamento por ordem) — ver useEscolherBanco.ts.
+const {
+  modalRendimento,
+  rendimentoSalvando,
+  rendimentoErro,
+  salvando,
+  escolher,
+  confirmarRendimento,
+  fecharModalRendimento,
+  podeEscolher,
+} = useEscolherBanco({
+  lotesAbertos: () => lotesAbertos.value,
+  lancamentosDoLote,
+  drafts,
+  draftDo,
+  draftToOpcoes,
+  parseTaxa,
+  readonly: () => props.readonly,
+  cancelarAutoSave,
+  salvarTaxas: (loteId, opcoes) => emit("salvar-taxas", loteId, opcoes),
+  // Wrapper (não a referência direta) pra ler props.escolherBanco* no momento
+  // da chamada, igual o código original fazia — não captura a função uma vez
+  // só no setup.
+  escolherBanco: (loteId, banco, opcoes) => props.escolherBanco(loteId, banco, opcoes),
+  escolherBancoRendimento: (loteId, opcoes, taxas) =>
+    props.escolherBancoRendimento(loteId, opcoes, taxas),
+});
 </script>
 
 <template>
