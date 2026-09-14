@@ -18,19 +18,7 @@ export function useGrupoActions(readonly: ComputedRef<boolean>) {
     pagarGrupo,
     salvarGrupoPix,
   } = usePagamentos();
-  const { showToast } = useToast();
-
-  // Padrão repetido: roda a ação, toast de sucesso; em erro, toast de erro. Não
-  // relança. Handlers com sucesso silencioso ou com limpeza em `finally` (fecham
-  // um ConfirmDialog dê certo ou não) não usam este helper.
-  async function withToast(fn: () => Promise<void>, okMsg: string, errMsg: string): Promise<void> {
-    try {
-      await fn();
-      showToast(okMsg);
-    } catch (e) {
-      showToast(getErrorMessage(e, errMsg));
-    }
-  }
+  const { showToast, withToast } = useToast();
 
   const showGrupoModal = ref(false);
   const grupoModalTipo = ref<TipoGrupoPagamento>("DESPACHANTE");
