@@ -57,7 +57,10 @@ export function useContasAdmin() {
     }
   }
 
-  async function handleUpdate(id: string, payload: { role: Role; consultorNome?: ConsultorNome }): Promise<void> {
+  async function handleUpdate(
+    id: string,
+    payload: { role: Role; consultorNome?: ConsultorNome; nome?: string },
+  ): Promise<void> {
     formBusy.value = true;
     try {
       await atualizarConta(id, payload);

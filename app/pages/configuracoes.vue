@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useAuth } from "../composables/useAuth";
+import GlobalHeader from "../components/GlobalHeader.vue";
 import ContasTab from "../components/configuracoes/ContasTab.vue";
 
 // A autorização real (redirect de não-admin) é feita por app/middleware/authz.global.ts
@@ -29,35 +30,29 @@ const tabs: TabDef[] = [{ key: "contas", label: "Contas" }];
 
 <template>
   <div id="configuracoes-page" class="mx-auto max-w-[1400px]">
-    <div class="mb-4 flex items-end justify-between gap-4 border-b border-hairline pb-3.5">
-      <div>
-        <h1 class="font-display text-[28px] font-semibold tracking-tight text-ink">Configurações</h1>
-        <p class="mt-1 text-[13px] text-ink-soft">Gestão de contas e acessos da equipe.</p>
-      </div>
-    </div>
+    <GlobalHeader title="Configurações" subtitle="Gestão de contas e acessos da equipe.">
+      <template v-if="showContent" #tabs>
+        <div class="mb-3.5 flex gap-1 border-b border-hairline">
+          <button
+            v-for="tab in tabs"
+            :id="`tab-${tab.key}`"
+            :key="tab.key"
+            type="button"
+            class="border-b-2 px-3.5 py-2 text-[13.5px] font-semibold transition-colors"
+            :class="
+              activeTab === tab.key
+                ? 'border-accent-dark text-accent-dark'
+                : 'border-transparent text-ink-soft hover:text-ink'
+            "
+            @click="activeTab = tab.key"
+          >
+            {{ tab.label }}
+          </button>
+        </div>
+      </template>
+    </GlobalHeader>
 
-    <template v-if="showContent">
-      <div class="mb-3.5 flex gap-1 border-b border-hairline">
-        <button
-          v-for="tab in tabs"
-          :id="`tab-${tab.key}`"
-          :key="tab.key"
-          type="button"
-          class="border-b-2 px-3.5 py-2 text-[13.5px] font-semibold transition-colors"
-          :class="
-            activeTab === tab.key
-              ? 'border-accent-dark text-accent-dark'
-              : 'border-transparent text-ink-soft hover:text-ink'
-          "
-          @click="activeTab = tab.key"
-        >
-          {{ tab.label }}
-        </button>
-      </div>
-
-      <ContasTab v-if="activeTab === 'contas'" />
-    </template>
-
+    <ContasTab v-if="showContent && activeTab === 'contas'" />
     <p v-else-if="mounted && !isAdmin" class="text-[13px] text-ink-soft">Acesso restrito.</p>
   </div>
 </template>

@@ -1,6 +1,7 @@
 import { createError } from "h3";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
+  AtualizarGrupoRealizadoDTO,
   AtualizarItemGrupoDTO,
   EditarItemGrupoDTO,
   EmpresaPagamento,
@@ -227,5 +228,34 @@ export async function pagarGrupoPagamento(grupoId: string): Promise<GrupoPagamen
     .eq("id", grupoId)
     .select("*");
   if (u.error) throw erro("pagar grupo", u.error);
+  return montarGrupo((u.data ?? [])[0] as GrupoRow);
+}
+
+// Correção pontual de um grupo em "Pagamentos realizados" — o grupo precisa
+// já estar `realizado`. `nomeGrupo` e `pagoEm` são do MESMO grupo (sem
+// descompasso de escopo, diferente do caso Banco). Itens/status/chavePix
+// intocados. `pagoEm` chega como YYYY-MM-DD (validado em
+// pagamentoValidation.ts) e é gravado ao meio-dia UTC pra nunca cruzar dia
+// em nenhum fuso.
+export async function atualizarGrupoRealizado(
+  grupoId: string,
+  dto: AtualizarGrupoRealizadoDTO,
+): Promise<GrupoPagamento> {
+  const db = createSupabaseAdminClient();
+  const row = await acharGrupoRow(db, grupoId);
+
+  if (!row.realizado) {
+    throw createError({
+      statusCode: 409,
+      statusMessage: "Grupo ainda não foi pago; não há dados de pagamento para corrigir.",
+    });
+  }
+
+  const u = await db
+    .from(T_GRUPOS)
+    .update({ nome_grupo: dto.nomeGrupo, pago_em: `${dto.pagoEm}T12:00:00.000Z` })
+    .eq("id", grupoId)
+    .select("*");
+  if (u.error) throw erro("editar dados do pagamento realizado", u.error);
   return montarGrupo((u.data ?? [])[0] as GrupoRow);
 }

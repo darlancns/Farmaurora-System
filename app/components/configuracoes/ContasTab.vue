@@ -4,9 +4,11 @@ import { ROLE_LABEL } from "#shared/constants/roles";
 import { useAuth } from "../../composables/useAuth";
 import { useContasAdmin } from "../../composables/useContasAdmin";
 import { useToast } from "../../composables/useToast";
+import ActionsMenu, { type ActionsMenuItem } from "../ActionsMenu.vue";
 import ConfirmDialog from "../ConfirmDialog.vue";
 import ContaFormModal from "./ContaFormModal.vue";
 import ResetPasswordModal from "./ResetPasswordModal.vue";
+import type { AdminUserSummary } from "#shared/types/auth";
 
 const { user } = useAuth();
 const { showToast } = useToast();
@@ -41,10 +43,27 @@ onMounted(() => {
 
 const meuId = computed(() => user.value?.id ?? null);
 
-function fmtData(iso: string | null): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString("pt-BR");
+function itemsPara(conta: AdminUserSummary): ActionsMenuItem[] {
+  return [
+    {
+      id: `btn-editar-conta-${conta.id}`,
+      label: "Editar",
+      onClick: () => abrirEdicao(conta),
+    },
+    {
+      id: `btn-reset-senha-${conta.id}`,
+      label: "Redefinir senha",
+      onClick: () => abrirReset(conta),
+    },
+    {
+      id: `btn-excluir-conta-${conta.id}`,
+      label: "Excluir",
+      danger: true,
+      onClick: () => {
+        contaParaExcluir.value = conta;
+      },
+    },
+  ];
 }
 </script>
 
@@ -100,20 +119,19 @@ function fmtData(iso: string | null): string {
       <table class="w-full text-left text-[13px]">
         <thead class="border-b border-hairline bg-paper text-[11px] tracking-wide text-ink-soft uppercase">
           <tr>
+            <th class="px-3.5 py-2.5 font-semibold">Nome</th>
             <th class="px-3.5 py-2.5 font-semibold">E-mail</th>
             <th class="px-3.5 py-2.5 font-semibold">Cargo</th>
             <th class="px-3.5 py-2.5 font-semibold">Consultor</th>
-            <th class="px-3.5 py-2.5 font-semibold">Criado em</th>
-            <th class="px-3.5 py-2.5 font-semibold">Último login</th>
             <th class="px-3.5 py-2.5 text-right font-semibold">Ações</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading && !contas.length">
-            <td colspan="6" class="px-3.5 py-6 text-center text-ink-soft">Carregando…</td>
+            <td colspan="5" class="px-3.5 py-6 text-center text-ink-soft">Carregando…</td>
           </tr>
           <tr v-else-if="!contas.length">
-            <td colspan="6" class="px-3.5 py-6 text-center text-ink-soft">Nenhuma conta.</td>
+            <td colspan="5" class="px-3.5 py-6 text-center text-ink-soft">Nenhuma conta.</td>
           </tr>
           <tr
             v-for="conta in contas"
@@ -121,41 +139,19 @@ function fmtData(iso: string | null): string {
             :key="conta.id"
             class="border-b border-hairline last:border-b-0"
           >
+            <td class="px-3.5 py-2.5">{{ conta.nome ?? "—" }}</td>
             <td class="px-3.5 py-2.5">
               {{ conta.email }}
               <span v-if="conta.id === meuId" class="ml-1 text-[11px] text-ink-soft">(você)</span>
             </td>
             <td class="px-3.5 py-2.5">{{ ROLE_LABEL[conta.role] }}</td>
             <td class="px-3.5 py-2.5 text-ink-soft">{{ conta.consultorNome ?? "—" }}</td>
-            <td class="px-3.5 py-2.5 font-mono text-[12px] text-ink-soft">{{ fmtData(conta.createdAt) }}</td>
-            <td class="px-3.5 py-2.5 font-mono text-[12px] text-ink-soft">{{ fmtData(conta.lastSignInAt) }}</td>
-            <td class="px-3.5 py-2.5">
-              <div class="flex justify-end gap-1.5">
-                <button
-                  :id="`btn-editar-conta-${conta.id}`"
-                  type="button"
-                  class="rounded-md border border-hairline px-2 py-1 text-[11.5px] font-semibold text-ink-soft transition-colors hover:border-accent-dark hover:text-accent-dark"
-                  @click="abrirEdicao(conta)"
-                >
-                  Editar
-                </button>
-                <button
-                  :id="`btn-reset-senha-${conta.id}`"
-                  type="button"
-                  class="rounded-md border border-hairline px-2 py-1 text-[11.5px] font-semibold text-ink-soft transition-colors hover:border-accent-dark hover:text-accent-dark"
-                  @click="abrirReset(conta)"
-                >
-                  Redefinir senha
-                </button>
-                <button
-                  :id="`btn-excluir-conta-${conta.id}`"
-                  type="button"
-                  class="rounded-md border border-hairline px-2 py-1 text-[11.5px] font-semibold text-ink-soft transition-colors hover:border-danger hover:text-danger"
-                  @click="contaParaExcluir = conta"
-                >
-                  Excluir
-                </button>
-              </div>
+            <td class="px-3.5 py-2.5 text-right">
+              <ActionsMenu
+                :trigger-id="`btn-acoes-conta-${conta.id}`"
+                :items="itemsPara(conta)"
+                :aria-label="`Ações para ${conta.email}`"
+              />
             </td>
           </tr>
         </tbody>

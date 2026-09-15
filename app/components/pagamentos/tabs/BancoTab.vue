@@ -28,6 +28,7 @@ const emit = defineEmits<{
   "excluir-lancamento": [lancamento: LancamentoBanco];
   "fechar-lote": [loteId: string];
   "exportar-lote": [loteId: string];
+  "editar-lancamento-realizado": [lancamento: LancamentoBanco, lote: LoteBanco];
 }>();
 
 interface LoteResumo {
@@ -321,7 +322,9 @@ function tituloLote(lote: LoteBanco): string {
           :banco="r.lote.bancoEscolhido"
           :data-pagamento="dataPagamentoLabel(r.lote)"
           :excluivel="!readonly"
+          :realizado-editavel="!readonly"
           @excluir="emit('excluir-lancamento', $event)"
+          @editar-realizado="emit('editar-lancamento-realizado', r.lancamento, r.lote)"
         />
       </div>
     </section>

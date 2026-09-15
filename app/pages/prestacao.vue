@@ -3,6 +3,7 @@ import { onMounted, computed, ref } from "vue";
 import PatientForm from "../components/prestacao/PatientForm.vue";
 import PatientTable from "../components/prestacao/PatientTable.vue";
 import MonthFilterBar from "../components/prestacao/MonthFilterBar.vue";
+import GlobalHeader from "../components/GlobalHeader.vue";
 import { usePatients } from "../composables/usePatients";
 import { useAuth } from "../composables/useAuth";
 import { useAttachments } from "../composables/useAttachments";
@@ -14,7 +15,7 @@ import { normalizeText } from "../utils/search";
 import { getPatientMonthKey, groupPatientsByMonth, monthKeyId } from "../utils/monthGroups";
 import type { NewPatientDTO, PatientComputed } from "#shared/types/Patient";
 
-const { patients, computedPatients, fetchPatients, addPatient, updatePatient, removePatient } = usePatients();
+const { computedPatients, fetchPatients, addPatient, updatePatient, removePatient } = usePatients();
 const { canWrite } = useAuth();
 // Só administrador cria/edita/exclui prestações; socio é somente leitura.
 const canWritePatients = computed<boolean>(() => canWrite("patients"));
@@ -41,7 +42,6 @@ const filteredRows = computed<PatientComputed[]>(() => {
 
   return list;
 });
-const hasActiveFilter = computed(() => Boolean(searchQuery.value.trim()) || selectedMonthKey.value !== null);
 const editingPatientId = ref<string | null>(null);
 const editingPatient = computed<PatientComputed | null>(
   () => rows.value.find((p) => p.id === editingPatientId.value) ?? null
@@ -129,21 +129,10 @@ async function handleCopyWhatsapp(patient: PatientComputed): Promise<void> {
 
 <template>
   <div id="dashboard-page" class="mx-auto max-w-[1400px]">
-    <div class="mb-4 flex items-end justify-between gap-4 border-b border-hairline pb-3.5">
-      <div>
-        <h1 class="font-display text-[28px] font-semibold tracking-tight text-ink">
-          Prestações de Contas
-        </h1>
-        <p class="mt-1 text-[13px] text-ink-soft">
-          Preencha os dados, confira os cálculos e gere a prestação com um clique.
-        </p>
-      </div>
-      <div class="text-right font-mono text-[13px] text-ink-soft">
-        <strong class="block text-2xl font-semibold text-ink">{{ filteredRows.length }}</strong>
-        <span v-if="hasActiveFilter">de {{ patients.length }} lançamentos</span>
-        <span v-else>lançamentos</span>
-      </div>
-    </div>
+    <GlobalHeader
+      title="Prestações de Contas"
+      subtitle="Preencha os dados, confira os cálculos e gere a prestação com um clique."
+    />
 
     <div class="flex items-start gap-4">
       <div v-if="canWritePatients" class="w-[400px] shrink-0">

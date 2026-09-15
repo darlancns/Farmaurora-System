@@ -9,6 +9,7 @@ import AppSelect from "../AppSelect.vue";
 import BaseModal from "../BaseModal.vue";
 import type { AppSelectOption } from "../../types/appSelect";
 import { generatePassword } from "../../utils/generatePassword";
+import { useTitleCaseInput } from "../../composables/useTitleCaseInput";
 import type { NovaContaDTO } from "../../composables/useContas";
 
 const props = withDefaults(
@@ -24,7 +25,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   create: [payload: NovaContaDTO];
-  update: [id: string, payload: { role: Role; consultorNome?: ConsultorNome }];
+  update: [id: string, payload: { role: Role; consultorNome?: ConsultorNome; nome?: string }];
   close: [];
   invalid: [message: string];
 }>();
@@ -34,6 +35,7 @@ const isEdit = computed(() => props.editingConta !== null);
 const form = reactive({
   email: props.editingConta?.email ?? "",
   password: "",
+  nome: props.editingConta?.nome ?? "",
   role: (props.editingConta?.role ?? "consultor") as Role,
   consultorNome: (props.editingConta?.consultorNome ?? "") as ConsultorNome | "",
 });
@@ -61,8 +63,14 @@ function preencherSenhaAleatoria(): void {
   form.password = generatePassword();
 }
 
+// Nome é nome próprio — capitaliza como nos outros formulários (Paciente).
+const onNomeInput = useTitleCaseInput((value) => {
+  form.nome = value;
+});
+
 function handleSubmit(): void {
   const email = form.email.trim();
+  const nome = form.nome.trim();
 
   if (!isEdit.value) {
     if (!email || !email.includes("@")) {
@@ -71,6 +79,10 @@ function handleSubmit(): void {
     }
     if (form.password.length < 8) {
       emit("invalid", "A senha precisa ter pelo menos 8 caracteres.");
+      return;
+    }
+    if (!nome) {
+      emit("invalid", "Informe o nome da conta.");
       return;
     }
   }
@@ -84,9 +96,9 @@ function handleSubmit(): void {
     form.role === "consultor" ? (form.consultorNome as ConsultorNome) : undefined;
 
   if (isEdit.value && props.editingConta) {
-    emit("update", props.editingConta.id, { role: form.role, consultorNome });
+    emit("update", props.editingConta.id, { role: form.role, consultorNome, nome });
   } else {
-    emit("create", { email, password: form.password, role: form.role, consultorNome });
+    emit("create", { email, password: form.password, role: form.role, consultorNome, nome });
   }
 }
 
@@ -100,6 +112,18 @@ function handleSubmit(): void {
       </h2>
 
       <form id="conta-form" class="flex flex-col gap-3.5" @submit.prevent="handleSubmit">
+        <div>
+          <label for="conta-nome" class="mb-1.5 block text-[10.5px] text-ink-soft">Nome</label>
+          <input
+            id="conta-nome"
+            :value="form.nome"
+            type="text"
+            autocomplete="off"
+            class="w-full rounded-md border border-hairline bg-paper px-2.5 py-2 text-[13.5px] focus:bg-white focus:outline-2 focus:outline-accent-dark"
+            @input="onNomeInput"
+          />
+        </div>
+
         <div v-if="!isEdit">
           <label for="conta-email" class="mb-1.5 block text-[10.5px] text-ink-soft">E-mail</label>
           <input

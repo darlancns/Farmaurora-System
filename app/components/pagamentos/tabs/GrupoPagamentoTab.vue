@@ -36,6 +36,7 @@ const emit = defineEmits<{
   "excluir-item": [grupoId: string, index: number];
   "pagar-grupo": [grupoId: string];
   "exportar-foto": [grupo: GrupoPagamento];
+  "editar-realizado": [grupo: GrupoPagamento];
 }>();
 
 const label = computed(() => TIPO_GRUPO_PAGAMENTO_LABEL[props.tipo].toLowerCase());
@@ -245,6 +246,20 @@ function dataPagamentoLabel(g: GrupoPagamento): string {
           >
             {{ labelRealizado(r.item.status) }}
           </span>
+          <button
+            v-if="!readonly"
+            :id="`btn-editar-realizado-${tipo}-${r.grupo.id}-${r.index}`"
+            type="button"
+            title="Editar pagamento realizado"
+            aria-label="Editar pagamento realizado"
+            class="shrink-0 rounded-md p-1.5 text-ink-soft transition-colors hover:text-accent-dark"
+            @click="emit('editar-realizado', r.grupo)"
+          >
+            <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 7.125L16.862 4.487" />
+            </svg>
+          </button>
           <button
             v-if="!readonly"
             :id="`btn-excluir-item-realizado-${tipo}-${r.grupo.id}-${r.index}`"

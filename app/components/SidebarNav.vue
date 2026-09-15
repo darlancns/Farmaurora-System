@@ -28,6 +28,7 @@ interface NavLink {
 const mainLinks: NavLink[] = [
   { label: "Início", to: "/inicio", icon: "home", section: null },
   { label: "Follow-Up", to: "/processos", icon: "list", section: "processos" },
+  { label: "Recados", to: "/recados", icon: "chat", section: "recados" },
   { label: "Pagamentos", to: "/pagamentos", icon: "cash", section: "pagamentos" },
   { label: "Prestações", to: "/prestacao", icon: "clipboard", section: "patients" },
 ];

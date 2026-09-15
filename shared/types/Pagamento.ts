@@ -183,3 +183,21 @@ export interface EditarItemGrupoDTO {
   paciente: string;
   valor: number;
 }
+
+// Correção pontual de um lançamento JÁ PAGO em "Pagamentos realizados": o
+// `cliente` grava só nesse lançamento; `pagoEm` grava no LOTE inteiro (afeta
+// todas as linhas que compartilham o lote — mesmo escopo que pagoEm sempre
+// teve). Nenhum outro campo (fornecedor/invoice/valorMoeda/bancoEscolhido)
+// é tocado por aqui.
+export interface AtualizarLancamentoRealizadoDTO {
+  cliente: string;
+  pagoEm: string; // ISO date (YYYY-MM-DD); nunca posterior a hoje
+}
+
+// Correção pontual de um grupo JÁ PAGO em "Pagamentos realizados": os dois
+// campos são do mesmo grupo (sem descompasso de escopo). Itens/status
+// intocados.
+export interface AtualizarGrupoRealizadoDTO {
+  nomeGrupo: string;
+  pagoEm: string; // ISO date (YYYY-MM-DD); nunca posterior a hoje
+}

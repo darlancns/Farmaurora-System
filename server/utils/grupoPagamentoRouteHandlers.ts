@@ -6,6 +6,7 @@ import {
   editarItemGrupo,
   removerItemGrupo,
   pagarGrupoPagamento,
+  atualizarGrupoRealizado,
 } from "./pagamentosStore";
 import {
   getDespachantePix,
@@ -18,6 +19,7 @@ import {
   isValidAtualizarItemGrupo,
   isValidEditarItemGrupo,
   isValidSalvarGrupoPix,
+  isValidAtualizarGrupoRealizado,
 } from "./pagamentoValidation";
 import type { GrupoPagamento, TipoGrupoPagamento } from "../../shared/types/Pagamento";
 
@@ -138,4 +140,19 @@ export const pagarGrupoHandler = defineEventHandler(async (event): Promise<Grupo
     throw createError({ statusCode: 400, statusMessage: "ID do grupo não informado." });
   }
   return await pagarGrupoPagamento(id);
+});
+
+// Corrige nomeGrupo + pagoEm de um grupo já pago, em "Pagamentos
+// realizados" — edição pontual dos dois campos, não reabre o grupo nem mexe
+// em itens/status.
+export const editarGrupoRealizadoHandler = defineEventHandler(async (event): Promise<GrupoPagamento> => {
+  const id = getRouterParam(event, "id");
+  if (!id) {
+    throw createError({ statusCode: 400, statusMessage: "ID do grupo não informado." });
+  }
+  const body = await readBody(event);
+  if (!isValidAtualizarGrupoRealizado(body)) {
+    throw createError({ statusCode: 400, statusMessage: "Dados do pagamento realizado inválidos." });
+  }
+  return await atualizarGrupoRealizado(id, body);
 });

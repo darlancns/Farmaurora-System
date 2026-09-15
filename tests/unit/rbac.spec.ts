@@ -204,11 +204,19 @@ describe("roleAppMetadata — limpa consultorNome órfão", () => {
     expect(roleAppMetadata("consultor", "Paulo Braga")).toEqual({
       role: "consultor",
       consultorNome: "Paulo Braga",
+      nome: null,
     });
   });
   it("não-consultor envia consultorNome: null (apaga chave no GoTrue)", () => {
-    expect(roleAppMetadata("operacional")).toEqual({ role: "operacional", consultorNome: null });
-    expect(roleAppMetadata("administrador")).toEqual({ role: "administrador", consultorNome: null });
+    expect(roleAppMetadata("operacional")).toEqual({ role: "operacional", consultorNome: null, nome: null });
+    expect(roleAppMetadata("administrador")).toEqual({ role: "administrador", consultorNome: null, nome: null });
+  });
+  it("nome é gravado quando informado, independente do cargo", () => {
+    expect(roleAppMetadata("administrador", undefined, "Darlan")).toEqual({
+      role: "administrador",
+      consultorNome: null,
+      nome: "Darlan",
+    });
   });
 });
 

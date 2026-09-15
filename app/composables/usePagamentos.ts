@@ -188,6 +188,20 @@ export function usePagamentos() {
     await fetchBanco();
   }
 
+  async function editarLancamentoRealizado(id: string, cliente: string, pagoEm: string): Promise<void> {
+    applyBancoPayload(
+      await apiFetch<BancoPayload>(
+        `/api/pagamentos/banco/lancamento/${id}/realizado`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cliente, pagoEm }),
+        },
+        "Erro ao editar o pagamento realizado."
+      )
+    );
+  }
+
   async function criarGrupo(tipo: TipoGrupoPagamento, input: Omit<NovoGrupoPagamentoDTO, "tipo">): Promise<void> {
     await apiFetch(
       `/api/pagamentos/${tipoPath(tipo)}`,
@@ -256,6 +270,24 @@ export function usePagamentos() {
     await fetchGrupos(tipo);
   }
 
+  async function editarGrupoRealizado(
+    tipo: TipoGrupoPagamento,
+    grupoId: string,
+    nomeGrupo: string,
+    pagoEm: string
+  ): Promise<void> {
+    await apiFetch(
+      `/api/pagamentos/${tipoPath(tipo)}/${grupoId}/realizado`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nomeGrupo, pagoEm }),
+      },
+      "Erro ao editar o pagamento realizado."
+    );
+    await fetchGrupos(tipo);
+  }
+
   return {
     empresaSelecionada,
     dataSelecionada,
@@ -278,10 +310,12 @@ export function usePagamentos() {
     escolherBanco,
     escolherBancoRendimento,
     fecharLoteBanco,
+    editarLancamentoRealizado,
     criarGrupo,
     atualizarStatusItem,
     editarItemGrupo,
     excluirItemGrupo,
     pagarGrupo,
+    editarGrupoRealizado,
   };
 }

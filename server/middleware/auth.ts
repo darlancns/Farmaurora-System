@@ -1,4 +1,5 @@
-import { defineEventHandler, createError, getMethod } from "h3";
+import { createHash } from "node:crypto";
+import { defineEventHandler, createError, getMethod, parseCookies, type H3Event } from "h3";
 import { useRuntimeConfig } from "#imports";
 import { createSupabaseServerClient } from "../utils/supabaseServerClient";
 import { resolveAuthUser, parseAdminEmails } from "../utils/authUser";
@@ -14,6 +15,65 @@ import type { AuthUser } from "#shared/types/auth";
 // Prefixos de API acessíveis sem sessão válida. Hoje não há nenhum — o login
 // acontece client-side direto no Supabase.
 const PUBLIC_API_PREFIXES: readonly string[] = [];
+
+/**
+ * Cache curto do resultado de `supabase.auth.getUser()`, chaveado por um hash
+ * dos cookies de sessão (`sb-*`) — NUNCA pelo token em texto puro, pra não
+ * virar um segredo em claro se este Map algum dia for logado/inspecionado.
+ *
+ * Por quê: `getUser()` revalida o JWT contra o servidor de Auth do Supabase a
+ * CADA chamada (é o comportamento certo, diferente de `getSession()`, que só
+ * lê o cookie local sem validar). Isso é necessário para segurança, mas uma
+ * única navegação dispara várias requisições paralelas (ex.: pagamentos.vue
+ * busca banco+despachante+transportadora+2x pix, e o NotificacaoBell global
+ * soma mais 1–2) — cada uma pagando essa revalidação de novo, com os MESMOS
+ * cookies. O cache evita repetir a validação de rede quando os cookies não
+ * mudaram desde a última checagem, dentro de uma janela curta.
+ *
+ * Respostas às 3 perguntas de desenho (Parte B.2):
+ *
+ * 1) Logout: o `signOut()` do client Supabase apaga os cookies `sb-*` na hora
+ *    (document.cookie, no browser client) — a PRÓXIMA requisição já chega sem
+ *    esses cookies, então `cacheKeyFromCookies` retorna null e o cache é
+ *    ignorado (nunca reaproveita um resultado "autenticado" pra uma request
+ *    sem cookie de sessão). O único cenário residual é uma revogação feita
+ *    NO SERVIDOR (ex.: admin desativa a conta) enquanto o cookie antigo ainda
+ *    está no navegador — nesse caso o cache pode devolver "autenticado" por
+ *    até SESSION_CACHE_TTL_MS a mais. Aceitável dado o TTL curto (8s): é a
+ *    mesma ordem de grandeza de exposição que qualquer JWT de curta duração
+ *    já tem por natureza, e não há invalidação ativa implementada para esse
+ *    caso — se isso virar requisito real (ex.: exigência de revogação
+ *    imediata), a solução correta é reduzir ainda mais o TTL ou remover o
+ *    cache, não tentar "empurrar" um evento de invalidação pro servidor.
+ *
+ * 2) Vercel (serverless): este Map é estado de módulo de UMA instância de
+ *    função. Instâncias diferentes (frias, ou uma rajada espalhada entre
+ *    réplicas) não compartilham cache nenhum — cada uma faz sua própria
+ *    validação na primeira vez que vê aquele conjunto de cookies. Isso é
+ *    esperado e aceitável: o cache é "best effort" pra rajadas que caem na
+ *    mesma instância quente (o caso comum de chamadas paralelas da mesma
+ *    navegação), não uma garantia entre instâncias. Não degrada segurança
+ *    nem corretude quando não bate — só volta ao comportamento de sempre
+ *    (uma validação de rede por requisição).
+ *
+ * 3) TTL expira no meio de uma rajada: é só um cache miss — cai no `else`
+ *    abaixo, chama `getUser()` normalmente e regrava o cache. Nenhum
+ *    tratamento especial necessário; é exatamente o comportamento atual
+ *    (pré-cache) para essa requisição específica.
+ */
+const SESSION_CACHE_TTL_MS = 8000;
+const sessionCache = new Map<string, { user: AuthUser | null; expiresAt: number }>();
+
+function cacheKeyFromCookies(event: H3Event): string | null {
+  const cookies = parseCookies(event);
+  const authCookies = Object.entries(cookies)
+    .filter(([name]) => name.startsWith("sb-"))
+    .sort(([a], [b]) => a.localeCompare(b));
+  if (authCookies.length === 0) return null;
+
+  const raw = authCookies.map(([name, value]) => `${name}=${value}`).join("&");
+  return createHash("sha256").update(raw).digest("hex");
+}
 
 // Prefixos que exigem sessão mas nenhuma checagem de seção (ex.: "quem sou eu")
 // vivem em shared/utils/rbac.ts (AUTHENTICATED_ANY_API_PREFIXES) — única exceção
@@ -39,17 +99,30 @@ export default defineEventHandler(async (event) => {
   let authUser: AuthUser | null = null;
 
   if (url && anonKey) {
-    try {
-      const supabase = createSupabaseServerClient(event);
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    const cacheKey = cacheKeyFromCookies(event);
+    const cached = cacheKey ? sessionCache.get(cacheKey) : undefined;
 
-      if (user) {
-        authUser = resolveAuthUser(user, parseAdminEmails(config.adminEmails));
+    if (cached && cached.expiresAt > Date.now()) {
+      authUser = cached.user;
+    } else {
+      if (cached) sessionCache.delete(cacheKey!); // expirado — não deixa lixo no Map
+
+      try {
+        const supabase = createSupabaseServerClient(event);
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (user) {
+          authUser = resolveAuthUser(user, parseAdminEmails(config.adminEmails));
+        }
+      } catch {
+        authUser = null;
       }
-    } catch {
-      authUser = null;
+
+      if (cacheKey) {
+        sessionCache.set(cacheKey, { user: authUser, expiresAt: Date.now() + SESSION_CACHE_TTL_MS });
+      }
     }
   }
 

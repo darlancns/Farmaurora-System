@@ -18,6 +18,8 @@ export interface AuthUser {
   role: Role;
   /** Presente só quando `role === "consultor"`. */
   consultorNome?: ConsultorNome;
+  /** Nome genérico de exibição da conta. Contas antigas podem não ter. */
+  nome?: string;
   /** Derivado de `role === "administrador"` — mantido para checks legados. */
   isAdmin: boolean;
 }
@@ -31,6 +33,7 @@ export interface AdminUserSummary {
   email: string;
   role: Role;
   consultorNome?: ConsultorNome;
+  nome?: string;
   createdAt: string;
   lastSignInAt: string | null;
 }
@@ -39,4 +42,18 @@ export interface AdminUserSummary {
 export interface UpdateUserRoleDTO {
   role: Role;
   consultorNome?: ConsultorNome;
+  nome?: string;
+}
+
+/**
+ * Resumo mínimo de conta pro seletor de destinatário de Recados
+ * (GET /api/contas) — só o essencial pra listar/escolher uma pessoa, aberto a
+ * qualquer cargo autenticado. Sem e-mail nem datas, diferente de
+ * `AdminUserSummary` (admin only).
+ */
+export interface ContaSummary {
+  id: string;
+  role: Role;
+  /** Contas antigas ainda sem nome preenchido (ver ContaFormModal.vue) ficam undefined. */
+  nome?: string;
 }

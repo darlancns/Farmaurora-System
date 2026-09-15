@@ -4,6 +4,7 @@ import type {
   AtualizarLancamentoBancoDTO,
   BancoCambio,
   LancamentoBanco,
+  LoteBanco,
   Moeda,
   NovoLancamentoBancoDTO,
   TaxaLancamentoRendimento,
@@ -23,6 +24,7 @@ export function useBancoActions(readonly: ComputedRef<boolean>) {
     escolherBanco,
     escolherBancoRendimento,
     fecharLoteBanco,
+    editarLancamentoRealizado,
   } = usePagamentos();
   const { showToast, withToast } = useToast();
 
@@ -163,12 +165,43 @@ export function useBancoActions(readonly: ComputedRef<boolean>) {
     );
   }
 
+  // ── Editar cliente + data de pagamento de um lançamento já realizado ─────
+  // cliente é escopo do LANÇAMENTO clicado; pagoEm é escopo do LOTE inteiro
+  // (mesmo comportamento que pagoEm sempre teve — afeta todas as linhas do lote).
+  const editingLancamentoRealizado = ref<{ lancamentoId: string; cliente: string; pagoEm: string } | null>(
+    null,
+  );
+
+  function handleEditarLancamentoRealizado(lancamento: LancamentoBanco, lote: LoteBanco): void {
+    if (readonly.value) return;
+    if (!lote.pagoEm) return;
+    editingLancamentoRealizado.value = {
+      lancamentoId: lancamento.id,
+      cliente: lancamento.cliente,
+      pagoEm: lote.pagoEm,
+    };
+  }
+
+  async function handleSalvarLancamentoRealizado(payload: { nome: string; pagoEm: string }): Promise<void> {
+    const alvo = editingLancamentoRealizado.value;
+    if (!alvo) return;
+    await withToast(
+      async () => {
+        await editarLancamentoRealizado(alvo.lancamentoId, payload.nome, payload.pagoEm);
+        editingLancamentoRealizado.value = null;
+      },
+      "Pagamento atualizado",
+      "Erro ao editar o pagamento",
+    );
+  }
+
   return {
     showLancamentoModal,
     editingLancamento,
     deletingLancamento,
     novoLancamentoAlvo,
     moedaFixaLancamento,
+    editingLancamentoRealizado,
     abrirNovoLote,
     abrirLancamentoEmLote,
     fecharLancamentoModal,
@@ -180,5 +213,7 @@ export function useBancoActions(readonly: ComputedRef<boolean>) {
     handleEscolherBanco,
     handleEscolherBancoRendimento,
     handleFecharLote,
+    handleEditarLancamentoRealizado,
+    handleSalvarLancamentoRealizado,
   };
 }

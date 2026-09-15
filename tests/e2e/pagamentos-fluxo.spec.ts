@@ -22,6 +22,11 @@ import { join } from "node:path";
 //   - Não existe teste dormente que setasse "Pago" direto num item — o ciclo
 //     dormente já era NAO_PAGO<->COMPLEMENTO. Adicionado um teste explícito (17)
 //     de que a API rejeita PAGO direto (regra M-04), que é o guard novo.
+//   - O seletor de empresa saiu da UI (CRM opera só com Farmaurora — decisão de
+//     negócio, sem dado de MainzFarma real). irPagamentos() trocou o clique no
+//     seletor por goto("/pagamentos?empresa=MAINZFARMA") — override por query
+//     string sem UI nenhuma, existe só pra este isolamento de teste (ver
+//     app/pages/pagamentos.vue, onMounted).
 
 const writer = {
   email: process.env.E2E_ADMIN_EMAIL ?? process.env.E2E_OPERACIONAL_EMAIL ?? "",
@@ -114,10 +119,12 @@ async function selectOption(page: Page, triggerId: string, optionText: string): 
   await page.getByRole("option", { name: optionText, exact: true }).click();
 }
 
-// Vai pra /pagamentos já na empresa MAINZFARMA (isola dos dados reais).
+// Vai pra /pagamentos já na empresa MAINZFARMA (isola dos dados reais). O
+// seletor de empresa saiu da UI (CRM opera só com Farmaurora agora) — o
+// override por query string existe só pra isso, sem UI nenhuma pro usuário
+// real (ver app/pages/pagamentos.vue, onMounted).
 async function irPagamentos(page: Page, tab: "banco" | "cotacao" | "despachante" | "transportadora"): Promise<void> {
-  await page.goto("/pagamentos", { waitUntil: "networkidle" });
-  await selectOption(page, "pagamento-empresa", "MainzFarma");
+  await page.goto("/pagamentos?empresa=MAINZFARMA", { waitUntil: "networkidle" });
   await page.locator(`#tab-${tab}`).click();
 }
 
@@ -310,7 +317,7 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     await expect(realizados).toContainText("Pago");
   });
 
-  test("5 · sem navegação por data; seletor de empresa no cabeçalho", async ({ page }) => {
+  test("5 · sem navegação por data", async ({ page }) => {
     await irPagamentos(page, "banco");
 
     const novo = await novoLote(page, {
@@ -326,13 +333,12 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     await page.locator("#tab-cotacao").click();
     await expect(page.locator("#cotacao-tab")).toContainText("Cotação EUR");
 
-    // Não existe mais a navegação por data nem a toolbar antiga.
+    // Não existe mais a navegação por data nem a toolbar antiga. O seletor de
+    // empresa também não existe mais na UI (CRM opera só com Farmaurora).
     await expect(page.locator("#pagamento-toolbar")).toHaveCount(0);
     await expect(page.locator("#pagamento-data-next")).toHaveCount(0);
     await expect(page.locator("#pagamento-data-prev")).toHaveCount(0);
-
-    // O seletor de empresa fica no cabeçalho da página.
-    await expect(page.locator("#pagamentos-page").locator("#pagamento-empresa")).toBeVisible();
+    await expect(page.locator("#pagamento-empresa")).toHaveCount(0);
   });
 
   test("6 · editar um lançamento em aberto altera cliente/valor no card", async ({ page }) => {
@@ -390,6 +396,124 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     await selectOption(page, "ng-nome-grupo", "Bruno Lopes");
     await expect(page.locator("#ng-chave-pix")).toHaveValue("036.223.838-36");
     await page.keyboard.press("Escape");
+  });
+
+  test("9 · Banco: editar cliente + data de pagamento em 'Pagamentos realizados'", async ({ page }) => {
+    await irPagamentos(page, "banco");
+
+    // Lote isolado com 2 lançamentos, pra provar que editar o cliente de UM
+    // deles não vaza pro outro — a data (pagoEm), por ser do LOTE, vaza pros dois.
+    const CLIENTE_REAL_A = `Cliente ${RUN} Realizado A`;
+    const CLIENTE_REAL_A_EDITADO = `Cliente ${RUN} Realizado A Editado`;
+    const CLIENTE_REAL_B = `Cliente ${RUN} Realizado B`;
+
+    const loteRA = await novoLote(page, {
+      fornecedor: "Poros - Turquia",
+      invoice: `INV-${RUN}-RA`,
+      cliente: CLIENTE_REAL_A,
+      valor: "50",
+    });
+
+    await page.locator(`#btn-novo-lancamento-lote-${loteRA.loteId}`).click();
+    await selectOption(page, "nl-fornecedor", "Poros - Turquia");
+    await page.locator("#nl-cliente").fill(CLIENTE_REAL_B);
+    await page.locator("#nl-invoice").fill(`INV-${RUN}-RB`);
+    await page.locator("#nl-valor-moeda").fill("60");
+    await page.locator("#btn-save-novo-lancamento").click();
+    await expect(page.locator("#toast-notice")).toContainText("Lançamento adicionado");
+
+    // Cotação + "Pago", pra virar um lote realizado com 2 lançamentos.
+    await page.locator("#tab-cotacao").click();
+    const cot = page.locator(`#cotacao-lote-${loteRA.loteId}`);
+    await cot.locator(`#input-taxa-${loteRA.loteId}-XP`).fill("5");
+    await cot.locator(`#btn-usar-banco-${loteRA.loteId}-XP`).click();
+    await expect(page.locator("#toast-notice")).toContainText("Banco escolhido");
+
+    await page.locator("#tab-banco").click();
+    await page.locator(`#btn-pagar-lote-${loteRA.loteId}`).click();
+    await expect(page.locator("#toast-notice")).toContainText("Lote pago");
+
+    const payload = await bancoPayload(page);
+    const lancA = payload.lancamentos.find((l) => l.loteId === loteRA.loteId && l.cliente === CLIENTE_REAL_A);
+    const lancB = payload.lancamentos.find((l) => l.loteId === loteRA.loteId && l.cliente === CLIENTE_REAL_B);
+    expect(lancA, "lançamento A").toBeTruthy();
+    expect(lancB, "lançamento B").toBeTruthy();
+
+    const rowA = page.locator("#banco-realizados-lista").locator(`#lancamento-banco-${lancA!.id}`);
+    const rowB = page.locator("#banco-realizados-lista").locator(`#lancamento-banco-${lancB!.id}`);
+
+    await rowA.locator(`#btn-editar-realizado-${lancA!.id}`).click();
+    await expect(page.locator("#editar-pagamento-realizado-overlay")).toContainText("Editar pagamento realizado");
+
+    // Data futura -> bloqueada, mensagem clara, nada salvo (modal continua aberto).
+    const amanha = new Date();
+    amanha.setDate(amanha.getDate() + 1);
+    await page.locator("#epr-nome").fill(CLIENTE_REAL_A_EDITADO);
+    await page.locator("#epr-data").fill(amanha.toISOString().slice(0, 10));
+    await page.locator("#btn-save-editar-pagamento-realizado").click();
+    await expect(page.locator("#toast-notice")).toContainText("não pode ser posterior a hoje");
+    await expect(page.locator("#editar-pagamento-realizado-overlay")).toBeVisible();
+
+    // Data passada válida -> salva os dois campos juntos.
+    await page.locator("#epr-data").fill("2020-03-10");
+    await page.locator("#btn-save-editar-pagamento-realizado").click();
+    await expect(page.locator("#toast-notice")).toContainText("Pagamento atualizado");
+    await expect(page.locator("#editar-pagamento-realizado-overlay")).toHaveCount(0);
+
+    // Só a linha A muda de nome; a data (do lote) vaza pras duas linhas.
+    await expect(rowA).toContainText(CLIENTE_REAL_A_EDITADO);
+    await expect(rowA).toContainText("10/03/2020");
+    await expect(rowB).toContainText(CLIENTE_REAL_B);
+    await expect(rowB).not.toContainText(CLIENTE_REAL_A_EDITADO);
+    await expect(rowB).toContainText("10/03/2020");
+
+    // Nenhum outro campo do lote foi tocado (bancoEscolhido).
+    const depois = await bancoPayload(page);
+    expect(depois.lotes.find((l) => l.id === loteRA.loteId)?.bancoEscolhido).toBe("XP");
+  });
+
+  test("10 · Despachante: editar nome do grupo + data de pagamento em 'Pagamentos realizados'", async ({ page }) => {
+    await irPagamentos(page, "despachante");
+
+    const P_REALIZADO_EDIT = `Paciente ${RUN} Realizado Edit`;
+
+    await page.locator("#btn-novo-pagamento-DESPACHANTE").click();
+    await selectOption(page, "ng-nome-grupo", "Andreza Faconi");
+    await page.locator("#ng-item-paciente-0").fill(P_REALIZADO_EDIT);
+    await page.locator("#ng-item-valor-0").fill("90");
+    await page.locator("#btn-save-novo-grupo").click();
+    await expect(page.locator("#toast-notice")).toContainText("Pagamento adicionado");
+
+    const grupoId = (await despachanteGrupos(page)).find(
+      (g) => !g.realizado && g.nomeGrupo === "Andreza Faconi",
+    )?.id;
+    expect(grupoId, "grupo Andreza Faconi recém-criado").toBeTruthy();
+
+    await page.locator(`#grupo-pagamento-${grupoId}`).locator(`#btn-pagar-grupo-${grupoId}`).click();
+    await expect(page.locator("#toast-notice")).toContainText("Grupo pago");
+
+    const lista = page.locator("#grupo-realizados-lista-DESPACHANTE");
+    await lista.locator(`#btn-editar-realizado-DESPACHANTE-${grupoId}-0`).click();
+    await expect(page.locator("#editar-pagamento-realizado-overlay")).toContainText("Editar pagamento realizado");
+
+    // Data futura -> bloqueada.
+    const amanha = new Date();
+    amanha.setDate(amanha.getDate() + 1);
+    await selectOption(page, "epr-nome", "Marcelo Lima");
+    await page.locator("#epr-data").fill(amanha.toISOString().slice(0, 10));
+    await page.locator("#btn-save-editar-pagamento-realizado").click();
+    await expect(page.locator("#toast-notice")).toContainText("não pode ser posterior a hoje");
+    await expect(page.locator("#editar-pagamento-realizado-overlay")).toBeVisible();
+
+    // Data passada válida -> salva os dois campos (nomeGrupo + pagoEm) juntos.
+    await page.locator("#epr-data").fill("2020-04-05");
+    await page.locator("#btn-save-editar-pagamento-realizado").click();
+    await expect(page.locator("#toast-notice")).toContainText("Pagamento atualizado");
+    await expect(page.locator("#editar-pagamento-realizado-overlay")).toHaveCount(0);
+
+    await expect(lista).toContainText(P_REALIZADO_EDIT);
+    await expect(lista).toContainText("Marcelo Lima");
+    await expect(lista).toContainText("05/04/2020");
   });
 
   test("11 · realizados do Banco: lista plana por cliente, busca e filtros", async ({ page }) => {
@@ -453,8 +577,9 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     await expect(page.locator('[id^="btn-salvar-cotacao-"]')).toHaveCount(0);
     await page.waitForTimeout(1200); // deixa o PATCH de auto-save concluir
 
+    // O reload mantém a mesma URL (com ?empresa=MAINZFARMA), então o onMounted
+    // reaplica o override sozinho — não precisa mais reselecionar nada na UI.
     await page.reload({ waitUntil: "networkidle" });
-    await selectOption(page, "pagamento-empresa", "MainzFarma");
     await page.locator("#tab-cotacao").click();
     await expect(page.locator(`#cotacao-lote-${st.usd3}`).locator(`#input-taxa-${st.usd3}-XP`)).toHaveValue("5,42");
   });

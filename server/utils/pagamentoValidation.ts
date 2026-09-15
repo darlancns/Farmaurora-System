@@ -7,8 +7,10 @@ import {
 } from "../../shared/constants/pagamentos";
 import type {
   AtualizarCotacaoDTO,
+  AtualizarGrupoRealizadoDTO,
   AtualizarItemGrupoDTO,
   AtualizarLancamentoBancoDTO,
+  AtualizarLancamentoRealizadoDTO,
   BancoCambio,
   EditarItemGrupoDTO,
   EmpresaPagamento,
@@ -199,4 +201,34 @@ export function isValidEditarItemGrupo(body: unknown): body is EditarItemGrupoDT
     isFiniteNumber(b.valor) &&
     b.valor > 0
   );
+}
+
+const DATA_ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Data de hoje em UTC (YYYY-MM-DD) — mesmo critério de `hoje()` em bancoStore.ts,
+// duplicado aqui de propósito (cada store/validação é auto-contida no projeto).
+function hojeISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// pagoEm de uma correção em "Pagamentos realizados": formato YYYY-MM-DD e
+// nunca no futuro. Validado aqui no servidor mesmo já validando no cliente —
+// nunca confiar só nele. Reaproveitado pelos dois validadores abaixo
+// (lançamento de Banco e grupo de Despachante/Transportadora).
+function isDataPagoEmValida(value: unknown): value is string {
+  return typeof value === "string" && DATA_ISO_RE.test(value) && value <= hojeISO();
+}
+
+export function isValidAtualizarLancamentoRealizado(
+  body: unknown
+): body is AtualizarLancamentoRealizadoDTO {
+  if (!body || typeof body !== "object") return false;
+  const b = body as Record<string, unknown>;
+  return isNonEmptyString(b.cliente) && isDataPagoEmValida(b.pagoEm);
+}
+
+export function isValidAtualizarGrupoRealizado(body: unknown): body is AtualizarGrupoRealizadoDTO {
+  if (!body || typeof body !== "object") return false;
+  const b = body as Record<string, unknown>;
+  return isNonEmptyString(b.nomeGrupo) && isDataPagoEmValida(b.pagoEm);
 }

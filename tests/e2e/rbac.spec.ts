@@ -77,9 +77,10 @@ test.describe("RBAC", () => {
     await expect(page.locator("#btn-novo-processo")).toHaveCount(0);
     await expect(page.locator("#processo-group-list")).toBeVisible();
 
-    // Pagamentos — sem botões de novo lançamento / novo pagamento.
+    // Pagamentos — sem botões de novo lançamento / novo pagamento / editar realizado.
     await page.goto("/pagamentos", { waitUntil: "networkidle" });
     await expect(page.locator("#btn-novo-lote-banco")).toHaveCount(0);
+    await expect(page.locator("[id^='btn-editar-realizado-']")).toHaveCount(0);
 
     // API: leitura de pagamentos ok, escrita bloqueada em todas as seções.
     const getPag = await page.request.get("/api/pagamentos/banco");

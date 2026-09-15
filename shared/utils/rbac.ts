@@ -17,8 +17,15 @@ export function isRole(value: unknown): value is Role {
   return typeof value === "string" && (ROLES as readonly string[]).includes(value);
 }
 
-/** Áreas protegidas do sistema. "config" ainda não tem página/endpoint. */
-export type Section = "patients" | "processos" | "pagamentos" | "admin" | "config";
+/**
+ * Áreas protegidas do sistema. "config" ainda não tem página/endpoint.
+ * "recados" é a única seção liberada pra TODOS os cargos, leitura e escrita —
+ * Consultor e Sócio, read-only no resto do CRM, escrevem aqui (ver
+ * docs/recados-spec.md seção 4). Cobre também GET /api/contas (seletor de
+ * destinatário) e /api/notificacoes e /api/lembretes — mesmo RBAC, sem
+ * mecanismo de "qualquer autenticado" separado.
+ */
+export type Section = "patients" | "processos" | "pagamentos" | "admin" | "config" | "recados";
 
 const READ_ACCESS: Record<Section, readonly Role[]> = {
   patients: ["socio", "administrador"],
@@ -26,6 +33,7 @@ const READ_ACCESS: Record<Section, readonly Role[]> = {
   pagamentos: ["socio", "operacional", "administrador"],
   admin: ["administrador"],
   config: ["administrador"],
+  recados: ROLES,
 };
 
 const WRITE_ACCESS: Record<Section, readonly Role[]> = {
@@ -34,6 +42,7 @@ const WRITE_ACCESS: Record<Section, readonly Role[]> = {
   pagamentos: ["operacional", "administrador"],
   admin: ["administrador"],
   config: ["administrador"],
+  recados: ROLES,
 };
 
 export function canReadSection(role: Role, section: Section): boolean {
@@ -82,6 +91,10 @@ export function sectionForApiPath(path: string): Section | null {
   if (p === "/api/processos" || p.startsWith("/api/processos/")) return "processos";
   if (p === "/api/pagamentos" || p.startsWith("/api/pagamentos/")) return "pagamentos";
   if (p === "/api/admin" || p.startsWith("/api/admin/")) return "admin";
+  if (p === "/api/recados" || p.startsWith("/api/recados/")) return "recados";
+  if (p === "/api/contas" || p.startsWith("/api/contas/")) return "recados";
+  if (p === "/api/notificacoes" || p.startsWith("/api/notificacoes/")) return "recados";
+  if (p === "/api/lembretes" || p.startsWith("/api/lembretes/")) return "recados";
   return null;
 }
 
@@ -106,5 +119,6 @@ export function sectionForPageRoute(path: string): Section | null {
   if (path === "/processos" || path.startsWith("/processos/")) return "processos";
   if (path === "/pagamentos" || path.startsWith("/pagamentos/")) return "pagamentos";
   if (path === "/configuracoes" || path.startsWith("/configuracoes/")) return "config";
+  if (path === "/recados" || path.startsWith("/recados/")) return "recados";
   return null;
 }

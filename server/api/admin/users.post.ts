@@ -1,6 +1,6 @@
 import { defineEventHandler, readBody, createError } from "h3";
 import { createSupabaseAdminClient } from "../../utils/supabaseServerClient";
-import { parseRoleInput, roleAppMetadata } from "../../utils/authUser";
+import { parseRoleInput, parseNomeInput, roleAppMetadata } from "../../utils/authUser";
 import { formatPasswordError } from "#shared/utils/authErrors";
 import type { Role } from "#shared/utils/rbac";
 import type { AuthUser } from "#shared/types/auth";
@@ -11,6 +11,7 @@ interface CreateUserBody {
   password?: unknown;
   role?: unknown;
   consultorNome?: unknown;
+  nome?: unknown;
 }
 
 interface CreateUserResult {
@@ -18,6 +19,7 @@ interface CreateUserResult {
   email: string;
   role: Role;
   consultorNome?: ConsultorNome;
+  nome: string;
 }
 
 /**
@@ -52,13 +54,16 @@ export default defineEventHandler(async (event): Promise<CreateUserResult> => {
 
   // Validação de cargo/consultorNome compartilhada com o PATCH.
   const { role, consultorNome } = parseRoleInput(body);
+  // Nome é obrigatório na criação — diferente da edição, onde contas antigas
+  // podem ficar sem nome até serem preenchidas manualmente.
+  const nome = parseNomeInput(body, { required: true });
 
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
-    app_metadata: roleAppMetadata(role, consultorNome),
+    app_metadata: roleAppMetadata(role, consultorNome, nome),
   });
 
   if (error) {
@@ -82,5 +87,5 @@ export default defineEventHandler(async (event): Promise<CreateUserResult> => {
     });
   }
 
-  return { id: created.id, email: created.email, role, consultorNome };
+  return { id: created.id, email: created.email, role, consultorNome, nome };
 });

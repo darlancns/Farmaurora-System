@@ -1,5 +1,10 @@
 import { ref, type ComputedRef } from "vue";
-import type { NovoGrupoPagamentoDTO, StatusItemGrupo, TipoGrupoPagamento } from "#shared/types/Pagamento";
+import type {
+  GrupoPagamento,
+  NovoGrupoPagamentoDTO,
+  StatusItemGrupo,
+  TipoGrupoPagamento,
+} from "#shared/types/Pagamento";
 import { usePagamentos } from "./usePagamentos";
 import { useToast } from "./useToast";
 import { getErrorMessage } from "../utils/errorMessages";
@@ -16,6 +21,7 @@ export function useGrupoActions(readonly: ComputedRef<boolean>) {
     editarItemGrupo,
     excluirItemGrupo,
     pagarGrupo,
+    editarGrupoRealizado,
     salvarGrupoPix,
   } = usePagamentos();
   const { showToast, withToast } = useToast();
@@ -127,11 +133,43 @@ export function useGrupoActions(readonly: ComputedRef<boolean>) {
     }
   }
 
+  // ── Editar nome + data de pagamento de um grupo já realizado ─────────────
+  // nomeGrupo e pagoEm são do MESMO grupo — sem descompasso de escopo (ao
+  // contrário do Banco, onde cliente é do lançamento e pagoEm é do lote).
+  const editandoGrupoRealizado = ref<{ tipo: TipoGrupoPagamento; grupoId: string; nomeGrupo: string; pagoEm: string } | null>(
+    null,
+  );
+
+  function handleEditarGrupoRealizado(tipo: TipoGrupoPagamento, grupo: GrupoPagamento): void {
+    if (readonly.value) return;
+    if (!grupo.pagoEm) return;
+    editandoGrupoRealizado.value = {
+      tipo,
+      grupoId: grupo.id,
+      nomeGrupo: grupo.nomeGrupo,
+      pagoEm: grupo.pagoEm,
+    };
+  }
+
+  async function handleSalvarGrupoRealizado(payload: { nome: string; pagoEm: string }): Promise<void> {
+    const alvo = editandoGrupoRealizado.value;
+    if (!alvo) return;
+    await withToast(
+      async () => {
+        await editarGrupoRealizado(alvo.tipo, alvo.grupoId, payload.nome, payload.pagoEm);
+        editandoGrupoRealizado.value = null;
+      },
+      "Pagamento atualizado",
+      "Erro ao editar o pagamento",
+    );
+  }
+
   return {
     showGrupoModal,
     grupoModalTipo,
     editandoItem,
     excluindoItem,
+    editandoGrupoRealizado,
     abrirGrupoModal,
     handleNovoGrupo,
     handleSalvarPix,
@@ -141,5 +179,7 @@ export function useGrupoActions(readonly: ComputedRef<boolean>) {
     handleSalvarItem,
     handleExcluirItem,
     handleConfirmExcluirItem,
+    handleEditarGrupoRealizado,
+    handleSalvarGrupoRealizado,
   };
 }

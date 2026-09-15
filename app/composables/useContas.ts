@@ -9,6 +9,7 @@ export interface NovaContaDTO {
   password: string;
   role: Role;
   consultorNome?: ConsultorNome;
+  nome: string;
 }
 
 export function useContas() {

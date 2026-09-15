@@ -13,6 +13,12 @@
   --color-mainz-gold-soft: #f5edda;
   --color-danger: #a5402f;
 
+  /* Post-its de Recados (RecadoCard/LembreteCard) — fundo do card por tipo. */
+  --color-postit-urgente: #f6a99c;
+  --color-postit-atencao: #f6de8c;
+  --color-postit-informacao: #afdcea;
+  --color-postit-geral: #e7dcc3;
+
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
@@ -23,10 +29,42 @@ body {
   font-family: var(--font-sans);
 }
 
+/* Scrollbar da identidade visual — aplica em todo overflow com scroll do
+   projeto (Firefox via scrollbar-width/-color, demais via ::-webkit-scrollbar). */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-hairline) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-hairline);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-farm-blue);
+}
+
 /* Headings (ex-Source Serif 4): mesma família do corpo, só com tracking
    mais fechado pra manter a leitura de "display" — o peso continua vindo
    do font-semibold/font-medium já aplicado em cada uso. */
 @utility font-display {
   font-family: var(--font-sans);
   letter-spacing: -0.02em;
+}
+
+/* Sombra própria dos post-its (RecadoCard/LembreteCard) — usa --color-ink
+   em baixa opacidade, deslocada, em vez da sombra cinza padrão do
+   Tailwind, pra sugerir papel solto sobre a mesa. */
+@utility shadow-postit {
+  box-shadow: 4px 7px 14px -4px color-mix(in srgb, var(--color-ink) 32%, transparent);
 }

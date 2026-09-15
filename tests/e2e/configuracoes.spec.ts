@@ -40,6 +40,11 @@ async function login(page: Page, email: string, password: string): Promise<void>
   }).toPass({ timeout: 45000 });
 }
 
+/** Abre o menu "⋮" de ações da linha da conta (necessário antes de clicar em Editar/Redefinir senha/Excluir). */
+async function abrirMenuAcoes(page: Page, id: string): Promise<void> {
+  await page.locator(`#btn-acoes-conta-${id}`).click();
+}
+
 /** Cria uma conta direto pela API (autenticado como admin) e devolve o id. */
 async function apiCreate(
   req: APIRequestContext,
@@ -89,6 +94,7 @@ test.describe("Configurações → Contas", () => {
     const email = `e2e+socio-${Date.now()}@farmaurora.com.br`;
     try {
       await page.locator("#btn-nova-conta").click();
+      await page.locator("#conta-nome").fill("E2E Sócio Teste");
       await page.locator("#conta-email").fill(email);
       await page.locator("#btn-gerar-senha").click();
       await page.locator("#conta-role").click();
@@ -145,11 +151,13 @@ test.describe("Configurações → Contas", () => {
       email,
       password: "senha-super-forte-123",
       role: "socio",
+      nome: "E2E Edit Teste",
     });
     const id = String(created.json.id);
 
     try {
       await page.goto("/configuracoes", { waitUntil: "networkidle" });
+      await abrirMenuAcoes(page, id);
       await page.locator(`#btn-editar-conta-${id}`).click();
       await page.locator("#conta-role").click();
       await page.getByRole("option", { name: "Operacional", exact: true }).click();
@@ -170,12 +178,14 @@ test.describe("Configurações → Contas", () => {
       email,
       password: "senha-super-forte-123",
       role: "socio",
+      nome: "E2E Del Teste",
     });
     const id = String(created.json.id);
 
     await page.goto("/configuracoes", { waitUntil: "networkidle" });
     await expect(page.locator(`#conta-row-${id}`)).toBeVisible();
 
+    await abrirMenuAcoes(page, id);
     await page.locator(`#btn-excluir-conta-${id}`).click();
     await page.locator("#btn-confirm-dialog-confirm").click();
 
@@ -192,6 +202,7 @@ test.describe("Configurações → Contas", () => {
     await expect(row).toBeVisible();
     await expect(row).toContainText("(você)");
     // guardas antigas removidas — o próprio admin agora vê e usa as ações
+    await abrirMenuAcoes(page, meId);
     await expect(page.locator(`#btn-editar-conta-${meId}`)).toBeVisible();
     await expect(page.locator(`#btn-reset-senha-${meId}`)).toBeVisible();
     await expect(page.locator(`#btn-excluir-conta-${meId}`)).toBeVisible();
@@ -238,6 +249,7 @@ test.describe("Configurações → Contas", () => {
         email: email2,
         password: pass2,
         role: "administrador",
+        nome: "E2E Admin2 Teste",
       });
       expect(created.status).toBe(200);
       id2 = String(created.json.id);

@@ -14,10 +14,10 @@ import { getErrorMessage } from "../utils/errorMessages";
 import { normalizeText } from "../utils/search";
 import { EMPRESA_FILTER_OPTIONS, RESPONSAVEL_FILTER_OPTIONS, STATUS_FILTER_OPTIONS } from "../utils/processoOptions";
 import AppSelect from "../components/AppSelect.vue";
+import GlobalHeader from "../components/GlobalHeader.vue";
 import ProcessoGroupList from "../components/processos/ProcessoGroupList.vue";
 import ProcessoDeliveredList from "../components/processos/ProcessoDeliveredList.vue";
 import ProcessoFormModal from "../components/processos/ProcessoFormModal.vue";
-import NotificacaoFornecedorBell from "../components/processos/NotificacaoFornecedorBell.vue";
 
 const { processos, fetchProcessos, addProcesso, patchProcesso, removeProcesso } = useProcessos();
 const { role, consultorNome, canWrite } = useAuth();
@@ -133,79 +133,77 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
 
 <template>
   <div id="processos-page" class="mx-auto max-w-[1400px]">
-    <div class="mb-4 flex items-end justify-between gap-4 border-b border-hairline pb-3.5">
-      <div>
-        <h1 class="font-display text-[28px] font-semibold tracking-tight text-ink">Follow-Up</h1>
-        <p class="mt-1 text-[13px] text-ink-soft">Acompanhamento dos processos de importação em andamento.</p>
-      </div>
-      <div v-if="canWriteProcessos" class="flex shrink-0 items-center gap-2.5">
-        <NotificacaoFornecedorBell :processos="processos" />
-        <button
-          id="btn-novo-processo"
-          type="button"
-          class="shrink-0 rounded-lg bg-accent-dark px-4 py-2.5 text-[13px] font-semibold text-white transition-colors hover:opacity-90"
-          @click="openCreateForm"
-        >
-          + Novo processo
-        </button>
-      </div>
-    </div>
+    <GlobalHeader title="Follow-Up" subtitle="Acompanhamento dos processos de importação em andamento.">
+      <template #filters>
+        <div class="mb-3.5 flex flex-nowrap items-center gap-2.5">
+          <div class="relative w-[216px] shrink-0">
+            <input
+              id="processo-search"
+              v-model="searchQuery"
+              type="text"
+              placeholder="Buscar por paciente..."
+              class="w-full rounded-md border border-hairline bg-paper px-3 py-2 pr-8 text-[13.5px] focus:bg-white focus:outline-2 focus:outline-accent-dark"
+            />
+            <button
+              v-if="searchQuery"
+              id="btn-clear-processo-search"
+              type="button"
+              title="Limpar busca"
+              aria-label="Limpar busca"
+              class="absolute top-1/2 right-2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded text-ink-soft transition-colors hover:text-danger"
+              @click="searchQuery = ''"
+            >
+              ✕
+            </button>
+          </div>
 
-    <div class="mb-3.5 flex flex-wrap items-center gap-2.5">
-      <div class="relative w-[280px]">
-        <input
-          id="processo-search"
-          v-model="searchQuery"
-          type="text"
-          placeholder="Buscar por paciente..."
-          class="w-full rounded-md border border-hairline bg-paper px-3 py-2 pr-8 text-[13.5px] focus:bg-white focus:outline-2 focus:outline-accent-dark"
-        />
-        <button
-          v-if="searchQuery"
-          id="btn-clear-processo-search"
-          type="button"
-          title="Limpar busca"
-          aria-label="Limpar busca"
-          class="absolute top-1/2 right-2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded text-ink-soft transition-colors hover:text-danger"
-          @click="searchQuery = ''"
-        >
-          ✕
-        </button>
-      </div>
+          <div v-if="activeTab === 'andamento'" class="w-fit shrink-0">
+            <AppSelect id="filtro-status" v-model="statusFilter" :options="STATUS_FILTER_OPTIONS" />
+          </div>
 
-      <div v-if="activeTab === 'andamento'" class="w-[210px]">
-        <AppSelect id="filtro-status" v-model="statusFilter" :options="STATUS_FILTER_OPTIONS" />
-      </div>
+          <div class="w-fit shrink-0">
+            <AppSelect id="filtro-empresa" v-model="empresaFilter" :options="EMPRESA_FILTER_OPTIONS" />
+          </div>
 
-      <div class="w-[190px]">
-        <AppSelect id="filtro-empresa" v-model="empresaFilter" :options="EMPRESA_FILTER_OPTIONS" />
-      </div>
+          <div class="w-fit shrink-0">
+            <AppSelect id="filtro-responsavel" v-model="responsavelFilter" :options="RESPONSAVEL_FILTER_OPTIONS" />
+          </div>
 
-      <div class="w-[210px]">
-        <AppSelect id="filtro-responsavel" v-model="responsavelFilter" :options="RESPONSAVEL_FILTER_OPTIONS" />
-      </div>
-    </div>
+          <button
+            v-if="canWriteProcessos"
+            id="btn-novo-processo"
+            type="button"
+            class="ml-auto shrink-0 rounded-lg bg-accent-dark px-4 py-2.5 text-[13px] font-semibold text-white transition-colors hover:opacity-90"
+            @click="openCreateForm"
+          >
+            + Novo processo
+          </button>
+        </div>
+      </template>
 
-    <div class="mb-3.5 flex gap-1 border-b border-hairline">
-      <button
-        id="tab-andamento"
-        type="button"
-        class="border-b-2 px-3.5 py-2 text-[13.5px] font-semibold transition-colors"
-        :class="activeTab === 'andamento' ? 'border-accent-dark text-accent-dark' : 'border-transparent text-ink-soft hover:text-ink'"
-        @click="activeTab = 'andamento'"
-      >
-        Em andamento ({{ andamentoList.length }})
-      </button>
-      <button
-        id="tab-entregues"
-        type="button"
-        class="border-b-2 px-3.5 py-2 text-[13.5px] font-semibold transition-colors"
-        :class="activeTab === 'entregues' ? 'border-accent-dark text-accent-dark' : 'border-transparent text-ink-soft hover:text-ink'"
-        @click="activeTab = 'entregues'"
-      >
-        Entregues ({{ entregueList.length }})
-      </button>
-    </div>
+      <template #tabs>
+        <div class="mb-3.5 flex gap-1 border-b border-hairline">
+          <button
+            id="tab-andamento"
+            type="button"
+            class="border-b-2 px-3.5 py-2 text-[13.5px] font-semibold transition-colors"
+            :class="activeTab === 'andamento' ? 'border-accent-dark text-accent-dark' : 'border-transparent text-ink-soft hover:text-ink'"
+            @click="activeTab = 'andamento'"
+          >
+            Em andamento ({{ andamentoList.length }})
+          </button>
+          <button
+            id="tab-entregues"
+            type="button"
+            class="border-b-2 px-3.5 py-2 text-[13.5px] font-semibold transition-colors"
+            :class="activeTab === 'entregues' ? 'border-accent-dark text-accent-dark' : 'border-transparent text-ink-soft hover:text-ink'"
+            @click="activeTab = 'entregues'"
+          >
+            Entregues ({{ entregueList.length }})
+          </button>
+        </div>
+      </template>
+    </GlobalHeader>
 
     <ProcessoGroupList
       v-if="activeTab === 'andamento'"

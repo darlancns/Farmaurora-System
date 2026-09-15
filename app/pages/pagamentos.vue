@@ -1,20 +1,25 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { useRoute } from "#app";
+import { EMPRESAS_PAGAMENTO, TIPO_GRUPO_PAGAMENTO_LABEL } from "#shared/constants/pagamentos";
+import type { EmpresaPagamento } from "#shared/types/Pagamento";
+import type { AppSelectOption } from "../types/appSelect";
 import { usePagamentos } from "../composables/usePagamentos";
 import { useAuth } from "../composables/useAuth";
 import { useToast } from "../composables/useToast";
 import { useBancoActions } from "../composables/useBancoActions";
 import { useGrupoActions } from "../composables/useGrupoActions";
 import { useLoteExport } from "../composables/useLoteExport";
+import { DESPACHANTE_PAGAMENTO_OPTIONS, TRANSPORTADORA_PAGAMENTO_OPTIONS } from "../utils/pagamentoOptions";
 import ConfirmDialog from "../components/ConfirmDialog.vue";
-import AppSelect from "../components/AppSelect.vue";
-import { EMPRESA_PAGAMENTO_OPTIONS } from "../utils/pagamentoOptions";
+import GlobalHeader from "../components/GlobalHeader.vue";
 import BancoTab from "../components/pagamentos/tabs/BancoTab.vue";
 import CotacaoTab from "../components/pagamentos/tabs/CotacaoTab.vue";
 import GrupoPagamentoTab from "../components/pagamentos/tabs/GrupoPagamentoTab.vue";
 import NovoLancamentoBancoModal from "../components/pagamentos/modals/NovoLancamentoBancoModal.vue";
 import NovoGrupoPagamentoModal from "../components/pagamentos/modals/NovoGrupoPagamentoModal.vue";
 import EditarItemGrupoModal from "../components/pagamentos/modals/EditarItemGrupoModal.vue";
+import EditarPagamentoRealizadoModal from "../components/pagamentos/modals/EditarPagamentoRealizadoModal.vue";
 import GrupoPagamentoExportCard from "../components/pagamentos/cards/GrupoPagamentoExportCard.vue";
 import LoteBancoExportCard from "../components/pagamentos/cards/LoteBancoExportCard.vue";
 
@@ -32,12 +37,14 @@ const { canWrite } = useAuth();
 // operacional e administrador escrevem em Pagamentos; socio é somente leitura.
 const readonly = computed<boolean>(() => !canWrite("pagamentos"));
 const { showToast } = useToast();
+const route = useRoute();
 
 const {
   showLancamentoModal,
   editingLancamento,
   deletingLancamento,
   moedaFixaLancamento,
+  editingLancamentoRealizado,
   abrirNovoLote,
   abrirLancamentoEmLote,
   fecharLancamentoModal,
@@ -49,9 +56,20 @@ const {
   handleEscolherBanco,
   handleEscolherBancoRendimento,
   handleFecharLote,
+  handleEditarLancamentoRealizado,
+  handleSalvarLancamentoRealizado,
 } = useBancoActions(readonly);
 
 onMounted(() => {
+  // O CRM opera só com Farmaurora — sem seletor na UI, empresaSelecionada
+  // fica travada no default "FARMAURORA" de usePagamentos.ts. Único jeito de
+  // trocar é este override por query string, sem UI nenhuma, existe só pra
+  // isolar dados de teste e2e em MAINZFARMA (ver tests/e2e/pagamentos-fluxo.spec.ts,
+  // que roda toda a suíte lá pra nunca escrever em cima de dados reais).
+  const empresaOverride = route.query.empresa;
+  if (typeof empresaOverride === "string" && EMPRESAS_PAGAMENTO.includes(empresaOverride as EmpresaPagamento)) {
+    empresaSelecionada.value = empresaOverride as EmpresaPagamento;
+  }
   fetchAll();
 });
 
@@ -63,6 +81,7 @@ const {
   grupoModalTipo,
   editandoItem,
   excluindoItem,
+  editandoGrupoRealizado,
   abrirGrupoModal,
   handleNovoGrupo,
   handleSalvarPix,
@@ -72,7 +91,21 @@ const {
   handleSalvarItem,
   handleExcluirItem,
   handleConfirmExcluirItem,
+  handleEditarGrupoRealizado,
+  handleSalvarGrupoRealizado,
 } = useGrupoActions(readonly);
+
+// Igual a `grupoOptions` em NovoGrupoPagamentoModal.vue: nomeGrupo é escolhido
+// de uma lista fechada (não texto livre), pra não quebrar o vínculo com a
+// chave PIX salva por nome.
+const grupoRealizadoNomeOptions = computed<AppSelectOption<string>[] | undefined>(() => {
+  if (!editandoGrupoRealizado.value) return undefined;
+  return (
+    editandoGrupoRealizado.value.tipo === "DESPACHANTE"
+      ? DESPACHANTE_PAGAMENTO_OPTIONS
+      : TRANSPORTADORA_PAGAMENTO_OPTIONS
+  ) as AppSelectOption<string>[];
+});
 
 const {
   exportGrupo,
@@ -99,35 +132,23 @@ const tabs: TabDef[] = [
 
 <template>
   <div id="pagamentos-page" class="mx-auto max-w-[1400px]">
-    <div class="mb-4 flex items-end justify-between gap-4 border-b border-hairline pb-3.5">
-      <div>
-        <h1 class="font-display text-[28px] font-semibold tracking-tight text-ink">Pagamentos</h1>
-        <p class="mt-1 text-[13px] text-ink-soft">
-          Banco, cotação de câmbio, despachante e transportadora.
-        </p>
-      </div>
-      <div class="w-[190px] shrink-0">
-        <AppSelect
-          id="pagamento-empresa"
-          v-model="empresaSelecionada"
-          :options="EMPRESA_PAGAMENTO_OPTIONS"
-        />
-      </div>
-    </div>
-
-    <div class="mb-3.5 flex gap-1 border-b border-hairline">
-      <button
-        v-for="tab in tabs"
-        :id="`tab-${tab.key}`"
-        :key="tab.key"
-        type="button"
-        class="border-b-2 px-3.5 py-2 text-[13.5px] font-semibold transition-colors"
-        :class="activeTab === tab.key ? 'border-accent-dark text-accent-dark' : 'border-transparent text-ink-soft hover:text-ink'"
-        @click="activeTab = tab.key"
-      >
-        {{ tab.label }}
-      </button>
-    </div>
+    <GlobalHeader title="Pagamentos" subtitle="Banco, cotação de câmbio, despachante e transportadora.">
+      <template #tabs>
+        <div class="mb-3.5 flex gap-1 border-b border-hairline">
+          <button
+            v-for="tab in tabs"
+            :id="`tab-${tab.key}`"
+            :key="tab.key"
+            type="button"
+            class="border-b-2 px-3.5 py-2 text-[13.5px] font-semibold transition-colors"
+            :class="activeTab === tab.key ? 'border-accent-dark text-accent-dark' : 'border-transparent text-ink-soft hover:text-ink'"
+            @click="activeTab = tab.key"
+          >
+            {{ tab.label }}
+          </button>
+        </div>
+      </template>
+    </GlobalHeader>
 
     <BancoTab
       v-if="activeTab === 'banco'"
@@ -141,6 +162,7 @@ const tabs: TabDef[] = [
       @excluir-lancamento="deletingLancamento = $event"
       @fechar-lote="handleFecharLote"
       @exportar-lote="handleExportarLote"
+      @editar-lancamento-realizado="handleEditarLancamentoRealizado"
     />
 
     <CotacaoTab
@@ -166,6 +188,7 @@ const tabs: TabDef[] = [
       @excluir-item="(grupoId, index) => handleExcluirItem('DESPACHANTE', grupoId, index)"
       @pagar-grupo="(grupoId) => handlePagarGrupo('DESPACHANTE', grupoId)"
       @exportar-foto="handleExportarGrupo"
+      @editar-realizado="(grupo) => handleEditarGrupoRealizado('DESPACHANTE', grupo)"
     />
 
     <GrupoPagamentoTab
@@ -180,6 +203,7 @@ const tabs: TabDef[] = [
       @excluir-item="(grupoId, index) => handleExcluirItem('TRANSPORTADORA', grupoId, index)"
       @pagar-grupo="(grupoId) => handlePagarGrupo('TRANSPORTADORA', grupoId)"
       @exportar-foto="handleExportarGrupo"
+      @editar-realizado="(grupo) => handleEditarGrupoRealizado('TRANSPORTADORA', grupo)"
     />
 
     <NovoLancamentoBancoModal
@@ -202,6 +226,16 @@ const tabs: TabDef[] = [
       danger
       @confirm="handleConfirmExcluirLancamento"
       @close="deletingLancamento = null"
+    />
+
+    <EditarPagamentoRealizadoModal
+      v-if="editingLancamentoRealizado && !readonly"
+      nome-label="Cliente"
+      :nome="editingLancamentoRealizado.cliente"
+      :pago-em="editingLancamentoRealizado.pagoEm"
+      @submit="handleSalvarLancamentoRealizado"
+      @close="editingLancamentoRealizado = null"
+      @invalid="showToast"
     />
 
     <NovoGrupoPagamentoModal
@@ -234,6 +268,17 @@ const tabs: TabDef[] = [
       danger
       @confirm="handleConfirmExcluirItem"
       @close="excluindoItem = null"
+    />
+
+    <EditarPagamentoRealizadoModal
+      v-if="editandoGrupoRealizado && !readonly"
+      :nome-label="TIPO_GRUPO_PAGAMENTO_LABEL[editandoGrupoRealizado.tipo]"
+      :nome="editandoGrupoRealizado.nomeGrupo"
+      :nome-options="grupoRealizadoNomeOptions"
+      :pago-em="editandoGrupoRealizado.pagoEm"
+      @submit="handleSalvarGrupoRealizado"
+      @close="editandoGrupoRealizado = null"
+      @invalid="showToast"
     />
 
     <!-- Cartões de exportação — fora da tela, só pra virarem imagem -->

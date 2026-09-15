@@ -7,17 +7,19 @@ import { formatCurrency } from "../../../utils/formatters";
 const props = withDefaults(
   defineProps<{
     lancamento: LancamentoBanco;
-    editavel?: boolean; // mostra o lápis (só "em aberto")
+    editavel?: boolean; // mostra o lápis de editar lançamento (só "em aberto")
     excluivel?: boolean; // mostra a lixeira (em aberto e nos realizados)
+    realizadoEditavel?: boolean; // mostra o lápis de corrigir cliente+data (só nos realizados)
     banco?: BancoCambio | null; // mostra o banco do lote (usado na lista de realizados)
     dataPagamento?: string; // data já formatada (usado na lista de realizados)
   }>(),
-  { editavel: false, excluivel: false, banco: null, dataPagamento: "" },
+  { editavel: false, excluivel: false, realizadoEditavel: false, banco: null, dataPagamento: "" },
 );
 
 const emit = defineEmits<{
   editar: [lancamento: LancamentoBanco];
   excluir: [lancamento: LancamentoBanco];
+  "editar-realizado": [];
 }>();
 
 const simbolo = computed(() => MOEDA_SIMBOLO[props.lancamento.moeda]);
@@ -58,7 +60,7 @@ const valorReaisLabel = computed(() =>
       {{ valorReaisLabel ?? "aguardando cotação" }}
     </span>
 
-    <div v-if="editavel || excluivel" class="flex shrink-0 items-center gap-1">
+    <div v-if="editavel || excluivel || realizadoEditavel" class="flex shrink-0 items-center gap-1">
       <button
         v-if="editavel"
         :id="`btn-editar-lancamento-${lancamento.id}`"
@@ -67,6 +69,20 @@ const valorReaisLabel = computed(() =>
         aria-label="Editar lançamento"
         class="rounded-md p-1.5 text-ink-soft transition-colors hover:text-accent-dark"
         @click="emit('editar', lancamento)"
+      >
+        <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 7.125L16.862 4.487" />
+        </svg>
+      </button>
+      <button
+        v-if="realizadoEditavel"
+        :id="`btn-editar-realizado-${lancamento.id}`"
+        type="button"
+        title="Editar pagamento realizado"
+        aria-label="Editar pagamento realizado"
+        class="rounded-md p-1.5 text-ink-soft transition-colors hover:text-accent-dark"
+        @click="emit('editar-realizado')"
       >
         <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />

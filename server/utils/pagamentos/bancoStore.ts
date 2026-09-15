@@ -4,6 +4,7 @@ import { BANCOS_CAMBIO, TAXA_CORRETAGEM_PADRAO } from "../../../shared/constants
 import type {
   AtualizarCotacaoDTO,
   AtualizarLancamentoBancoDTO,
+  AtualizarLancamentoRealizadoDTO,
   BancoCambio,
   EmpresaPagamento,
   LancamentoBanco,
@@ -508,4 +509,38 @@ export async function fecharLoteBanco(loteId: string): Promise<LoteBanco> {
   if (u.error) throw erro("fechar lote", u.error);
 
   return montarLote((u.data ?? [])[0] as LoteRow);
+}
+
+// Correção pontual de um lançamento em "Pagamentos realizados" — o LOTE
+// precisa já estar `realizado` (dono do fluxo é o pagamento já concluído;
+// edição fina de fornecedor/invoice/valorMoeda ANTES de pago continua sendo
+// `atualizarLancamentoBanco`, que bloqueia justamente o caso inverso).
+// `cliente` grava só neste lançamento; `pagoEm` grava no LOTE inteiro —
+// mesmo escopo que pagoEm sempre teve, afeta todas as linhas do lote.
+// `pagoEm` chega como YYYY-MM-DD (validado em pagamentoValidation.ts) e é
+// gravado ao meio-dia UTC pra nunca cruzar dia em nenhum fuso.
+export async function atualizarLancamentoRealizado(
+  id: string,
+  dto: AtualizarLancamentoRealizadoDTO,
+): Promise<BancoPayload> {
+  const db = createSupabaseAdminClient();
+  const { lote } = await acharLancRow(db, id);
+
+  if (!lote.realizado) {
+    throw createError({
+      statusCode: 409,
+      statusMessage: "Lote ainda não foi pago; use a edição normal do lançamento.",
+    });
+  }
+
+  const u1 = await db.from(T_LANC).update({ cliente: dto.cliente }).eq("id", id);
+  if (u1.error) throw erro("editar cliente do lançamento", u1.error);
+
+  const u2 = await db
+    .from(T_LOTES)
+    .update({ pago_em: `${dto.pagoEm}T12:00:00.000Z` })
+    .eq("id", lote.id);
+  if (u2.error) throw erro("editar data de pagamento", u2.error);
+
+  return listarBancoPayload();
 }

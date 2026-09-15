@@ -1,6 +1,6 @@
 import { createError } from "h3";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
-import type { AuthUser, AdminUserSummary } from "#shared/types/auth";
+import type { AuthUser, AdminUserSummary, ContaSummary } from "#shared/types/auth";
 import type { ConsultorNome } from "#shared/types/Patient";
 import { isRole, type Role } from "#shared/utils/rbac";
 import { CONSULTORES } from "#shared/constants/consultores";
@@ -51,12 +51,39 @@ export function parseRoleInput(body: { role?: unknown; consultorNome?: unknown }
 }
 
 /**
- * app_metadata a gravar para um cargo. `consultorNome: null` quando não é
- * consultor — remove qualquer valor órfão de um cargo anterior (o GoTrue faz
- * merge raso de app_metadata e apaga chaves nulas).
+ * app_metadata a gravar para um cargo (+ nome genérico da conta, opcional).
+ * `consultorNome: null` quando não é consultor — remove qualquer valor órfão
+ * de um cargo anterior (o GoTrue faz merge raso de app_metadata e apaga
+ * chaves nulas). `nome: null` quando omitido, pelo mesmo motivo.
  */
-export function roleAppMetadata(role: Role, consultorNome?: ConsultorNome): Record<string, unknown> {
-  return { role, consultorNome: role === "consultor" ? consultorNome : null };
+export function roleAppMetadata(
+  role: Role,
+  consultorNome?: ConsultorNome,
+  nome?: string,
+): Record<string, unknown> {
+  return { role, consultorNome: role === "consultor" ? consultorNome : null, nome: nome ?? null };
+}
+
+/**
+ * Valida `nome` (campo genérico de exibição, sem lista fixa — diferente de
+ * `consultorNome`). Na criação é obrigatório; na edição é opcional, pra não
+ * forçar preenchimento retroativo de contas que ainda não têm nome. Lança 400
+ * (h3) se obrigatório e vazio.
+ */
+export function parseNomeInput(body: { nome?: unknown }, opts: { required: true }): string;
+export function parseNomeInput(body: { nome?: unknown }, opts: { required: false }): string | undefined;
+export function parseNomeInput(
+  body: { nome?: unknown },
+  opts: { required: boolean },
+): string | undefined {
+  const nome = typeof body.nome === "string" ? body.nome.trim() : "";
+  if (opts.required && !nome) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: "Informe o nome da conta.",
+    });
+  }
+  return nome || undefined;
 }
 
 const LIST_PER_PAGE = 1000;
@@ -126,12 +153,14 @@ export function toAdminUserSummary(user: User): AdminUserSummary {
   const role: Role = isRole(meta.role) ? meta.role : "consultor";
   const consultorNome =
     role === "consultor" && isConsultorNome(meta.consultorNome) ? meta.consultorNome : undefined;
+  const nome = typeof meta.nome === "string" && meta.nome.trim() ? meta.nome : undefined;
 
   return {
     id: user.id,
     email: user.email ?? "",
     role,
     consultorNome,
+    nome,
     createdAt: user.created_at ?? "",
     lastSignInAt: user.last_sign_in_at ?? null,
   };
@@ -165,11 +194,25 @@ export function resolveAuthUser(user: User, adminEmails: string[]): AuthUser {
     consultorNome = meta.consultorNome;
   }
 
+  const nome = typeof meta.nome === "string" && meta.nome.trim() ? meta.nome : undefined;
+
   return {
     id: user.id,
     email,
     role,
     consultorNome,
+    nome,
     isAdmin: role === "administrador",
   };
+}
+
+/**
+ * Resumo enxuto de conta pro seletor de destinatário de Recados
+ * (GET /api/contas) — reaproveita a mesma resolução de role/nome de
+ * `toAdminUserSummary`, só descartando os campos que esse endpoint não expõe
+ * (e-mail, datas).
+ */
+export function toContaSummary(user: User): ContaSummary {
+  const { id, role, nome } = toAdminUserSummary(user);
+  return { id, role, nome };
 }
