@@ -102,7 +102,7 @@ defineExpose({ resetFormState });
     </div>
 
     <form class="flex flex-col gap-3" @submit.prevent="handleSubmit">
-      <div class="grid grid-cols-[1fr_1.6fr_0.6fr] gap-2.5">
+      <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-[1fr_1.6fr_0.6fr]">
         <div>
           <label for="f-data" class="mb-1.5 block text-[10.5px] text-ink-soft">Data</label>
           <input
@@ -147,7 +147,7 @@ defineExpose({ resetFormState });
       <div
         v-for="(item, index) in medicamentos"
         :key="index"
-        class="grid grid-cols-[70px_1fr_auto] items-end gap-2.5"
+        class="grid grid-cols-1 items-end gap-2.5 sm:grid-cols-[70px_1fr_auto]"
       >
         <div>
           <label :for="`f-qtd-${index}`" class="mb-1.5 block text-[10.5px] text-ink-soft">Qtd.</label>
@@ -178,7 +178,7 @@ defineExpose({ resetFormState });
             v-if="index > 0"
             type="button"
             title="Remover medicamento"
-            class="rounded-md px-1.5 py-2 text-ink-soft transition-colors hover:text-danger"
+            class="rounded-md px-4 py-2.5 text-ink-soft transition-colors hover:text-danger md:px-1.5 md:py-2"
             @click="removeMedicamentoItem(index)"
           >
             ✕

@@ -5,7 +5,10 @@
  *
  * Cargos (strings exatas, minúsculas, sem acento):
  * - consultor    → só Follow-up, somente leitura, filtrado pelo próprio nome.
- * - socio        → leitura de Patients, Processos e Pagamentos (tudo, sem filtro).
+ * - socio        → leitura + escrita de Patients, Processos e Pagamentos (tudo,
+ *                  sem filtro). Configurações e a lista de contas (seção
+ *                  "admin") são só leitura — criar/editar/excluir conta e
+ *                  redefinir senha continuam exclusivos de administrador.
  * - operacional  → leitura + escrita de Processos e de Pagamentos (todos).
  * - administrador → acesso total (comportamento legado).
  */
@@ -31,15 +34,17 @@ const READ_ACCESS: Record<Section, readonly Role[]> = {
   patients: ["socio", "administrador"],
   processos: ["consultor", "socio", "operacional", "administrador"],
   pagamentos: ["socio", "operacional", "administrador"],
-  admin: ["administrador"],
-  config: ["administrador"],
+  // "admin" cobre GET /api/admin/users (lista de contas) — socio só lê, nunca
+  // escreve (ver WRITE_ACCESS.admin abaixo).
+  admin: ["socio", "administrador"],
+  config: ["socio", "administrador"],
   recados: ROLES,
 };
 
 const WRITE_ACCESS: Record<Section, readonly Role[]> = {
-  patients: ["administrador"],
-  processos: ["operacional", "administrador"],
-  pagamentos: ["operacional", "administrador"],
+  patients: ["socio", "administrador"],
+  processos: ["socio", "operacional", "administrador"],
+  pagamentos: ["socio", "operacional", "administrador"],
   admin: ["administrador"],
   config: ["administrador"],
   recados: ROLES,
@@ -61,20 +66,9 @@ export function isRowScopedToOwnConsultor(role: Role): boolean {
   return role === "consultor";
 }
 
-/**
- * true para os cargos que não param em Início — caem direto em Follow-up.
- * Regra única: antes vivia reescrita em 3 lugares (defaultRouteForRole aqui,
- * o guard de landing em authz.global.ts, e o filtro do link "Início" em
- * SidebarNav.vue) — confirmado que as 3 cópias usavam exatamente os mesmos 2
- * cargos e o mesmo sentido, só variando o jeito de testar a condição.
- */
-export function landsOnProcessos(role: Role): boolean {
-  return role === "consultor" || role === "operacional";
-}
-
-/** Rota de entrada padrão depois do login, por cargo. */
-export function defaultRouteForRole(role: Role): string {
-  return landsOnProcessos(role) ? "/processos" : "/inicio";
+/** Rota de entrada padrão depois do login — igual pra todos os cargos. */
+export function defaultRouteForRole(_role: Role): string {
+  return "/processos";
 }
 
 const WRITE_METHODS: readonly string[] = ["POST", "PUT", "PATCH", "DELETE"];

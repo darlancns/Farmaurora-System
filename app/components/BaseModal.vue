@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted } from "vue";
 import { useEscapeToClose } from "../composables/useEscapeToClose";
+import { useLockBodyScroll } from "../composables/useLockBodyScroll";
 
 // Casco comum aos modais do app (Round 4 — dedup): overlay fixo, fecha ao
 // clicar fora ou apertar Esc, e agora também trava o scroll da página por
@@ -13,15 +13,7 @@ import { useEscapeToClose } from "../composables/useEscapeToClose";
 const emit = defineEmits<{ close: [] }>();
 
 useEscapeToClose(() => emit("close"));
-
-let overflowAnterior = "";
-onMounted(() => {
-  overflowAnterior = document.body.style.overflow;
-  document.body.style.overflow = "hidden";
-});
-onBeforeUnmount(() => {
-  document.body.style.overflow = overflowAnterior;
-});
+useLockBodyScroll();
 </script>
 
 <template>

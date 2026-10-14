@@ -172,7 +172,7 @@ async function handleForgotSubmit(): Promise<void> {
                   id="login-password-toggle"
                   type="button"
                   tabindex="-1"
-                  class="absolute inset-y-0 right-3 flex items-center text-ink-soft hover:text-ink"
+                  class="absolute inset-y-0 right-3 flex items-center pl-7 text-ink-soft hover:text-ink md:pl-0"
                   :aria-label="showPassword ? 'Ocultar senha' : 'Mostrar senha'"
                   @click="showPassword = !showPassword"
                 >

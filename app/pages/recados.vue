@@ -213,8 +213,19 @@ async function handleConcluirLembrete(id: string): Promise<void> {
             Meus lembretes ({{ lembretesVisiveis.length }})
           </button>
 
+          <!--
+            Abaixo de sm, as 4 abas já quebram pra 2 linhas sozinhas (não cabem
+            em telas estreitas mesmo sem o botão) — um botão `absolute` nesse
+            cenário fica sobreposto ao texto de "Recebidos"/"Enviados" na
+            segunda linha, tornando-os ilegíveis e inclicáveis. Por isso, `w-full`
+            tira o botão do posicionamento absoluto e o força pra uma linha
+            própria abaixo das abas (flex-wrap cuida disso sozinho, sem
+            precisar de scroll horizontal nas abas). A partir de sm, onde as
+            4 abas cabem numa linha só, volta ao posicionamento absoluto de
+            sempre, à direita e centralizado verticalmente com a barra.
+          -->
           <BotaoNovoRecado
-            class="absolute top-1/2 right-0 -translate-y-1/2"
+            class="mt-2 w-full sm:absolute sm:top-1/2 sm:right-0 sm:mt-0 sm:w-auto sm:-translate-y-1/2"
             :label="activeTab === 'meus' ? '+ Novo lembrete' : '+ Novo recado'"
             @click="openCreateForm"
           />

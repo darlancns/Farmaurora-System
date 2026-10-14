@@ -103,28 +103,34 @@ function ciclar(index: number): void {
       <div
         v-for="(item, index) in grupo.itens"
         :key="index"
-        class="flex items-center gap-3 border-b border-hairline px-3.5 py-2.5 last:border-b-0"
+        class="@container flex flex-col gap-1.5 border-b border-hairline px-3.5 py-2.5 last:border-b-0 @[480px]:flex-row @[480px]:items-center @[480px]:gap-3"
       >
-        <span class="min-w-0 flex-1 truncate text-[13.5px] text-ink">{{ item.paciente }}</span>
-        <span class="w-[110px] shrink-0 text-right font-mono text-[12.5px] text-ink">R$ {{ formatCurrency(item.valor) }}</span>
-        <button
-          :id="`btn-status-item-${grupo.id}-${index}`"
-          type="button"
-          :disabled="grupo.realizado || readonly"
-          class="w-[104px] shrink-0 rounded-full px-2.5 py-1 text-center text-[11px] font-semibold transition-opacity disabled:cursor-not-allowed"
-          :class="STATUS_ITEM_GRUPO_META[item.status].badgeClass"
-          :title="grupo.realizado || readonly ? undefined : 'Clique para alternar'"
-          @click="ciclar(index)"
-        >
-          {{ STATUS_ITEM_GRUPO_META[item.status].label }}
-        </button>
-        <div v-if="!readonly && !grupo.realizado" class="flex shrink-0 items-center gap-1">
+        <span class="min-w-0 truncate text-[13.5px] text-ink @[480px]:flex-1">{{ item.paciente }}</span>
+
+        <div class="flex flex-wrap items-center gap-2 @[480px]:flex-nowrap @[480px]:gap-3">
+          <span class="shrink-0 text-right font-mono text-[12.5px] text-ink @[480px]:w-[110px]">
+            R$ {{ formatCurrency(item.valor) }}
+          </span>
+          <button
+            :id="`btn-status-item-${grupo.id}-${index}`"
+            type="button"
+            :disabled="grupo.realizado || readonly"
+            class="w-[104px] shrink-0 rounded-full px-2.5 py-1 text-center text-[11px] font-semibold transition-opacity disabled:cursor-not-allowed"
+            :class="STATUS_ITEM_GRUPO_META[item.status].badgeClass"
+            :title="grupo.realizado || readonly ? undefined : 'Clique para alternar'"
+            @click="ciclar(index)"
+          >
+            {{ STATUS_ITEM_GRUPO_META[item.status].label }}
+          </button>
+        </div>
+
+        <div v-if="!readonly && !grupo.realizado" class="flex shrink-0 items-center gap-1 self-end @[480px]:self-auto">
           <button
             :id="`btn-editar-item-${grupo.id}-${index}`"
             type="button"
             title="Editar pagamento"
             aria-label="Editar pagamento"
-            class="rounded-md p-1.5 text-ink-soft transition-colors hover:text-accent-dark"
+            class="rounded-md p-3.5 text-ink-soft transition-colors hover:text-accent-dark md:p-1.5"
             @click="emit('editar-item', index)"
           >
             <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
@@ -137,7 +143,7 @@ function ciclar(index: number): void {
             type="button"
             title="Excluir pagamento"
             aria-label="Excluir pagamento"
-            class="rounded-md p-1.5 text-ink-soft transition-colors hover:text-danger"
+            class="rounded-md p-3.5 text-ink-soft transition-colors hover:text-danger md:p-1.5"
             @click="emit('excluir-item', index)"
           >
             <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">

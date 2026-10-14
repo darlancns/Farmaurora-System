@@ -31,9 +31,9 @@ const valorReaisLabel = computed(() =>
 <template>
   <div
     :id="`lancamento-banco-${lancamento.id}`"
-    class="flex items-center gap-3 border-b border-hairline px-3.5 py-2.5 last:border-b-0"
+    class="@container flex flex-col gap-1.5 border-b border-hairline px-3.5 py-2.5 last:border-b-0 @[640px]:flex-row @[640px]:items-center @[640px]:gap-3"
   >
-    <div class="min-w-0 flex-1">
+    <div class="min-w-0 @[640px]:flex-1">
       <span class="block truncate text-[13.5px] font-medium text-ink">{{ lancamento.cliente }}</span>
       <span class="block truncate text-[11.5px] text-ink-soft">
         {{ lancamento.fornecedor }} · Invoice {{ lancamento.invoice
@@ -41,33 +41,38 @@ const valorReaisLabel = computed(() =>
       </span>
     </div>
 
-    <span
-      v-if="dataPagamento"
-      class="w-[86px] shrink-0 text-right font-mono text-[11.5px] text-ink-soft"
-      title="Data do pagamento"
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 @[640px]:flex-nowrap @[640px]:gap-3">
+      <span
+        v-if="dataPagamento"
+        class="shrink-0 text-right font-mono text-[11.5px] text-ink-soft @[640px]:w-[86px]"
+        title="Data do pagamento"
+      >
+        {{ dataPagamento }}
+      </span>
+
+      <span class="shrink-0 text-right font-mono text-[12.5px] text-ink @[640px]:w-[130px]">
+        {{ simbolo }} {{ formatCurrency(lancamento.valorMoeda) }}
+      </span>
+
+      <span
+        class="shrink-0 text-right font-mono text-[12.5px] @[640px]:w-[150px]"
+        :class="valorReaisLabel ? 'text-ink' : 'text-ink-soft italic'"
+      >
+        {{ valorReaisLabel ?? "aguardando cotação" }}
+      </span>
+    </div>
+
+    <div
+      v-if="editavel || excluivel || realizadoEditavel"
+      class="flex shrink-0 items-center gap-1 self-end @[640px]:self-auto"
     >
-      {{ dataPagamento }}
-    </span>
-
-    <span class="w-[130px] shrink-0 text-right font-mono text-[12.5px] text-ink">
-      {{ simbolo }} {{ formatCurrency(lancamento.valorMoeda) }}
-    </span>
-
-    <span
-      class="w-[150px] shrink-0 text-right font-mono text-[12.5px]"
-      :class="valorReaisLabel ? 'text-ink' : 'text-ink-soft italic'"
-    >
-      {{ valorReaisLabel ?? "aguardando cotação" }}
-    </span>
-
-    <div v-if="editavel || excluivel || realizadoEditavel" class="flex shrink-0 items-center gap-1">
       <button
         v-if="editavel"
         :id="`btn-editar-lancamento-${lancamento.id}`"
         type="button"
         title="Editar lançamento"
         aria-label="Editar lançamento"
-        class="rounded-md p-1.5 text-ink-soft transition-colors hover:text-accent-dark"
+        class="rounded-md p-3.5 text-ink-soft transition-colors hover:text-accent-dark md:p-1.5"
         @click="emit('editar', lancamento)"
       >
         <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
@@ -81,7 +86,7 @@ const valorReaisLabel = computed(() =>
         type="button"
         title="Editar pagamento realizado"
         aria-label="Editar pagamento realizado"
-        class="rounded-md p-1.5 text-ink-soft transition-colors hover:text-accent-dark"
+        class="rounded-md p-3.5 text-ink-soft transition-colors hover:text-accent-dark md:p-1.5"
         @click="emit('editar-realizado')"
       >
         <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
@@ -95,7 +100,7 @@ const valorReaisLabel = computed(() =>
         type="button"
         title="Excluir lançamento"
         aria-label="Excluir lançamento"
-        class="rounded-md p-1.5 text-ink-soft transition-colors hover:text-danger"
+        class="rounded-md p-3.5 text-ink-soft transition-colors hover:text-danger md:p-1.5"
         @click="emit('excluir', lancamento)"
       >
         <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">

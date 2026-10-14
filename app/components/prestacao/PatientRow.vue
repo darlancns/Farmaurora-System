@@ -91,7 +91,7 @@ async function handleGenerateWord(): Promise<void> {
             title="Gerar Word"
             aria-label="Gerar Word"
             :disabled="generating"
-            class="flex h-[33px] w-[33px] items-center justify-center rounded-md bg-[#2B579A] text-white transition-opacity hover:opacity-90 disabled:opacity-55"
+            class="flex h-11 w-11 items-center justify-center rounded-md bg-[#2B579A] text-white transition-opacity hover:opacity-90 disabled:opacity-55 md:h-[33px] md:w-[33px]"
             @click="handleGenerateWord"
           >
             <svg viewBox="0 0 384 512" class="h-[15px] w-[15px]" fill="currentColor" aria-hidden="true">
@@ -103,7 +103,7 @@ async function handleGenerateWord(): Promise<void> {
             type="button"
             title="Copiar mensagem do WhatsApp"
             aria-label="Copiar mensagem do WhatsApp"
-            class="flex h-[33px] w-[33px] items-center justify-center rounded-md bg-[#25D366] text-white transition-opacity hover:opacity-90"
+            class="flex h-11 w-11 items-center justify-center rounded-md bg-[#25D366] text-white transition-opacity hover:opacity-90 md:h-[33px] md:w-[33px]"
             @click="emit('copy-whatsapp', patient)"
           >
             <svg viewBox="0 0 448 512" class="h-[15px] w-[15px]" fill="currentColor" aria-hidden="true">
@@ -116,7 +116,7 @@ async function handleGenerateWord(): Promise<void> {
             type="button"
             title="Editar"
             aria-label="Editar"
-            class="flex h-[33px] w-[33px] items-center justify-center rounded-md border border-hairline bg-paper text-ink-soft transition-colors hover:border-accent-dark hover:text-accent-dark"
+            class="flex h-11 w-11 items-center justify-center rounded-md border border-hairline bg-paper text-ink-soft transition-colors hover:border-accent-dark hover:text-accent-dark md:h-[33px] md:w-[33px]"
             @click="emit('edit', patient)"
           >
             <svg viewBox="0 0 24 24" class="h-[15px] w-[15px]" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
@@ -130,7 +130,7 @@ async function handleGenerateWord(): Promise<void> {
             type="button"
             title="Excluir"
             aria-label="Excluir"
-            class="flex h-[33px] w-[33px] items-center justify-center rounded-md border border-hairline bg-paper text-ink-soft transition-colors hover:border-danger hover:text-danger"
+            class="flex h-11 w-11 items-center justify-center rounded-md border border-hairline bg-paper text-ink-soft transition-colors hover:border-danger hover:text-danger md:h-[33px] md:w-[33px]"
             @click="showDeleteConfirm = true"
           >
             <svg viewBox="0 0 24 24" class="h-[15px] w-[15px]" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">

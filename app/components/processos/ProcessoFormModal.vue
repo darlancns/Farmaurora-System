@@ -284,7 +284,7 @@ function handleSubmit(): void {
             <button
               type="button"
               title="Remover pendência"
-              class="rounded-md px-1.5 py-2 text-ink-soft transition-colors hover:text-danger"
+              class="rounded-md px-4 py-2.5 text-ink-soft transition-colors hover:text-danger md:px-1.5 md:py-2"
               @click="removePendencia(index)"
             >
               ✕

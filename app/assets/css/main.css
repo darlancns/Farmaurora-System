@@ -29,6 +29,22 @@ body {
   font-family: var(--font-sans);
 }
 
+/* Altura de conteúdo do BottomNav (sem a safe-area, que é somada à parte em
+   cada lugar que precisa) — mantida em sincronia com os min-h-[52px] dos
+   itens em BottomNav.vue + a borda de 1px do topo da barra. */
+:root {
+  --bottom-nav-height: 56px;
+}
+
+/* Abaixo de md (mesmo breakpoint do Tailwind que troca SidebarNav <-> BottomNav
+   em DefaultLayout.vue/SidebarNav.vue/BottomNav.vue), reserva espaço no fim do
+   conteúdo pra nada ficar coberto pela barra fixa. */
+@media (max-width: 767px) {
+  #app-main-content {
+    padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 /* Scrollbar da identidade visual — aplica em todo overflow com scroll do
    projeto (Firefox via scrollbar-width/-color, demais via ::-webkit-scrollbar). */
 html {

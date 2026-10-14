@@ -10,8 +10,11 @@ import ContaFormModal from "./ContaFormModal.vue";
 import ResetPasswordModal from "./ResetPasswordModal.vue";
 import type { AdminUserSummary } from "#shared/types/auth";
 
-const { user } = useAuth();
+const { user, canWrite } = useAuth();
 const { showToast } = useToast();
+// socio lê a lista de contas mas não gerencia — só administrador cria/edita/
+// exclui/redefine senha (seção "admin", ver shared/utils/rbac.ts).
+const podeGerenciar = computed<boolean>(() => canWrite("admin"));
 const {
   contas,
   loading,
@@ -102,6 +105,7 @@ function itemsPara(conta: AdminUserSummary): ActionsMenuItem[] {
     <div class="flex items-center justify-between">
       <h2 class="text-[12px] font-semibold tracking-wide text-ink-soft uppercase">Contas da equipe</h2>
       <button
+        v-if="podeGerenciar"
         id="btn-nova-conta"
         type="button"
         class="rounded-lg bg-accent-dark px-3.5 py-2 text-[12.5px] font-semibold text-white transition-colors hover:opacity-90"
@@ -115,8 +119,20 @@ function itemsPara(conta: AdminUserSummary): ActionsMenuItem[] {
       {{ error }}
     </p>
 
-    <div class="overflow-hidden rounded-lg border border-hairline bg-paper-raised">
-      <table class="w-full text-left text-[13px]">
+    <!--
+      @container: abaixo do breakpoint, a tabela original (inalterada, mesmo
+      layout de sempre a partir dele) dá lugar a uma lista de cards — igual
+      ao padrão já usado em LancamentoBancoCard/ProcessoRow, só que aqui como
+      duas renderizações paralelas (tabela + cards) alternadas só por CSS, em
+      vez de reordenar o conteúdo de uma única linha: cada `<td>` de uma
+      tabela HTML não pode virar bloco/coluna sozinho sem sair do "table
+      layout" (que é justamente o que garante o desktop ficar idêntico ao
+      atual). Mesmo esquema de "dois renders, um oculto por breakpoint" já
+      usado por SidebarNav/BottomNav (Rodada 1) — ids diferentes em cada um
+      pra nunca duplicar id no DOM.
+    -->
+    <div class="@container overflow-hidden rounded-lg border border-hairline bg-paper-raised">
+      <table class="hidden w-full text-left text-[13px] @[700px]:table">
         <thead class="border-b border-hairline bg-paper text-[11px] tracking-wide text-ink-soft uppercase">
           <tr>
             <th class="px-3.5 py-2.5 font-semibold">Nome</th>
@@ -148,6 +164,7 @@ function itemsPara(conta: AdminUserSummary): ActionsMenuItem[] {
             <td class="px-3.5 py-2.5 text-ink-soft">{{ conta.consultorNome ?? "—" }}</td>
             <td class="px-3.5 py-2.5 text-right">
               <ActionsMenu
+                v-if="podeGerenciar"
                 :trigger-id="`btn-acoes-conta-${conta.id}`"
                 :items="itemsPara(conta)"
                 :aria-label="`Ações para ${conta.email}`"
@@ -156,6 +173,39 @@ function itemsPara(conta: AdminUserSummary): ActionsMenuItem[] {
           </tr>
         </tbody>
       </table>
+
+      <div class="flex flex-col @[700px]:hidden">
+        <p v-if="loading && !contas.length" class="px-3.5 py-6 text-center text-[13px] text-ink-soft">Carregando…</p>
+        <p v-else-if="!contas.length" class="px-3.5 py-6 text-center text-[13px] text-ink-soft">Nenhuma conta.</p>
+
+        <div
+          v-for="conta in contas"
+          :id="`conta-card-${conta.id}`"
+          :key="conta.id"
+          class="flex flex-col gap-1.5 border-b border-hairline px-3.5 py-3 last:border-b-0"
+        >
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <p class="text-[13.5px] font-medium text-ink">{{ conta.nome ?? "—" }}</p>
+              <p class="mt-0.5 text-[12px] break-all text-ink-soft">
+                {{ conta.email }}<span v-if="conta.id === meuId" class="ml-1">(você)</span>
+              </p>
+            </div>
+            <ActionsMenu
+              v-if="podeGerenciar"
+              :trigger-id="`btn-acoes-conta-card-${conta.id}`"
+              :items="itemsPara(conta)"
+              :aria-label="`Ações para ${conta.email}`"
+              class="shrink-0"
+            />
+          </div>
+
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-ink-soft">
+            <span class="rounded-full bg-paper px-2 py-0.5">{{ ROLE_LABEL[conta.role] }}</span>
+            <span v-if="conta.consultorNome">{{ conta.consultorNome }}</span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <ContaFormModal

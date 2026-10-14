@@ -63,7 +63,7 @@ test.describe("Autenticação", () => {
   test.describe.configure({ retries: 2 });
 
   test("1. rota protegida sem sessão redireciona para /login", async ({ page }) => {
-    await page.goto("/inicio");
+    await page.goto("/processos");
     await expect(page).toHaveURL(/\/login(\?|$)/);
     await expect(page.locator("#login-page")).toBeVisible();
   });
@@ -99,7 +99,7 @@ test.describe("Autenticação", () => {
     await page.locator("#logout-button").click();
     await expect(page).toHaveURL(/\/login(\?|$)/);
 
-    await page.goto("/inicio");
+    await page.goto("/processos");
     await expect(page).toHaveURL(/\/login(\?|$)/);
   });
 
@@ -157,10 +157,10 @@ test.describe("Autenticação", () => {
     }
 
     // Também varre o payload de estado do Nuxt renderizado numa página protegida.
-    const inicioHtml = (await (await page.request.get("/inicio")).text()).toLowerCase();
-    expect(inicioHtml).not.toContain("supabaseservicerolekey");
+    const processosHtml = (await (await page.request.get("/processos")).text()).toLowerCase();
+    expect(processosHtml).not.toContain("supabaseservicerolekey");
     if (SERVICE_ROLE_KEY) {
-      expect(inicioHtml).not.toContain(SERVICE_ROLE_KEY.toLowerCase());
+      expect(processosHtml).not.toContain(SERVICE_ROLE_KEY.toLowerCase());
     }
   });
 });

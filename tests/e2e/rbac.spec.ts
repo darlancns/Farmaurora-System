@@ -58,39 +58,53 @@ test.describe("RBAC", () => {
   // em pagamentos-fluxo.spec.ts. Uma re-execução limpa recupera.
   test.describe.configure({ retries: 2 });
 
-  test("socio: lê tudo, sem botões de escrita, POST direto → 403", async ({ page }) => {
+  test("socio: lê e escreve em Patients/Processos/Pagamentos; Configurações e admin só leitura", async ({
+    page,
+  }) => {
     test.skip(!hasSocio, "defina E2E_SOCIO_EMAIL / E2E_SOCIO_PASSWORD");
 
     await login(page, socio.email, socio.password);
 
-    // Prestações — vê a listagem, sem form nem botões de editar/excluir.
+    // Prestações — vê a listagem COM form e botões de editar/excluir.
     await page.goto("/prestacao", { waitUntil: "networkidle" });
     await expect(page).toHaveURL(/\/prestacao$/);
-    await expect(page.locator("#patient-form")).toHaveCount(0);
-    await expect(page.locator("[id^='btn-edit-patient-']")).toHaveCount(0);
-    await expect(page.locator("[id^='btn-delete-patient-']")).toHaveCount(0);
+    await expect(page.locator("#patient-form")).toBeVisible();
     // Gerar Word continua disponível.
     await expect(page.locator("[id^='btn-generate-word-']").first()).toBeVisible();
 
-    // Processos — agrupamento normal, sem "novo processo" nem excluir.
+    // Processos — agrupamento normal, com "novo processo".
     await page.goto("/processos", { waitUntil: "networkidle" });
-    await expect(page.locator("#btn-novo-processo")).toHaveCount(0);
+    await expect(page.locator("#btn-novo-processo")).toBeVisible();
     await expect(page.locator("#processo-group-list")).toBeVisible();
 
-    // Pagamentos — sem botões de novo lançamento / novo pagamento / editar realizado.
+    // Pagamentos — com botão de novo lançamento.
     await page.goto("/pagamentos", { waitUntil: "networkidle" });
-    await expect(page.locator("#btn-novo-lote-banco")).toHaveCount(0);
-    await expect(page.locator("[id^='btn-editar-realizado-']")).toHaveCount(0);
+    await expect(page.locator("#btn-novo-lote-banco")).toBeVisible();
 
-    // API: leitura de pagamentos ok, escrita bloqueada em todas as seções.
+    // Configurações — acessa a página e vê a lista de contas, sem controles de gestão.
+    await page.goto("/configuracoes", { waitUntil: "networkidle" });
+    await expect(page).toHaveURL(/\/configuracoes$/);
+    await expect(page.locator("#contas-tab")).toBeVisible();
+    await expect(page.locator("#btn-nova-conta")).toHaveCount(0);
+    await expect(page.locator("[id^='btn-acoes-conta-']")).toHaveCount(0);
+
+    // API: leitura ok em tudo; escrita ok em patients/processos/pagamentos; bloqueada em admin.
     const getPag = await page.request.get("/api/pagamentos/banco");
     expect(getPag.ok()).toBeTruthy();
-    const post = await page.request.post("/api/patients", { data: { paciente: "x" } });
-    expect(post.status()).toBe(403);
-    const postProc = await page.request.post("/api/processos", { data: { paciente: "x" } });
-    expect(postProc.status()).toBe(403);
+    const getAdmin = await page.request.get("/api/admin/users");
+    expect(getAdmin.ok()).toBeTruthy();
+
+    const postPatient = await page.request.post("/api/patients", { data: {} });
+    expect(postPatient.status()).not.toBe(403);
+    const postProc = await page.request.post("/api/processos", { data: {} });
+    expect(postProc.status()).not.toBe(403);
     const postPag = await page.request.post("/api/pagamentos/banco", { data: {} });
-    expect(postPag.status()).toBe(403);
+    expect(postPag.status()).not.toBe(403);
+
+    const postAdmin = await page.request.post("/api/admin/users", {
+      data: { email: "x@x.com", password: "senha-super-forte-123", role: "socio" },
+    });
+    expect(postAdmin.status()).toBe(403);
   });
 
   test("consultor: só Follow-up, só os próprios processos, /prestacao redireciona", async ({ page }) => {

@@ -34,7 +34,7 @@ export default defineNuxtConfig({
   css: ["~/assets/css/main.css"],
 
   routeRules: {
-    "/": { redirect: "/inicio" },
+    "/": { redirect: "/processos" },
   },
 
   vite: {

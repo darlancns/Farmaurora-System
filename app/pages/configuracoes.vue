@@ -4,19 +4,22 @@ import { useAuth } from "../composables/useAuth";
 import GlobalHeader from "../components/GlobalHeader.vue";
 import ContasTab from "../components/configuracoes/ContasTab.vue";
 
-// A autorização real (redirect de não-admin) é feita por app/middleware/authz.global.ts
-// via sectionForPageRoute("/configuracoes") === "config". Este bloco é só um
-// reforço defensivo.
+// A autorização real (redirect de quem não pode nem ler) é feita por
+// app/middleware/authz.global.ts via sectionForPageRoute("/configuracoes") ===
+// "config". Este bloco é só um reforço defensivo. socio lê (vê a lista de
+// contas); só administrador escreve — a aba ContasTab decide, por conta
+// própria, quais controles de escrita mostrar (ver canWrite("admin") lá).
 //
 // O cargo só existe no client (via /api/auth/me), então o conteúdo dependente
 // dele só é montado depois da hidratação — o HTML do SSR (sem conteúdo) bate
 // com o primeiro render do client, evitando hydration mismatch.
-const { isAdmin } = useAuth();
+const { canRead } = useAuth();
 const mounted = ref(false);
 onMounted(() => {
   mounted.value = true;
 });
-const showContent = computed(() => mounted.value && isAdmin.value);
+const podeVer = computed(() => canRead("config"));
+const showContent = computed(() => mounted.value && podeVer.value);
 
 type Tab = "contas";
 const activeTab = ref<Tab>("contas");
@@ -53,6 +56,6 @@ const tabs: TabDef[] = [{ key: "contas", label: "Contas" }];
     </GlobalHeader>
 
     <ContasTab v-if="showContent && activeTab === 'contas'" />
-    <p v-else-if="mounted && !isAdmin" class="text-[13px] text-ink-soft">Acesso restrito.</p>
+    <p v-else-if="mounted && !podeVer" class="text-[13px] text-ink-soft">Acesso restrito.</p>
   </div>
 </template>

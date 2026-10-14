@@ -102,8 +102,8 @@ Detalhes:
   `consultorNome` gravado no seu `app_metadata`. O filtro é aplicado **na query da API**
   (`server/api/processos/index.get.ts` e `[id].get.ts` respondem 404 para processo de outro),
   não só na UI. Sem `consultorNome` definido, não vê nada.
-- **Rota de entrada por cargo** (`defaultRouteForRole`): `consultor` e `operacional` caem em
-  `/processos`; `socio` e `administrador` em `/inicio`.
+- **Rota de entrada por cargo** (`defaultRouteForRole`): todos os cargos caem em `/processos`;
+  `"/"` redireciona pra lá.
 - **Rede de segurança de migração**: uma conta sem `app_metadata.role` definido, cujo e-mail
   esteja em `NUXT_ADMIN_EMAILS`, é tratada como `administrador` (para não travar a conta antes
   de os metadados serem gravados).
@@ -230,7 +230,6 @@ app/
 │  └─ authz.global.ts                 # guarda de cargo (redireciona quem abre área fora do papel)
 ├─ pages/
 │  ├─ login.vue                       # login (e-mail + senha, Supabase Auth)
-│  ├─ inicio.vue                      # landing pós-login (banner); "/" redireciona p/ cá
 │  ├─ prestacao.vue                   # Prestações de Contas (form + tabela + Word + WhatsApp)
 │  ├─ processos.vue                   # Follow-Up (grupos por consultor, filtros, abas, sino)
 │  ├─ pagamentos.vue                  # Pagamentos (abas Banco / Cotação / Despachante / Transporte)

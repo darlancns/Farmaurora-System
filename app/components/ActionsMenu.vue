@@ -129,7 +129,7 @@ onBeforeUnmount(() => {
       :aria-label="ariaLabel ?? 'Mais ações'"
       aria-haspopup="true"
       :aria-expanded="open"
-      class="flex h-7 w-7 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-paper hover:text-ink"
+      class="flex h-11 w-11 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-paper hover:text-ink md:h-7 md:w-7"
       @click="toggleMenu"
     >
       <svg viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor" aria-hidden="true">

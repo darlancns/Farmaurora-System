@@ -17,7 +17,7 @@ import type { NewPatientDTO, PatientComputed } from "#shared/types/Patient";
 
 const { computedPatients, fetchPatients, addPatient, updatePatient, removePatient } = usePatients();
 const { canWrite } = useAuth();
-// Só administrador cria/edita/exclui prestações; socio é somente leitura.
+// socio e administrador criam/editam/excluem prestações.
 const canWritePatients = computed<boolean>(() => canWrite("patients"));
 const { uploadAttachment } = useAttachments();
 const { generateDocx } = useDocxGenerator();
@@ -134,8 +134,16 @@ async function handleCopyWhatsapp(patient: PatientComputed): Promise<void> {
       subtitle="Preencha os dados, confira os cálculos e gere a prestação com um clique."
     />
 
-    <div class="flex items-start gap-4">
-      <div v-if="canWritePatients" class="w-[400px] shrink-0">
+    <!--
+      Abaixo de lg (1024px), um formulário de 400px fixo ao lado da tabela não
+      cabe: empilha em coluna, formulário primeiro (mesma ordem de leitura
+      esquerda->direita do layout atual, e combina com o fluxo descrito no
+      subtítulo acima — "preencha os dados, confira os cálculos..." — sem
+      forçar quem for lançar um novo item a rolar past uma tabela que pode ter
+      muitos meses/pacientes). A partir de lg, layout idêntico ao anterior.
+    -->
+    <div class="flex flex-col items-start gap-4 lg:flex-row">
+      <div v-if="canWritePatients" class="w-full shrink-0 lg:w-[400px]">
         <PatientForm
           ref="patientFormRef"
           :editing-patient="editingPatient"
@@ -146,7 +154,7 @@ async function handleCopyWhatsapp(patient: PatientComputed): Promise<void> {
         />
       </div>
 
-      <div class="min-w-0 flex-1">
+      <div class="min-w-0 w-full lg:flex-1">
         <div class="relative mb-3">
           <input
             id="patient-search"

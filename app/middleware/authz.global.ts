@@ -1,6 +1,6 @@
 import { defineNuxtRouteMiddleware, navigateTo, useRequestEvent } from "#app";
 import { useAuth } from "../composables/useAuth";
-import { sectionForPageRoute, canReadSection, defaultRouteForRole, landsOnProcessos } from "#shared/utils/rbac";
+import { sectionForPageRoute, canReadSection, defaultRouteForRole } from "#shared/utils/rbac";
 import type { AuthUser } from "#shared/types/auth";
 
 /**
@@ -25,10 +25,9 @@ function redirectForRole(to: { path: string }, user: AuthUser): ReturnType<typeo
     return navigateTo(defaultRouteForRole(user.role));
   }
 
-  // Rota de entrada por cargo: consultor e operacional não param em /inicio.
-  const isLanding = to.path === "/" || to.path === "/inicio";
-  if (isLanding && landsOnProcessos(user.role)) {
-    return navigateTo("/processos");
+  // "/" é a landing — todo mundo cai em Follow-up.
+  if (to.path === "/") {
+    return navigateTo(defaultRouteForRole(user.role));
   }
 }
 

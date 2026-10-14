@@ -127,7 +127,7 @@ onBeforeUnmount(() => {
       title="Notificações"
       aria-label="Notificações"
       :aria-expanded="open"
-      class="relative flex h-[42px] w-[42px] items-center justify-center rounded-lg border border-hairline bg-paper-raised text-ink-soft transition-colors hover:border-accent-dark hover:text-accent-dark"
+      class="relative flex h-11 w-11 items-center justify-center rounded-lg border border-hairline bg-paper-raised text-ink-soft transition-colors hover:border-accent-dark hover:text-accent-dark md:h-[42px] md:w-[42px]"
       @click="togglePanel"
     >
       <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
@@ -176,7 +176,7 @@ onBeforeUnmount(() => {
             type="button"
             title="Marcar como resolvido"
             aria-label="Marcar como resolvido"
-            class="shrink-0 rounded-md p-1.5 text-ink-soft transition-colors hover:text-accent-dark"
+            class="shrink-0 rounded-md p-3.5 text-ink-soft transition-colors hover:text-accent-dark md:p-1.5"
             @click="resolverNotificacaoFornecedor(notificacao)"
           >
             <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">

@@ -8,7 +8,6 @@ import {
   isRole,
   isRowScopedToOwnConsultor,
   isWriteMethod,
-  landsOnProcessos,
   sectionForApiPath,
   sectionForPageRoute,
   type Role,
@@ -36,26 +35,37 @@ describe("rbac — leitura por seção", () => {
       "administrador",
     ]);
   });
-  it("config: só administrador lê", () => {
-    expect(ALL.filter((r) => canReadSection(r, "config"))).toEqual(["administrador"]);
+  it("config: socio e administrador leem", () => {
+    expect(ALL.filter((r) => canReadSection(r, "config"))).toEqual(["socio", "administrador"]);
   });
-  it("admin: só administrador lê", () => {
-    expect(ALL.filter((r) => canReadSection(r, "admin"))).toEqual(["administrador"]);
+  it("admin: socio e administrador leem (lista de contas)", () => {
+    expect(ALL.filter((r) => canReadSection(r, "admin"))).toEqual(["socio", "administrador"]);
   });
 });
 
 describe("rbac — escrita por seção", () => {
-  it("patients: só administrador escreve", () => {
-    expect(ALL.filter((r) => canWriteSection(r, "patients"))).toEqual(["administrador"]);
+  it("patients: socio e administrador escrevem", () => {
+    expect(ALL.filter((r) => canWriteSection(r, "patients"))).toEqual(["socio", "administrador"]);
   });
-  it("processos: operacional e administrador escrevem", () => {
-    expect(ALL.filter((r) => canWriteSection(r, "processos"))).toEqual(["operacional", "administrador"]);
+  it("processos: socio, operacional e administrador escrevem", () => {
+    expect(ALL.filter((r) => canWriteSection(r, "processos"))).toEqual([
+      "socio",
+      "operacional",
+      "administrador",
+    ]);
   });
-  it("pagamentos: operacional e administrador escrevem", () => {
-    expect(ALL.filter((r) => canWriteSection(r, "pagamentos"))).toEqual(["operacional", "administrador"]);
+  it("pagamentos: socio, operacional e administrador escrevem", () => {
+    expect(ALL.filter((r) => canWriteSection(r, "pagamentos"))).toEqual([
+      "socio",
+      "operacional",
+      "administrador",
+    ]);
   });
-  it("admin: só administrador", () => {
+  it("admin: só administrador escreve (criar/editar/excluir conta, resetar senha)", () => {
     expect(ALL.filter((r) => canWriteSection(r, "admin"))).toEqual(["administrador"]);
+  });
+  it("config: só administrador escreve", () => {
+    expect(ALL.filter((r) => canWriteSection(r, "config"))).toEqual(["administrador"]);
   });
 });
 
@@ -67,14 +77,8 @@ describe("rbac — helpers", () => {
   it("row-scoping só para consultor", () => {
     expect(ALL.filter(isRowScopedToOwnConsultor)).toEqual(["consultor"]);
   });
-  it("rota de entrada por cargo", () => {
-    expect(defaultRouteForRole("consultor")).toBe("/processos");
-    expect(defaultRouteForRole("operacional")).toBe("/processos");
-    expect(defaultRouteForRole("socio")).toBe("/inicio");
-    expect(defaultRouteForRole("administrador")).toBe("/inicio");
-  });
-  it("landsOnProcessos — regra única usada por authz.global.ts e SidebarNav.vue", () => {
-    expect(ALL.filter(landsOnProcessos)).toEqual(["consultor", "operacional"]);
+  it("rota de entrada por cargo — igual pra todos", () => {
+    expect(ALL.map(defaultRouteForRole)).toEqual(["/processos", "/processos", "/processos", "/processos"]);
   });
   it("isWriteMethod", () => {
     for (const m of ["POST", "put", "Patch", "DELETE"]) expect(isWriteMethod(m)).toBe(true);
@@ -99,6 +103,7 @@ describe("rbac — mapeamento de rotas", () => {
     expect(sectionForPageRoute("/pagamentos")).toBe("pagamentos");
     expect(sectionForPageRoute("/configuracoes")).toBe("config");
     expect(sectionForPageRoute("/inicio")).toBeNull();
+    expect(sectionForPageRoute("/")).toBeNull();
   });
 
   it("isAuthenticatedAnyApiPath — só o prefixo /api/auth/ passa como 'qualquer sessão'", () => {

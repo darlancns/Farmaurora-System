@@ -3,7 +3,7 @@ import { computed, ref } from "vue";
 import type { BancoCambio, EmpresaPagamento, LancamentoBanco, LoteBanco, Moeda } from "#shared/types/Pagamento";
 import { BANCO_CAMBIO_LABEL, BANCOS_CAMBIO, MOEDA_SIMBOLO } from "#shared/constants/pagamentos";
 import { formatCurrency } from "../../../utils/formatters";
-import { calcularTotalReaisLote, formatFaixaTaxas } from "../../../utils/pagamentoCalculations";
+import { calcularTotalReaisLote, formatFaixaTaxas, formatTaxa } from "../../../utils/pagamentoCalculations";
 import { normalizeText } from "../../../utils/search";
 import AppSelect from "../../AppSelect.vue";
 import type { AppSelectOption } from "../../../types/appSelect";
@@ -244,7 +244,7 @@ function tituloLote(lote: LoteBanco): string {
               </span>
             </template>
             <strong v-else class="font-mono text-ink">
-              {{ resumo.lote.taxaEscolhida === null ? "—" : resumo.lote.taxaEscolhida.toFixed(4) }}
+              {{ resumo.lote.taxaEscolhida === null ? "—" : formatTaxa(resumo.lote.taxaEscolhida) }}
             </strong>
           </span>
           <div class="flex flex-wrap items-center gap-x-6 gap-y-1">
@@ -266,8 +266,8 @@ function tituloLote(lote: LoteBanco): string {
     <section>
       <h2 class="mb-2 text-[12px] font-semibold tracking-wide text-ink-soft uppercase">Pagamentos realizados</h2>
 
-      <div class="mb-2.5 flex flex-wrap items-center gap-2.5">
-        <div class="relative w-[240px]">
+      <div class="mb-2.5 flex flex-col gap-2.5 md:flex-row md:flex-wrap md:items-center">
+        <div class="relative w-full md:w-[240px]">
           <input
             id="banco-realizado-busca"
             v-model="buscaRealizados"
@@ -287,13 +287,13 @@ function tituloLote(lote: LoteBanco): string {
             ✕
           </button>
         </div>
-        <div class="w-[180px]">
+        <div class="w-full md:w-[180px]">
           <AppSelect id="filtro-banco-realizado" v-model="filtroBanco" :options="bancoFilterOptions" />
         </div>
-        <div class="w-[220px]">
+        <div class="w-full md:w-[220px]">
           <AppSelect id="filtro-fornecedor-realizado" v-model="filtroFornecedor" :options="fornecedorFilterOptions" />
         </div>
-        <div class="w-[200px]">
+        <div class="w-full md:w-[200px]">
           <AppSelect id="ordem-banco-realizado" v-model="ordemRealizados" :options="ordemFilterOptions" />
         </div>
       </div>

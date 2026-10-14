@@ -52,7 +52,7 @@ export function useAuth() {
   }
 
   function homeRoute(): string {
-    return role.value ? defaultRouteForRole(role.value) : "/inicio";
+    return role.value ? defaultRouteForRole(role.value) : "/processos";
   }
 
   return { user, loaded, load, clear, role, consultorNome, isAdmin, canRead, canWrite, homeRoute };

@@ -75,7 +75,7 @@ function confirmarExcluir(): void {
           type="button"
           :title="recado.fixadoPorMim ? 'Desfixar' : 'Fixar'"
           :aria-label="recado.fixadoPorMim ? 'Desfixar' : 'Fixar'"
-          class="rounded-md p-1 transition-colors"
+          class="rounded-md p-3.5 transition-colors md:p-1"
           :class="recado.fixadoPorMim ? 'text-danger' : 'text-ink/55 hover:text-ink'"
           @click="emit('fixar', recado.id)"
         >
@@ -100,7 +100,7 @@ function confirmarExcluir(): void {
           type="button"
           title="Marcar como concluído"
           aria-label="Marcar como concluído"
-          class="rounded-md p-1 text-ink/55 transition-colors hover:text-ink"
+          class="rounded-md p-3.5 text-ink/55 transition-colors hover:text-ink md:p-1"
           @click="showConcluirConfirm = true"
         >
           <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -114,7 +114,7 @@ function confirmarExcluir(): void {
             type="button"
             title="Editar"
             aria-label="Editar"
-            class="rounded-md p-1 text-ink/55 transition-colors hover:text-ink"
+            class="rounded-md p-3.5 text-ink/55 transition-colors hover:text-ink md:p-1"
             @click="emit('editar', recado)"
           >
             <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
@@ -130,7 +130,7 @@ function confirmarExcluir(): void {
             type="button"
             title="Excluir"
             aria-label="Excluir"
-            class="rounded-md p-1 text-ink/55 transition-colors hover:text-danger"
+            class="rounded-md p-3.5 text-ink/55 transition-colors hover:text-danger md:p-1"
             @click="showExcluirConfirm = true"
           >
             <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">

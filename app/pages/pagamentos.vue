@@ -34,7 +34,7 @@ const {
   fetchAll,
 } = usePagamentos();
 const { canWrite } = useAuth();
-// operacional e administrador escrevem em Pagamentos; socio é somente leitura.
+// socio, operacional e administrador escrevem em Pagamentos.
 const readonly = computed<boolean>(() => !canWrite("pagamentos"));
 const { showToast } = useToast();
 const route = useRoute();

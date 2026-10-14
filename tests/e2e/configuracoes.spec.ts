@@ -2,16 +2,23 @@ import { test, expect, type Page, type APIRequestContext } from "@playwright/tes
 
 // Página /configuracoes → aba Contas. Usa a conta administrador já configurada:
 //   E2E_ADMIN_EMAIL / E2E_ADMIN_PASSWORD
-// O teste 8 (redirect de não-admin) usa, se disponível:
+// O teste 8 (socio só leitura) usa, se disponível:
 //   E2E_SOCIO_EMAIL / E2E_SOCIO_PASSWORD
+// O teste 9 (redirect de quem não lê config) usa, se disponível:
+//   E2E_OPERACIONAL_EMAIL / E2E_OPERACIONAL_PASSWORD
 //
 // Os testes que criam contas usam e-mail com timestamp e apagam o que criaram
 // no final, pra não acumular usuários no projeto Supabase.
 
 const admin = { email: process.env.E2E_ADMIN_EMAIL ?? "", password: process.env.E2E_ADMIN_PASSWORD ?? "" };
 const socio = { email: process.env.E2E_SOCIO_EMAIL ?? "", password: process.env.E2E_SOCIO_PASSWORD ?? "" };
+const operacional = {
+  email: process.env.E2E_OPERACIONAL_EMAIL ?? "",
+  password: process.env.E2E_OPERACIONAL_PASSWORD ?? "",
+};
 const hasAdmin = Boolean(admin.email && admin.password);
 const hasSocio = Boolean(socio.email && socio.password);
+const hasOperacional = Boolean(operacional.email && operacional.password);
 
 async function login(page: Page, email: string, password: string): Promise<void> {
   // domcontentloaded, não networkidle: logo após uma troca de role da própria
@@ -84,7 +91,13 @@ test.describe("Configurações → Contas", () => {
     await expect(page).toHaveURL(/\/configuracoes$/);
     await expect(page.locator("#tab-contas")).toBeVisible();
     await expect(page.locator("#contas-tab")).toBeVisible();
-    await expect(page.getByText(admin.email, { exact: false })).toBeVisible();
+    // .first(): a lista de contas existe em duas renderizações paralelas no
+    // DOM (tabela a partir de um breakpoint de container, cards abaixo dele —
+    // só uma delas fica visível por vez via CSS, igual ao esquema de
+    // SidebarNav/BottomNav), então o e-mail aparece em mais de um nó.
+    // getByText sozinho viola o strict mode do Playwright; .first() resolve a
+    // ambiguidade sem mudar o que está sendo checado.
+    await expect(page.getByText(admin.email, { exact: false }).first()).toBeVisible();
   });
 
   test("2. cria conta com cargo Sócio → aparece na lista após refetch", async ({ page }) => {
@@ -334,10 +347,37 @@ test.describe("Configurações → Contas", () => {
     }
   });
 
-  test("8. não-admin em /configuracoes é redirecionado", async ({ page }) => {
+  test("8. socio em /configuracoes vê a lista de contas, sem controles de gestão", async ({ page }) => {
     test.skip(!hasSocio, "defina E2E_SOCIO_EMAIL / E2E_SOCIO_PASSWORD");
 
     await login(page, socio.email, socio.password);
+    await page.goto("/configuracoes", { waitUntil: "networkidle" });
+
+    await expect(page).toHaveURL(/\/configuracoes$/);
+    await expect(page.locator("#contas-tab")).toBeVisible();
+    // .first(): mesma ambiguidade de tabela+cards em paralelo explicada no
+    // teste 1 acima.
+    await expect(page.getByText(admin.email, { exact: false }).first()).toBeVisible();
+    // Só leitura: nem "Nova conta" nem o menu de ações de nenhuma linha.
+    await expect(page.locator("#btn-nova-conta")).toHaveCount(0);
+    await expect(page.locator("[id^='btn-acoes-conta-']")).toHaveCount(0);
+
+    // API: leitura ok, escrita (criação de conta) segue bloqueada.
+    const get = await page.request.get("/api/admin/users");
+    expect(get.ok()).toBeTruthy();
+    const post = await apiCreate(page.request, {
+      email: `e2e+socio-bloqueado-${Date.now()}@farmaurora.com.br`,
+      password: "senha-super-forte-123",
+      role: "socio",
+      nome: "Não deveria criar",
+    });
+    expect(post.status).toBe(403);
+  });
+
+  test("9. cargo sem leitura de config (operacional) em /configuracoes é redirecionado", async ({ page }) => {
+    test.skip(!hasOperacional, "defina E2E_OPERACIONAL_EMAIL / E2E_OPERACIONAL_PASSWORD");
+
+    await login(page, operacional.email, operacional.password);
     await page.goto("/configuracoes");
     await expect(page).not.toHaveURL(/\/configuracoes$/);
     // O guard de autorização (authz.global.ts) é assíncrono (await load()) —

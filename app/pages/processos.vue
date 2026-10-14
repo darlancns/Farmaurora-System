@@ -135,8 +135,8 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
   <div id="processos-page" class="mx-auto max-w-[1400px]">
     <GlobalHeader title="Follow-Up" subtitle="Acompanhamento dos processos de importação em andamento.">
       <template #filters>
-        <div class="mb-3.5 flex flex-nowrap items-center gap-2.5">
-          <div class="relative w-[216px] shrink-0">
+        <div class="mb-3.5 flex flex-col gap-2.5 md:flex-row md:flex-wrap md:items-center">
+          <div class="relative w-full shrink-0 md:w-[216px]">
             <input
               id="processo-search"
               v-model="searchQuery"
@@ -157,15 +157,15 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
             </button>
           </div>
 
-          <div v-if="activeTab === 'andamento'" class="w-fit shrink-0">
+          <div v-if="activeTab === 'andamento'" class="w-full shrink-0 md:w-fit">
             <AppSelect id="filtro-status" v-model="statusFilter" :options="STATUS_FILTER_OPTIONS" />
           </div>
 
-          <div class="w-fit shrink-0">
+          <div class="w-full shrink-0 md:w-fit">
             <AppSelect id="filtro-empresa" v-model="empresaFilter" :options="EMPRESA_FILTER_OPTIONS" />
           </div>
 
-          <div class="w-fit shrink-0">
+          <div class="w-full shrink-0 md:w-fit">
             <AppSelect id="filtro-responsavel" v-model="responsavelFilter" :options="RESPONSAVEL_FILTER_OPTIONS" />
           </div>
 
@@ -173,7 +173,7 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
             v-if="canWriteProcessos"
             id="btn-novo-processo"
             type="button"
-            class="ml-auto shrink-0 rounded-lg bg-accent-dark px-4 py-2.5 text-[13px] font-semibold text-white transition-colors hover:opacity-90"
+            class="w-full shrink-0 rounded-lg bg-accent-dark px-4 py-2.5 text-[13px] font-semibold text-white transition-colors hover:opacity-90 md:ml-auto md:w-auto"
             @click="openCreateForm"
           >
             + Novo processo
