@@ -1,7 +1,7 @@
 import type { NewProcessoDTO, Processo } from "../../shared/types/processo";
 import { createSupabaseAdminClient } from "./supabaseServerClient";
 import { erro, randomId } from "./storeKit";
-import { colunasDeDTO, montarProcesso, type FollowUpRow } from "./processoMappers";
+import { colunasDeDTO, montarProcesso, statusOutroDe, type FollowUpRow } from "./processoMappers";
 
 /**
  * Persistência de Processo (Follow-Up) no Supabase — tabela ÚNICA `follow_up`.
@@ -57,7 +57,10 @@ export async function createProcesso(input: NewProcessoDTO): Promise<Processo> {
   });
   if (error) throw erro("criar processo", error);
 
-  return { ...input, id, createdAt: now, updatedAt: now };
+  // statusOutro só vale com status "outro" (mesma regra gravada em colunasDeDTO).
+  const { statusOutro: _bruto, ...resto } = input;
+  const statusOutro = statusOutroDe(input.status, input.statusOutro);
+  return { ...resto, ...(statusOutro ? { statusOutro } : {}), id, createdAt: now, updatedAt: now };
 }
 
 export async function patchProcesso(

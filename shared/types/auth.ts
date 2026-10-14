@@ -1,4 +1,4 @@
-import type { ConsultorNome } from "./Patient";
+import type { ConsultorProcesso } from "./processo";
 import type { Role } from "../utils/rbac";
 
 /**
@@ -17,7 +17,7 @@ export interface AuthUser {
   email: string;
   role: Role;
   /** Presente só quando `role === "consultor"`. */
-  consultorNome?: ConsultorNome;
+  consultorNome?: ConsultorProcesso;
   /** Nome genérico de exibição da conta. Contas antigas podem não ter. */
   nome?: string;
   /** Derivado de `role === "administrador"` — mantido para checks legados. */
@@ -32,7 +32,7 @@ export interface AdminUserSummary {
   id: string;
   email: string;
   role: Role;
-  consultorNome?: ConsultorNome;
+  consultorNome?: ConsultorProcesso;
   nome?: string;
   createdAt: string;
   lastSignInAt: string | null;
@@ -41,7 +41,7 @@ export interface AdminUserSummary {
 /** Body do PATCH /api/admin/users/[id]. */
 export interface UpdateUserRoleDTO {
   role: Role;
-  consultorNome?: ConsultorNome;
+  consultorNome?: ConsultorProcesso;
   nome?: string;
 }
 

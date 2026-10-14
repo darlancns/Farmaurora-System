@@ -35,3 +35,8 @@ public/uploads/
 
 # Coverage
 coverage/
+
+# Migração do Follow-Up — dados de pacientes: NUNCA versionar o texto-fonte
+# nem os backups da tabela follow_up.
+scripts/migration/follow-up-source.txt
+scripts/migration/backups/

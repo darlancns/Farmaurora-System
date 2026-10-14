@@ -34,6 +34,7 @@ export interface ProcessoFormState {
   numeroAwb: string;
   codigoRastreio: string;
   status: StatusProcesso;
+  statusOutro: string; // texto livre; só vale (e é obrigatório) com status "outro"
   dataCompraPO: string;
   dataEmbarque: string;
   aberturaThread: string;
@@ -112,6 +113,7 @@ export function buildBasePayload(
         quantidade: item.quantidade?.trim() || undefined,
       })),
     status: form.status,
+    statusOutro: form.status === "outro" ? form.statusOutro.trim() || undefined : undefined,
     datas: buildDatas(form),
     localEntrega: form.localEntrega.trim() || undefined,
     numeroProcesso: form.numeroProcesso.trim() || undefined,
@@ -144,6 +146,9 @@ export function validarProcessoForm(
   }
   if (form.consultor === "") {
     return { valido: false, erro: "Selecione o consultor responsável." };
+  }
+  if (form.status === "outro" && !form.statusOutro.trim()) {
+    return { valido: false, erro: 'Informe qual é o status (opção "Outro").' };
   }
   if (form.modalEnvio === "Air Cargo" || form.modalEnvio === "Courier Formal") {
     if (!form.despachante.trim()) {

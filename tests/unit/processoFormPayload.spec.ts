@@ -30,6 +30,7 @@ function emptyForm(): ProcessoFormState {
     numeroAwb: "",
     codigoRastreio: "",
     status: "elaboracao_fornecedores",
+    statusOutro: "",
     dataCompraPO: "",
     dataEmbarque: "",
     aberturaThread: "",

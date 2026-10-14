@@ -12,6 +12,7 @@ import { useAuth } from "../composables/useAuth";
 import { useToast } from "../composables/useToast";
 import { getErrorMessage } from "../utils/errorMessages";
 import { normalizeText } from "../utils/search";
+import { filtrarPorStatus, separarAbas } from "../utils/processoListas";
 import { EMPRESA_FILTER_OPTIONS, RESPONSAVEL_FILTER_OPTIONS, STATUS_FILTER_OPTIONS } from "../utils/processoOptions";
 import AppSelect from "../components/AppSelect.vue";
 import GlobalHeader from "../components/GlobalHeader.vue";
@@ -49,9 +50,7 @@ const filteredProcessos = computed<Processo[]>(() => {
     list = list.filter((p) => p.consultor === consultorNome.value);
   }
 
-  if (statusFilter.value) {
-    list = list.filter((p) => p.status === statusFilter.value);
-  }
+  list = filtrarPorStatus(list, statusFilter.value);
   if (empresaFilter.value) {
     list = list.filter((p) => p.empresa === empresaFilter.value);
   }
@@ -66,8 +65,8 @@ const filteredProcessos = computed<Processo[]>(() => {
   return list;
 });
 
-const andamentoList = computed(() => filteredProcessos.value.filter((p) => p.status !== "entregue"));
-const entregueList = computed(() => filteredProcessos.value.filter((p) => p.status === "entregue"));
+const andamentoList = computed(() => separarAbas(filteredProcessos.value).andamento);
+const entregueList = computed(() => separarAbas(filteredProcessos.value).entregues);
 
 const showFormModal = ref(false);
 const editingProcesso = ref<Processo | null>(null);

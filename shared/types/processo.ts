@@ -22,19 +22,31 @@ export type StatusProcesso =
   | "desembaraco"
   | "liberado"
   | "liberado_parcial"
-  | "entregue";
+  | "entregue"
+  // Sentinela, no mesmo padrão do Fornecedor "Outro": o que se exibe é o texto
+  // livre em Processo.statusOutro (obrigatório quando status === "outro").
+  | "outro";
 
 export type EmpresaProcesso = "FARMAURORA" | "MAINZFARMA";
 
-// Copiados de shared/types/Patient.ts (ConsultorNome) como um tipo independente —
-// Processo não tem nenhuma relação/FK com Patient, ver server/utils/processosStore.ts.
+// Tipo independente de shared/types/Patient.ts (ConsultorNome) — Processo não tem
+// nenhuma relação/FK com Patient, ver server/utils/processosStore.ts. É um
+// SUPERCONJUNTO de ConsultorNome: os 7 de Pacientes + os consultores que só
+// existem no Follow-Up. Também é o tipo do nome de consultor das contas (RBAC).
 export type ConsultorProcesso =
+  | "Alessandra"
   | "André Vitório"
-  | "Mateus Morais"
-  | "Paulo Braga"
-  | "Thiago Guedes"
+  | "Bolívar"
+  | "Bráulio"
+  | "Dani"
+  | "Flávia"
+  | "Flavinha"
   | "Gabriela Megda"
   | "Gabriela Santana"
+  | "Mateus Morais"
+  | "Paulinho"
+  | "Paulo Braga"
+  | "Thiago Guedes"
   | "Vinícius Alves";
 
 // Tipo usado apenas pra montar as opções do select — o campo Processo.modalEnvio
@@ -94,6 +106,9 @@ export interface Processo {
   codigoRastreio?: string;
   medicamentos: Medicamento[];
   status: StatusProcesso;
+  // Texto livre exibido no lugar do rótulo quando status === "outro". Só existe
+  // nesse caso: com qualquer outro status o servidor ignora e grava NULL.
+  statusOutro?: string;
   datas: ProcessoDatas;
   localEntrega?: string;
   numeroProcesso?: string;

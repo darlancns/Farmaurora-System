@@ -148,7 +148,16 @@ describe("resolveAuthUser — cargo a partir de app_metadata", () => {
     expect(u.consultorNome).toBeUndefined();
   });
 
-  it("consultorNome fora da lista dos 7 é descartado", () => {
+  it("aceita consultorNome que só existe no Follow-Up (ex.: Flavinha)", () => {
+    const u = resolveAuthUser(
+      { ...base, app_metadata: { role: "consultor", consultorNome: "Flavinha" } } as never,
+      [],
+    );
+    expect(u.role).toBe("consultor");
+    expect(u.consultorNome).toBe("Flavinha");
+  });
+
+  it("consultorNome fora da lista de consultores é descartado", () => {
     const u = resolveAuthUser(
       { ...base, app_metadata: { role: "consultor", consultorNome: "Fulano" } } as never,
       [],
@@ -188,7 +197,19 @@ describe("parseRoleInput — validação compartilhada POST/PATCH de contas", ()
     expect(() => parseRoleInput({ role: "consultor" })).toThrowError();
   });
 
-  it("consultor com nome fora dos 7 → 400", () => {
+  it("consultor com nome que só existe no Follow-Up → ok", () => {
+    expect(parseRoleInput({ role: "consultor", consultorNome: "Bolívar" })).toEqual({
+      role: "consultor",
+      consultorNome: "Bolívar",
+    });
+  });
+
+  it("consultor com nome que nunca entrou na lista (Rodrigão, Daniel) → 400", () => {
+    expect(() => parseRoleInput({ role: "consultor", consultorNome: "Rodrigão" })).toThrowError();
+    expect(() => parseRoleInput({ role: "consultor", consultorNome: "Daniel" })).toThrowError();
+  });
+
+  it("consultor com nome fora da lista de consultores → 400", () => {
     expect(() => parseRoleInput({ role: "consultor", consultorNome: "Fulano" })).toThrowError();
   });
 

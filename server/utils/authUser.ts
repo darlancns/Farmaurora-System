@@ -1,9 +1,9 @@
 import { createError } from "h3";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { AuthUser, AdminUserSummary, ContaSummary } from "#shared/types/auth";
-import type { ConsultorNome } from "#shared/types/Patient";
+import type { ConsultorProcesso } from "#shared/types/processo";
 import { isRole, type Role } from "#shared/utils/rbac";
-import { CONSULTORES } from "#shared/constants/consultores";
+import { CONSULTORES_PROCESSO } from "#shared/constants/processos";
 
 export function parseAdminEmails(raw: unknown): string[] {
   return String(raw ?? "")
@@ -12,20 +12,20 @@ export function parseAdminEmails(raw: unknown): string[] {
     .filter(Boolean);
 }
 
-function isConsultorNome(value: unknown): value is ConsultorNome {
-  return typeof value === "string" && (CONSULTORES as string[]).includes(value);
+function isConsultorNome(value: unknown): value is ConsultorProcesso {
+  return typeof value === "string" && (CONSULTORES_PROCESSO as string[]).includes(value);
 }
 
 /**
  * Valida `role` (+ `consultorNome` quando o cargo é consultor) a partir de um
  * body cru. Regra única compartilhada por POST e PATCH de contas:
- * - `consultorNome` obrigatório e restrito à lista dos 7 SÓ para consultor;
+ * - `consultorNome` obrigatório e restrito a CONSULTORES_PROCESSO SÓ para consultor;
  * - para os demais cargos, `consultorNome` é sempre ignorado.
  * Lança 400 (h3) em caso de valor inválido.
  */
 export function parseRoleInput(body: { role?: unknown; consultorNome?: unknown }): {
   role: Role;
-  consultorNome?: ConsultorNome;
+  consultorNome?: ConsultorProcesso;
 } {
   if (!isRole(body.role)) {
     throw createError({
@@ -41,7 +41,7 @@ export function parseRoleInput(body: { role?: unknown; consultorNome?: unknown }
       throw createError({
         statusCode: 400,
         statusMessage:
-          "Para o cargo consultor, informe um consultorNome válido (um dos 7 nomes da lista).",
+          "Para o cargo consultor, informe um consultorNome válido (um dos consultores cadastrados).",
       });
     }
     return { role, consultorNome: body.consultorNome };
@@ -58,7 +58,7 @@ export function parseRoleInput(body: { role?: unknown; consultorNome?: unknown }
  */
 export function roleAppMetadata(
   role: Role,
-  consultorNome?: ConsultorNome,
+  consultorNome?: ConsultorProcesso,
   nome?: string,
 ): Record<string, unknown> {
   return { role, consultorNome: role === "consultor" ? consultorNome : null, nome: nome ?? null };
@@ -189,7 +189,7 @@ export function resolveAuthUser(user: User, adminEmails: string[]): AuthUser {
     role = "consultor";
   }
 
-  let consultorNome: ConsultorNome | undefined;
+  let consultorNome: ConsultorProcesso | undefined;
   if (role === "consultor" && isConsultorNome(meta.consultorNome)) {
     consultorNome = meta.consultorNome;
   }

@@ -8,14 +8,23 @@ import type {
   StatusProcesso,
 } from "../types/processo";
 
-// Mesmos 7 nomes usados no campo Consultor do cadastro de paciente
-// (shared/types/Patient.ts, ConsultorNome), copiados aqui como valores
-// independentes — Processo não importa nada de Patient.
+// Lista canônica de consultores do Follow-Up (e das contas com cargo consultor).
+// Inclui os 7 nomes do cadastro de paciente (shared/types/Patient.ts,
+// ConsultorNome) + os que só existem no Follow-Up — Processo não importa nada de
+// Patient, e Pacientes continua só com os 7 (shared/constants/consultores.ts).
+// Ordem alfabética (pt-BR); espelha o enum `consultor_nome` do Postgres.
 export const CONSULTORES_PROCESSO: ConsultorProcesso[] = [
+  "Alessandra",
   "André Vitório",
+  "Bolívar",
+  "Bráulio",
+  "Dani",
+  "Flávia",
+  "Flavinha",
   "Gabriela Megda",
   "Gabriela Santana",
   "Mateus Morais",
+  "Paulinho",
   "Paulo Braga",
   "Thiago Guedes",
   "Vinícius Alves",
@@ -52,6 +61,7 @@ export const STATUS_PROCESSO_ORDER: StatusProcesso[] = [
   "liberado",
   "liberado_parcial",
   "entregue",
+  "outro", // sempre por último (fora do pipeline), como o "Outro" do fornecedor
 ];
 
 export const STATUS_PROCESSO_LABELS: Record<StatusProcesso, string> = {
@@ -62,4 +72,5 @@ export const STATUS_PROCESSO_LABELS: Record<StatusProcesso, string> = {
   liberado: "Liberado",
   liberado_parcial: "Liberado parcial",
   entregue: "Entregue",
+  outro: "Outro",
 };

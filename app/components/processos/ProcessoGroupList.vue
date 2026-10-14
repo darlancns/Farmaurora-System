@@ -2,6 +2,7 @@
 import { computed, reactive } from "vue";
 import { CONSULTORES_PROCESSO } from "#shared/constants/processos";
 import type { ConsultorProcesso, NewProcessoDTO, Processo } from "#shared/types/processo";
+import { agruparProcessosPorConsultor, type ProcessoGroup } from "../../utils/agruparProcessosPorConsultor";
 import ProcessoRow from "./ProcessoRow.vue";
 
 const props = withDefaults(
@@ -34,17 +35,7 @@ function toggleGroup(consultor: ConsultorProcesso): void {
   }
 }
 
-interface ProcessoGroup {
-  consultor: ConsultorProcesso;
-  processos: Processo[];
-}
-
-const groups = computed<ProcessoGroup[]>(() =>
-  CONSULTORES_PROCESSO.map((consultor) => ({
-    consultor,
-    processos: props.processos.filter((p) => p.consultor === consultor),
-  })).filter((group) => group.processos.length > 0)
-);
+const groups = computed<ProcessoGroup[]>(() => agruparProcessosPorConsultor(props.processos));
 </script>
 
 <template>

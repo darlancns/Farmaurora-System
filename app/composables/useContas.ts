@@ -1,14 +1,14 @@
 import { useState } from "#app";
 import type { AdminUserSummary, UpdateUserRoleDTO } from "#shared/types/auth";
 import type { Role } from "#shared/utils/rbac";
-import type { ConsultorNome } from "#shared/types/Patient";
+import type { ConsultorProcesso } from "#shared/types/processo";
 import { apiFetch, deleteTolerant } from "../utils/apiFetch";
 
 export interface NovaContaDTO {
   email: string;
   password: string;
   role: Role;
-  consultorNome?: ConsultorNome;
+  consultorNome?: ConsultorProcesso;
   nome: string;
 }
 

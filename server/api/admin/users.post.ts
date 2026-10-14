@@ -4,7 +4,7 @@ import { parseRoleInput, parseNomeInput, roleAppMetadata } from "../../utils/aut
 import { formatPasswordError } from "#shared/utils/authErrors";
 import type { Role } from "#shared/utils/rbac";
 import type { AuthUser } from "#shared/types/auth";
-import type { ConsultorNome } from "#shared/types/Patient";
+import type { ConsultorProcesso } from "#shared/types/processo";
 
 interface CreateUserBody {
   email?: unknown;
@@ -18,7 +18,7 @@ interface CreateUserResult {
   id: string;
   email: string;
   role: Role;
-  consultorNome?: ConsultorNome;
+  consultorNome?: ConsultorProcesso;
   nome: string;
 }
 

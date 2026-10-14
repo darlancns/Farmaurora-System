@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import type { AtualizacaoProcesso, NewProcessoDTO, Processo } from "#shared/types/processo";
-import { STATUS_PROCESSO_META } from "../../utils/processoStatus";
+import { STATUS_PROCESSO_META, rotuloStatusProcesso } from "../../utils/processoStatus";
 import ConfirmDialog from "../ConfirmDialog.vue";
 import ProcessoDetail from "./ProcessoDetail.vue";
 
@@ -26,6 +26,8 @@ const deleteConfirmMessage = computed(
 );
 
 const statusMeta = computed(() => STATUS_PROCESSO_META[props.processo.status]);
+// Pro status "Outro" o badge mostra o texto digitado (truncado, com tooltip).
+const statusLabel = computed(() => rotuloStatusProcesso(props.processo));
 const hasPendencias = computed(() => props.processo.pendencias.length > 0);
 const medicamentoResumo = computed(() => {
   const [first, ...rest] = props.processo.medicamentos;
@@ -102,10 +104,11 @@ function handleAddAtualizacao(id: string, atualizacao: AtualizacaoProcesso): voi
       <div class="flex flex-wrap items-center gap-2 @[700px]:flex-nowrap @[700px]:gap-3">
         <span
           :id="`badge-status-${processo.id}`"
-          class="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold"
+          class="max-w-[200px] shrink-0 truncate rounded-full px-2.5 py-1 text-[11px] font-semibold"
           :class="statusMeta.badgeClass"
+          :title="statusLabel"
         >
-          {{ statusMeta.label }}
+          {{ statusLabel }}
         </span>
 
         <span class="shrink-0 text-right font-mono text-[12px] text-ink-soft @[700px]:w-[92px]">

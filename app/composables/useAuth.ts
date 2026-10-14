@@ -1,7 +1,7 @@
 import { computed, type ComputedRef } from "vue";
 import { useState } from "#app";
 import type { AuthUser } from "#shared/types/auth";
-import type { ConsultorNome } from "#shared/types/Patient";
+import type { ConsultorProcesso } from "#shared/types/processo";
 import {
   canReadSection,
   canWriteSection,
@@ -38,7 +38,7 @@ export function useAuth() {
   }
 
   const role: ComputedRef<Role | null> = computed(() => user.value?.role ?? null);
-  const consultorNome: ComputedRef<ConsultorNome | null> = computed(
+  const consultorNome: ComputedRef<ConsultorProcesso | null> = computed(
     () => user.value?.consultorNome ?? null,
   );
   const isAdmin: ComputedRef<boolean> = computed(() => user.value?.role === "administrador");

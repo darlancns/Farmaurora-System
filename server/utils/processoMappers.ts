@@ -48,6 +48,7 @@ export interface FollowUpRow {
   codigo_rastreio: string | null;
   medicamentos: Medicamento[] | null;
   status: StatusProcesso;
+  status_outro: string | null;
   data_compra_po: string | null;
   data_embarque: string | null;
   abertura_thread: string | null;
@@ -67,6 +68,13 @@ export interface FollowUpRow {
   updated_at: string;
 }
 
+// Texto livre do status "outro": só existe (aparado) quando status === "outro";
+// com qualquer outro status o servidor IGNORA o que vier e grava NULL.
+export function statusOutroDe(status: StatusProcesso | undefined, statusOutro: string | undefined): string | null {
+  if (status !== "outro") return null;
+  return statusOutro?.trim() || null;
+}
+
 // Colunas do follow_up a partir das chaves do DTO PRESENTES em `src`. Só inclui
 // coluna cuja chave do DTO está em `src` (via `in`) — assim o patch é seletivo
 // e o create (que traz todas as chaves relevantes) grava tudo.
@@ -77,7 +85,10 @@ export function colunasDeDTO(src: Partial<NewProcessoDTO>): Record<string, unkno
   if ("pasta" in src) col.pasta = src.pasta;
   if ("empresa" in src) col.empresa = src.empresa;
   if ("consultor" in src) col.consultor = src.consultor;
-  if ("status" in src) col.status = src.status;
+  if ("status" in src) {
+    col.status = src.status;
+    col.status_outro = statusOutroDe(src.status, src.statusOutro);
+  }
 
   if ("ordem" in src) col.ordem = src.ordem ?? null;
   if ("responsavelOperacional" in src) col.responsavel_operacional = src.responsavelOperacional ?? null;
@@ -149,6 +160,7 @@ export function montarProcesso(row: FollowUpRow): Processo {
     updatedAt: row.updated_at,
   };
 
+  if (row.status === "outro" && row.status_outro != null) processo.statusOutro = row.status_outro;
   if (row.ordem != null) processo.ordem = row.ordem;
   if (row.responsavel_operacional != null) processo.responsavelOperacional = row.responsavel_operacional;
   if (row.despachante != null) processo.despachante = row.despachante;

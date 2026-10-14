@@ -149,6 +149,18 @@ function handleSubmit(): void {
           </div>
         </div>
 
+        <div v-if="form.status === 'outro'">
+          <label for="pf-status-outro" class="mb-1.5 block text-[10.5px] text-ink-soft">
+            Qual status?
+          </label>
+          <input
+            id="pf-status-outro"
+            v-model="form.statusOutro"
+            type="text"
+            class="w-full rounded-md border border-hairline bg-paper px-2.5 py-2 text-[13.5px] focus:bg-white focus:outline-2 focus:outline-accent-dark"
+          />
+        </div>
+
         <div class="grid gap-2.5" :class="showDespachanteTransportadora ? 'grid-cols-3' : 'grid-cols-2'">
           <div v-if="showDespachanteTransportadora">
             <label for="pf-despachante" class="mb-1.5 block text-[10.5px] text-ink-soft">Despachante</label>

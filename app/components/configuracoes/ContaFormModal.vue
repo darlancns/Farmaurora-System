@@ -2,9 +2,9 @@
 import { computed, reactive } from "vue";
 import type { AdminUserSummary } from "#shared/types/auth";
 import type { Role } from "#shared/utils/rbac";
-import type { ConsultorNome } from "#shared/types/Patient";
+import type { ConsultorProcesso } from "#shared/types/processo";
 import { ROLE_OPTIONS } from "#shared/constants/roles";
-import { CONSULTORES } from "#shared/constants/consultores";
+import { CONSULTORES_PROCESSO } from "#shared/constants/processos";
 import AppSelect from "../AppSelect.vue";
 import BaseModal from "../BaseModal.vue";
 import type { AppSelectOption } from "../../types/appSelect";
@@ -25,7 +25,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   create: [payload: NovaContaDTO];
-  update: [id: string, payload: { role: Role; consultorNome?: ConsultorNome; nome?: string }];
+  update: [id: string, payload: { role: Role; consultorNome?: ConsultorProcesso; nome?: string }];
   close: [];
   invalid: [message: string];
 }>();
@@ -37,10 +37,10 @@ const form = reactive({
   password: "",
   nome: props.editingConta?.nome ?? "",
   role: (props.editingConta?.role ?? "consultor") as Role,
-  consultorNome: (props.editingConta?.consultorNome ?? "") as ConsultorNome | "",
+  consultorNome: (props.editingConta?.consultorNome ?? "") as ConsultorProcesso | "",
 });
 
-const consultorOptions: AppSelectOption<ConsultorNome | "">[] = CONSULTORES.map((nome) => ({
+const consultorOptions: AppSelectOption<ConsultorProcesso | "">[] = CONSULTORES_PROCESSO.map((nome) => ({
   value: nome,
   label: nome,
 }));
@@ -93,7 +93,7 @@ function handleSubmit(): void {
   }
 
   const consultorNome =
-    form.role === "consultor" ? (form.consultorNome as ConsultorNome) : undefined;
+    form.role === "consultor" ? (form.consultorNome as ConsultorProcesso) : undefined;
 
   if (isEdit.value && props.editingConta) {
     emit("update", props.editingConta.id, { role: form.role, consultorNome, nome });

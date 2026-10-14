@@ -1,7 +1,7 @@
 import { computed, ref } from "vue";
 import type { AdminUserSummary } from "#shared/types/auth";
 import type { Role } from "#shared/utils/rbac";
-import type { ConsultorNome } from "#shared/types/Patient";
+import type { ConsultorProcesso } from "#shared/types/processo";
 import { useContas, type NovaContaDTO } from "./useContas";
 import { useToast } from "./useToast";
 import { getErrorMessage } from "../utils/errorMessages";
@@ -59,7 +59,7 @@ export function useContasAdmin() {
 
   async function handleUpdate(
     id: string,
-    payload: { role: Role; consultorNome?: ConsultorNome; nome?: string },
+    payload: { role: Role; consultorNome?: ConsultorProcesso; nome?: string },
   ): Promise<void> {
     formBusy.value = true;
     try {

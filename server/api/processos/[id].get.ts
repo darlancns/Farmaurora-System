@@ -1,8 +1,8 @@
 import { defineEventHandler, getRouterParam, createError } from "h3";
 import { getProcesso } from "../../utils/processosStore";
 import type { Processo } from "../../../shared/types/processo";
+import { processoVisivelParaUsuario } from "../../utils/processoEscopo";
 import type { AuthUser } from "#shared/types/auth";
-import { isRowScopedToOwnConsultor } from "#shared/utils/rbac";
 
 export default defineEventHandler(async (event): Promise<Processo> => {
   const id = getRouterParam(event, "id");
@@ -20,7 +20,7 @@ export default defineEventHandler(async (event): Promise<Processo> => {
   // Cargo "consultor": processo de outro consultor responde 404 (não vaza
   // existência de registros fora do próprio nome).
   const user: AuthUser | null = event.context.user;
-  if (user && isRowScopedToOwnConsultor(user.role) && processo.consultor !== user.consultorNome) {
+  if (!processoVisivelParaUsuario(processo, user)) {
     throw createError({ statusCode: 404, statusMessage: "Processo não encontrado." });
   }
 
