@@ -139,4 +139,113 @@ test.describe("Responsividade de /pagamentos", () => {
     expect(Math.round(box!.width)).toBe(28);
     expect(Math.round(box!.height)).toBe(28);
   });
+
+  // Regressão do bug de @container auto-referenciada (achado após a Rodada 2):
+  // LancamentoBancoCard.vue, GrupoPagamentoCard.vue e GrupoPagamentoTab.vue
+  // tinham a classe "@container" e as classes "@[Npx]:" no MESMO elemento —
+  // inválido pela spec de CSS Containment (um elemento nunca é seu próprio
+  // container de consulta), então a linha nunca saía do estado empilhado,
+  // mesmo em monitor cheio. Os testes anteriores só verificavam ausência de
+  // overflow/truncamento — nenhum deles afirmava flexDirection "row" no
+  // desktop, que é justamente o que escondeu o bug. Testa em 1440 (mesma
+  // resolução já usada nas Rodadas 2-7) e 1920 (o monitor real do Cris).
+  for (const viewport of [
+    { name: "1440x900", width: 1440, height: 900 },
+    { name: "1920x1080", width: 1920, height: 1080 },
+  ]) {
+    test(`md+ (${viewport.name}): LancamentoBancoCard, GrupoPagamentoCard e GrupoPagamentoTab ficam em linha única`, async ({
+      page,
+    }) => {
+      test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD ou E2E_OPERACIONAL_EMAIL/PASSWORD");
+      await gotoPagamentos(page, viewport);
+
+      // Banco — aba padrão já ativa.
+      const lancamentoRow = page.locator("[id^='lancamento-banco-']").first();
+      if (await lancamentoRow.count()) {
+        const dir = await lancamentoRow.evaluate((row) => {
+          const inner = row.firstElementChild as HTMLElement | null;
+          return inner ? getComputedStyle(inner).flexDirection : null;
+        });
+        expect(dir, "LancamentoBancoCard").toBe("row");
+      }
+
+      // Despachante — GrupoPagamentoCard (itens de um grupo em aberto).
+      await page.locator("#tab-despachante").click();
+      await page.waitForTimeout(200);
+      const grupoToggle = page.locator("[id^='grupo-pagamento-'] button").first();
+      if (await grupoToggle.count()) {
+        await grupoToggle.click();
+        await page.waitForTimeout(200);
+        const itemBtn = page.locator("[id^='btn-status-item-']").first();
+        if (await itemBtn.count()) {
+          const dir = await itemBtn.evaluate((btn) => {
+            let el: HTMLElement | null = btn as HTMLElement;
+            while (el && getComputedStyle(el).containerType !== "inline-size") {
+              el = el.parentElement;
+            }
+            const inner = el?.firstElementChild as HTMLElement | null;
+            return inner ? getComputedStyle(inner).flexDirection : null;
+          });
+          expect(dir, "GrupoPagamentoCard").toBe("row");
+        }
+      }
+
+      // GrupoPagamentoTab — lista de pagamentos realizados.
+      const realizadoRow = page.locator("[id^='grupo-realizados-lista-'] > div").first();
+      if (await realizadoRow.count()) {
+        const dir = await realizadoRow.evaluate((row) => {
+          const inner = row.firstElementChild as HTMLElement | null;
+          return inner ? getComputedStyle(inner).flexDirection : null;
+        });
+        expect(dir, "GrupoPagamentoTab").toBe("row");
+      }
+    });
+  }
+
+  test("abaixo de md (375px): LancamentoBancoCard, GrupoPagamentoCard e GrupoPagamentoTab continuam empilhados", async ({
+    page,
+  }) => {
+    test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD ou E2E_OPERACIONAL_EMAIL/PASSWORD");
+    await gotoPagamentos(page, { width: 375, height: 800 });
+
+    const lancamentoRow = page.locator("[id^='lancamento-banco-']").first();
+    if (await lancamentoRow.count()) {
+      const dir = await lancamentoRow.evaluate((row) => {
+        const inner = row.firstElementChild as HTMLElement | null;
+        return inner ? getComputedStyle(inner).flexDirection : null;
+      });
+      expect(dir, "LancamentoBancoCard").toBe("column");
+    }
+
+    await page.locator("#tab-despachante").click();
+    await page.waitForTimeout(200);
+    const grupoToggle = page.locator("[id^='grupo-pagamento-'] button").first();
+    if (await grupoToggle.count()) {
+      await grupoToggle.click();
+      await page.waitForTimeout(200);
+      const itemBtn = page.locator("[id^='btn-status-item-']").first();
+      if (await itemBtn.count()) {
+        const dir = await itemBtn.evaluate((btn) => {
+          let el: HTMLElement | null = btn as HTMLElement;
+          while (el && getComputedStyle(el).containerType !== "inline-size") {
+            el = el.parentElement;
+          }
+          const inner = el?.firstElementChild as HTMLElement | null;
+          return inner ? getComputedStyle(inner).flexDirection : null;
+        });
+        expect(dir, "GrupoPagamentoCard").toBe("column");
+      }
+    }
+
+    const realizadoRow = page.locator("[id^='grupo-realizados-lista-'] > div").first();
+    if (await realizadoRow.count()) {
+      const dir = await realizadoRow.evaluate((row) => {
+        const inner = row.firstElementChild as HTMLElement | null;
+        return inner ? getComputedStyle(inner).flexDirection : null;
+      });
+      expect(dir, "GrupoPagamentoTab").toBe("column");
+    }
+
+    expect(await hasHorizontalOverflow(page)).toBe(false);
+  });
 });
