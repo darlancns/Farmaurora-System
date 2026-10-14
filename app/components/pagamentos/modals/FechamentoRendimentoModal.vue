@@ -2,8 +2,9 @@
 import { computed, reactive } from "vue";
 import type { LancamentoBanco, Moeda, TaxaLancamentoRendimento } from "#shared/types/Pagamento";
 import { MOEDA_SIMBOLO } from "#shared/constants/pagamentos";
-import { formatCurrency, parseBrCurrency } from "../../../utils/formatters";
+import { formatCurrency } from "../../../utils/formatters";
 import { taxasRendimentoCompletas } from "../../../utils/pagamentoCalculations";
+import { mensagemTaxaInvalida, parseTaxaValida } from "../../../utils/parseTaxa";
 import BaseModal from "../../BaseModal.vue";
 
 // Fechamento POR ORDEM do Rendimento (regra 3): uma linha por lançamento pendente
@@ -29,10 +30,10 @@ const emit = defineEmits<{
 // taxa digitada por lançamento (string do input; parse em runtime).
 const taxaStr = reactive<Record<string, string>>({});
 
+// Taxa de câmbio (vírgula ou ponto, dentro de [TAXA_MIN, TAXA_MAX]) — não usar
+// parseBrCurrency aqui: ele trata "." como milhar ("5.4231" viraria 54231).
 function parseTaxa(str: string | undefined): number | null {
-  if (!str || !str.trim()) return null;
-  const v = parseBrCurrency(str);
-  return v > 0 ? v : null;
+  return parseTaxaValida(str);
 }
 
 const simbolo = computed(() => MOEDA_SIMBOLO[props.moeda]);
@@ -99,12 +100,20 @@ function confirmar(): void {
             <input
               :id="`fr-taxa-${l.id}`"
               v-model="taxaStr[l.id]"
+              :aria-invalid="!!mensagemTaxaInvalida(taxaStr[l.id])"
               type="text"
               inputmode="decimal"
               placeholder="ex: 5,4231"
               class="w-[110px] rounded-md border border-hairline bg-paper px-2 py-1 text-right font-mono text-[12.5px] focus:bg-white focus:outline-2 focus:outline-accent-dark"
             />
           </label>
+          <p
+            v-if="mensagemTaxaInvalida(taxaStr[l.id])"
+            :id="`fr-taxa-erro-${l.id}`"
+            class="mt-1 text-right text-[11px] font-medium text-danger"
+          >
+            {{ mensagemTaxaInvalida(taxaStr[l.id]) }}
+          </p>
         </li>
       </ul>
 

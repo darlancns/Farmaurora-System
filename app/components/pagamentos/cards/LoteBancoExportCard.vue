@@ -7,7 +7,7 @@ import {
   MOEDA_SIMBOLO,
 } from "#shared/constants/pagamentos";
 import { formatCurrency } from "../../../utils/formatters";
-import { calcularTotalReaisLote, formatFaixaTaxas } from "../../../utils/pagamentoCalculations";
+import { calcularTotalReaisLote, formatFaixaTaxas, formatTaxa } from "../../../utils/pagamentoCalculations";
 import { EMPRESA_EXPORT_HEADER_CLASS, paisFornecedor } from "../../../utils/pagamentoExport";
 
 const props = defineProps<{
@@ -48,7 +48,7 @@ const taxaLabel = computed<string>(() => {
   if (aguardando.value) return "—";
   if (rendimentoPorOrdem.value) return formatFaixaTaxas(props.lancamentos) ?? "—";
   const taxa = props.lote.taxaEscolhida;
-  return taxa === null ? "—" : taxa.toFixed(4).replace(".", ",");
+  return taxa === null ? "—" : formatTaxa(taxa);
 });
 
 const dataLabel = computed<string>(() =>

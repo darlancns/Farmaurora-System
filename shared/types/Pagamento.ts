@@ -100,6 +100,9 @@ export interface CotacaoOpcaoView extends OpcaoCotacao {
   // null enquanto a taxa deste banco não foi preenchida.
   diferenca: number | null;
   maisBarato: boolean;
+  // true só no card do Rendimento já fechado POR ORDEM: o totalReais é o total
+  // real (Σ valorReais + corretagem), não o cálculo pela taxa de referência.
+  totalReaisReal?: boolean;
 }
 
 // ── Despachante / Transportadora ─────────────────────────────────────────────

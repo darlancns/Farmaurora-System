@@ -2,6 +2,8 @@
 import type { BancoCambio, CotacaoOpcaoView, Moeda } from "#shared/types/Pagamento";
 import { BANCO_CAMBIO_LABEL, MOEDA_SIMBOLO } from "#shared/constants/pagamentos";
 import { formatCurrency } from "../../../utils/formatters";
+import { formatTaxa } from "../../../utils/pagamentoCalculations";
+import { mensagemTaxaInvalida } from "../../../utils/parseTaxa";
 import type { CotacaoDraft } from "../../../types/cotacao";
 
 const props = withDefaults(
@@ -14,8 +16,11 @@ const props = withDefaults(
     emUso: boolean;
     podeEscolher: boolean;
     salvando?: boolean; // true enquanto aguarda a confirmação do servidor
+    // Lote já cotado (banco escolhido): taxa/corretagem viram somente leitura.
+    // Só volta a ser editável quando a cotação é invalidada (novo lançamento).
+    travado?: boolean;
   }>(),
-  { salvando: false },
+  { salvando: false, travado: false },
 );
 
 const emit = defineEmits<{
@@ -55,7 +60,8 @@ const emit = defineEmits<{
         type="text"
         inputmode="decimal"
         placeholder="0,00"
-        class="w-[92px] rounded-md border border-hairline bg-paper-raised px-2 py-1 text-right font-mono text-[12.5px] focus:outline-2 focus:outline-accent-dark"
+        :readonly="travado"
+        class="w-[92px] rounded-md border border-hairline bg-paper-raised px-2 py-1 text-right font-mono text-[12.5px] focus:outline-2 focus:outline-accent-dark read-only:cursor-not-allowed read-only:opacity-70"
         @input="emit('editar')"
         @blur="emit('confirmar')"
       />
@@ -71,12 +77,21 @@ const emit = defineEmits<{
         type="text"
         inputmode="decimal"
         placeholder="ex: 5,4231"
-        class="w-[92px] rounded-md border border-hairline bg-paper-raised px-2 py-1 text-right font-mono text-[12.5px] focus:outline-2 focus:outline-accent-dark"
+        :readonly="travado"
+        :aria-invalid="!travado && !!mensagemTaxaInvalida(draft.taxaStr)"
+        class="w-[92px] rounded-md border border-hairline bg-paper-raised px-2 py-1 text-right font-mono text-[12.5px] focus:outline-2 focus:outline-accent-dark read-only:cursor-not-allowed read-only:opacity-70 aria-invalid:border-danger"
         @input="emit('editar')"
         @blur="emit('confirmar')"
       />
-      <strong v-else class="font-mono text-[13px] text-ink">{{ view.taxa?.toFixed(4) ?? "—" }}</strong>
+      <strong v-else class="font-mono text-[13px] text-ink">{{ view.taxa === null ? "—" : formatTaxa(view.taxa) }}</strong>
     </label>
+    <p
+      v-if="!readonly && !travado && mensagemTaxaInvalida(draft.taxaStr)"
+      :id="`taxa-erro-${loteId}-${view.banco}`"
+      class="-mt-1 text-right text-[11px] font-medium text-danger"
+    >
+      {{ mensagemTaxaInvalida(draft.taxaStr) }}
+    </p>
 
     <div class="mt-1 border-t border-hairline pt-2 text-[12px]">
       <div class="flex items-center justify-between text-ink-soft">
@@ -84,7 +99,7 @@ const emit = defineEmits<{
         <span class="font-mono text-ink">{{ MOEDA_SIMBOLO[moeda] }} {{ formatCurrency(view.totalMoeda) }}</span>
       </div>
       <div class="flex items-center justify-between text-ink-soft">
-        <span>Total R$</span>
+        <span>{{ view.totalReaisReal ? "Total R$ (real)" : "Total R$" }}</span>
         <span class="font-mono font-semibold text-ink">
           {{ view.totalReais === null ? "—" : `R$ ${formatCurrency(view.totalReais)}` }}
         </span>

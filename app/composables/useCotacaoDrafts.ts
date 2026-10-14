@@ -1,6 +1,7 @@
 import { reactive, watch } from "vue";
 import type { AtualizarCotacaoDTO, BancoCambio, LoteBanco } from "#shared/types/Pagamento";
 import { parseBrCurrency } from "../utils/formatters";
+import { parseTaxaValida } from "../utils/parseTaxa";
 import type { CotacaoDraft } from "../types/cotacao";
 
 // Extraído de CotacaoTab.vue (Round 9) — merge de 3 vias entre rascunho local,
@@ -50,10 +51,11 @@ export function useCotacaoDrafts(options: UseCotacaoDraftsOptions): UseCotacaoDr
     return m;
   }
 
+  // Taxa de câmbio: aceita "5,4231" e "5.4231" e exige [TAXA_MIN, TAXA_MAX] —
+  // texto fora disso vira null (campo inválido, não habilita "Usar este banco" e
+  // não é enviado ao servidor). A corretagem continua em parseBrCurrency.
   function parseTaxa(str: string): number | null {
-    if (!str.trim()) return null;
-    const v = parseBrCurrency(str);
-    return v > 0 ? v : null;
+    return parseTaxaValida(str);
   }
 
   function reconciliarDrafts(): void {

@@ -10,7 +10,8 @@
     "typecheck": "vue-tsc --noEmit",
     "test:e2e": "playwright test",
     "test:unit": "vitest run",
-    "test:integration": "node scripts/integration/run-all.mjs"
+    "test:integration": "node scripts/integration/run-all.mjs",
+    "test:integration:store": "vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

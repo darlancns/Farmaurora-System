@@ -23,7 +23,10 @@ function opcao(banco: OpcaoCotacao["banco"], taxa: number | null, taxaCorretagem
   return { banco, taxa, taxaCorretagem };
 }
 
-function lote(id: string, opcoes: OpcaoCotacao[]): LoteBanco {
+function lote(id: string, opcoes: OpcaoCotacao[], escolhido: Pick<LoteBanco, "bancoEscolhido" | "taxaEscolhida"> = {
+  bancoEscolhido: null,
+  taxaEscolhida: null,
+}): LoteBanco {
   return {
     id,
     data: "2026-01-01",
@@ -31,8 +34,8 @@ function lote(id: string, opcoes: OpcaoCotacao[]): LoteBanco {
     moeda: "USD",
     numeroLote: 1,
     opcoes,
-    bancoEscolhido: null,
-    taxaEscolhida: null,
+    bancoEscolhido: escolhido.bancoEscolhido,
+    taxaEscolhida: escolhido.taxaEscolhida,
     realizado: false,
     pagoEm: null,
     createdAt: "2026-01-01T00:00:00.000Z",
@@ -150,10 +153,9 @@ describe("useEscolherBanco / escolher", () => {
 
     await escolhaBanco.escolher("L1", "RENDIMENTO");
 
-    // Persiste o rascunho antes de decidir o caminho (mesmo pra 1 pendente).
-    expect(chamadasSalvarTaxas).toEqual([
-      { loteId: "L1", opcoes: [{ banco: "RENDIMENTO", taxa: 5, taxaCorretagem: 8 }] },
-    ]);
+    // Sem salvarTaxas solto: o PATCH da escolha já leva as taxas (opcoes) — um
+    // segundo PATCH em paralelo era a corrida (e agora levaria 409).
+    expect(chamadasSalvarTaxas).toEqual([]);
     expect(chamadasEscolherBancoRendimento).toEqual([
       {
         loteId: "L1",
@@ -194,22 +196,81 @@ describe("useEscolherBanco / escolher", () => {
     });
   });
 
-  it("achado: Rendimento com 0 pendentes cai no mesmo caminho do '2+' e abre o modal vazio", async () => {
+  it("Rendimento com 0 pendentes: não abre modal vazio nem chama o servidor", async () => {
     const lotes = [lote("L1", [opcao("RENDIMENTO", 5, 0)])];
-    const { escolhaBanco, chamadasEscolherBancoRendimento } = setup(lotes, []);
+    const { escolhaBanco, chamadasEscolherBancoRendimento, chamadasSalvarTaxas } = setup(lotes, []);
 
     await escolhaBanco.escolher("L1", "RENDIMENTO");
 
-    // "pendentes.length === 1" é falso tanto pra 0 quanto pra 2+, então 0
-    // pendentes cai no branch do modal em vez de não fazer nada — não há
-    // nenhuma guarda pra esse caso. Comportamento preservado, não corrigido.
     expect(chamadasEscolherBancoRendimento).toEqual([]);
-    expect(escolhaBanco.modalRendimento.value).toEqual({
-      loteId: "L1",
-      moeda: "USD",
-      lancamentos: [],
-      corretagem: 0,
+    expect(chamadasSalvarTaxas).toEqual([]);
+    expect(escolhaBanco.modalRendimento.value).toBeNull();
+  });
+
+  describe("lote já cotado (bancoEscolhido !== null): troca bloqueada", () => {
+    const cotado = { bancoEscolhido: "XP", taxaEscolhida: 5 } as const;
+
+    it.each(["XP", "RENDIMENTO", "INTEX"] as const)("%s: escolher() não faz nada", async (banco) => {
+      const lotes = [lote("L1", [opcao("XP", 5, 0), opcao("RENDIMENTO", 5, 0), opcao("INTEX", 5, 0)], cotado)];
+      // pendentes só existiriam se o lote estivesse inconsistente; mesmo assim, nada acontece
+      const lancamentos = [lancamento("LC1", "L1", null), lancamento("LC2", "L1", null)];
+      const r = setup(lotes, lancamentos);
+
+      await r.escolhaBanco.escolher("L1", banco);
+
+      expect(r.chamadasEscolherBanco).toEqual([]);
+      expect(r.chamadasEscolherBancoRendimento).toEqual([]);
+      expect(r.chamadasSalvarTaxas).toEqual([]);
+      expect(r.escolhaBanco.modalRendimento.value).toBeNull();
+      expect(r.escolhaBanco.salvando.value).toBeNull();
     });
+
+    it("Rendimento já escolhido (todas as linhas com valorReais): clicar de novo não abre o modal vazio", async () => {
+      const lotes = [lote("L1", [opcao("RENDIMENTO", 5, 0)], { bancoEscolhido: "RENDIMENTO", taxaEscolhida: null })];
+      const lancamentos = [lancamento("LC1", "L1", 540), lancamento("LC2", "L1", 550)];
+      const r = setup(lotes, lancamentos);
+
+      await r.escolhaBanco.escolher("L1", "RENDIMENTO");
+
+      expect(r.escolhaBanco.modalRendimento.value).toBeNull();
+      expect(r.chamadasEscolherBancoRendimento).toEqual([]);
+    });
+
+    it("podeEscolher é false nos 3 bancos, mesmo com taxa preenchida", () => {
+      const l = lote("L1", [opcao("XP", 5, 0), opcao("RENDIMENTO", 5, 0), opcao("INTEX", 5, 0)], cotado);
+      const { escolhaBanco } = setup([l], []);
+      expect(escolhaBanco.podeEscolher(l, "XP")).toBe(false);
+      expect(escolhaBanco.podeEscolher(l, "RENDIMENTO")).toBe(false);
+      expect(escolhaBanco.podeEscolher(l, "INTEX")).toBe(false);
+    });
+
+    it("depois da invalidação (bancoEscolhido volta a null) a escolha é liberada de novo", async () => {
+      const lotes = [lote("L1", [opcao("XP", 5, 0)])]; // já invalidado pelo servidor
+      const { escolhaBanco, chamadasEscolherBanco } = setup(lotes, []);
+      expect(escolhaBanco.podeEscolher(lotes[0]!, "XP")).toBe(true);
+      await escolhaBanco.escolher("L1", "XP");
+      expect(chamadasEscolherBanco).toHaveLength(1);
+    });
+  });
+
+  it("taxa digitada com ponto ('5.4231') chega como 5.4231, não 54231", async () => {
+    const lotes = [lote("L1", [opcao("XP", null, 0)])];
+    const { cotacaoDrafts, escolhaBanco, chamadasEscolherBanco } = setup(lotes, []);
+    cotacaoDrafts.drafts["L1"]!.find((d) => d.banco === "XP")!.taxaStr = "5.4231";
+
+    expect(escolhaBanco.podeEscolher(lotes[0]!, "XP")).toBe(true);
+    await escolhaBanco.escolher("L1", "XP");
+
+    expect(chamadasEscolherBanco[0]?.opcoes.find((o) => o.banco === "XP")?.taxa).toBe(5.4231);
+  });
+
+  it("taxa fora do intervalo ('54231') deixa o botão desabilitado e não vai ao servidor", async () => {
+    const lotes = [lote("L1", [opcao("XP", null, 0)])];
+    const { cotacaoDrafts, escolhaBanco } = setup(lotes, []);
+    cotacaoDrafts.drafts["L1"]!.find((d) => d.banco === "XP")!.taxaStr = "54231";
+
+    expect(escolhaBanco.podeEscolher(lotes[0]!, "XP")).toBe(false);
+    expect(cotacaoDrafts.draftToOpcoes("L1").find((o) => o.banco === "XP")?.taxa).toBeNull();
   });
 
   it("lote inexistente em lotesAbertos: não faz nada (nem salvarTaxas, nem modal)", async () => {

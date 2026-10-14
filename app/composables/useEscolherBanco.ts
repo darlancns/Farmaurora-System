@@ -12,8 +12,8 @@ import type { CotacaoDraft } from "../types/cotacao";
 // Extraído de CotacaoTab.vue (Round 9) — regra de "usar este banco": XP/Intex
 // direto; Rendimento com 1 pendente aplica direto (sem variação possível);
 // Rendimento com 2+ pendentes abre o modal de fechamento por ordem.
-// Comportamento preservado exatamente como estava; nada foi corrigido aqui,
-// mesmo onde algo pareça estranho (ver achados no relatório da extração).
+// Depois que o banco é escolhido o lote fica TRAVADO: não há nova escolha (nem
+// modal) até a cotação ser invalidada por um lançamento novo/editado/removido.
 
 export interface UseEscolherBancoOptions {
   // Mesmo conjunto filtrado que o template usa (empresa + ainda não pago) —
@@ -71,13 +71,16 @@ export function useEscolherBanco(options: UseEscolherBancoOptions) {
   async function escolher(loteId: string, banco: BancoCambio): Promise<void> {
     options.cancelarAutoSave(loteId);
 
+    // Lote já cotado: a troca de banco é BLOQUEADA (o servidor também recusa com
+    // 409). A cotação só volta a ser editável quando é invalidada (novo
+    // lançamento/edição/remoção no lote, que zera bancoEscolhido).
+    const lote = options.lotesAbertos().find((l) => l.id === loteId);
+    if (!lote || lote.bancoEscolhido !== null) return;
+
     if (banco === "RENDIMENTO") {
-      const lote = options.lotesAbertos().find((l) => l.id === loteId);
-      if (!lote) return;
-      // Persiste taxa de referência/corretagem digitadas antes de abrir o modal
-      // (paridade com XP/Intex, que salvam ao clicar "Usar este banco").
-      options.salvarTaxas(loteId, options.draftToOpcoes(loteId));
       const pendentes = options.lancamentosDoLote(loteId).filter((l) => l.valorReais === null);
+      // Nunca abre o modal vazio (não há o que fechar por ordem).
+      if (pendentes.length === 0) return;
 
       if (pendentes.length === 1) {
         const taxa = options.parseTaxa(options.draftDo(loteId, "RENDIMENTO").taxaStr);
@@ -93,6 +96,12 @@ export function useEscolherBanco(options: UseEscolherBancoOptions) {
         return;
       }
 
+      // Só o caminho do modal grava as taxas antes: o fechamento só acontece na
+      // confirmação, então persiste a referência/corretagem digitadas agora. O
+      // caminho direto (1 pendente) e XP/Intex NÃO fazem isso — o PATCH da escolha
+      // já leva as taxas (draftToOpcoes). A fila por lote (usePagamentos) garante
+      // que este salvamento termina antes da confirmação.
+      options.salvarTaxas(loteId, options.draftToOpcoes(loteId));
       const corretagem = parseBrCurrency(options.draftDo(loteId, "RENDIMENTO").corretagemStr) || 0;
       rendimentoErro.value = null;
       modalRendimento.value = {
@@ -133,6 +142,7 @@ export function useEscolherBanco(options: UseEscolherBancoOptions) {
 
   function podeEscolher(lote: LoteBanco, banco: BancoCambio): boolean {
     if (options.readonly()) return false;
+    if (lote.bancoEscolhido !== null) return false; // lote já cotado: troca bloqueada
     if (salvando.value?.loteId === lote.id) return false;
     const d = options.drafts[lote.id]?.find((x) => x.banco === banco);
     return !!d && options.parseTaxa(d.taxaStr) !== null;

@@ -13,6 +13,7 @@ import type {
   TipoGrupoPagamento,
 } from "#shared/types/Pagamento";
 import { apiFetch, deleteTolerant } from "../utils/apiFetch";
+import { criarFilaPorChave, criarGuardaSequencia } from "../utils/respostaMaisRecente";
 
 interface BancoPayload {
   lotes: LoteBanco[];
@@ -22,6 +23,22 @@ interface BancoPayload {
 function tipoPath(tipo: TipoGrupoPagamento): "despachante" | "transportadora" {
   return tipo === "DESPACHANTE" ? "despachante" : "transportadora";
 }
+
+// ── Corrida de respostas do Banco ───────────────────────────────────────────
+// Toda resposta de /api/pagamentos/banco* e /cotacao devolve o payload INTEIRO
+// (lotes + lançamentos) e substitui o estado. Se uma resposta mais antiga chega
+// depois de uma mais nova, o estado volta no tempo (ex.: lote "sem banco" depois
+// de o banco ter sido escolhido). Por isso:
+//  1. contador de sequência GLOBAL (módulo, compartilhado entre todas as
+//     chamadas de usePagamentos): cada requisição recebe um número ao ser
+//     disparada, e a resposta só é aplicada se nenhuma mais nova já foi aplicada;
+//  2. fila POR LOTE para os PATCHes de cotação: autosave de taxas e escolha do
+//     banco do mesmo lote nunca ficam em voo ao mesmo tempo, então a escolha só
+//     sai depois que o salvamento anterior terminou (o servidor também recusa
+//     edição de lote já cotado, 409 — a ordem importa).
+// Estado de módulo: só é usado no cliente (nenhuma dessas chamadas roda no SSR).
+const guardaBanco = criarGuardaSequencia();
+const filaCotacao = criarFilaPorChave();
 
 export function usePagamentos() {
   const empresaSelecionada = useState<EmpresaPagamento>("pagamentos-empresa", () => "FARMAURORA");
@@ -43,9 +60,18 @@ export function usePagamentos() {
     lancamentosBanco.value = payload.lancamentos;
   }
 
+  // Dispara a requisição e aplica o payload só se nenhuma resposta mais nova (de
+  // uma requisição disparada depois) já foi aplicada. Ver "Corrida de respostas".
+  async function aplicarBanco(requisicao: () => Promise<BancoPayload>): Promise<void> {
+    const token = guardaBanco.proximo();
+    const payload = await requisicao();
+    if (!guardaBanco.podeAplicar(token)) return;
+    applyBancoPayload(payload);
+  }
+
   async function fetchBanco(): Promise<void> {
-    applyBancoPayload(
-      await apiFetch<BancoPayload>("/api/pagamentos/banco", undefined, "Falha ao carregar pagamentos do banco.")
+    await aplicarBanco(() =>
+      apiFetch<BancoPayload>("/api/pagamentos/banco", undefined, "Falha ao carregar pagamentos do banco.")
     );
   }
 
@@ -123,8 +149,8 @@ export function usePagamentos() {
   }
 
   async function editarLancamentoBanco(id: string, patch: AtualizarLancamentoBancoDTO): Promise<void> {
-    applyBancoPayload(
-      await apiFetch<BancoPayload>(
+    await aplicarBanco(() =>
+      apiFetch<BancoPayload>(
         `/api/pagamentos/banco/lancamento/${id}`,
         {
           method: "PATCH",
@@ -137,21 +163,25 @@ export function usePagamentos() {
   }
 
   async function excluirLancamentoBanco(id: string): Promise<void> {
-    applyBancoPayload(
-      await apiFetch<BancoPayload>(`/api/pagamentos/banco/lancamento/${id}`, { method: "DELETE" }, "Erro ao excluir lançamento.")
+    await aplicarBanco(() =>
+      apiFetch<BancoPayload>(`/api/pagamentos/banco/lancamento/${id}`, { method: "DELETE" }, "Erro ao excluir lançamento.")
     );
   }
 
-  async function patchCotacao(loteId: string, patch: AtualizarCotacaoDTO): Promise<void> {
-    applyBancoPayload(
-      await apiFetch<BancoPayload>(
-        "/api/pagamentos/cotacao",
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ loteId, ...patch }),
-        },
-        "Erro ao atualizar cotação."
+  // PATCHes de cotação do MESMO lote saem em fila (um por vez, na ordem em que
+  // foram pedidos); lotes diferentes não esperam um pelo outro.
+  function patchCotacao(loteId: string, patch: AtualizarCotacaoDTO): Promise<void> {
+    return filaCotacao.enfileirar(loteId, () =>
+      aplicarBanco(() =>
+        apiFetch<BancoPayload>(
+          "/api/pagamentos/cotacao",
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ loteId, ...patch }),
+          },
+          "Erro ao atualizar cotação."
+        )
       )
     );
   }
@@ -189,8 +219,8 @@ export function usePagamentos() {
   }
 
   async function editarLancamentoRealizado(id: string, cliente: string, pagoEm: string): Promise<void> {
-    applyBancoPayload(
-      await apiFetch<BancoPayload>(
+    await aplicarBanco(() =>
+      apiFetch<BancoPayload>(
         `/api/pagamentos/banco/lancamento/${id}/realizado`,
         {
           method: "PATCH",

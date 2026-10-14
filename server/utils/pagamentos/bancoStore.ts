@@ -43,6 +43,9 @@ import {
  *  3c. `invalidarCotacao`: zera bancoEscolhido/taxaEscolhida e as 3 taxas
  *      cotadas (taxaCorretagem preservada) e volta `valorReais` de todos os
  *      lançamentos do lote pra null. Chamada em criar/editar/remover lançamento.
+ *  3d. Lote já cotado (`banco_escolhido` preenchido) não aceita nova escolha nem
+ *      edição de taxas: `atualizarCotacaoLote` responde 409 "Lote já cotado." A
+ *      cotação só reabre pela invalidação (3c).
  *
  * ⚠️ Atomicidade: as operações multi-linha (criar/editar/remover lançamento,
  * atualizar cotação) fazem várias escritas SEQUENCIAIS — o supabase-js não tem
@@ -455,6 +458,13 @@ export async function atualizarCotacaoLote(
   const loteRow = loteRes.data as LoteRow;
   if (loteRow.realizado) {
     throw createError({ statusCode: 409, statusMessage: "Lote já foi pago; cotação bloqueada." });
+  }
+  // Lote já cotado: nova escolha OU edição de taxas é recusada. Trocar o banco
+  // aqui deixaria o lote incoerente (os valores/taxas por lançamento só são
+  // recalculados nos pendentes). A cotação só reabre quando é invalidada — um
+  // lançamento novo/editado/removido (invalidarCotacao) zera banco_escolhido.
+  if (loteRow.banco_escolhido !== null) {
+    throw createError({ statusCode: 409, statusMessage: "Lote já cotado." });
   }
 
   let patch = montarPatchOpcoes(dto);

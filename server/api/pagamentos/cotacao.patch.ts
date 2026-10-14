@@ -1,10 +1,11 @@
 import { defineEventHandler, readBody, createError } from "h3";
 import { atualizarCotacaoLote, type BancoPayload } from "../../utils/pagamentosStore";
-import { isValidAtualizarCotacao } from "../../utils/pagamentoValidation";
+import { isValidAtualizarCotacao, mensagemTaxaForaDoIntervalo } from "../../utils/pagamentoValidation";
 
 // Lê/atualiza a cotação de um lote do dia. Aceita:
 //  - { loteId, opcoes: [...] }          -> grava taxa/corretagem digitadas
 //  - { loteId, bancoEscolhido: "XP" }   -> "Usar este banco" (regra 3)
+// Taxas fora de [TAXA_MIN, TAXA_MAX] -> 400. Lote que já tem banco escolhido -> 409.
 export default defineEventHandler(async (event): Promise<BancoPayload> => {
   const body = await readBody(event);
 
@@ -15,7 +16,10 @@ export default defineEventHandler(async (event): Promise<BancoPayload> => {
   const { loteId, ...patch } = body as { loteId: string } & Record<string, unknown>;
 
   if (!isValidAtualizarCotacao(patch)) {
-    throw createError({ statusCode: 400, statusMessage: "Dados da cotação inválidos." });
+    throw createError({
+      statusCode: 400,
+      statusMessage: mensagemTaxaForaDoIntervalo(patch) ?? "Dados da cotação inválidos.",
+    });
   }
 
   return await atualizarCotacaoLote(loteId, patch);

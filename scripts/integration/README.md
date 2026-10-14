@@ -12,13 +12,14 @@ arquivo JSON — hoje só as chaves PIX ficam em arquivo.
 npm run test:integration
 ```
 
-Roda os 3 em sequência (`scripts/integration/run-all.mjs`). Exit code `!= 0` se
-qualquer um falhar.
+Roda os smoke tests e a integração do store real em sequência
+(`scripts/integration/run-all.mjs`). Exit code `!= 0` se qualquer um falhar.
 
 Também dá pra rodar um isolado:
 
 ```bash
 node scripts/integration/smoke-processos-supabase.mjs
+npm run test:integration:store   # só o câmbio com o store REAL (vitest)
 ```
 
 ## ⚠️ Rodam contra o banco REAL
@@ -68,7 +69,12 @@ em 3, `medicamentos`/`atualizacoes` jsonb.
   chaves (não `{}` nem `null`)
 - delete
 
-### `smoke-pagamentos-supabase.mjs` — `pagamentosStore.ts`
+### `smoke-pagamentos-supabase.mjs` — espelho do `pagamentosStore.ts`
+> ⚠️ Reimplementa as queries do store (não importa o código real). Serve de
+> verificação do schema/constraints; a lógica real é coberta por
+> `pagamentos-store-real.spec.ts`. O ramo Rendimento daqui NÃO reflete a trava 409
+> de lote já cotado.
+
 `pagamento_lotes_banco` + `pagamento_lancamentos_banco` (FK cascade) +
 `pagamento_grupos` (itens jsonb). Cobre o fluxo completo do lado Banco e as
 regras 3a–3d:
@@ -82,6 +88,33 @@ regras 3a–3d:
 - fechar lote → `realizado`/`pagoEm`, sem recalcular `valorReais`
 - grupos: status por item é gravação direta (não move o grupo); `pagarGrupo`
   promove `NAO_PAGO → PAGO` e deixa `COMPLEMENTO`
+
+### `pagamentos-store-real.spec.ts` — `bancoStore.ts` / `pagamentosStore.ts` REAIS
+Diferente dos `smoke-*.mjs` (que **reimplementam** o store — "espelho" — e por isso
+passam mesmo que o store real quebre), este roda o **código de verdade** do
+servidor: o handler `PATCH /api/pagamentos/cotacao` (validação + 400/409 reais),
+`criarLancamentoBanco`/`atualizarCotacaoLote`/`atualizarLancamentoBanco`, e as
+funções reais do cliente que definem os números (`parseTaxa`,
+`calcularTotalReaisLote`, `montarCotacaoDoLote`). Roda no vitest com
+`vitest.integration.config.ts` (fora do `npm run test:unit` de propósito) e um stub
+de `#imports` em `_stubs/nuxtImports.ts` que lê o `.env`.
+- taxa com ponto e com vírgula → mesmo `valorReais`
+- taxa fora de `[TAXA_MIN, TAXA_MAX]` (1 a 20) → 400 com mensagem, nada gravado
+- Rendimento com 1 ordem (`taxaEscolhida` real) e com 3 ordens (`taxaEscolhida`
+  null, taxa por linha)
+- total do lote com corretagem (uma vez só) = número do card da Cotação
+- lote já cotado → 409 (nova escolha e edição de taxas)
+- lançamento novo/editado em lote cotado → invalida e libera a escolha
+- dois lotes abertos da mesma empresa+moeda sem vazamento entre eles
+
+Segurança extra (escreve no banco real):
+- ids ganham o prefixo `TESTE_RS_` (mock de `randomId`; o resto do store roda sem
+  alteração);
+- lotes só são criados com `forcarLoteNovo` ou `loteId` explícito, nunca pelo
+  roteamento automático;
+- escolhe uma combinação empresa+moeda **sem lote real aberto**; se todas tiverem,
+  **pula com aviso** (não escreve nada);
+- `afterAll` apaga tudo (mesmo com teste falhando) e exige 0 registros `TESTE_%`.
 
 ## Quando rodar
 

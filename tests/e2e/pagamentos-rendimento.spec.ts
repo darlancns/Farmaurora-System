@@ -191,15 +191,20 @@ test.describe.serial("Pagamentos — Rendimento com 1 ordem aplica direto", () =
     expect(lanc.valorReais).toBeCloseTo(1000 * 5.4231, 4);
     expect(lanc.taxa).toBe(5.4231); // trilha de auditoria gravada
 
-    // Badge da Cotação usa "@ taxa", não "taxa por ordem".
+    // Badge da Cotação usa "@ taxa" (sempre com vírgula), não "taxa por ordem".
     const card = page.locator(`#cotacao-lote-${lote1}`);
-    await expect(card).toContainText("@ 5.4231");
+    await expect(card).toContainText("@ 5,4231");
     await expect(card).not.toContainText("taxa por ordem");
 
-    // Rodapé do card no Banco mostra a taxa, não "por ordem".
+    // Lote já cotado: troca bloqueada — botões desabilitados e taxa somente leitura.
+    await expect(card.locator(`#btn-usar-banco-${lote1}-RENDIMENTO`)).toBeDisabled();
+    await expect(card.locator(`#btn-usar-banco-${lote1}-XP`)).toBeDisabled();
+    await expect(card.locator(`#input-taxa-${lote1}-XP`)).toHaveAttribute("readonly", "");
+
+    // Rodapé do card no Banco mostra a taxa (vírgula), não "por ordem".
     await page.locator("#tab-banco").click();
     const bancoCard = page.locator(`#lote-banco-${lote1}`);
-    await expect(bancoCard).toContainText("5.4231");
+    await expect(bancoCard).toContainText("5,4231");
     await expect(bancoCard).not.toContainText("por ordem");
   });
 

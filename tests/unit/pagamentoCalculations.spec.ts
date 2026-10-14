@@ -4,6 +4,8 @@ import {
   calcularTotalReaisLote,
   faixaTaxasLancamentos,
   formatFaixaTaxas,
+  formatTaxa,
+  montarCotacaoDoLote,
   somarValorReais,
   taxasRendimentoCompletas,
 } from "../../app/utils/pagamentoCalculations";
@@ -153,5 +155,139 @@ describe("calcularTotalReaisLote", () => {
     const lote = buildLote({ bancoEscolhido: "RENDIMENTO", taxaEscolhida: 5.5 });
     const lancs = [buildLancamento({ valorMoeda: 1000, taxa: 5.5, valorReais: 5500 })];
     expect(calcularTotalReaisLote(lote, lancs)).toBe(5500);
+  });
+});
+
+// ── Total do lote COM corretagem (uma vez só, banco escolhido) ───────────────
+describe("calcularTotalReaisLote — soma a corretagem do banco escolhido", () => {
+  const opcoes = (xp: number, rend: number, intex: number) => [
+    { banco: "XP" as const, taxaCorretagem: xp, taxa: null },
+    { banco: "RENDIMENTO" as const, taxaCorretagem: rend, taxa: null },
+    { banco: "INTEX" as const, taxaCorretagem: intex, taxa: null },
+  ];
+
+  it("Rendimento 1 ordem: Σ valorReais + corretagem do Rendimento", () => {
+    const lote = buildLote({ bancoEscolhido: "RENDIMENTO", taxaEscolhida: 5.4231, opcoes: opcoes(30, 50, 20) });
+    const lancs = [buildLancamento({ valorMoeda: 1000, taxa: 5.4231, valorReais: 5423.1 })];
+    expect(calcularTotalReaisLote(lote, lancs)).toBeCloseTo(5423.1 + 50, 6);
+  });
+
+  it("Rendimento 3 ordens: corretagem entra UMA vez (não 3x)", () => {
+    const lote = buildLote({ bancoEscolhido: "RENDIMENTO", taxaEscolhida: null, opcoes: opcoes(30, 50, 20) });
+    const lancs = [
+      buildLancamento({ valorMoeda: 1000, taxa: 5.4, valorReais: 5400 }),
+      buildLancamento({ valorMoeda: 500, taxa: 5.47, valorReais: 2735 }),
+      buildLancamento({ valorMoeda: 250, taxa: 5.43, valorReais: 1357.5 }),
+    ];
+    expect(calcularTotalReaisLote(lote, lancs)).toBeCloseTo(5400 + 2735 + 1357.5 + 50, 6);
+  });
+
+  it("XP e Intex: totalMoeda × taxa + a corretagem do PRÓPRIO banco escolhido", () => {
+    const lancs = [buildLancamento({ valorMoeda: 1000 }), buildLancamento({ valorMoeda: 500 })];
+    const xp = buildLote({ bancoEscolhido: "XP", taxaEscolhida: 5, opcoes: opcoes(30, 50, 20) });
+    const intex = buildLote({ bancoEscolhido: "INTEX", taxaEscolhida: 5, opcoes: opcoes(30, 50, 20) });
+    expect(calcularTotalReaisLote(xp, lancs)).toBeCloseTo(1500 * 5 + 30, 6);
+    expect(calcularTotalReaisLote(intex, lancs)).toBeCloseTo(1500 * 5 + 20, 6);
+  });
+
+  it("corretagem 0 não muda nada (comportamento anterior)", () => {
+    const lote = buildLote({ bancoEscolhido: "XP", taxaEscolhida: 5.4 });
+    expect(calcularTotalReaisLote(lote, [buildLancamento({ valorMoeda: 1000 })])).toBeCloseTo(5400, 6);
+  });
+
+  it("sem banco escolhido continua null ('aguardando'), mesmo com corretagem preenchida", () => {
+    const lote = buildLote({ bancoEscolhido: null, opcoes: opcoes(30, 50, 20) });
+    expect(calcularTotalReaisLote(lote, [buildLancamento({ valorMoeda: 1000 })])).toBeNull();
+  });
+
+  it("XP sem taxaEscolhida continua null", () => {
+    const lote = buildLote({ bancoEscolhido: "XP", taxaEscolhida: null, opcoes: opcoes(30, 50, 20) });
+    expect(calcularTotalReaisLote(lote, [buildLancamento()])).toBeNull();
+  });
+});
+
+// ── Card da Cotação: total REAL do Rendimento por ordem ──────────────────────
+describe("montarCotacaoDoLote", () => {
+  const opcoes = [
+    { banco: "XP" as const, taxaCorretagem: 30, taxa: 5.5 },
+    { banco: "RENDIMENTO" as const, taxaCorretagem: 50, taxa: 5.4 }, // referência
+    { banco: "INTEX" as const, taxaCorretagem: 20, taxa: 5.6 },
+  ];
+  const lancs = [
+    buildLancamento({ valorMoeda: 1000 }),
+    buildLancamento({ valorMoeda: 500 }),
+    buildLancamento({ valorMoeda: 250 }),
+  ];
+  const porBanco = (views: ReturnType<typeof montarCotacaoDoLote>, b: BancoCambio) =>
+    views.find((v) => v.banco === b)!;
+
+  it("ANTES da escolha: idêntico ao cálculo por taxa de referência (nada mudou)", () => {
+    const lote = buildLote({ opcoes });
+    const views = montarCotacaoDoLote(lote, opcoes, lancs);
+    expect(porBanco(views, "RENDIMENTO").totalReais).toBeCloseTo(1750 * 5.4 + 50, 6);
+    expect(porBanco(views, "XP").totalReais).toBeCloseTo(1750 * 5.5 + 30, 6);
+    expect(porBanco(views, "RENDIMENTO").totalReaisReal).toBeUndefined();
+    expect(porBanco(views, "RENDIMENTO").maisBarato).toBe(true);
+  });
+
+  it("Rendimento fechado POR ORDEM: o card mostra o total real e a diferença dos outros compara com ele", () => {
+    const lote = buildLote({ bancoEscolhido: "RENDIMENTO", taxaEscolhida: null, opcoes });
+    // taxas reais por ordem, mais caras que a referência (5,4)
+    const fechadas = [
+      { ...lancs[0]!, taxa: 5.5, valorReais: 5500 },
+      { ...lancs[1]!, taxa: 5.6, valorReais: 2800 },
+      { ...lancs[2]!, taxa: 5.7, valorReais: 1425 },
+    ];
+    const views = montarCotacaoDoLote(lote, opcoes, fechadas);
+    const real = 5500 + 2800 + 1425 + 50;
+
+    const rend = porBanco(views, "RENDIMENTO");
+    expect(rend.totalReais).toBeCloseTo(real, 6);
+    expect(rend.totalReaisReal).toBe(true);
+    // é exatamente o número do Banco / da foto
+    expect(rend.totalReais).toBeCloseTo(calcularTotalReaisLote(lote, fechadas)!, 6);
+
+    // XP (1750 × 5,5 + 30 = 9657,5) é MAIS BARATO que o real (9775): diferença do Rendimento = +117,5
+    const xp = porBanco(views, "XP");
+    expect(xp.totalReais).toBeCloseTo(1750 * 5.5 + 30, 6);
+    expect(xp.maisBarato).toBe(true);
+    expect(xp.diferenca).toBe(0);
+    expect(rend.diferenca).toBeCloseTo(real - (1750 * 5.5 + 30), 6);
+    expect(rend.maisBarato).toBe(false);
+    expect(porBanco(views, "XP").totalReaisReal).toBe(false);
+  });
+
+  it("Rendimento com 1 ordem (taxaEscolhida real) NÃO usa o total real: segue o cálculo normal", () => {
+    const um = [buildLancamento({ valorMoeda: 1000 })];
+    const lote = buildLote({ bancoEscolhido: "RENDIMENTO", taxaEscolhida: 5.4, opcoes });
+    const views = montarCotacaoDoLote(lote, opcoes, [{ ...um[0]!, taxa: 5.4, valorReais: 5400 }]);
+    expect(porBanco(views, "RENDIMENTO").totalReaisReal).toBeUndefined();
+    // mesmo número do Banco: 1000 × 5,4 + 50
+    expect(porBanco(views, "RENDIMENTO").totalReais).toBeCloseTo(
+      calcularTotalReaisLote(lote, [{ ...um[0]!, taxa: 5.4, valorReais: 5400 }])!,
+      6,
+    );
+  });
+
+  it("XP escolhido: o card do XP mostra o mesmo número do Banco", () => {
+    const lote = buildLote({ bancoEscolhido: "XP", taxaEscolhida: 5.5, opcoes });
+    const fechadas = lancs.map((l) => ({ ...l, valorReais: l.valorMoeda * 5.5 }));
+    const views = montarCotacaoDoLote(lote, opcoes, fechadas);
+    expect(porBanco(views, "XP").totalReais).toBeCloseTo(calcularTotalReaisLote(lote, fechadas)!, 6);
+  });
+});
+
+describe("formatTaxa", () => {
+  it("sempre vírgula e 4 casas", () => {
+    expect(formatTaxa(5.4231)).toBe("5,4231");
+    expect(formatTaxa(5.4)).toBe("5,4000");
+    expect(formatTaxa(8)).toBe("8,0000");
+    expect(formatTaxa(5.10410027)).toBe("5,1041");
+    expect(formatTaxa(5.4231)).not.toContain(".");
+  });
+
+  it("formatFaixaTaxas usa o mesmo formato", () => {
+    const lancs = [buildLancamento({ taxa: 5.4 }), buildLancamento({ taxa: 5.47 })];
+    expect(formatFaixaTaxas(lancs)).toBe("5,4000 – 5,4700");
   });
 });

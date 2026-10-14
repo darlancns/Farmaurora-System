@@ -9,7 +9,7 @@ import type {
   TaxaLancamentoRendimento,
 } from "#shared/types/Pagamento";
 import { BANCO_CAMBIO_LABEL } from "#shared/constants/pagamentos";
-import { montarCotacao } from "../../../utils/pagamentoCalculations";
+import { formatTaxa, montarCotacaoDoLote } from "../../../utils/pagamentoCalculations";
 import { useCotacaoDrafts } from "../../../composables/useCotacaoDrafts";
 import { useEscolherBanco } from "../../../composables/useEscolherBanco";
 import CotacaoBancoCard from "../cards/CotacaoBancoCard.vue";
@@ -55,16 +55,24 @@ const { drafts, draftDo, draftToOpcoes, parseTaxa } = useCotacaoDrafts({
 const AUTOSAVE_MS = 700;
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
 
+// Lote já cotado (banco escolhido): taxas/corretagem são somente leitura e o
+// servidor recusa edição (409) — não há o que salvar.
+function loteTravado(loteId: string): boolean {
+  return props.lotes.find((l) => l.id === loteId)?.bancoEscolhido != null;
+}
+
 function salvarAgora(loteId: string): void {
   const t = timers.get(loteId);
   if (t) {
     clearTimeout(t);
     timers.delete(loteId);
   }
+  if (loteTravado(loteId)) return;
   emit("salvar-taxas", loteId, draftToOpcoes(loteId));
 }
 
 function agendarSalvar(loteId: string): void {
+  if (loteTravado(loteId)) return;
   const t = timers.get(loteId);
   if (t) clearTimeout(t);
   timers.set(
@@ -105,12 +113,10 @@ function lancamentosDoLote(loteId: string): LancamentoBanco[] {
 // que foi salvo — assim o total em R$ e a diferença atualizam na hora, sem
 // precisar clicar em "Salvar taxas".
 // Depois que um banco é escolhido os lançamentos deixam de ser "pendentes"; para
-// a tela não zerar, exibimos a cotação sobre todos os lançamentos do lote.
+// a tela não zerar, exibimos a cotação sobre todos os lançamentos do lote. E no
+// Rendimento fechado por ordem o card mostra o total REAL (ver montarCotacaoDoLote).
 function viewsDoLote(lote: LoteBanco) {
-  const lancs = lancamentosDoLote(lote.id);
-  const base =
-    lote.bancoEscolhido !== null ? lancs.map((l) => ({ ...l, valorReais: null })) : lancs;
-  return montarCotacao(draftToOpcoes(lote.id), base);
+  return montarCotacaoDoLote(lote, draftToOpcoes(lote.id), lancamentosDoLote(lote.id));
 }
 
 // Regra de "usar este banco" (XP/Intex direto; Rendimento 1 pendente direto,
@@ -170,7 +176,7 @@ const {
           {{
             lote.bancoEscolhido === "RENDIMENTO" && lote.taxaEscolhida === null
               ? "· taxa por ordem"
-              : `@ ${lote.taxaEscolhida?.toFixed(4)}`
+              : `@ ${lote.taxaEscolhida === null ? "—" : formatTaxa(lote.taxaEscolhida)}`
           }}
         </span>
       </div>
@@ -185,6 +191,7 @@ const {
           :moeda="lote.moeda"
           :readonly="readonly"
           :em-uso="lote.bancoEscolhido === view.banco"
+          :travado="lote.bancoEscolhido !== null"
           :pode-escolher="podeEscolher(lote, view.banco)"
           :salvando="salvando?.loteId === lote.id && salvando?.banco === view.banco"
           @escolher="(banco) => escolher(lote.id, banco)"
@@ -194,8 +201,13 @@ const {
       </div>
 
       <p v-if="!readonly" class="border-t border-hairline bg-paper px-3.5 py-2 text-[11.5px] text-ink-soft">
-        As taxas são salvas sozinhas conforme você digita — pode fechar a página e voltar depois.
-        Clique em "Usar este banco" quando decidir.
+        <template v-if="lote.bancoEscolhido !== null">
+          Cotação fechada. Para refazer, adicione, edite ou remova um lançamento deste lote.
+        </template>
+        <template v-else>
+          As taxas são salvas sozinhas conforme você digita — pode fechar a página e voltar depois.
+          Clique em "Usar este banco" quando decidir.
+        </template>
       </p>
     </div>
 

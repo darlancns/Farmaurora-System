@@ -53,8 +53,9 @@ export function calcularTotalReais(
   return totalMoeda * taxa + taxaCorretagem;
 }
 
-// valorReais de um lançamento quando o banco é escolhido — SEM corretagem
-// (a corretagem entra só no total agregado da cotação). Regra 3.
+// valorReais de um lançamento quando o banco é escolhido — SEM corretagem POR
+// LANÇAMENTO: a corretagem do banco escolhido entra uma única vez, no total do
+// lote (calcularTotalReaisLote), nunca rateada nem somada em cada linha. Regra 3.
 export function calcularValorReaisLancamento(valorMoeda: number, taxa: number): number {
   return valorMoeda * taxa;
 }
@@ -92,12 +93,20 @@ export function faixaTaxasLancamentos(
   return { min: Math.min(...taxas), max: Math.max(...taxas) };
 }
 
+// Taxa de câmbio SEMPRE com vírgula e 4 casas ("5,4231") em toda a tela — nunca
+// com ponto, para não induzir a digitar "5.4231". Só exibição: o valor gravado
+// mantém todas as casas.
+export function formatTaxa(taxa: number): string {
+  return taxa.toFixed(4).replace(".", ",");
+}
+
 // "5,4000 – 5,4700" (ou "5,4231" quando min === max). null se não há taxas.
 export function formatFaixaTaxas(lancamentos: LancamentoBanco[]): string | null {
   const faixa = faixaTaxasLancamentos(lancamentos);
   if (!faixa) return null;
-  const fmt = (n: number) => n.toFixed(4).replace(".", ",");
-  return faixa.min === faixa.max ? fmt(faixa.min) : `${fmt(faixa.min)} – ${fmt(faixa.max)}`;
+  return faixa.min === faixa.max
+    ? formatTaxa(faixa.min)
+    : `${formatTaxa(faixa.min)} – ${formatTaxa(faixa.max)}`;
 }
 
 // Menor totalReais entre as opções que já têm taxa preenchida.
@@ -160,12 +169,58 @@ export function bancoMaisBarato(cotacao: CotacaoOpcaoView[]): BancoCambio | null
   ).banco;
 }
 
-// Total do lote em reais: só definido depois que um banco foi escolhido.
-// Rendimento fecha por ordem (sem taxa única no lote) — o total é a soma dos
+// Corretagem (R$) do banco escolhido do lote; 0 se ainda não há banco escolhido.
+function corretagemDoBancoEscolhido(lote: LoteBanco): number {
+  if (lote.bancoEscolhido === null) return 0;
+  return lote.opcoes.find((o) => o.banco === lote.bancoEscolhido)?.taxaCorretagem ?? 0;
+}
+
+// Total do lote em reais: só definido depois que um banco foi escolhido, e
+// SEMPRE inclui a corretagem do banco escolhido, UMA vez (nunca por lançamento).
+// Rendimento fecha por ordem (sem taxa única no lote) — a base é a soma dos
 // valorReais já convertidos individualmente. XP/Intex seguem a taxa única.
+// É o mesmo número que o card da Cotação mostra para o banco em uso.
 export function calcularTotalReaisLote(lote: LoteBanco, lancamentos: LancamentoBanco[]): number | null {
   if (lote.bancoEscolhido === null) return null;
-  if (lote.bancoEscolhido === "RENDIMENTO") return somarValorReais(lancamentos);
+  const corretagem = corretagemDoBancoEscolhido(lote);
+  if (lote.bancoEscolhido === "RENDIMENTO") return somarValorReais(lancamentos) + corretagem;
   if (lote.taxaEscolhida === null) return null;
-  return lancamentos.reduce((soma, l) => soma + l.valorMoeda * (lote.taxaEscolhida as number), 0);
+  const base = lancamentos.reduce((soma, l) => soma + l.valorMoeda * (lote.taxaEscolhida as number), 0);
+  return base + corretagem;
+}
+
+// Visão da Cotação de um lote. Antes da escolha (e para XP/Intex e Rendimento de
+// 1 ordem) é exatamente `montarCotacao` sobre o rascunho. Só quando o Rendimento
+// foi fechado POR ORDEM (bancoEscolhido RENDIMENTO e taxaEscolhida null) o card do
+// Rendimento passa a mostrar o total REAL (Σ valorReais + corretagem) em vez do
+// cálculo pela taxa de referência, e a "Diferença"/"mais barato" dos cards são
+// recalculados contra ele. Só exibição — não muda nenhum cálculo pré-escolha.
+export function montarCotacaoDoLote(
+  lote: LoteBanco,
+  opcoes: OpcaoCotacao[],
+  lancamentos: LancamentoBanco[]
+): CotacaoOpcaoView[] {
+  // Depois da escolha os lançamentos deixam de ser "pendentes"; para a tela não
+  // zerar, a cotação é exibida sobre todos os lançamentos do lote.
+  const base =
+    lote.bancoEscolhido !== null ? lancamentos.map((l) => ({ ...l, valorReais: null })) : lancamentos;
+  const views = montarCotacao(opcoes, base);
+
+  const porOrdem = lote.bancoEscolhido === "RENDIMENTO" && lote.taxaEscolhida === null;
+  if (!porOrdem) return views;
+  const real = calcularTotalReaisLote(lote, lancamentos);
+  if (real === null) return views;
+
+  const totais = views.map((v) => (v.banco === "RENDIMENTO" ? real : v.totalReais));
+  const minimo = menorTotalReais(totais);
+  return views.map((v, i) => {
+    const totalReais = totais[i] ?? null;
+    return {
+      ...v,
+      totalReais,
+      diferenca: totalReais === null || minimo === null ? null : totalReais - minimo,
+      maisBarato: totalReais !== null && minimo !== null && totalReais === minimo,
+      totalReaisReal: v.banco === "RENDIMENTO",
+    };
+  });
 }

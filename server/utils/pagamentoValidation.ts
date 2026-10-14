@@ -3,6 +3,8 @@ import {
   EMPRESAS_PAGAMENTO,
   MOEDAS,
   STATUS_ITEM_GRUPO_ORDER,
+  TAXA_MAX,
+  TAXA_MIN,
   TIPOS_GRUPO_PAGAMENTO,
 } from "../../shared/constants/pagamentos";
 import type {
@@ -27,6 +29,11 @@ function isNonEmptyString(value: unknown): value is string {
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
+}
+
+// Taxa de câmbio dentro da trava de sanidade [TAXA_MIN, TAXA_MAX] (shared/constants).
+function isTaxaCambio(value: unknown): value is number {
+  return isFiniteNumber(value) && value >= TAXA_MIN && value <= TAXA_MAX;
 }
 
 function isEmpresa(value: unknown): value is EmpresaPagamento {
@@ -125,7 +132,7 @@ export function isValidAtualizarCotacao(body: unknown): body is AtualizarCotacao
         isBanco(e.banco) &&
         isFiniteNumber(e.taxaCorretagem) &&
         e.taxaCorretagem >= 0 &&
-        (e.taxa === null || (isFiniteNumber(e.taxa) && e.taxa > 0))
+        (e.taxa === null || isTaxaCambio(e.taxa))
       );
     });
     if (!ok) return false;
@@ -141,7 +148,7 @@ export function isValidAtualizarCotacao(body: unknown): body is AtualizarCotacao
     const ok = b.taxasRendimento.every((entrada) => {
       if (!entrada || typeof entrada !== "object") return false;
       const e = entrada as Record<string, unknown>;
-      return isNonEmptyString(e.lancamentoId) && isFiniteNumber(e.taxa) && e.taxa > 0;
+      return isNonEmptyString(e.lancamentoId) && isTaxaCambio(e.taxa);
     });
     if (!ok) return false;
   } else if (b.bancoEscolhido === "RENDIMENTO") {
@@ -149,6 +156,33 @@ export function isValidAtualizarCotacao(body: unknown): body is AtualizarCotacao
   }
 
   return b.opcoes !== undefined || b.bancoEscolhido !== undefined;
+}
+
+/**
+ * Se o body da cotação traz alguma taxa numérica FORA de [TAXA_MIN, TAXA_MAX],
+ * devolve a mensagem de erro (para o 400); senão null. Complementa
+ * `isValidAtualizarCotacao` (que só diz "inválido") com um motivo claro — o caso
+ * clássico é "5.4231" lido como 54231 por um parser de moeda.
+ */
+export function mensagemTaxaForaDoIntervalo(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+  const b = body as Record<string, unknown>;
+  const taxas: number[] = [];
+  if (Array.isArray(b.opcoes)) {
+    for (const o of b.opcoes) {
+      const t = (o as Record<string, unknown> | null)?.taxa;
+      if (isFiniteNumber(t)) taxas.push(t);
+    }
+  }
+  if (Array.isArray(b.taxasRendimento)) {
+    for (const o of b.taxasRendimento) {
+      const t = (o as Record<string, unknown> | null)?.taxa;
+      if (isFiniteNumber(t)) taxas.push(t);
+    }
+  }
+  const fora = taxas.find((t) => !isTaxaCambio(t));
+  if (fora === undefined) return null;
+  return `Taxa ${fora} fora do intervalo permitido (${TAXA_MIN} a ${TAXA_MAX}). Confira o separador decimal.`;
 }
 
 export function isValidNovoGrupoPagamento(body: unknown): body is NovoGrupoPagamentoDTO {

@@ -95,6 +95,12 @@ export const BANCO_CAMBIO_LABEL: Record<BancoCambio, string> = {
 // Corretagem começa em R$ 0,00 para todos os bancos, editável na UI (por lote).
 export const TAXA_CORRETAGEM_PADRAO = 0;
 
+// Trava de sanidade das taxas de câmbio (R$ por 1 unidade da moeda). Evita que um
+// erro de digitação (ex.: "5.4231" lido como 54231) vire valorReais absurdo.
+// Validada no servidor (pagamentoValidation.ts) e no cliente (parseTaxa.ts).
+export const TAXA_MIN = 1;
+export const TAXA_MAX = 20;
+
 // Todos os status possíveis por item (inclui PAGO por causa de dados antigos).
 export const STATUS_ITEM_GRUPO_ORDER: StatusItemGrupo[] = ["NAO_PAGO", "PAGO", "COMPLEMENTO"];
 
