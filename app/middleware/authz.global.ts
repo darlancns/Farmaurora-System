@@ -1,6 +1,7 @@
 import { defineNuxtRouteMiddleware, navigateTo, useRequestEvent } from "#app";
 import { useAuth } from "../composables/useAuth";
 import { sectionForPageRoute, canReadSection, defaultRouteForRole } from "#shared/utils/rbac";
+import { redirectForRemovedPage } from "#shared/utils/legacyRoutes";
 import type { AuthUser } from "#shared/types/auth";
 
 /**
@@ -20,6 +21,10 @@ import type { AuthUser } from "#shared/types/auth";
  * `consultor`/`operacional` direto pro Follow-up.
  */
 function redirectForRole(to: { path: string }, user: AuthUser): ReturnType<typeof navigateTo> | void {
+  // Páginas removidas (ex.: /inicio) vão pro destino padrão em vez de 404.
+  const removedTarget = redirectForRemovedPage(to.path, user.role);
+  if (removedTarget) return navigateTo(removedTarget, { replace: true });
+
   const section = sectionForPageRoute(to.path);
   if (section && !canReadSection(user.role, section)) {
     return navigateTo(defaultRouteForRole(user.role));
