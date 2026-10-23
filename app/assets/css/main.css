@@ -10,6 +10,8 @@
   --color-farm-blue: #1c6fa5;
   --color-farm-blue-soft: #e3eef6;
   --color-mainz-gold: #a6791c;
+  /* Âmbar de aviso (mesmo valor do mainz-gold, sem o nome da empresa) — ContaFormModal. */
+  --color-warning-gold: #a6791c;
   --color-mainz-gold-soft: #f5edda;
   --color-danger: #a5402f;
 
@@ -31,15 +33,16 @@ body {
 
 /* Altura de conteúdo do BottomNav (sem a safe-area, que é somada à parte em
    cada lugar que precisa) — mantida em sincronia com os min-h-[52px] dos
-   itens em BottomNav.vue + a borda de 1px do topo da barra. */
+   itens em BottomNav.vue + o pt-1 (4px) e a borda de 1px do topo da barra
+   (57px), com 3px de folga. */
 :root {
-  --bottom-nav-height: 56px;
+  --bottom-nav-height: 60px;
 }
 
-/* Abaixo de md (mesmo breakpoint do Tailwind que troca SidebarNav <-> BottomNav
+/* Abaixo de lg (mesmo breakpoint do Tailwind que troca SidebarNav <-> BottomNav
    em DefaultLayout.vue/SidebarNav.vue/BottomNav.vue), reserva espaço no fim do
    conteúdo pra nada ficar coberto pela barra fixa. */
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   #app-main-content {
     padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px));
   }

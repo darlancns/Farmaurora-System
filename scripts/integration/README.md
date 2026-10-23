@@ -8,8 +8,13 @@ arquivo JSON — hoje só as chaves PIX ficam em arquivo.
 
 ## Como rodar
 
+⚠️ **Só com `ALLOW_REAL_DB=1`.** Estes scripts acessam o Supabase REAL do `.env` (produção) e
+escrevem/apagam dados. Sem a variável eles saem com uma mensagem clara **antes de qualquer
+conexão** (`_guardBancoReal.mjs`), e o `vitest` de integração falha na importação.
+
 ```bash
-npm run test:integration
+ALLOW_REAL_DB=1 npm run test:integration          # bash
+$env:ALLOW_REAL_DB = "1"; npm run test:integration # PowerShell
 ```
 
 Roda os smoke tests e a integração do store real em sequência
@@ -18,8 +23,8 @@ Roda os smoke tests e a integração do store real em sequência
 Também dá pra rodar um isolado:
 
 ```bash
-node scripts/integration/smoke-processos-supabase.mjs
-npm run test:integration:store   # só o câmbio com o store REAL (vitest)
+ALLOW_REAL_DB=1 node scripts/integration/smoke-processos-supabase.mjs
+ALLOW_REAL_DB=1 npm run test:integration:store   # só o câmbio com o store REAL (vitest)
 ```
 
 ## ⚠️ Rodam contra o banco REAL
@@ -105,16 +110,41 @@ de `#imports` em `_stubs/nuxtImports.ts` que lê o `.env`.
 - total do lote com corretagem (uma vez só) = número do card da Cotação
 - lote já cotado → 409 (nova escolha e edição de taxas)
 - lançamento novo/editado em lote cotado → invalida e libera a escolha
-- dois lotes abertos da mesma empresa+moeda sem vazamento entre eles
+- dois lotes abertos da mesma empresa+moeda sem vazamento entre eles (legado: a UI não cria mais 2 lotes da mesma moeda)
 
 Segurança extra (escreve no banco real):
 - ids ganham o prefixo `TESTE_RS_` (mock de `randomId`; o resto do store roda sem
   alteração);
-- lotes só são criados com `forcarLoteNovo` ou `loteId` explícito, nunca pelo
-  roteamento automático;
+- lotes só são criados com `forcarLoteNovo`; um lançamento só entra num lote
+  existente pelo roteamento por moeda (o aberto mais recente) depois de conferir
+  que o destino é um lote `TESTE_RS_`, nunca num lote real (não existe mais `loteId`);
 - escolhe uma combinação empresa+moeda **sem lote real aberto**; se todas tiverem,
   **pula com aviso** (não escreve nada);
 - `afterAll` apaga tudo (mesmo com teste falhando) e exige 0 registros `TESTE_%`.
+
+## Scripts de migração (`scripts/migration/`) — mesma trava
+
+Os scripts executáveis de `scripts/migration/` também leem o `.env` (produção) e usam a service
+role, então passaram a exigir **`ALLOW_REAL_DB=1`** com a mesma trava (`_guardBancoReal.mjs`): sem a
+variável saem com **código 1 e mensagem clara, antes de ler o `.env` ou abrir qualquer conexão**.
+
+| Script | O que faz | Com `ALLOW_REAL_DB=1` |
+|---|---|---|
+| `backup-follow-up.mjs` | exporta `follow_up` para `backups/` (somente leitura no banco) | roda |
+| `carga-follow-up.mjs` | sem flag só valida; **`--commit` apaga e recarrega** o Follow-Up | o dry-run (sem `--commit`) segue igual; `--commit` continua exigindo as pré-condições do próprio script |
+| `dry-run-follow-up.mjs` | lê só o arquivo local e imprime o que seria carregado (não acessa o banco) | roda |
+| `migrate-pix-to-supabase.mjs` | `--dry-run` imprime; `--commit` faz o upsert | os dois modos seguem como antes |
+
+`followUpParser.mjs` e `followUpRows.mjs` são **bibliotecas** (importadas pelos scripts e pelos
+testes unitários) e não têm a trava: não leem `.env` nem se conectam.
+
+```bash
+ALLOW_REAL_DB=1 node scripts/migration/backup-follow-up.mjs           # bash
+$env:ALLOW_REAL_DB = "1"; node scripts/migration/backup-follow-up.mjs # PowerShell
+```
+
+> O `dry-run-follow-up.mjs` é 100% offline; a trava vale para ele só por consistência ("todos os
+> scripts de migração"). Se preferir isento, basta remover as 5 linhas do guarda no topo dele.
 
 ## Quando rodar
 

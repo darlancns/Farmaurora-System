@@ -24,7 +24,7 @@ export async function listRecadosVisiveis(usuarioId: string, cargo: Role): Promi
   const db = createSupabaseAdminClient();
 
   // Público + do meu cargo + direcionados a mim + os que eu autorei. Não
-  // filtra por aba (Todos/Recebidos/Enviados) nem por concluído/fixado — isso
+  // filtra por aba (Recebidos/Enviados) nem por concluído/fixado — isso
   // fica pro client (Fase B/D), usando os campos calculados abaixo.
   const orFiltro = [
     "destinatario_tipo.eq.publico",

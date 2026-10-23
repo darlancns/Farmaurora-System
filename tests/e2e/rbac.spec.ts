@@ -79,7 +79,7 @@ test.describe("RBAC", () => {
 
     // Pagamentos — com botão de novo lançamento.
     await page.goto("/pagamentos", { waitUntil: "networkidle" });
-    await expect(page.locator("#btn-novo-lote-banco")).toBeVisible();
+    await expect(page.locator("#btn-novo-pagamento-banco")).toBeVisible();
 
     // Configurações — acessa a página e vê a lista de contas, sem controles de gestão.
     await page.goto("/configuracoes", { waitUntil: "networkidle" });
@@ -102,7 +102,7 @@ test.describe("RBAC", () => {
     expect(postPag.status()).not.toBe(403);
 
     const postAdmin = await page.request.post("/api/admin/users", {
-      data: { email: "x@x.com", password: "senha-super-forte-123", role: "socio" },
+      data: { email: "x@x.com", password: "senha-super-forte-123", role: "socio", nome: "E2E Sócio Teste" },
     });
     expect(postAdmin.status()).toBe(403);
   });
@@ -154,7 +154,7 @@ test.describe("RBAC", () => {
     await expect(page.locator("#sidebar-nav a[href='/pagamentos']")).toBeVisible();
     await page.goto("/pagamentos", { waitUntil: "networkidle" });
     await expect(page).toHaveURL(/\/pagamentos$/);
-    await expect(page.locator("#btn-novo-lote-banco")).toBeVisible();
+    await expect(page.locator("#btn-novo-pagamento-banco")).toBeVisible();
 
     // Sem acesso a Patients.
     await page.goto("/prestacao");
@@ -187,7 +187,7 @@ test.describe("RBAC", () => {
     await expect(page.locator("#btn-novo-processo")).toBeVisible();
 
     await page.goto("/pagamentos", { waitUntil: "networkidle" });
-    await expect(page.locator("#btn-novo-lote-banco")).toBeVisible();
+    await expect(page.locator("#btn-novo-pagamento-banco")).toBeVisible();
 
     for (const path of ["/api/patients", "/api/processos", "/api/pagamentos/banco"]) {
       const res = await page.request.get(path);

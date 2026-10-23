@@ -64,7 +64,7 @@ export function useRecados() {
   }
 
   // Concluir é individual e definitivo (sem "desconcluir") — depois desta
-  // chamada o item some de `todos`/`recebidos`/`enviados` (ver dividirRecados).
+  // chamada o item some de `recebidos`/`enviados` (ver dividirRecados).
   async function concluirRecado(id: string): Promise<void> {
     await apiFetch<{ concluido: true }>(`/api/recados/${id}/concluir`, { method: "POST" }, "Erro ao concluir recado.");
     const i = recados.value.findIndex((r) => r.id === id);
@@ -72,10 +72,9 @@ export function useRecados() {
     if (atual) recados.value[i] = { ...atual, concluidoPorMim: true };
   }
 
-  // Divisão em abas (Todos/Recebidos/Enviados) fica aqui, não na página —
+  // Divisão em abas (Recebidos/Enviados) fica aqui, não na página —
   // lógica pura extraída em app/utils/recadosFiltros.ts (testável sem Nuxt).
   const divididos = computed(() => dividirRecados(recados.value, user.value?.id ?? null));
-  const todos: ComputedRef<Recado[]> = computed(() => divididos.value.todos);
   const recebidos: ComputedRef<Recado[]> = computed(() => divididos.value.recebidos);
   const enviados: ComputedRef<Recado[]> = computed(() => divididos.value.enviados);
 
@@ -89,7 +88,6 @@ export function useRecados() {
     excluirRecado,
     toggleFixar,
     concluirRecado,
-    todos,
     recebidos,
     enviados,
   };

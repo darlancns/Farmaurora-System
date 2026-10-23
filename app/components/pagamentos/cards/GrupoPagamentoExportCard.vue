@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { dataBrasiliaDe, formatarDataBR } from "#shared/utils/dataBrasilia";
 import type { GrupoPagamento } from "#shared/types/Pagamento";
 import { EMPRESA_PAGAMENTO_LABEL } from "#shared/constants/pagamentos";
 import { formatCurrency } from "../../../utils/formatters";
@@ -15,13 +16,7 @@ const props = defineProps<{
 
 const total = computed<number>(() => props.grupo.itens.reduce((soma, i) => soma + i.valor, 0));
 
-const dataLabel = computed<string>(() =>
-  props.dataExibicao.toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  })
-);
+const dataLabel = computed<string>(() => formatarDataBR(dataBrasiliaDe(props.dataExibicao)));
 
 const nOrdensLabel = computed<string>(() =>
   props.grupo.itens.length === 1 ? "1 pagamento" : `${props.grupo.itens.length} pagamentos`

@@ -5,9 +5,9 @@ import { onBeforeUnmount, onMounted } from "vue";
  * que os modais já tinham copiado cada um o seu, agora reaproveitável fora de
  * BaseModal.vue também, se precisar.
  */
-export function useEscapeToClose(onClose: () => void): void {
+export function useEscapeToClose(onClose: (event: KeyboardEvent) => void): void {
   function onKeydown(event: KeyboardEvent): void {
-    if (event.key === "Escape") onClose();
+    if (event.key === "Escape") onClose(event);
   }
 
   onMounted(() => document.addEventListener("keydown", onKeydown));

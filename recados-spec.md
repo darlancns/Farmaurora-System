@@ -8,8 +8,7 @@ Mural de comunicação interna do Farmaurora CRM. Permite que diferentes cargos 
 
 | Aba | Conteúdo |
 |---|---|
-| **Todos** | Recados públicos + recados direcionados ao meu cargo + recados direcionados a mim + recados que eu criei |
-| **Recebidos** | Igual a "Todos", excluindo o que eu mesmo criei |
+| **Recebidos** | Recados públicos + recados direcionados ao meu cargo + recados direcionados a mim, excluindo o que eu mesmo criei |
 | **Enviados** | Só os recados que eu criei (qualquer destinatário) |
 | **Meus** | Lembretes pessoais e privados — nunca visíveis a outra conta |
 
@@ -58,7 +57,7 @@ Filtros de tipo (cor) funcionam como chips que cruzam todas as abas, incluindo M
 
 - Qualquer recado do mural compartilhado — público, de cargo ou de pessoa — pode ser marcado como "concluído" por qualquer pessoa que o veja.
 - É uma marcação **individual por pessoa**, não um status global do recado. Ex: um recado de cargo pra "Operacional" — cada pessoa do cargo marca (ou não) por conta própria, independente das outras.
-- Ao marcar, o recado some das abas Todos/Recebidos **só de quem concluiu** — continua existindo normalmente pros demais destinatários (cargo/público) até eles também concluírem. Não existe histórico de quem concluiu, em nenhuma tela.
+- Ao marcar, o recado some da aba Recebidos **só de quem concluiu** — continua existindo normalmente pros demais destinatários (cargo/público) até eles também concluírem. Não existe histórico de quem concluiu, em nenhuma tela.
 - É uma ação **final e irreversível** — não pode ser desmarcada depois de confirmada.
 - Ao marcar, dispara notificação pro autor original do recado, identificando **qual** recado foi concluído.
 - Modal de confirmação ao clicar no check: **"Marcar recado como concluído?"** com o título do recado exibido, e botão de confirmar.
@@ -130,7 +129,7 @@ Chave primária composta (usuario_id, recado_id).
 | recado_id | fk recados |
 | concluido_em | timestamp |
 
-Chave primária composta (usuario_id, recado_id). Ao existir uma linha aqui, o recado deixa de aparecer nas abas Todos/Recebidos daquele usuário — os outros destinatários (cargo/público) continuam vendo normalmente.
+Chave primária composta (usuario_id, recado_id). Ao existir uma linha aqui, o recado deixa de aparecer na aba Recebidos daquele usuário — os outros destinatários (cargo/público) continuam vendo normalmente.
 
 **`lembretes_pessoais`** (aba "Meus" — tabela separada de `recados` porque não tem destinatário, notificação ou lógica de cargo; é sempre privada e de uso individual)
 | Campo | Tipo |

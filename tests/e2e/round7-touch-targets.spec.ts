@@ -171,7 +171,7 @@ test.describe("Rodada 7 — Parte 2: touch targets ≥44px em mobile", () => {
     await login(page);
     await page.goto("/processos", { waitUntil: "networkidle" });
 
-    const novoBtn = page.locator("#btn-novo-processo");
+    const novoBtn = page.getByRole("button", { name: "Novo processo" });
     if ((await novoBtn.count()) === 0) {
       test.skip(true, "sem permissão de escrita em processos nesta conta");
     }

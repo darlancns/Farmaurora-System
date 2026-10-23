@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { assertSupabaseLocal } from "./_guards/supabaseLocal";
 
 // Rendimento com 1 única ordem pendente aplica a taxa direto (sem o modal de
 // fechamento por ordem), gravando `taxaEscolhida` real no lote. Com 2+, segue
@@ -10,6 +11,10 @@ import { join } from "node:path";
 //
 // Mesmo gating/cleanup de pagamentos-lotes.spec.ts:
 //   E2E_ADMIN_EMAIL/_PASSWORD (ou E2E_OPERACIONAL_*) + .env com URL/service key.
+//
+// Roda só no harness local (a guarda aborta fora dele): a MOEDA define o lote, então um "Novo
+// pagamento" cairia num lote aberto REAL. O teste 2 usa EUR justamente para ter um lote próprio
+// ao lado do USD do teste 1.
 
 const writer = {
   email: process.env.E2E_ADMIN_EMAIL ?? process.env.E2E_OPERACIONAL_EMAIL ?? "",
@@ -37,10 +42,12 @@ function lerEnv(): { url: string; serviceKey: string } {
   }
 }
 
+// Aborta (antes de qualquer escrita) se o Supabase em uso não for o local do harness.
+assertSupabaseLocal();
 const env = lerEnv();
 const runnable = Boolean(writer.email && writer.password && env.url && env.serviceKey);
 const RUN = Date.now().toString(36);
-const criados: string[] = [];
+const URL_PAGAMENTOS = "/pagamentos";
 
 interface LoteApi {
   id: string;
@@ -95,12 +102,15 @@ async function selectOption(page: Page, triggerId: string, optionText: string): 
   await page.getByRole("option", { name: optionText, exact: true }).click();
 }
 
-// "+ Novo lote" USD com `n` lançamentos. Devolve o id do lote.
-async function loteComLancamentos(page: Page, n: number): Promise<string> {
+// "+ Novo pagamento" com `n` lançamentos na moeda. Devolve o id do lote. Os
+// pagamentos seguintes entram no mesmo lote (a moeda define o lote); o primeiro
+// só cria lote novo porque o beforeAll limpou as tabelas (sem lote aberto dessa moeda).
+async function loteComLancamentos(page: Page, n: number, moeda: "USD" | "EUR" = "USD"): Promise<string> {
   const antes = new Set((await payload(page)).lotes.map((l) => l.id));
-  await page.locator("#btn-novo-lote-banco").click();
+  await page.locator("#btn-novo-pagamento-banco").click();
   await expect(page.locator("#novo-lancamento-banco-overlay")).toBeVisible();
-  await selectOption(page, "nl-moeda", "Dólar (USD)");
+  await expect(page.locator("#nl-moeda-USD")).toHaveAttribute("aria-checked", "true"); // padrão
+  if (moeda === "EUR") await page.locator("#nl-moeda-EUR").click();
   await selectOption(page, "nl-fornecedor", "Poros - Turquia");
   await page.locator("#nl-cliente").fill(`E2E ${RUN} rend 1`);
   await page.locator("#nl-invoice").fill(`INV-${RUN}-1`);
@@ -110,10 +120,9 @@ async function loteComLancamentos(page: Page, n: number): Promise<string> {
 
   const novo = (await payload(page)).lotes.find((l) => !antes.has(l.id))!;
   expect(novo).toBeTruthy();
-  criados.push(novo.id);
 
   for (let i = 2; i <= n; i++) {
-    await adicionarLancamento(page, novo.id, `E2E ${RUN} rend ${i}`, "500,00");
+    await adicionarLancamento(page, novo.id, `E2E ${RUN} rend ${i}`, "500,00", moeda);
   }
   return novo.id;
 }
@@ -123,16 +132,24 @@ async function adicionarLancamento(
   loteId: string,
   cliente: string,
   valor: string,
+  moeda: "USD" | "EUR" = "USD",
 ): Promise<void> {
   await page.locator("#tab-banco").click();
-  await page.locator(`#btn-novo-lancamento-lote-${loteId}`).click();
+  const idsAntes = new Set((await payload(page)).lancamentos.map((l) => l.id));
+  await page.locator("#btn-novo-pagamento-banco").click();
   await expect(page.locator("#novo-lancamento-banco-overlay")).toBeVisible();
+  if (moeda === "EUR") await page.locator("#nl-moeda-EUR").click();
   await selectOption(page, "nl-fornecedor", "Poros - Turquia");
   await page.locator("#nl-cliente").fill(cliente);
   await page.locator("#nl-invoice").fill(`INV-${RUN}-x`);
   await page.locator("#nl-valor-moeda").fill(valor);
   await page.locator("#btn-save-novo-lancamento").click();
   await expect(page.locator("#novo-lancamento-banco-overlay")).toHaveCount(0);
+  // A moeda define o lote: o pagamento precisa ter caído no lote esperado (o nome do
+  // cliente é capitalizado pelo campo, então o lançamento novo é achado pelo id).
+  const novos = (await payload(page)).lancamentos.filter((l) => !idsAntes.has(l.id));
+  expect(novos).toHaveLength(1);
+  expect(novos[0]!.loteId).toBe(loteId);
 }
 
 // Preenche a taxa do card do Rendimento e clica "Usar este banco".
@@ -159,18 +176,26 @@ test.describe.serial("Pagamentos — Rendimento com 1 ordem aplica direto", () =
 
   test.beforeEach(async ({ page }) => {
     await login(page);
-    await page.goto("/pagamentos", { waitUntil: "networkidle" });
+    await page.goto(URL_PAGAMENTOS, { waitUntil: "networkidle" });
   });
 
-  test.afterAll(async () => {
-    if (!runnable || !criados.length) return;
+  // Começa limpo para que o primeiro "Novo pagamento" de cada moeda crie o lote em vez de cair
+  // num resto. Esvazia as tabelas de Banco INTEIRAS — seguro porque a guarda impede rodar fora
+  // do harness local.
+  async function limparTabelasDeBanco(): Promise<void> {
     const db = createClient(env.url, env.serviceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    for (const id of criados) {
-      await db.from("pagamento_lancamentos_banco").delete().eq("lote_id", id);
-      await db.from("pagamento_lotes_banco").delete().eq("id", id);
-    }
+    await db.from("pagamento_lancamentos_banco").delete().neq("id", "");
+    await db.from("pagamento_lotes_banco").delete().neq("id", "");
+  }
+
+  test.beforeAll(async () => {
+    if (runnable) await limparTabelasDeBanco();
+  });
+
+  test.afterAll(async () => {
+    if (runnable) await limparTabelasDeBanco();
   });
 
   test("1 · 1 pendente: 'Usar este banco' aplica direto, sem abrir o modal", async ({ page }) => {
@@ -209,7 +234,7 @@ test.describe.serial("Pagamentos — Rendimento com 1 ordem aplica direto", () =
   });
 
   test("2 · 2 pendentes: 'Usar este banco' abre o modal (inalterado)", async ({ page }) => {
-    const lote2 = await loteComLancamentos(page, 2);
+    const lote2 = await loteComLancamentos(page, 2, "EUR");
     await usarRendimento(page, lote2, "5,40");
 
     // Agora o modal aparece.

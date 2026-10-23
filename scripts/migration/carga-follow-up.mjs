@@ -20,6 +20,11 @@ import { dirname, join } from "node:path";
 import { parseFollowUpSource } from "./followUpParser.mjs";
 import { COLUNAS_FOLLOW_UP, idCarga, registroParaLinha } from "./followUpRows.mjs";
 import { CONSULTORES_PROCESSO, EMPRESAS_PROCESSO, STATUS_PROCESSO_ORDER } from "../../shared/constants/processos.ts";
+import { exigirAllowRealDbOuSair } from "../integration/_guardBancoReal.mjs";
+
+// Script de migração/backup de dados REAIS (produção): só roda com ALLOW_REAL_DB=1, e a checagem
+// vem antes de ler o .env ou abrir qualquer conexão (sai com código 1 e mensagem clara).
+exigirAllowRealDbOuSair("carga-follow-up");
 
 const ESPERADO_ATUAL = 44;
 const ESPERADO_NOVO = 58;

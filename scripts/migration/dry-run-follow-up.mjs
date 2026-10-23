@@ -18,6 +18,11 @@ import {
   FORNECEDORES_PROCESSO,
   STATUS_PROCESSO_ORDER,
 } from "../../shared/constants/processos.ts";
+import { exigirAllowRealDbOuSair } from "../integration/_guardBancoReal.mjs";
+
+// Script de migração/backup de dados REAIS (produção): só roda com ALLOW_REAL_DB=1, e a checagem
+// vem antes de ler o .env ou abrir qualquer conexão (sai com código 1 e mensagem clara).
+exigirAllowRealDbOuSair("dry-run-follow-up");
 
 const CRM = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const FONTE = join(CRM, "scripts", "migration", "follow-up-source.txt");

@@ -12,6 +12,11 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { exigirAllowRealDbOuSair } from "../integration/_guardBancoReal.mjs";
+
+// Script de migração/backup de dados REAIS (produção): só roda com ALLOW_REAL_DB=1, e a checagem
+// vem antes de ler o .env ou abrir qualquer conexão (sai com código 1 e mensagem clara).
+exigirAllowRealDbOuSair("backup-follow-up");
 
 const CRM = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const require = createRequire(import.meta.url);

@@ -18,7 +18,7 @@ useLockBodyScroll();
 <template>
   <div
     id="nav-more-sheet-overlay"
-    class="fixed inset-0 z-[950] flex items-end justify-center bg-ink/40 md:hidden"
+    class="fixed inset-0 z-[950] flex items-end justify-center bg-ink/40 lg:hidden"
     @click.self="emit('close')"
   >
     <div

@@ -3,6 +3,7 @@ import {
   isValidAtualizarGrupoRealizado,
   isValidAtualizarLancamentoRealizado,
 } from "../../server/utils/pagamentoValidation";
+import { hojeBrasilia, somarDiasISO } from "../../shared/utils/dataBrasilia";
 
 // Cobre a validação dos PATCHs de correção pontual em "Pagamentos
 // realizados": Banco (cliente do lançamento + pagoEm do lote) e Despachante/
@@ -10,20 +11,18 @@ import {
 // formato YYYY-MM-DD e nunca posterior a hoje — o cliente já bloqueia data
 // futura, mas o servidor nunca confia só nele.
 
+// "Hoje" é o dia de Brasília (o mesmo critério do cliente), não o dia UTC — que depois das 21h BRT
+// já é o dia seguinte.
 function amanha(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+  return somarDiasISO(hojeBrasilia(), 1);
 }
 
 function hoje(): string {
-  return new Date().toISOString().slice(0, 10);
+  return hojeBrasilia();
 }
 
 function ontem(): string {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0, 10);
+  return somarDiasISO(hojeBrasilia(), -1);
 }
 
 describe("isValidAtualizarLancamentoRealizado — cliente + pagoEm", () => {

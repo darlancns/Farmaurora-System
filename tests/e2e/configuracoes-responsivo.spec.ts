@@ -35,6 +35,46 @@ function hasHorizontalOverflow(page: Page) {
   return page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
 }
 
+// Respiro das abas: da base do elemento que precede a barra (o cabeçalho, ou a busca em /processos) até o topo do texto
+// e da base do texto até a linha da barra (borda inferior). O texto é o dos nós de texto visíveis do botão (a variante
+// display:none não conta); `desvio` = distância do centro do texto ao centro do botão sem o sublinhado.
+async function respiroAba(page: Page, id: string): Promise<{ acima: number; abaixo: number; altura: number; linhas: number; desvio: number }> {
+  return page.locator(id).evaluate((btn) => {
+    const barra = btn.parentElement as HTMLElement;
+    const anterior = (barra.previousElementSibling as HTMLElement).getBoundingClientRect().bottom;
+    const retangulos: DOMRect[] = [];
+    const walker = document.createTreeWalker(btn, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if (!n.textContent?.trim() || !n.parentElement?.offsetParent) continue;
+      const range = document.createRange();
+      range.selectNodeContents(n);
+      retangulos.push(...Array.from(range.getClientRects()));
+    }
+    const topo = Math.min(...retangulos.map((r) => r.top));
+    const base = Math.max(...retangulos.map((r) => r.bottom));
+    const linhaBarra = barra.getBoundingClientRect().bottom - parseFloat(getComputedStyle(barra).borderBottomWidth);
+    const b = btn.getBoundingClientRect();
+    const sublinhado = parseFloat(getComputedStyle(btn).borderBottomWidth);
+    return {
+      acima: topo - anterior,
+      abaixo: linhaBarra - base,
+      altura: b.height,
+      linhas: new Set(retangulos.map((r) => Math.round(r.top))).size,
+      desvio: Math.abs((topo + base) / 2 - (b.top + (b.height - sublinhado) / 2)),
+    };
+  });
+}
+
+// Abaixo de lg, cada aba: toque >= 44px, texto numa linha só, centrado e com o mesmo respiro acima e abaixo (<= 1px).
+async function verificarRespiroAba(page: Page, id: string): Promise<void> {
+  const r = await respiroAba(page, id);
+  expect(r.altura, `${id}: altura da aba`).toBeGreaterThanOrEqual(43.99);
+  expect(r.linhas, `${id}: texto numa linha só`).toBe(1);
+  expect(Math.abs(r.acima - r.abaixo), `${id}: respiro acima ${r.acima.toFixed(2)}px x abaixo ${r.abaixo.toFixed(2)}px`).toBeLessThanOrEqual(1);
+  expect(r.desvio, `${id}: texto centralizado na vertical`).toBeLessThanOrEqual(1);
+  console.log(`[medida] ${id}: acima ${r.acima.toFixed(2)}px, abaixo ${r.abaixo.toFixed(2)}px, aba ${r.altura}px`);
+}
+
 async function gotoConfiguracoes(page: Page, viewport: { width: number; height: number }): Promise<void> {
   await page.setViewportSize(viewport);
   await login(page);
@@ -58,22 +98,43 @@ test.describe("Responsividade de /configuracoes", () => {
         expect(await hasHorizontalOverflow(page)).toBe(false);
       });
 
-      test("tabela oculta, lista de cards visível, sem dado cortado", async ({ page }) => {
-        await expect(page.locator("#contas-tab table")).toBeHidden();
+      // A tabela de contas troca por container query (@[700px] em ContasTab.vue). Com o
+      // BottomNav valendo até 1023px (sem a sidebar de 192px), o conteúdo em 768px passa a ter
+      // ~711px e já mostra a tabela; os cards ficam pra celular (375px).
+      if (viewport.width >= 768) {
+        test("tabela visível (cards ocultos), sem dado cortado", async ({ page }) => {
+          const tabela = page.locator("#contas-tab table");
+          await expect(tabela).toBeVisible();
 
-        const primeiroCard = page.locator("[id^='conta-card-']").first();
-        if ((await primeiroCard.count()) === 0) {
-          test.skip(true, "sem contas na conta de teste");
-        }
-        await expect(primeiroCard).toBeVisible();
+          const box = await tabela.boundingBox();
+          expect(box).not.toBeNull();
+          expect(box!.x).toBeGreaterThanOrEqual(0);
+          expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width + 1);
 
-        const box = await primeiroCard.boundingBox();
-        expect(box).not.toBeNull();
-        expect(box!.x).toBeGreaterThanOrEqual(0);
-        expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width + 1);
-      });
+          const primeiroCard = page.locator("[id^='conta-card-']").first();
+          if (await primeiroCard.count()) {
+            await expect(primeiroCard).toBeHidden();
+          }
+        });
+      } else {
+        test("tabela oculta, lista de cards visível, sem dado cortado", async ({ page }) => {
+          await expect(page.locator("#contas-tab table")).toBeHidden();
+
+          const primeiroCard = page.locator("[id^='conta-card-']").first();
+          if ((await primeiroCard.count()) === 0) {
+            test.skip(true, "sem contas na conta de teste");
+          }
+          await expect(primeiroCard).toBeVisible();
+
+          const box = await primeiroCard.boundingBox();
+          expect(box).not.toBeNull();
+          expect(box!.x).toBeGreaterThanOrEqual(0);
+          expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width + 1);
+        });
+      }
 
       test("e-mail nunca trunca — quebra em várias linhas quando necessário", async ({ page }) => {
+        test.skip(viewport.width >= 768, "cards ocultos a partir de 768px (tabela no lugar)");
         const emailEl = page.locator("[id^='conta-card-'] p.break-all").first();
         if ((await emailEl.count()) === 0) {
           test.skip(true, "sem contas na conta de teste");
@@ -91,8 +152,25 @@ test.describe("Responsividade de /configuracoes", () => {
     });
   }
 
-  // 768px já é o próprio breakpoint `md` (mesmo usado pela sidebar desde a
-  // Rodada 1 e pelos botões de ação nas Rodadas 2-4): nele o botão de ações já
+  // Aba "Contas" abaixo de lg: 44px, texto centrado e o mesmo respiro acima (linha do cabeçalho) e abaixo (linha da barra).
+  for (const viewport of [
+    { name: "375x667", width: 375, height: 667 },
+    { name: "390x844", width: 390, height: 844 },
+    { name: "768x1024", width: 768, height: 1024 },
+    { name: "820x1180", width: 820, height: 1180 },
+    { name: "1023x768", width: 1023, height: 768 },
+  ]) {
+    test(`${viewport.name}: aba 'Contas' com toque >= 44px e respiro igual acima e abaixo do texto`, async ({ page }) => {
+      test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD ou E2E_SOCIO_EMAIL/PASSWORD");
+      await gotoConfiguracoes(page, viewport);
+      await expect(page.locator("#tab-contas")).toBeVisible();
+      await verificarRespiroAba(page, "#tab-contas");
+      expect(await hasHorizontalOverflow(page)).toBe(false);
+    });
+  }
+
+  // 768px já é o próprio breakpoint `md` (usado pelos botões de ação nas
+  // Rodadas 2-4; a sidebar, desde o refino do breakpoint lg, só aparece a partir de 1024px): nele o botão de ações já
   // volta ao tamanho compacto de sempre por design (`md:h-7 md:w-7`). A
   // asserção de toque ≥44px só faz sentido abaixo de `md`.
   test("abaixo de md (375px): botão de ações (⋮) tem toque de pelo menos 44px", async ({ page }) => {

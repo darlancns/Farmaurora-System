@@ -42,7 +42,6 @@ const filaCotacao = criarFilaPorChave();
 
 export function usePagamentos() {
   const empresaSelecionada = useState<EmpresaPagamento>("pagamentos-empresa", () => "FARMAURORA");
-  const dataSelecionada = useState<string>("pagamentos-data", () => new Date().toISOString().slice(0, 10));
 
   const lotesBanco = useState<LoteBanco[]>("pagamentos-lotes", () => []);
   const lancamentosBanco = useState<LancamentoBanco[]>("pagamentos-lancamentos", () => []);
@@ -320,7 +319,6 @@ export function usePagamentos() {
 
   return {
     empresaSelecionada,
-    dataSelecionada,
     lotesBanco,
     lancamentosBanco,
     gruposDespachante,

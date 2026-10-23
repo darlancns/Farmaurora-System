@@ -4,6 +4,7 @@ import type {
   AtualizarLancamentoBancoDTO,
   EmpresaPagamento,
   LancamentoBanco,
+  LoteBanco,
   Moeda,
   NovoLancamentoBancoDTO,
 } from "#shared/types/Pagamento";
@@ -14,17 +15,20 @@ import { useOutroSentinel } from "../../../composables/useOutroSentinel";
 import { initialCurrencyStr, useCurrencyField } from "../../../composables/useCurrencyField";
 import AppSelect from "../../AppSelect.vue";
 import BaseModal from "../../BaseModal.vue";
+import SegmentedControl from "../../SegmentedControl.vue";
 import { FORNECEDOR_PAGAMENTO_OPTIONS, MOEDA_OPTIONS } from "../../../utils/pagamentoOptions";
+import { avisosDestinoNovoPagamento } from "../../../utils/pagamentoLoteDestino";
+import { INPUT_CLASS, INPUT_MONO_CLASS, SELECT_CAMPO_CLASS } from "../../../utils/processoFormClasses";
 
 const props = withDefaults(
   defineProps<{
     empresa: EmpresaPagamento;
     editing?: LancamentoBanco | null;
-    // "+ Lançamento" de um card de lote existente: a moeda precisa casar com a do
-    // lote, então vem travada. null = "+ Novo lote", moeda livre no form.
-    moedaFixa?: Moeda | null;
+    // Lotes do Banco, só para os avisos informativos de destino (quem decide o
+    // lote é o servidor: a moeda escolhida define o lote em aberto).
+    lotes?: LoteBanco[];
   }>(),
-  { editing: null, moedaFixa: null },
+  { editing: null, lotes: () => [] },
 );
 
 const emit = defineEmits<{
@@ -46,11 +50,16 @@ fornecedor.load(props.editing?.fornecedor);
 // valorMoeda fica como string no form — nunca usar type="number" + v-model
 // (autocast silencioso já mordeu este projeto duas vezes).
 const form = reactive({
-  moeda: (props.editing?.moeda ?? props.moedaFixa ?? "USD") as Moeda,
+  moeda: (props.editing?.moeda ?? "USD") as Moeda,
   invoice: props.editing?.invoice ?? "",
   cliente: props.editing?.cliente ?? "",
   valorMoedaStr: initialCurrencyStr(props.editing?.valorMoeda),
 });
+
+// Avisos só em criação: lote da moeda já cotado / mais de um lote da moeda em aberto.
+const avisosDestino = computed<string[]>(() =>
+  isEdit.value ? [] : avisosDestinoNovoPagamento(props.lotes, props.empresa, form.moeda),
+);
 
 // O valor costuma ser colado da PI em formatos variados ($8,550.00 / 20.680,00 /
 // $9,835 …). Normaliza sempre pro formato BR "nn.nnn,nn".
@@ -104,26 +113,43 @@ function submit(): void {
 
 <template>
   <BaseModal id="novo-lancamento-banco-overlay" @close="emit('close')">
-    <div class="w-full max-w-[440px] rounded-[10px] border border-hairline bg-paper-raised p-5">
+    <div class="w-full max-w-[440px] rounded-[10px] border border-hairline bg-paper-raised p-5 max-lg:max-h-full max-lg:overflow-y-auto">
       <h2 class="mb-1 font-display text-[16px] font-semibold text-ink">
-        {{ isEdit ? "Editar lançamento — Banco" : moedaFixa ? "Novo lançamento — Banco" : "Novo lote — Banco" }}
+        {{ isEdit ? "Editar lançamento — Banco" : "Novo pagamento" }}
       </h2>
       <p class="mb-4 text-[12px] text-ink-soft">
-        {{ EMPRESA_PAGAMENTO_LABEL[empresa] }} ·
-        <template v-if="isEdit">alterar o valor reabre a cotação do lote.</template>
-        <template v-else-if="moedaFixa">o valor em reais fica pendente até a cotação.</template>
-        <template v-else>abre um lote novo com este lançamento; nada é criado se cancelar.</template>
+        {{ EMPRESA_PAGAMENTO_LABEL[empresa] }}
+        <template v-if="isEdit">· alterar o valor reabre a cotação do lote.</template>
       </p>
 
       <form id="form-novo-lancamento-banco" class="flex flex-col gap-3" @submit.prevent="submit">
-        <label class="flex flex-col gap-1 text-[12px] font-semibold text-ink-soft">
-          Moeda
-          <AppSelect id="nl-moeda" v-model="form.moeda" :options="MOEDA_OPTIONS" :disabled="isEdit || moedaFixa != null" />
-        </label>
+        <div class="flex flex-col gap-1 text-[12px] font-semibold text-ink-soft">
+          <span aria-hidden="true">Moeda</span>
+          <SegmentedControl id="nl-moeda" v-model="form.moeda" label="Moeda" :options="MOEDA_OPTIONS" :disabled="isEdit" />
+        </div>
+
+        <div
+          id="nl-avisos-destino"
+          role="status"
+          aria-live="polite"
+          class="flex-col gap-1.5"
+          :class="avisosDestino.length ? 'flex' : 'hidden'"
+        >
+          <p
+            v-for="(aviso, i) in avisosDestino"
+            :id="`nl-aviso-destino-${i}`"
+            :key="aviso"
+            class="rounded-md bg-farm-blue-soft px-2.5 py-2 text-[12px] font-normal text-ink"
+          >
+            {{ aviso }}
+          </p>
+        </div>
 
         <label class="flex flex-col gap-1 text-[12px] font-semibold text-ink-soft">
           Fornecedor
-          <AppSelect id="nl-fornecedor" v-model="fornecedor.state.select" :options="FORNECEDOR_PAGAMENTO_OPTIONS" />
+          <div :class="SELECT_CAMPO_CLASS">
+            <AppSelect id="nl-fornecedor" v-model="fornecedor.state.select" :options="FORNECEDOR_PAGAMENTO_OPTIONS" />
+          </div>
         </label>
 
         <label v-if="fornecedor.state.select === 'Outro'" class="flex flex-col gap-1 text-[12px] font-semibold text-ink-soft">
@@ -132,7 +158,7 @@ function submit(): void {
             id="nl-fornecedor-outro"
             v-model="fornecedor.state.outroTexto"
             type="text"
-            class="rounded-md border border-hairline bg-paper px-2.5 py-2 text-[13.5px] text-ink focus:bg-white focus:outline-2 focus:outline-accent-dark"
+            :class="INPUT_CLASS"
           />
         </label>
 
@@ -142,7 +168,7 @@ function submit(): void {
             id="nl-cliente"
             :value="form.cliente"
             type="text"
-            class="rounded-md border border-hairline bg-paper px-2.5 py-2 text-[13.5px] text-ink focus:bg-white focus:outline-2 focus:outline-accent-dark"
+            :class="INPUT_CLASS"
             @input="onClienteInput"
           />
         </label>
@@ -154,7 +180,7 @@ function submit(): void {
               id="nl-invoice"
               v-model="form.invoice"
               type="text"
-              class="w-full rounded-md border border-hairline bg-paper px-2.5 py-2 text-[13.5px] text-ink focus:bg-white focus:outline-2 focus:outline-accent-dark"
+              :class="INPUT_CLASS"
             />
           </label>
           <label class="flex min-w-0 flex-1 flex-col gap-1 text-[12px] font-semibold text-ink-soft">
@@ -165,7 +191,7 @@ function submit(): void {
               type="text"
               inputmode="decimal"
               placeholder="0,00"
-              class="w-full rounded-md border border-hairline bg-paper px-2.5 py-2 text-right font-mono text-[13.5px] text-ink focus:bg-white focus:outline-2 focus:outline-accent-dark"
+              :class="[INPUT_MONO_CLASS, 'text-right']"
               @paste="onPasteValor"
               @blur="normalizarValor"
             />
@@ -176,7 +202,7 @@ function submit(): void {
           <button
             id="btn-cancel-novo-lancamento"
             type="button"
-            class="rounded-md border border-hairline bg-paper px-3.5 py-2 text-[13px] font-semibold text-ink-soft transition-colors hover:text-ink"
+            class="min-h-11 rounded-md border border-hairline bg-paper px-3.5 py-2 text-[13px] font-semibold text-ink-soft transition-colors hover:text-ink lg:min-h-0"
             @click="emit('close')"
           >
             Cancelar
@@ -184,7 +210,7 @@ function submit(): void {
           <button
             id="btn-save-novo-lancamento"
             type="submit"
-            class="rounded-md bg-accent-dark px-3.5 py-2 text-[13px] font-semibold text-white transition-colors hover:opacity-90"
+            class="min-h-11 rounded-md bg-accent-dark px-3.5 py-2 text-[13px] font-semibold text-white transition-colors hover:opacity-90 lg:min-h-0"
           >
             {{ isEdit ? "Salvar" : "Adicionar" }}
           </button>

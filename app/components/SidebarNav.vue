@@ -14,7 +14,7 @@ const activePath = computed<string>(() => route.path);
 <template>
   <nav
     id="sidebar-nav"
-    class="hidden w-48 shrink-0 flex-col gap-1 border-r border-hairline bg-accent-dark px-3 py-6 md:flex"
+    class="hidden w-48 shrink-0 flex-col gap-1 border-r border-hairline bg-accent-dark px-3 py-6 lg:flex"
   >
     <img
       src="/images/logo_branca.png"

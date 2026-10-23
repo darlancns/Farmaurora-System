@@ -1,20 +1,7 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { navigateTo } from "#app";
-import { getSupabaseClient } from "../utils/supabaseClient";
-import { useAuth } from "../composables/useAuth";
+import { useLogout } from "../composables/useLogout";
 
-const loading = ref<boolean>(false);
-
-async function handleLogout(): Promise<void> {
-  loading.value = true;
-  try {
-    await getSupabaseClient().auth.signOut();
-  } finally {
-    useAuth().clear();
-    await navigateTo("/login");
-  }
-}
+const { loading, logout } = useLogout();
 </script>
 
 <template>
@@ -23,7 +10,7 @@ async function handleLogout(): Promise<void> {
     type="button"
     :disabled="loading"
     class="flex items-center gap-2 rounded-md px-2 py-1.5 font-display text-[13.5px] font-medium text-white/70 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-60"
-    @click="handleLogout"
+    @click="logout"
   >
     <svg
       xmlns="http://www.w3.org/2000/svg"

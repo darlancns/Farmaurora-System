@@ -1,9 +1,9 @@
 import type { Recado } from "#shared/types/recado";
 
-// Lógica pura de divisão de abas do mural de Recados (Todos/Recebidos/
-// Enviados — "Meus", lembretes pessoais, é tabela à parte, ver
-// useLembretesPessoais.ts). Extraída do composable pra ser testável sem
-// contexto Nuxt, mesmo padrão de app/utils/prazoFornecedor.ts.
+// Lógica pura de divisão de abas do mural de Recados (Recebidos/Enviados —
+// "Meus", lembretes pessoais, é tabela à parte, ver useLembretesPessoais.ts).
+// Extraída do composable pra ser testável sem contexto Nuxt, mesmo padrão de
+// app/utils/prazoFornecedor.ts.
 //
 // GET /api/recados já devolve só o que o usuário pode ver (público + do
 // próprio cargo + direcionado a ele + o que ele autorou — ver
@@ -19,17 +19,15 @@ function porFixadoEData(a: Recado, b: Recado): number {
 }
 
 export interface RecadosDivididos {
-  todos: Recado[];
   recebidos: Recado[];
   enviados: Recado[];
 }
 
 export function dividirRecados(recados: Recado[], meuId: string | null): RecadosDivididos {
-  const todos = recados.filter((r) => !r.concluidoPorMim).sort(porFixadoEData);
+  const ativos = recados.filter((r) => !r.concluidoPorMim).sort(porFixadoEData);
 
   return {
-    todos,
-    recebidos: todos.filter((r) => r.autorId !== meuId),
-    enviados: todos.filter((r) => r.autorId === meuId),
+    recebidos: ativos.filter((r) => r.autorId !== meuId),
+    enviados: ativos.filter((r) => r.autorId === meuId),
   };
 }

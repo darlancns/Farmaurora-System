@@ -3,10 +3,10 @@ import { isValidNovoLancamentoBanco } from "../../server/utils/pagamentoValidati
 
 // POST /api/pagamentos/banco — forma do body. Além dos campos do lançamento, o
 // destino do lote:
-//  - sem loteId nem forcarLoteNovo → legado (entra no lote aberto da empresa+moeda)
-//  - loteId: "..."                 → grava neste lote específico ("+ Lançamento" de um card)
-//  - forcarLoteNovo: true          → cria um lote novo ("+ Novo lote")
-//  - os dois juntos                → sempre inválido
+//  - sem forcarLoteNovo   → a moeda define o lote (entra no aberto da empresa+moeda,
+//                           criando um se não houver) — é o que a UI envia
+//  - forcarLoteNovo: true → cria um lote novo (semear testes; a UI não usa)
+//  - loteId               → campo removido, sempre inválido
 
 const base = {
   empresa: "FARMAURORA",
@@ -37,10 +37,6 @@ describe("isValidNovoLancamentoBanco — campos do lançamento (sem regressão)"
 });
 
 describe("isValidNovoLancamentoBanco — destino do lote", () => {
-  it("aceita loteId sozinho (string não-vazia)", () => {
-    expect(isValidNovoLancamentoBanco({ ...base, loteId: "lote_123" })).toBe(true);
-  });
-
   it("aceita forcarLoteNovo: true sozinho", () => {
     expect(isValidNovoLancamentoBanco({ ...base, forcarLoteNovo: true })).toBe(true);
   });
@@ -49,25 +45,13 @@ describe("isValidNovoLancamentoBanco — destino do lote", () => {
     expect(isValidNovoLancamentoBanco({ ...base, forcarLoteNovo: false })).toBe(true);
   });
 
-  it("rejeita loteId + forcarLoteNovo: true juntos", () => {
-    expect(
-      isValidNovoLancamentoBanco({ ...base, loteId: "lote_123", forcarLoteNovo: true }),
-    ).toBe(false);
-  });
-
-  it("aceita loteId + forcarLoteNovo: false (não é conflito)", () => {
-    expect(
-      isValidNovoLancamentoBanco({ ...base, loteId: "lote_123", forcarLoteNovo: false }),
-    ).toBe(true);
-  });
-
-  it("rejeita loteId vazio", () => {
-    expect(isValidNovoLancamentoBanco({ ...base, loteId: "" })).toBe(false);
-    expect(isValidNovoLancamentoBanco({ ...base, loteId: "   " })).toBe(false);
-  });
-
-  it("rejeita loteId não-string e forcarLoteNovo não-boolean", () => {
-    expect(isValidNovoLancamentoBanco({ ...base, loteId: 123 })).toBe(false);
+  it("rejeita forcarLoteNovo não-boolean", () => {
     expect(isValidNovoLancamentoBanco({ ...base, forcarLoteNovo: "sim" })).toBe(false);
+  });
+
+  it("rejeita qualquer loteId (campo removido): cliente antigo não grava no lote errado", () => {
+    expect(isValidNovoLancamentoBanco({ ...base, loteId: "lote_123" })).toBe(false);
+    expect(isValidNovoLancamentoBanco({ ...base, loteId: "lote_123", forcarLoteNovo: false })).toBe(false);
+    expect(isValidNovoLancamentoBanco({ ...base, loteId: "" })).toBe(false);
   });
 });

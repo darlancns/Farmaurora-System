@@ -148,11 +148,32 @@ resto redireciona para lá.
 ```bash
 npm run test:unit          # vitest — unitários (rbac, prazo de fornecedor, formatação de
                            # valores, PIX store, validação de status de item de pagamento)
-npm run test:e2e           # Playwright, contra o dev server. A maior parte dos casos (RBAC,
-                           # Configurações) é test.skip sem as env vars E2E_* (contas de teste)
-npm run test:integration   # smoke tests em Node puro CONTRA O SUPABASE REAL do .env
-                           # (criam e apagam registros com id de prefixo TESTE_)
+npm run test:e2e           # Playwright, contra o dev server. SÓ no harness local: os specs criam e
+                           # APAGAM dados e abortam (globalSetup + guarda em cada spec) se a URL do
+                           # Supabase em uso não for loopback. A maior parte dos casos é test.skip
+                           # sem as env vars E2E_* (contas de teste)
+ALLOW_REAL_DB=1 npm run test:integration
+                           # smoke tests em Node puro CONTRA O SUPABASE REAL do .env (criam e apagam
+                           # registros com id de prefixo TESTE_). Sem ALLOW_REAL_DB=1 saem antes de
+                           # qualquer conexão
 ```
+
+> **O `.env` aponta para produção.** Nunca rode e2e, smoke ou migração contra ele sem ter
+> certeza. Para e2e/visual use um Supabase falso local (`NUXT_PUBLIC_SUPABASE_URL=http://localhost:…`);
+> a guarda de `tests/e2e/_guards/supabaseLocal.ts` recusa qualquer outra URL.
+
+### Datas e fuso
+
+"Hoje" é a **data de Brasília** (`America/Sao_Paulo`), no servidor (Vercel roda em UTC) e no
+navegador: `shared/utils/dataBrasilia.ts` (`hojeBrasilia`, `dataBrasiliaDe`, `parseDataISO`,
+`formatarDataBR`, `ehDataFutura`, `somarDiasISO`…), via `Intl` com `timeZone`, sem depender do fuso
+da máquina. Datas civis circulam como `"YYYY-MM-DD"` e a aritmética é de calendário (nunca
+`new Date("YYYY-MM-DD")`, que lê em UTC). Usado em: data do lote do Banco, data do grupo de
+Despachante/Transportadora (calculada quando o modal abre), validação "pagamento não pode ser
+posterior a hoje" (cliente e servidor), exibição de datas de pagamento, nome/data das fotos de
+exportação e contagem de dias dos alertas de fornecedor. Timestamps (`created_at`, `pago_em`)
+continuam sendo instantes UTC. Os testes de data rodam iguais com `TZ=UTC`,
+`TZ=America/Sao_Paulo` e `TZ=Pacific/Honolulu`.
 
 ---
 
@@ -208,8 +229,8 @@ modelo simples: `{paciente}`, `{descricao_compra}`, `{remessas}`, `{remessa_labe
 Para substituir um modelo: abrir o `.docx` no Word/Google Docs, trocar os valores de exemplo
 pelos marcadores acima, salvar por cima do arquivo em `public/templates/`. Nenhum código muda.
 
-> **Nota:** MainzFarma existe como empresa em Processos e Pagamentos, mas **por design não
-> gera prestação de contas** — a tela de Prestações trabalha só com Farmaurora. Por isso não há
+> **Nota:** MainzFarma existe como empresa só em Processos (Follow-Up) — Pagamentos opera apenas
+> com a Farmaurora — e **por design não gera prestação de contas** — a tela de Prestações trabalha só com Farmaurora. Por isso não há
 > `template_mainzfarma.docx` no repositório; isso é esperado, não uma lacuna.
 
 ---

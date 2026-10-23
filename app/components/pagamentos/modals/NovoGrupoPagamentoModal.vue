@@ -12,6 +12,7 @@ import { useCurrencyField } from "../../../composables/useCurrencyField";
 import AppSelect from "../../AppSelect.vue";
 import BaseModal from "../../BaseModal.vue";
 import type { AppSelectOption } from "../../../types/appSelect";
+import { hojeBrasilia } from "#shared/utils/dataBrasilia";
 import {
   DESPACHANTE_PAGAMENTO_OPTIONS,
   TRANSPORTADORA_PAGAMENTO_OPTIONS,
@@ -21,11 +22,14 @@ const props = withDefaults(
   defineProps<{
     tipo: TipoGrupoPagamento;
     empresa: EmpresaPagamento;
-    data: string; // ISO date — o dia do lançamento (não é escolhido no form)
     pixMap?: Record<string, string>; // chave PIX efetiva (padrão + salva) por nome
   }>(),
   { pixMap: () => ({}) },
 );
+
+// Dia do lançamento = "hoje de Brasília" no instante em que o modal ABRE (não é escolhido no
+// form). O modal só existe depois do clique (v-if), então não há render no servidor para divergir.
+const dataDoLancamento = hojeBrasilia();
 
 const emit = defineEmits<{
   submit: [payload: Omit<NovoGrupoPagamentoDTO, "tipo">];
@@ -145,7 +149,7 @@ function submit(): void {
   }
 
   emit("submit", {
-    data: props.data,
+    data: dataDoLancamento,
     empresa: props.empresa,
     nomeGrupo,
     chavePix: form.chavePix.trim() || undefined,

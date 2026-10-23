@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { dataBrasiliaDe, formatarDataBR } from "#shared/utils/dataBrasilia";
 import type { LancamentoBanco, LoteBanco } from "#shared/types/Pagamento";
 import {
   BANCO_CAMBIO_LABEL,
@@ -51,13 +52,7 @@ const taxaLabel = computed<string>(() => {
   return taxa === null ? "—" : formatTaxa(taxa);
 });
 
-const dataLabel = computed<string>(() =>
-  props.dataExibicao.toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  })
-);
+const dataLabel = computed<string>(() => formatarDataBR(dataBrasiliaDe(props.dataExibicao)));
 
 const ordensLabel = computed<string>(() =>
   props.lancamentos.length === 1 ? "1 ordem" : `${props.lancamentos.length} ordens`

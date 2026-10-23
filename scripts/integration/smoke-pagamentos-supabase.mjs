@@ -5,6 +5,10 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { exigirAllowRealDbOuSair } from "./_guardBancoReal.mjs";
+
+// Acessa o Supabase REAL (produção): só roda com ALLOW_REAL_DB=1, e checa antes de qualquer conexão.
+exigirAllowRealDbOuSair("smoke-pagamentos-supabase");
 
 // Raiz do projeto (crm/) — 2 níveis acima de scripts/integration/.
 const CRM = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -77,19 +81,11 @@ async function inserirLoteNovo(empresa, moeda) {
   return { loteId, numeroLote };
 }
 
-// espelho de criarLancamentoBanco (resolverLoteDestino: forcarLoteNovo | loteId | auto)
+// espelho de criarLancamentoBanco (resolverLoteDestino: forcarLoteNovo | auto — a moeda define o lote)
 async function criarLancamento(dto) {
   let loteId;
   if (dto.forcarLoteNovo) {
     ({ loteId } = await inserirLoteNovo(dto.empresa, dto.moeda));
-  } else if (dto.loteId) {
-    const lr = await db.from(T_LOTES).select("*").eq("id", dto.loteId).maybeSingle();
-    must("buscar lote alvo", lr);
-    if (!lr.data) throw new Error("404 lote alvo");
-    if (lr.data.realizado) throw new Error("409 lote alvo pago");
-    if (lr.data.empresa !== dto.empresa || lr.data.moeda !== dto.moeda) throw new Error("400 empresa/moeda do lote alvo");
-    loteId = lr.data.id;
-    if (lr.data.banco_escolhido !== null) await invalidar(loteId);
   } else {
     const ab = await db.from(T_LOTES).select("*").eq("empresa", dto.empresa).eq("moeda", dto.moeda).eq("realizado", false)
       .order("created_at", { ascending: false }).order("id", { ascending: true }).limit(1);
@@ -254,16 +250,11 @@ try {
   check("h. 1º lote forçado = numeroLote 1", (await lerLote(h1.loteId)).numeroLote === 1);
   check("h. 2º lote forçado = numeroLote 2", (await lerLote(h2.loteId)).numeroLote === 2);
 
-  // loteId explícito entra no lote 1, não abre outro nem toca no lote 2
-  const h3 = await criarLancamento({ empresa: EMP, moeda: "USD", loteId: h1.loteId, fornecedor: "F", invoice: "H-3", cliente: "H Cliente 3", valorMoeda: 100 });
-  check("h. loteId explícito grava no lote alvo", h3.loteId === h1.loteId);
-  check("h. lote 1 agora tem 2 lançamentos", (await lancsDoLote(h1.loteId)).length === 2);
-  check("h. lote 2 continua com 1 lançamento", (await lancsDoLote(h2.loteId)).length === 1);
-
-  // loteId de lote já pago → 409
-  let err409 = null;
-  try { await criarLancamento({ empresa: EMP, moeda: "USD", loteId, fornecedor: "F", invoice: "H-x", cliente: "x", valorMoeda: 1 }); } catch (e) { err409 = e.message; }
-  check("h. loteId de lote pago → 409", !!err409 && err409.startsWith("409"));
+  // sem forcarLoteNovo a moeda define o lote: entra no ABERTO MAIS RECENTE (lote 2), sem abrir outro
+  const h3 = await criarLancamento({ empresa: EMP, moeda: "USD", fornecedor: "F", invoice: "H-3", cliente: "H Cliente 3", valorMoeda: 100 });
+  check("h. sem forcarLoteNovo entra no lote aberto mais recente (lote 2)", h3.loteId === h2.loteId);
+  check("h. lote 2 agora tem 2 lançamentos", (await lancsDoLote(h2.loteId)).length === 2);
+  check("h. lote 1 continua com 1 lançamento", (await lancsDoLote(h1.loteId)).length === 1);
 
   // pagar o lote 1; o lote 2 mantém numeroLote 2 (imutável)
   await atualizarCotacao(h1.loteId, { opcoes: [{ banco: "XP", taxaCorretagem: 0, taxa: 5 }], bancoEscolhido: "XP" });
@@ -310,8 +301,8 @@ try {
   const iLancRow = (await db.from(T_LANC).select("taxa").eq("id", i1.lancId).maybeSingle()).data;
   check("i. taxa gravada no lançamento (trilha de auditoria)", Number(iLancRow.taxa) === 5.5);
 
-  // adicionar 2º lançamento no mesmo lote → invalida a cotação
-  const i2 = await criarLancamento({ empresa: EMP, moeda: "USD", loteId: i1.loteId, fornecedor: "F", invoice: "I-2", cliente: "I Cliente 2", valorMoeda: 500 });
+  // adicionar 2º lançamento (a moeda leva ao aberto mais recente = i1) → invalida a cotação
+  const i2 = await criarLancamento({ empresa: EMP, moeda: "USD", fornecedor: "F", invoice: "I-2", cliente: "I Cliente 2", valorMoeda: 500 });
   check("i. 2º lançamento entrou no mesmo lote", i2.loteId === i1.loteId);
   iLote = await lerLote(i1.loteId);
   iLancs = await lancsDoLote(i1.loteId);

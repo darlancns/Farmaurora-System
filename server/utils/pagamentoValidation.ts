@@ -22,6 +22,7 @@ import type {
   StatusItemGrupo,
   TipoGrupoPagamento,
 } from "../../shared/types/Pagamento";
+import { ehDataFutura } from "../../shared/utils/dataBrasilia";
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -83,11 +84,11 @@ export function isValidNovoLancamentoBanco(body: unknown): body is NovoLancament
   if (!body || typeof body !== "object") return false;
   const b = body as Record<string, unknown>;
 
-  // Destino do lote: `loteId` (string não-vazia) e `forcarLoteNovo` (boolean) são
-  // opcionais e mutuamente exclusivos — informar os dois é sempre inválido.
-  if (b.loteId !== undefined && !isNonEmptyString(b.loteId)) return false;
+  // Destino do lote: só `forcarLoteNovo` (boolean, opcional). `loteId` não existe
+  // mais — rejeitar (em vez de ignorar) evita que um cliente antigo, com o bundle
+  // em cache, grave no lote errado sem aviso.
+  if (b.loteId !== undefined) return false;
   if (b.forcarLoteNovo !== undefined && typeof b.forcarLoteNovo !== "boolean") return false;
-  if (b.loteId !== undefined && b.forcarLoteNovo === true) return false;
 
   return (
     isEmpresa(b.empresa) &&
@@ -239,18 +240,12 @@ export function isValidEditarItemGrupo(body: unknown): body is EditarItemGrupoDT
 
 const DATA_ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-// Data de hoje em UTC (YYYY-MM-DD) — mesmo critério de `hoje()` em bancoStore.ts,
-// duplicado aqui de propósito (cada store/validação é auto-contida no projeto).
-function hojeISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 // pagoEm de uma correção em "Pagamentos realizados": formato YYYY-MM-DD e
-// nunca no futuro. Validado aqui no servidor mesmo já validando no cliente —
+// nunca no futuro ("hoje" = dia de Brasília, o mesmo critério do cliente). Validado aqui no servidor mesmo já validando no cliente —
 // nunca confiar só nele. Reaproveitado pelos dois validadores abaixo
 // (lançamento de Banco e grupo de Despachante/Transportadora).
 function isDataPagoEmValida(value: unknown): value is string {
-  return typeof value === "string" && DATA_ISO_RE.test(value) && value <= hojeISO();
+  return typeof value === "string" && DATA_ISO_RE.test(value) && !ehDataFutura(value);
 }
 
 export function isValidAtualizarLancamentoRealizado(

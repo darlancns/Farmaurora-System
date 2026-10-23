@@ -35,13 +35,15 @@ const tabs: TabDef[] = [{ key: "contas", label: "Contas" }];
   <div id="configuracoes-page" class="mx-auto max-w-[1400px]">
     <GlobalHeader title="Configurações" subtitle="Gestão de contas e acessos da equipe.">
       <template v-if="showContent" #tabs>
-        <div class="mb-3.5 flex gap-1 border-b border-hairline">
+        <!-- Abaixo de lg: -mt-3.5 desconta 14px do mb-4 do GlobalHeader (sobram 2px = a espessura do sublinhado) e a aba
+             tem 44px, então o texto fica com o mesmo respiro acima (linha do cabeçalho) e abaixo (linha da barra). -->
+        <div class="mb-3.5 flex gap-1 border-b border-hairline max-lg:-mt-3.5">
           <button
             v-for="tab in tabs"
             :id="`tab-${tab.key}`"
             :key="tab.key"
             type="button"
-            class="border-b-2 px-3.5 py-2 text-[13.5px] font-semibold transition-colors"
+            class="border-b-2 px-3.5 py-2 text-[13.5px] font-semibold transition-colors max-lg:min-h-11"
             :class="
               activeTab === tab.key
                 ? 'border-accent-dark text-accent-dark'

@@ -13,8 +13,9 @@ import type { EmpresaPagamento, LancamentoBanco, LoteBanco, Moeda } from "../../
 // ⚠️ Escreve no banco REAL (não há banco de teste). Segurança:
 //  - todo id gerado pelo store ganha o prefixo TESTE_RS_ (mock de randomId;
 //    o resto do store roda sem alteração);
-//  - lotes só são criados com `forcarLoteNovo` ou `loteId` explícito — nunca
-//    pelo roteamento automático (que poderia cair num lote real);
+//  - lotes só são criados com `forcarLoteNovo`; um lançamento só entra num lote
+//    existente pelo roteamento por moeda (o mais recente aberto) DEPOIS de conferir
+//    que esse lote é um TESTE_RS_ (ver `addLancamento`) — nunca num lote real;
 //  - ABORTA (skip com aviso) se a empresa+moeda usada tiver lote aberto que não
 //    seja TESTE_: o teste escolhe uma combinação livre, e se não houver nenhuma
 //    não roda nada;
@@ -35,15 +36,23 @@ import cotacaoPatch from "../../server/api/pagamentos/cotacao.patch";
 import { calcularTotalReaisLote, formatFaixaTaxas, montarCotacaoDoLote } from "../../app/utils/pagamentoCalculations";
 import { parseTaxa, parseTaxaValida } from "../../app/utils/parseTaxa";
 import { temCredenciaisSupabase } from "./_stubs/nuxtImports";
+import { exigirAllowRealDb } from "./_guardBancoReal.mjs";
+
+// Acessa o Supabase REAL (produção): só roda com ALLOW_REAL_DB=1, antes de qualquer conexão.
+exigirAllowRealDb("pagamentos-store-real");
 
 const PREFIXO = "TESTE_RS_";
 const T_LOTES = "pagamento_lotes_banco";
 const T_LANC = "pagamento_lancamentos_banco";
 
 // Combinações candidatas, da menos provável de ter lote real aberto para a mais.
+// MAINZFARMA saiu do tipo `EmpresaPagamento` (o app opera só com a Farmaurora em Pagamentos), mas
+// o banco ainda admite o valor: aqui ele serve só de namespace de isolamento no banco real
+// (decisão pendente para a Fase 2B — remover tiraria esse isolamento desses testes manuais).
+const MAINZ_NAMESPACE = "MAINZFARMA" as EmpresaPagamento;
 const COMBOS: Array<{ empresa: EmpresaPagamento; moeda: Moeda }> = [
-  { empresa: "MAINZFARMA", moeda: "EUR" },
-  { empresa: "MAINZFARMA", moeda: "USD" },
+  { empresa: MAINZ_NAMESPACE, moeda: "EUR" },
+  { empresa: MAINZ_NAMESPACE, moeda: "USD" },
   { empresa: "FARMAURORA", moeda: "EUR" },
   { empresa: "FARMAURORA", moeda: "USD" },
 ];
@@ -89,7 +98,7 @@ function opcoes(taxas: TaxasBancos, corretagem: TaxasBancos = {}) {
   }));
 }
 
-// Lote NOVO (forcarLoteNovo — nunca roteamento automático) com 1 lançamento.
+// Lote NOVO (forcarLoteNovo — nunca cria por roteamento) com 1 lançamento.
 async function novoLote(invoice: string, valorMoeda: number): Promise<{ loteId: string; lancId: string }> {
   const r = await criarLancamentoBanco({
     empresa,
@@ -105,8 +114,15 @@ async function novoLote(invoice: string, valorMoeda: number): Promise<{ loteId: 
   return { loteId: r.lote.id, lancId: r.lancamento.id };
 }
 
-// Lançamento em lote existente (loteId explícito — nunca roteamento automático).
+// Lançamento em lote existente. Não há mais `loteId`: a moeda define o lote (o aberto mais
+// recente da empresa+moeda). Antes de escrever, confere que esse destino é o lote de teste
+// esperado (TESTE_RS_), pra nunca gravar num lote real.
 async function addLancamento(loteId: string, invoice: string, valorMoeda: number): Promise<string> {
+  const abertos = (await listarBancoPayload()).lotes
+    .filter((l) => l.empresa === empresa && l.moeda === moeda && !l.realizado)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id));
+  expect(abertos[0]?.id, "o destino do roteamento por moeda deve ser o lote de teste").toBe(loteId);
+  expect(loteId.startsWith(PREFIXO)).toBe(true);
   const r = await criarLancamentoBanco({
     empresa,
     moeda,
@@ -114,7 +130,6 @@ async function addLancamento(loteId: string, invoice: string, valorMoeda: number
     invoice,
     cliente: `${PREFIXO}${invoice}`,
     valorMoeda,
-    loteId,
   });
   expect(r.lote.id).toBe(loteId);
   return r.lancamento.id;

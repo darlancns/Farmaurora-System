@@ -104,3 +104,20 @@ Ex.: `formatDate.ts`, `calculateTotal.ts`
 Ex.: `UserDTO.ts`, `ProductDTO.ts`
 
 **Sempre use imports explicitos para cada arquivo, evitando auto-imports.**
+
+---
+
+## Datas e testes (regras do projeto)
+
+- **"Hoje" = data de Brasília** (`America/Sao_Paulo`), em servidor e cliente. Use SEMPRE
+  `shared/utils/dataBrasilia.ts` (`hojeBrasilia()`, `dataBrasiliaDe()`, `ehDataFutura()`…).
+  Nunca `new Date().toISOString().slice(0, 10)`, `.split("T")[0]` nem `new Date("YYYY-MM-DD")`
+  para data civil (UTC vira o dia seguinte às 21h BRT). Datas civis são `"YYYY-MM-DD"` (texto) e a
+  aritmética é de calendário. Testes de data devem passar com `TZ=UTC`, `TZ=America/Sao_Paulo` e
+  `TZ=Pacific/Honolulu`.
+- **O `.env` aponta para PRODUÇÃO.** e2e, smoke e migrações nunca rodam contra ele. e2e só no Supabase
+  falso local (a guarda `tests/e2e/_guards/supabaseLocal.ts` aborta fora de loopback); `scripts/integration/*`
+  só com `ALLOW_REAL_DB=1`. Nada de escrita/DDL em produção pelo agente.
+- **Pagamentos opera só com a Farmaurora** (`EmpresaPagamento = "FARMAURORA"`): sem seletor nem override
+  `?empresa=`; o campo `empresa` segue nas colunas, DTOs e stores. Processos ainda tem MainzFarma (há
+  dados reais no Follow-Up).

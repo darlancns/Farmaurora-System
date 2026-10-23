@@ -8,10 +8,10 @@ import { test, expect, type Page } from "@playwright/test";
 //   E2E_OPERACIONAL_EMAIL / E2E_OPERACIONAL_PASSWORD (fallback — mesmo padrão
 //   de tests/e2e/pagamentos-fluxo.spec.ts e pagamentos-responsivo.spec.ts)
 //
-// Mesma lição da Rodada 2: 768px é o próprio breakpoint `md`. As asserções de
-// coluna única nos filtros e de toque ≥44px no botão excluir só rodam abaixo
-// de 768px — em 768px (e acima) o layout já é o "atual" (linha, toque
-// compacto), por design desta própria rodada.
+// Mesma lição da Rodada 2: 768px é o próprio breakpoint `md` (usado pelas linhas
+// de processo, ex.: toque ≥44px no botão excluir só abaixo de 768px). Já o shell
+// e a toolbar de filtros trocam em `lg` (1024px) no refino do breakpoint lg — ver
+// processos-mobile-shell.spec.ts e processos-desktop-shell.spec.ts.
 
 const writer = {
   email: process.env.E2E_ADMIN_EMAIL ?? process.env.E2E_OPERACIONAL_EMAIL ?? "",
@@ -75,65 +75,79 @@ test.describe("Responsividade de /processos", () => {
         }
       });
 
-      test("paciente, pasta e responsável não truncam na primeira linha visível", async ({ page }) => {
+      test("paciente, pasta e responsável não vazam na primeira linha visível (card mobile)", async ({ page }) => {
         const row = page.locator("[id^='processo-row-']").first();
+        const id = (await row.getAttribute("id"))!.replace("processo-row-", "");
 
-        // Nome do paciente: primeiro span.truncate dentro da linha.
-        const nome = row.locator("span.truncate").first();
+        // Nome: até 2 linhas (line-clamp), nunca com rolagem horizontal.
+        const nome = row.locator(`#mobile-paciente-${id}`);
         expect(await nome.evaluate((el) => el.scrollWidth > el.clientWidth + 1)).toBe(false);
 
-        // Pasta: span font-mono ao lado do nome — nunca deve ter overflow de texto.
-        const pasta = row.locator("span.font-mono.text-\\[11\\.5px\\]").first();
-        if (await pasta.count()) {
-          expect(await pasta.evaluate((el) => el.scrollWidth > el.clientWidth + 1)).toBe(false);
-        }
+        // Ordem · Pasta: texto corrido, sem overflow.
+        const ordemPasta = row.locator(`#mobile-ordem-pasta-${id}`);
+        expect(await ordemPasta.evaluate((el) => el.scrollWidth > el.clientWidth + 1)).toBe(false);
 
-        // Responsável: último span do grupo badge+data+responsável (só ganha
-        // a classe truncate a partir de @[700px], quando o container já tem
-        // largura suficiente pro layout de uma linha só).
-        const responsavel = row.locator("div.flex-wrap > span").last();
-        if (await responsavel.count()) {
-          expect(await responsavel.evaluate((el) => el.scrollWidth > el.clientWidth + 1)).toBe(false);
-        }
+        // Responsável: truncate com reticências, mas cabendo na linha do card.
+        const responsavel = row.locator(`#mobile-responsavel-${id}`);
+        const respBox = await responsavel.boundingBox();
+        const rowBox = await row.boundingBox();
+        expect(respBox!.x + respBox!.width).toBeLessThanOrEqual(rowBox!.x + rowBox!.width + 1);
       });
     });
   }
 
-  test("abaixo de md (375px): filtros empilham em coluna única", async ({ page }) => {
+  // No refino do breakpoint lg os 3 selects não ficam mais empilhados na tela abaixo de lg:
+  // moram no bottom sheet aberto pelo ícone ao lado da busca (cobertura detalhada
+  // em processos-mobile-shell.spec.ts).
+  test("abaixo de lg (375px): linha de filtros em coluna única; busca larga com o ícone dentro dela, selects fora da tela", async ({
+    page,
+  }) => {
     test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD ou E2E_OPERACIONAL_EMAIL/PASSWORD");
     await gotoProcessos(page, { width: 375, height: 800 });
 
-    const filtros = page.locator("#processo-search").locator("xpath=../..");
+    const filtros = page.locator("#processo-filtros");
     expect(await filtros.evaluate((el) => getComputedStyle(el).flexDirection)).toBe("column");
 
     const busca = await page.locator("#processo-search").boundingBox();
-    const status = await page.locator("#filtro-status").boundingBox();
+    const icone = await page.locator("#btn-filtros-processo").boundingBox();
     expect(busca).not.toBeNull();
-    expect(status).not.toBeNull();
-    expect(status!.y).toBeGreaterThanOrEqual(busca!.y + busca!.height - 1);
+    expect(icone).not.toBeNull();
+    // Botão de filtros DENTRO da barra de busca (processos-mobile-shell.spec.ts mede em detalhe).
+    expect(icone!.x).toBeGreaterThanOrEqual(busca!.x - 1);
+    expect(icone!.x + icone!.width).toBeLessThanOrEqual(busca!.x + busca!.width + 1);
     expect(busca!.width).toBeGreaterThan(375 * 0.7);
+    for (const id of ["#filtro-status", "#filtro-empresa", "#filtro-responsavel"]) {
+      expect(await page.locator(id).boundingBox(), id).toBeNull();
+    }
   });
 
-  test("abaixo de md (375px): dados da linha de processo empilham (paciente em cima, badge/data/responsável embaixo, excluir no canto)", async ({
+  test("abaixo de lg (375px): no card de processo o selo de status fica na MESMA linha do nome (à direita)", async ({
     page,
   }) => {
     test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD ou E2E_OPERACIONAL_EMAIL/PASSWORD");
     await gotoProcessos(page, { width: 375, height: 800 });
 
     const row = page.locator("[id^='processo-row-']").first();
-    const nomeBox = await row.locator("span.truncate").first().boundingBox();
-    const badgeBox = await row.locator("[id^='badge-status-']").boundingBox();
+    const nomeBox = await row.locator("[id^='mobile-paciente-']").boundingBox();
+    const badgeBox = await row.locator("[id^='mobile-badge-status-']").boundingBox();
     expect(nomeBox).not.toBeNull();
     expect(badgeBox).not.toBeNull();
-    // Badge (linha secundária) fica abaixo do nome (linha principal), não ao lado.
-    expect(badgeBox!.y).toBeGreaterThanOrEqual(nomeBox!.y + nomeBox!.height - 1);
+    expect(badgeBox!.x).toBeGreaterThanOrEqual(nomeBox!.x + nomeBox!.width - 1);
+    expect(Math.abs(badgeBox!.y - nomeBox!.y)).toBeLessThanOrEqual(8);
   });
 
-  test("abaixo de md (375px): botão excluir tem toque de pelo menos 44px", async ({ page }) => {
+  test("abaixo de lg (375px): a lixeira saiu do cabeçalho do card e vive no rodapé do detalhe, com toque de pelo menos 44px", async ({
+    page,
+  }) => {
     test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD ou E2E_OPERACIONAL_EMAIL/PASSWORD");
     await gotoProcessos(page, { width: 375, height: 800 });
 
-    const excluir = page.locator("[id^='btn-delete-processo-']").first();
+    // Antes de abrir o detalhe, nenhuma lixeira ocupa espaço no card.
+    expect(await page.locator("[id^='btn-delete-processo-']:visible").count()).toBe(0);
+
+    const row = page.locator("[id^='processo-row-']").first();
+    await row.locator("> button").click();
+    const excluir = row.locator("[id^='btn-delete-processo-footer-']");
     if ((await excluir.count()) === 0) {
       test.skip(true, "conta de teste sem permissão de excluir processo");
     }
@@ -143,14 +157,14 @@ test.describe("Responsividade de /processos", () => {
     expect(box!.height).toBeGreaterThanOrEqual(44);
   });
 
-  test("md+ (1440px): filtros na linha e botão excluir no tamanho compacto de sempre (28px)", async ({ page }) => {
+  test("lg+ (1440px): filtros na linha e botão excluir no tamanho compacto de sempre (28px)", async ({ page }) => {
     test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD ou E2E_OPERACIONAL_EMAIL/PASSWORD");
     await gotoProcessos(page, { width: 1440, height: 900 });
 
-    const filtros = page.locator("#processo-search").locator("xpath=../..");
+    const filtros = page.locator("#processo-filtros");
     expect(await filtros.evaluate((el) => getComputedStyle(el).flexDirection)).toBe("row");
 
-    const excluir = page.locator("[id^='btn-delete-processo-']").first();
+    const excluir = page.locator("[id^='btn-delete-processo-']:visible").first();
     if ((await excluir.count()) === 0) {
       test.skip(true, "conta de teste sem permissão de excluir processo");
     }

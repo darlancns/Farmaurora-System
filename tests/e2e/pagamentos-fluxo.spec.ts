@@ -2,6 +2,8 @@ import { test, expect, type Page } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { assertSupabaseLocal } from "./_guards/supabaseLocal";
+import { hojeBrasilia, somarDiasISO } from "../../shared/utils/dataBrasilia";
 
 // Fluxo de Pagamentos (Banco + Grupos) — e2e contra o dev server real.
 // Portado de tests/e2e/_aposentados/pagamentos.skip.ts.
@@ -10,23 +12,26 @@ import { join } from "node:path";
 //   - Banco e Grupos persistem no Supabase (pagamento_lotes_banco /
 //     pagamento_lancamentos_banco / pagamento_grupos). PIX agora também
 //     (pagamento_pix_chaves), não mais em JSON. Sem snapshot/restore de arquivo.
-//   - O botão único "+ Novo lançamento" virou "+ Novo lote" (força um lote novo)
-//     + "+ Lançamento" por card de lote. Os testes que criavam lançamento pelo
-//     botão global agora criam via "+ Novo lote" e capturam o loteId/lancId pela
-//     API pra escopar os locators — nada de "primeiro card da tela".
+//   - O botão único "+ Novo lançamento" virou "+ Novo pagamento": a MOEDA escolhida
+//     no modal define o lote (entra no lote aberto da moeda, ou cria um). Os testes
+//     criam via "+ Novo pagamento" e capturam o loteId/lancId pela API pra escopar
+//     os locators — nada de "primeiro card da tela". Cada teste que espera um lote
+//     NOVO só roda depois do anterior da mesma moeda ter sido pago/excluído.
 //   - Toasts reescritos ("Lote pago e movido para realizados" etc.) — as
 //     asserções usam a substring estável.
-//   - Tudo roda em MAINZFARMA pra isolar dos dados reais (FARMAURORA). O afterAll
-//     apaga o que a suíte criou em MAINZFARMA (por created_at) e restaura a chave
-//     PIX real do "Marcelo Lima" ao valor de antes.
+//   - Roda só no harness local (Supabase falso em loopback; a guarda aborta fora dele), na
+//     empresa padrão. O beforeAll/afterAll limpam as tabelas de Banco e Grupos INTEIRAS
+//     (seguro justamente por causa da guarda) e restauram a chave PIX do "Marcelo Lima"
+//     ao valor de antes.
 //   - Não existe teste dormente que setasse "Pago" direto num item — o ciclo
 //     dormente já era NAO_PAGO<->COMPLEMENTO. Adicionado um teste explícito (17)
 //     de que a API rejeita PAGO direto (regra M-04), que é o guard novo.
-//   - O seletor de empresa saiu da UI (CRM opera só com Farmaurora — decisão de
-//     negócio, sem dado de MainzFarma real). irPagamentos() trocou o clique no
-//     seletor por goto("/pagamentos?empresa=MAINZFARMA") — override por query
-//     string sem UI nenhuma, existe só pra este isolamento de teste (ver
-//     app/pages/pagamentos.vue, onMounted).
+//   - O seletor de empresa e o override ?empresa= saíram (o CRM opera só com Farmaurora em
+//     Pagamentos): irPagamentos() só faz goto("/pagamentos").
+//   - Data futura em "Pagamentos realizados": o input tem `max` nativo (= hoje de Brasília),
+//     que bloqueia o envio do form. Os testes 9 e 10 afirmam o bloqueio nativo
+//     (validity.rangeOverflow, modal aberto, nada gravado) e a recusa do SERVIDOR por chamada
+//     de API (400). "Amanhã" vem de hojeBrasilia()+1 — nunca de toISOString().
 
 const writer = {
   email: process.env.E2E_ADMIN_EMAIL ?? process.env.E2E_OPERACIONAL_EMAIL ?? "",
@@ -51,6 +56,8 @@ function lerEnv(): { url: string; serviceKey: string } {
   }
 }
 
+// Aborta (antes de qualquer escrita) se o Supabase em uso não for o local do harness.
+assertSupabaseLocal();
 const env = lerEnv();
 const runnable = Boolean(writer.email && writer.password && env.url && env.serviceKey);
 
@@ -119,12 +126,9 @@ async function selectOption(page: Page, triggerId: string, optionText: string): 
   await page.getByRole("option", { name: optionText, exact: true }).click();
 }
 
-// Vai pra /pagamentos já na empresa MAINZFARMA (isola dos dados reais). O
-// seletor de empresa saiu da UI (CRM opera só com Farmaurora agora) — o
-// override por query string existe só pra isso, sem UI nenhuma pro usuário
-// real (ver app/pages/pagamentos.vue, onMounted).
+// Vai pra /pagamentos (o CRM opera só com Farmaurora; não há seletor de empresa).
 async function irPagamentos(page: Page, tab: "banco" | "cotacao" | "despachante" | "transportadora"): Promise<void> {
-  await page.goto("/pagamentos?empresa=MAINZFARMA", { waitUntil: "networkidle" });
+  await page.goto("/pagamentos", { waitUntil: "networkidle" });
   await page.locator(`#tab-${tab}`).click();
 }
 
@@ -148,16 +152,17 @@ async function transportadoraGrupos(page: Page): Promise<{ id: string; nomeGrupo
   return (await res.json()) as { id: string; nomeGrupo: string }[];
 }
 
-// "+ Novo lote" -> preenche -> salva. Devolve loteId + lancId recém-criados.
+// "+ Novo pagamento" -> preenche -> salva. Devolve loteId + lancId do lote NOVO que
+// nasceu (só existe lote novo quando não havia lote aberto da moeda).
 async function novoLote(
   page: Page,
-  opts: { moeda?: "Dólar (USD)" | "Euro (EUR)"; fornecedor: string; invoice: string; cliente: string; valor: string },
+  opts: { moeda?: "USD" | "EUR"; fornecedor: string; invoice: string; cliente: string; valor: string },
 ): Promise<{ loteId: string; lancId: string }> {
   const antes = new Set((await bancoPayload(page)).lotes.map((l) => l.id));
 
-  await page.locator("#btn-novo-lote-banco").click();
+  await page.locator("#btn-novo-pagamento-banco").click();
   await expect(page.locator("#novo-lancamento-banco-overlay")).toBeVisible();
-  if (opts.moeda) await selectOption(page, "nl-moeda", opts.moeda);
+  if (opts.moeda) await page.locator(`#nl-moeda-${opts.moeda}`).click();
   await selectOption(page, "nl-fornecedor", opts.fornecedor);
   await page.locator("#nl-cliente").fill(opts.cliente);
   await page.locator("#nl-invoice").fill(opts.invoice);
@@ -176,7 +181,7 @@ async function novoLote(
 test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
   // O dev server + Vite às vezes derruba o worker do Playwright no meio de uma
   // suíte longa (crash nativo, sem relação com as asserções). O beforeAll é
-  // auto-curável (purga MAINZFARMA), então uma re-execução limpa recupera.
+  // auto-curável (limpa as tabelas de teste), então uma re-execução limpa recupera.
   test.describe.configure({ retries: 2 });
 
   test.skip(
@@ -184,19 +189,19 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     "defina E2E_ADMIN_EMAIL/_PASSWORD (ou E2E_OPERACIONAL_*) e o .env com NUXT_PUBLIC_SUPABASE_URL + NUXT_SUPABASE_SERVICE_ROLE_KEY",
   );
 
-  async function purgarMainzfarma(client: SupabaseClient): Promise<void> {
-    // MAINZFARMA é um namespace limpo (sem dados reais) — a suíte é a única a
-    // escrever lá. Purga tudo pra ser auto-curável entre execuções (um worker
-    // que crashou no meio não roda o afterAll e deixa lixo).
-    await client.from("pagamento_lancamentos_banco").delete().eq("empresa", "MAINZFARMA");
-    await client.from("pagamento_lotes_banco").delete().eq("empresa", "MAINZFARMA");
-    await client.from("pagamento_grupos").delete().eq("empresa", "MAINZFARMA");
+  async function limparTabelasDeTeste(client: SupabaseClient): Promise<void> {
+    // Esvazia Banco e Grupos INTEIROS. Só é seguro porque a guarda (assertSupabaseLocal) impede
+    // esta suíte de rodar fora do Supabase falso do harness local. Auto-curável entre execuções
+    // (um worker que crashou no meio não roda o afterAll e deixa lixo).
+    await client.from("pagamento_lancamentos_banco").delete().neq("id", "");
+    await client.from("pagamento_lotes_banco").delete().neq("id", "");
+    await client.from("pagamento_grupos").delete().neq("id", "");
   }
 
   test.beforeAll(async () => {
     if (!runnable) return;
     const client = db();
-    await purgarMainzfarma(client);
+    await limparTabelasDeTeste(client);
 
     // O teste 8 mexe na chave PIX do "Marcelo Lima" (nome REAL, tabela
     // compartilhada). Snapshot pra restaurar no fim. Se o valor atual for lixo de
@@ -223,13 +228,13 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
   test.afterAll(async () => {
     if (!runnable) return;
     const client = db();
-    await purgarMainzfarma(client);
+    await limparTabelasDeTeste(client);
     // Restaura a chave PIX real do Marcelo Lima ao valor anterior à suíte.
     await client.from("pagamento_pix_chaves").delete().eq("tipo", "DESPACHANTE").eq("nome", "Marcelo Lima");
     if (pixMarceloBak) await client.from("pagamento_pix_chaves").insert(pixMarceloBak);
   });
 
-  test("1 · '+ Novo lote' cria o lote e o lançamento nasce sem valor em reais", async ({ page }) => {
+  test("1 · '+ Novo pagamento' (USD, sem lote) cria o lote e o lançamento nasce sem valor em reais", async ({ page }) => {
     await irPagamentos(page, "banco");
 
     const { loteId, lancId } = await novoLote(page, {
@@ -241,7 +246,7 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     st.usd1 = loteId;
     st.usd1Lanc = lancId;
 
-    await expect(page.locator("#toast-notice")).toContainText("Lote criado com o lançamento");
+    await expect(page.locator("#toast-notice")).toContainText("Pagamento adicionado");
 
     const card = page.locator(`#lancamento-banco-${lancId}`);
     await expect(card).toBeVisible();
@@ -272,6 +277,9 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     await irPagamentos(page, "banco");
 
     await page.locator(`#btn-pagar-lote-${st.usd1}`).click();
+    // "Pago" pede confirmação antes de chamar o PATCH: confirma na janela.
+    await expect(page.locator("#confirm-dialog-overlay")).toContainText("Marcar este lote como pago?");
+    await page.locator("#btn-confirm-dialog-confirm").click();
     await expect(page.locator("#toast-notice")).toContainText("Lote pago");
 
     // O lote saiu da seção "em aberto" inteiro (o card some).
@@ -304,6 +312,9 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     await expect(grupo).toContainText(G2);
 
     await grupo.locator(`#btn-pagar-grupo-${st.gDesp}`).click();
+    // "Pago" pede confirmação antes de chamar o PATCH: confirma na janela.
+    await expect(page.locator("#confirm-dialog-overlay")).toContainText("Marcar este grupo como pago?");
+    await page.locator("#btn-confirm-dialog-confirm").click();
     await expect(page.locator("#toast-notice")).toContainText("Grupo pago");
 
     // O grupo saiu inteiro da seção "em aberto".
@@ -321,7 +332,7 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     await irPagamentos(page, "banco");
 
     const novo = await novoLote(page, {
-      moeda: "Euro (EUR)",
+      moeda: "EUR",
       fornecedor: "Beldimed - Bélgica",
       invoice: `INV-${RUN}-EUR`,
       cliente: CLIENTE_EUR,
@@ -414,13 +425,14 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
       valor: "50",
     });
 
-    await page.locator(`#btn-novo-lancamento-lote-${loteRA.loteId}`).click();
+    // 2º pagamento em USD: a moeda define o lote, então entra no mesmo lote aberto.
+    await page.locator("#btn-novo-pagamento-banco").click();
     await selectOption(page, "nl-fornecedor", "Poros - Turquia");
     await page.locator("#nl-cliente").fill(CLIENTE_REAL_B);
     await page.locator("#nl-invoice").fill(`INV-${RUN}-RB`);
     await page.locator("#nl-valor-moeda").fill("60");
     await page.locator("#btn-save-novo-lancamento").click();
-    await expect(page.locator("#toast-notice")).toContainText("Lançamento adicionado");
+    await expect(page.locator("#toast-notice")).toContainText("Pagamento adicionado");
 
     // Cotação + "Pago", pra virar um lote realizado com 2 lançamentos.
     await page.locator("#tab-cotacao").click();
@@ -431,6 +443,9 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
 
     await page.locator("#tab-banco").click();
     await page.locator(`#btn-pagar-lote-${loteRA.loteId}`).click();
+    // "Pago" pede confirmação antes de chamar o PATCH: confirma na janela.
+    await expect(page.locator("#confirm-dialog-overlay")).toContainText("Marcar este lote como pago?");
+    await page.locator("#btn-confirm-dialog-confirm").click();
     await expect(page.locator("#toast-notice")).toContainText("Lote pago");
 
     const payload = await bancoPayload(page);
@@ -445,14 +460,26 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     await rowA.locator(`#btn-editar-realizado-${lancA!.id}`).click();
     await expect(page.locator("#editar-pagamento-realizado-overlay")).toContainText("Editar pagamento realizado");
 
-    // Data futura -> bloqueada, mensagem clara, nada salvo (modal continua aberto).
-    const amanha = new Date();
-    amanha.setDate(amanha.getDate() + 1);
+    // Data futura -> bloqueada pelo `max` nativo (hoje de Brasília): input inválido, o envio nem
+    // chega ao submit(), o modal continua aberto e nada é gravado.
+    const amanha = somarDiasISO(hojeBrasilia(), 1);
     await page.locator("#epr-nome").fill(CLIENTE_REAL_A_EDITADO);
-    await page.locator("#epr-data").fill(amanha.toISOString().slice(0, 10));
+    await expect(page.locator("#epr-data")).toHaveAttribute("max", hojeBrasilia());
+    await page.locator("#epr-data").fill(amanha);
+    expect(
+      await page.locator("#epr-data").evaluate((el) => (el as HTMLInputElement).validity.rangeOverflow),
+      "input de data futura deve ficar inválido (rangeOverflow)",
+    ).toBe(true);
     await page.locator("#btn-save-editar-pagamento-realizado").click();
-    await expect(page.locator("#toast-notice")).toContainText("não pode ser posterior a hoje");
     await expect(page.locator("#editar-pagamento-realizado-overlay")).toBeVisible();
+    await expect(page.locator("#toast-notice")).not.toContainText("Pagamento atualizado");
+    // O SERVIDOR também recusa data futura (não confia só no cliente): 400 e nada muda.
+    const recusa = await page.request.patch(`/api/pagamentos/banco/lancamento/${lancA!.id}/realizado`, {
+      data: { cliente: CLIENTE_REAL_A_EDITADO, pagoEm: amanha },
+    });
+    expect(recusa.status()).toBe(400);
+    const inalterado = (await bancoPayload(page)).lancamentos.find((l) => l.id === lancA!.id);
+    expect(inalterado?.cliente).toBe(CLIENTE_REAL_A);
 
     // Data passada válida -> salva os dois campos juntos.
     await page.locator("#epr-data").fill("2020-03-10");
@@ -490,20 +517,33 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     expect(grupoId, "grupo Andreza Faconi recém-criado").toBeTruthy();
 
     await page.locator(`#grupo-pagamento-${grupoId}`).locator(`#btn-pagar-grupo-${grupoId}`).click();
+    // "Pago" pede confirmação antes de chamar o PATCH: confirma na janela.
+    await expect(page.locator("#confirm-dialog-overlay")).toContainText("Marcar este grupo como pago?");
+    await page.locator("#btn-confirm-dialog-confirm").click();
     await expect(page.locator("#toast-notice")).toContainText("Grupo pago");
 
     const lista = page.locator("#grupo-realizados-lista-DESPACHANTE");
     await lista.locator(`#btn-editar-realizado-DESPACHANTE-${grupoId}-0`).click();
     await expect(page.locator("#editar-pagamento-realizado-overlay")).toContainText("Editar pagamento realizado");
 
-    // Data futura -> bloqueada.
-    const amanha = new Date();
-    amanha.setDate(amanha.getDate() + 1);
+    // Data futura -> bloqueada pelo `max` nativo (hoje de Brasília); modal aberto, nada gravado.
+    const amanha = somarDiasISO(hojeBrasilia(), 1);
     await selectOption(page, "epr-nome", "Marcelo Lima");
-    await page.locator("#epr-data").fill(amanha.toISOString().slice(0, 10));
+    await expect(page.locator("#epr-data")).toHaveAttribute("max", hojeBrasilia());
+    await page.locator("#epr-data").fill(amanha);
+    expect(
+      await page.locator("#epr-data").evaluate((el) => (el as HTMLInputElement).validity.rangeOverflow),
+      "input de data futura deve ficar inválido (rangeOverflow)",
+    ).toBe(true);
     await page.locator("#btn-save-editar-pagamento-realizado").click();
-    await expect(page.locator("#toast-notice")).toContainText("não pode ser posterior a hoje");
     await expect(page.locator("#editar-pagamento-realizado-overlay")).toBeVisible();
+    await expect(page.locator("#toast-notice")).not.toContainText("Pagamento atualizado");
+    // O SERVIDOR também recusa data futura: 400 e o grupo continua com o nome antigo.
+    const recusa = await page.request.patch(`/api/pagamentos/despachante/${grupoId}/realizado`, {
+      data: { nomeGrupo: "Marcelo Lima", pagoEm: amanha },
+    });
+    expect(recusa.status()).toBe(400);
+    expect((await despachanteGrupos(page)).find((g) => g.id === grupoId)?.nomeGrupo).toBe("Andreza Faconi");
 
     // Data passada válida -> salva os dois campos (nomeGrupo + pagoEm) juntos.
     await page.locator("#epr-data").fill("2020-04-05");
@@ -577,7 +617,7 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     await expect(page.locator('[id^="btn-salvar-cotacao-"]')).toHaveCount(0);
     await page.waitForTimeout(1200); // deixa o PATCH de auto-save concluir
 
-    // O reload mantém a mesma URL (com ?empresa=MAINZFARMA), então o onMounted
+    // O reload mantém a mesma URL, então o onMounted
     // reaplica o override sozinho — não precisa mais reselecionar nada na UI.
     await page.reload({ waitUntil: "networkidle" });
     await page.locator("#tab-cotacao").click();

@@ -6,7 +6,7 @@ import { splitBottomNavLinks } from "../utils/bottomNavLinks";
 import NavIcon from "./NavIcon.vue";
 import NavMoreSheet from "./NavMoreSheet.vue";
 
-// Substitui a SidebarNav abaixo de md (ver DefaultLayout.vue) — mesma fonte de
+// Substitui a SidebarNav abaixo de lg (ver DefaultLayout.vue) — mesma fonte de
 // itens/regra de visibilidade por cargo que a sidebar usa (useNavLinks.ts),
 // só reorganizada em ícones fixos + "Mais" quando não cabem 5.
 const route = useRoute();
@@ -17,20 +17,27 @@ const activePath = computed<string>(() => route.path);
 const isOverflowActive = computed(() => split.value.overflow.some((link) => link.to === activePath.value));
 
 const showMore = ref(false);
+
+// Mesma cor da sidebar (bg-accent-dark): item ativo em branco pleno com um
+// fundo translúcido discreto; inativo em branco com opacidade menor.
+const ITEM_CLASS =
+  "flex min-h-[52px] flex-1 flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 text-[10.5px] font-medium transition-colors";
+const ACTIVE_CLASS = "bg-white/12 text-white";
+const INACTIVE_CLASS = "text-white/65";
 </script>
 
 <template>
   <nav
     id="bottom-nav"
-    class="fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-hairline bg-paper-raised md:hidden"
+    class="fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around gap-1 border-t border-white/10 bg-accent-dark px-1.5 pt-1 lg:hidden"
     style="padding-bottom: env(safe-area-inset-bottom, 0px)"
   >
     <NuxtLink
       v-for="link in split.primary"
       :key="link.to"
       :to="link.to"
-      class="flex min-h-[52px] flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[10.5px] font-medium transition-colors"
-      :class="activePath === link.to ? 'text-accent-dark' : 'text-ink-soft'"
+      :class="[ITEM_CLASS, activePath === link.to ? ACTIVE_CLASS : INACTIVE_CLASS]"
+      :aria-current="activePath === link.to ? 'page' : undefined"
     >
       <NavIcon :name="link.icon" class="h-[22px] w-[22px] shrink-0" />
       {{ link.label }}
@@ -40,8 +47,7 @@ const showMore = ref(false);
       v-if="split.overflow.length > 0"
       id="btn-bottom-nav-more"
       type="button"
-      class="flex min-h-[52px] flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[10.5px] font-medium transition-colors"
-      :class="isOverflowActive ? 'text-accent-dark' : 'text-ink-soft'"
+      :class="[ITEM_CLASS, isOverflowActive ? ACTIVE_CLASS : INACTIVE_CLASS]"
       @click="showMore = true"
     >
       <NavIcon name="more" class="h-[22px] w-[22px] shrink-0" />

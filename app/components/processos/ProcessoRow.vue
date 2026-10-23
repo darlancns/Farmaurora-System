@@ -57,6 +57,95 @@ function handleAddAtualizacao(id: string, atualizacao: AtualizacaoProcesso): voi
       class="flex w-full flex-col items-stretch gap-1.5 px-3.5 py-2.5 text-left transition-colors hover:bg-paper @[700px]:flex-row @[700px]:items-center @[700px]:gap-3"
       @click="toggleExpand"
     >
+      <!--
+        Abaixo de lg (mobile/tablet): card de 4 linhas. Em lg+ este bloco some e o bloco abaixo
+        (`contents`, ou seja, sem caixa própria) devolve ao botão exatamente os mesmos filhos de
+        sempre, com as mesmas classes e container queries (@[700px]) — por isso os dois blocos
+        são irmãos em vez de reaproveitar os mesmos elementos. Os ids do bloco mobile levam o
+        prefixo "mobile-" pra não duplicar os do desktop.
+      -->
+      <div class="flex w-full min-w-0 flex-col gap-1 lg:hidden">
+        <div class="flex items-start gap-2">
+          <svg
+            viewBox="0 0 20 20"
+            class="mt-[3px] h-3.5 w-3.5 shrink-0 text-ink-soft transition-transform"
+            :class="{ 'rotate-90': expanded }"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            aria-hidden="true"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 5l5 5-5 5" />
+          </svg>
+
+          <svg
+            v-if="hasPendencias"
+            :id="`mobile-icon-pendencia-${processo.id}`"
+            title="Possui pendências"
+            viewBox="0 0 24 24"
+            class="mt-px h-4 w-4 shrink-0 text-danger"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            aria-hidden="true"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+            />
+          </svg>
+
+          <span
+            :id="`mobile-paciente-${processo.id}`"
+            class="line-clamp-2 min-w-0 flex-1 text-[14px] leading-snug font-semibold break-words text-ink"
+          >
+            {{ processo.paciente }}
+          </span>
+
+          <span
+            :id="`mobile-badge-status-${processo.id}`"
+            class="max-w-[45%] shrink-0 truncate rounded-full px-2.5 py-1 text-[11px] leading-none font-semibold"
+            :class="statusMeta.badgeClass"
+            :title="statusLabel"
+          >
+            {{ statusLabel }}
+          </span>
+        </div>
+
+        <p :id="`mobile-ordem-pasta-${processo.id}`" class="pl-[22px] text-[12px] text-ink-soft">
+          <template v-if="processo.ordem">{{ processo.ordem }} · </template>Pasta
+          <span class="font-mono">{{ processo.pasta }}</span>
+        </p>
+
+        <p class="truncate pl-[22px] text-[12.5px] text-ink-soft">{{ medicamentoResumo }}</p>
+
+        <div class="flex items-center justify-between gap-3 pl-[22px] text-[11.5px] text-ink-soft">
+          <span class="flex shrink-0 items-center gap-1.5">
+            <svg
+              viewBox="0 0 24 24"
+              class="h-3.5 w-3.5 shrink-0"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              aria-hidden="true"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
+              />
+            </svg>
+            <span :id="`mobile-previsao-${processo.id}`" class="font-mono">{{ processo.datas.previsaoEntrega || "—" }}</span>
+          </span>
+
+          <span :id="`mobile-responsavel-${processo.id}`" class="min-w-0 truncate text-right">
+            {{ processo.responsavelOperacional || "—" }}
+          </span>
+        </div>
+      </div>
+
+      <div class="hidden lg:contents">
       <div class="flex items-center gap-3 @[700px]:min-w-0 @[700px]:flex-1">
         <svg
           viewBox="0 0 20 20"
@@ -134,6 +223,7 @@ function handleAddAtualizacao(id: string, atualizacao: AtualizacaoProcesso): voi
           </svg>
         </button>
       </div>
+      </div>
     </button>
 
     <ProcessoDetail
@@ -141,6 +231,7 @@ function handleAddAtualizacao(id: string, atualizacao: AtualizacaoProcesso): voi
       :processo="processo"
       :readonly="readonly"
       @edit="emit('edit', $event)"
+      @request-delete="showDeleteConfirm = true"
       @add-atualizacao="handleAddAtualizacao"
     />
   </div>

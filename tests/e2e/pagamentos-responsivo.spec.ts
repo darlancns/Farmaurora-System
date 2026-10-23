@@ -10,13 +10,18 @@ import { test, expect, type Page } from "@playwright/test";
 //   E2E_OPERACIONAL_EMAIL / E2E_OPERACIONAL_PASSWORD (fallback — mesmo padrão
 //   de tests/e2e/pagamentos-fluxo.spec.ts)
 //
-// 768px é o próprio breakpoint `md` do Tailwind (mesmo usado pela sidebar
-// desde a Rodada 1) — nele os filtros já voltam ao layout "atual" (linha com
-// wrap) e os botões de ação ao tamanho compacto de sempre (28px), exatamente
-// como o pedido desta rodada especificou (`p-2.5 md:p-1.5`). Por isso as
-// asserções de coluna única e de toque ≥44px só rodam abaixo de 768px — em
-// 768px o que se garante é ausência de overflow, nome completo (sem truncar)
-// e dropdown sem cortar, que é onde a auditoria original achou o problema.
+// O breakpoint desta tela é `lg` (1024px): abaixo dele os filtros de "Pagamentos
+// realizados" moram num bottom sheet (ícone dentro da busca), os botões de ação
+// ficam com toque de 44px (`p-3.5 lg:p-1.5`) e o "+" é o botão flutuante. De lg em
+// diante: filtros em linha e botões compactos de 28px, como sempre. O refino mobile
+// (abas, "+", cabeçalhos de lote, cards pagos, painel) é coberto com dados
+// adversariais em pagamentos-mobile-shell.spec.ts; aqui ficam as asserções que rodam
+// contra os dados reais da conta (ausência de overflow, nome completo, dropdown etc.).
+//
+// Cards de item e cabeçalhos: abaixo de lg o card tem um bloco próprio (lg:hidden), com os ids dos
+// botões de ação prefixados com `mobile-`; em lg+ vale o bloco de sempre (hidden lg:block, container
+// query), com os ids originais. Por isso o layout de lg+ fica no 2º nível (`firstElementChild` do card é
+// o bloco de lg+, e o seu primeiro filho é o grid/flex de sempre).
 
 const writer = {
   email: process.env.E2E_ADMIN_EMAIL ?? process.env.E2E_OPERACIONAL_EMAIL ?? "",
@@ -67,21 +72,26 @@ test.describe("Responsividade de /pagamentos", () => {
       });
 
       test("nome do cliente nos lançamentos realizados não trunca", async ({ page }) => {
-        const nomes = page.locator("#banco-realizados-lista span.truncate").first();
-        if ((await nomes.count()) === 0) {
+        // Abaixo de lg (inclusive o tablet, onde o card passa de 640px) vale o bloco mobile: o nome quebra
+        // e nunca é cortado. As reticências são só do layout de lg+ (variante display:none aqui).
+        if ((await page.locator("#banco-realizados-lista span.font-medium").count()) === 0) {
           test.skip(true, "sem lançamentos realizados na conta de teste");
         }
+        const nomes = page.locator("#banco-realizados-lista span.font-medium").filter({ visible: true }).first();
+        expect(await nomes.evaluate((el) => getComputedStyle(el).textOverflow)).not.toBe("ellipsis");
         const overflow = await nomes.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
         expect(overflow).toBe(false);
       });
 
-      test("dropdown de fornecedor abre dentro da viewport, sem cortar", async ({ page }) => {
-        const select = page.locator("#filtro-fornecedor-realizado");
-        if ((await select.count()) === 0) {
-          test.skip(true, "filtro não renderizado (sem lançamentos)");
+      test("dropdown de fornecedor (no painel de filtros) abre dentro da viewport, sem cortar", async ({ page }) => {
+        const icone = page.getByRole("button", { name: "Filtros", exact: true });
+        if ((await icone.count()) === 0) {
+          test.skip(true, "ícone de filtros não renderizado");
         }
+        await icone.click();
+        const select = page.locator("#sheet-filtro-fornecedor-realizado");
         await select.click();
-        const listbox = page.locator("#filtro-fornecedor-realizado-listbox");
+        const listbox = page.locator("#sheet-filtro-fornecedor-realizado-listbox");
         await expect(listbox).toBeVisible();
         const box = await listbox.boundingBox();
         expect(box).not.toBeNull();
@@ -91,7 +101,7 @@ test.describe("Responsividade de /pagamentos", () => {
     });
   }
 
-  test("abaixo de md (375px): filtros de 'pagamentos realizados' empilham em coluna única", async ({ page }) => {
+  test("abaixo de lg (375px): só a busca fica na tela, com o ícone de filtros dentro dela (selects no painel)", async ({ page }) => {
     test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD ou E2E_OPERACIONAL_EMAIL/PASSWORD");
     await gotoPagamentos(page, { width: 375, height: 800 });
 
@@ -100,20 +110,56 @@ test.describe("Responsividade de /pagamentos", () => {
     expect(flexDirection).toBe("column");
 
     const busca = await page.locator("#banco-realizado-busca").boundingBox();
-    const banco = await page.locator("#filtro-banco-realizado").boundingBox();
     expect(busca).not.toBeNull();
-    expect(banco).not.toBeNull();
-    // Empilhados: o segundo filtro começa abaixo do primeiro (não lado a lado).
-    expect(banco!.y).toBeGreaterThanOrEqual(busca!.y + busca!.height - 1);
-    // E cada um ocupa a largura cheia disponível (não uma coluna estreita fixa).
+    // A busca ocupa a largura cheia disponível (não uma coluna estreita fixa).
     expect(busca!.width).toBeGreaterThan(375 * 0.7);
+
+    // Os 3 selects em linha saem da tela; o ícone (botão "Filtros") fica dentro da busca, à direita.
+    await expect(page.locator("#filtro-banco-realizado")).toBeHidden();
+    const icone = page.getByRole("button", { name: "Filtros", exact: true });
+    const caixa = await icone.boundingBox();
+    expect(caixa).not.toBeNull();
+    expect(caixa!.x + caixa!.width).toBeLessThanOrEqual(busca!.x + busca!.width + 0.5);
+    expect(caixa!.y).toBeGreaterThanOrEqual(busca!.y - 0.5);
   });
 
-  test("abaixo de md (375px): botões de editar/excluir realizado têm toque de pelo menos 44px", async ({ page }) => {
+  test('abaixo de lg (375px): rótulo "Câmbio" e "+" flutuante acessível por role/aria-label', async ({ page }) => {
     test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD ou E2E_OPERACIONAL_EMAIL/PASSWORD");
     await gotoPagamentos(page, { width: 375, height: 800 });
 
-    const excluir = page.locator("[id^='btn-excluir-lancamento-']").first();
+    await expect(page.getByRole("button", { name: "Câmbio", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Cotação Câmbio" })).toHaveCount(0);
+    // Banco: o "+" é o novo pagamento; o botão de texto do cabeçalho da seção fica oculto.
+    await expect(page.getByRole("button", { name: "Novo pagamento", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "+ Novo pagamento" })).toHaveCount(0);
+
+    await page.locator("#tab-despachante").click();
+    await expect(page.getByRole("button", { name: "Adicionar pagamento", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "+ Adicionar pagamento" })).toHaveCount(0);
+
+    // Câmbio: sem nenhum botão de adicionar.
+    await page.locator("#tab-cotacao").click();
+    await expect(page.getByRole("button", { name: "Novo pagamento", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Adicionar pagamento", exact: true })).toHaveCount(0);
+  });
+
+  test("lg+ (1280px): botões de texto no cabeçalho das seções e nenhum '+' flutuante", async ({ page }) => {
+    test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD ou E2E_OPERACIONAL_EMAIL/PASSWORD");
+    await gotoPagamentos(page, { width: 1280, height: 800 });
+
+    await expect(page.getByRole("button", { name: "+ Novo pagamento" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Novo pagamento", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Câmbio", exact: true })).toBeVisible();
+    await page.locator("#tab-transportadora").click();
+    await expect(page.getByRole("button", { name: "+ Adicionar pagamento" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Adicionar pagamento", exact: true })).toHaveCount(0);
+  });
+
+  test("abaixo de lg (375px): botões de editar/excluir realizado têm toque de pelo menos 44px", async ({ page }) => {
+    test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD ou E2E_OPERACIONAL_EMAIL/PASSWORD");
+    await gotoPagamentos(page, { width: 375, height: 800 });
+
+    const excluir = page.locator("[id^='mobile-btn-excluir-lancamento-']").first();
     if ((await excluir.count()) === 0) {
       test.skip(true, "sem lançamentos realizados na conta de teste");
     }
@@ -163,7 +209,7 @@ test.describe("Responsividade de /pagamentos", () => {
       const lancamentoRow = page.locator("[id^='lancamento-banco-']").first();
       if (await lancamentoRow.count()) {
         const dir = await lancamentoRow.evaluate((row) => {
-          const inner = row.firstElementChild as HTMLElement | null;
+          const inner = row.firstElementChild?.firstElementChild as HTMLElement | null;
           return inner ? getComputedStyle(inner).flexDirection : null;
         });
         expect(dir, "LancamentoBancoCard").toBe("row");
@@ -174,8 +220,7 @@ test.describe("Responsividade de /pagamentos", () => {
       await page.waitForTimeout(200);
       const grupoToggle = page.locator("[id^='grupo-pagamento-'] button").first();
       if (await grupoToggle.count()) {
-        await grupoToggle.click();
-        await page.waitForTimeout(200);
+        // Os grupos já nascem expandidos: não clicar no toggle (recolheria os itens e a asserção nunca rodaria).
         const itemBtn = page.locator("[id^='btn-status-item-']").first();
         if (await itemBtn.count()) {
           const dir = await itemBtn.evaluate((btn) => {
@@ -183,7 +228,7 @@ test.describe("Responsividade de /pagamentos", () => {
             while (el && getComputedStyle(el).containerType !== "inline-size") {
               el = el.parentElement;
             }
-            const inner = el?.firstElementChild as HTMLElement | null;
+            const inner = el?.firstElementChild?.firstElementChild as HTMLElement | null;
             return inner ? getComputedStyle(inner).flexDirection : null;
           });
           expect(dir, "GrupoPagamentoCard").toBe("row");
@@ -194,7 +239,7 @@ test.describe("Responsividade de /pagamentos", () => {
       const realizadoRow = page.locator("[id^='grupo-realizados-lista-'] > div").first();
       if (await realizadoRow.count()) {
         const dir = await realizadoRow.evaluate((row) => {
-          const inner = row.firstElementChild as HTMLElement | null;
+          const inner = row.firstElementChild?.firstElementChild as HTMLElement | null;
           return inner ? getComputedStyle(inner).flexDirection : null;
         });
         expect(dir, "GrupoPagamentoTab").toBe("row");
@@ -202,50 +247,53 @@ test.describe("Responsividade de /pagamentos", () => {
     });
   }
 
-  test("abaixo de md (375px): LancamentoBancoCard, GrupoPagamentoCard e GrupoPagamentoTab continuam empilhados", async ({
-    page,
-  }) => {
-    test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD ou E2E_OPERACIONAL_EMAIL/PASSWORD");
-    await gotoPagamentos(page, { width: 375, height: 800 });
+  // Abaixo de lg o bloco do container query fica display:none e o que aparece é o bloco mobile (flex ou grid:
+  // conteúdo + coluna de ações), em qualquer largura — o tablet não depende mais da container query.
+  for (const width of [375, 768, 1023]) {
+    test(`abaixo de lg (${width}px): LancamentoBancoCard, GrupoPagamentoCard e GrupoPagamentoTab usam o bloco mobile`, async ({
+      page,
+    }) => {
+      test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD ou E2E_OPERACIONAL_EMAIL/PASSWORD");
+      await gotoPagamentos(page, { width, height: 900 });
 
-    const lancamentoRow = page.locator("[id^='lancamento-banco-']").first();
-    if (await lancamentoRow.count()) {
-      const dir = await lancamentoRow.evaluate((row) => {
-        const inner = row.firstElementChild as HTMLElement | null;
-        return inner ? getComputedStyle(inner).flexDirection : null;
-      });
-      expect(dir, "LancamentoBancoCard").toBe("column");
-    }
+      // Devolve [display do bloco de lg+, display do bloco mobile] de um card.
+      const blocos = (card: HTMLElement): [string, string] => {
+        const [lgMais, mobile] = [card.children[0] as HTMLElement, card.children[1] as HTMLElement];
+        return [getComputedStyle(lgMais).display, getComputedStyle(mobile).display];
+      };
 
-    await page.locator("#tab-despachante").click();
-    await page.waitForTimeout(200);
-    const grupoToggle = page.locator("[id^='grupo-pagamento-'] button").first();
-    if (await grupoToggle.count()) {
-      await grupoToggle.click();
-      await page.waitForTimeout(200);
-      const itemBtn = page.locator("[id^='btn-status-item-']").first();
-      if (await itemBtn.count()) {
-        const dir = await itemBtn.evaluate((btn) => {
-          let el: HTMLElement | null = btn as HTMLElement;
-          while (el && getComputedStyle(el).containerType !== "inline-size") {
-            el = el.parentElement;
-          }
-          const inner = el?.firstElementChild as HTMLElement | null;
-          return inner ? getComputedStyle(inner).flexDirection : null;
-        });
-        expect(dir, "GrupoPagamentoCard").toBe("column");
+      const lancamentoRow = page.locator("[id^='lancamento-banco-']").first();
+      if (await lancamentoRow.count()) {
+        expect(await lancamentoRow.evaluate(blocos), "LancamentoBancoCard").toEqual(["none", "flex"]);
       }
-    }
 
-    const realizadoRow = page.locator("[id^='grupo-realizados-lista-'] > div").first();
-    if (await realizadoRow.count()) {
-      const dir = await realizadoRow.evaluate((row) => {
-        const inner = row.firstElementChild as HTMLElement | null;
-        return inner ? getComputedStyle(inner).flexDirection : null;
-      });
-      expect(dir, "GrupoPagamentoTab").toBe("column");
-    }
+      await page.locator("#tab-despachante").click();
+      await page.waitForTimeout(200);
+      const grupoToggle = page.locator("[id^='grupo-pagamento-'] button").first();
+      if (await grupoToggle.count()) {
+        // Os grupos já nascem expandidos: não clicar no toggle (recolheria os itens e a asserção nunca rodaria).
+        const itemBtn = page.locator("[id^='btn-status-item-']").first();
+        if (await itemBtn.count()) {
+          const dir = await itemBtn.evaluate((btn) => {
+            let el: HTMLElement | null = btn as HTMLElement;
+            while (el && getComputedStyle(el).containerType !== "inline-size") {
+              el = el.parentElement;
+            }
+            if (!el) return null;
+            const [lgMais, mobile] = [el.children[0] as HTMLElement, el.children[1] as HTMLElement];
+            return [getComputedStyle(lgMais).display, getComputedStyle(mobile).display];
+          });
+          // O item em aberto do grupo é um grid de 2 linhas (conteúdo alinhado às células de ação), não o flex dos demais.
+          expect(dir, "GrupoPagamentoCard").toEqual(["none", "grid"]);
+        }
+      }
 
-    expect(await hasHorizontalOverflow(page)).toBe(false);
-  });
+      const realizadoRow = page.locator("[id^='grupo-realizados-lista-'] > div").first();
+      if (await realizadoRow.count()) {
+        expect(await realizadoRow.evaluate(blocos), "GrupoPagamentoTab").toEqual(["none", "flex"]);
+      }
+
+      expect(await hasHorizontalOverflow(page)).toBe(false);
+    });
+  }
 });

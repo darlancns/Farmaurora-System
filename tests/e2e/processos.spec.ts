@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { assertSupabaseLocal } from "./_guards/supabaseLocal";
 
 // Follow-Up de processos — e2e contra o dev server real.
 // Portado de tests/e2e/_aposentados/processos.skip.ts.
@@ -44,6 +45,8 @@ function lerEnv(): { url: string; serviceKey: string } {
   }
 }
 
+// Aborta (antes de qualquer escrita) se o Supabase em uso não for o local do harness.
+assertSupabaseLocal();
 const env = lerEnv();
 const runnable = Boolean(writer.email && writer.password && env.url && env.serviceKey);
 

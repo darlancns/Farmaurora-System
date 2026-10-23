@@ -177,7 +177,7 @@ function handleSubmit(): void {
           <p
             v-if="nomeSelecionadoEmUso"
             id="aviso-consultor-em-uso"
-            class="mt-1 text-[10.5px] font-medium text-mainz-gold"
+            class="mt-1 text-[10.5px] font-medium text-warning-gold"
           >
             ⚠ Este nome já está vinculado a {{ nomeSelecionadoEmUso }}. Pode salvar mesmo assim.
           </p>

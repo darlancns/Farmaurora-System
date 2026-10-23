@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { assertSupabaseLocal } from "./_guards/supabaseLocal";
 
 // Página /recados (Fase D1): criar/editar/excluir, visibilidade por
 // destinatário (público/cargo/pessoa), fixar, concluir, filtro de tipo e
@@ -33,6 +34,8 @@ function lerEnv(): { url: string; serviceKey: string } {
   }
 }
 
+// Aborta (antes de qualquer escrita) se o Supabase em uso não for o local do harness.
+assertSupabaseLocal();
 const env = lerEnv();
 const runnable = Boolean(env.url && env.serviceKey);
 const RUN = Date.now().toString(36);
@@ -118,6 +121,9 @@ test.describe.serial("Recados", () => {
   test("1 · cria público/cargo/pessoa — cada um visível só pra quem deveria", async ({ page }) => {
     await login(page, autor.email, SENHA);
     await page.goto("/recados", { waitUntil: "networkidle" });
+    // A aba padrão é "Recebidos" (exclui o que o próprio autor criou) — os recados
+    // criados aqui aparecem em "Enviados".
+    await page.locator("#tab-enviados").click();
 
     // Público, tipo Urgente.
     await page.locator("#btn-novo-recado").click();
@@ -230,6 +236,7 @@ test.describe.serial("Recados", () => {
 
     await login(page, autor.email, SENHA);
     await page.goto("/recados", { waitUntil: "networkidle" });
+    await page.locator("#tab-enviados").click();
 
     await page.locator(`#btn-editar-recado-${idPublico}`).click();
     await expect(page.locator("#recado-titulo")).toHaveValue(TITULO_PUBLICO);

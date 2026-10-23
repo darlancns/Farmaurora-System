@@ -2,8 +2,6 @@ import {
   BANCO_CAMBIO_LABEL,
   BANCOS_CAMBIO,
   DESPACHANTES_PAGAMENTO,
-  EMPRESA_PAGAMENTO_LABEL,
-  EMPRESAS_PAGAMENTO,
   FORNECEDORES_PAGAMENTO,
   MOEDA_LABEL,
   MOEDAS,
@@ -13,16 +11,12 @@ import type { AppSelectOption } from "../types/appSelect";
 import type {
   BancoCambio,
   DespachantePagamento,
-  EmpresaPagamento,
   FornecedorPagamento,
   Moeda,
   TransportadoraPagamento,
 } from "#shared/types/Pagamento";
 
-export const EMPRESA_PAGAMENTO_OPTIONS: AppSelectOption<EmpresaPagamento>[] = EMPRESAS_PAGAMENTO.map(
-  (empresa) => ({ value: empresa, label: EMPRESA_PAGAMENTO_LABEL[empresa] })
-);
-
+// Opções do SegmentedControl de moeda (Novo pagamento); mesma forma de AppSelectOption.
 export const MOEDA_OPTIONS: AppSelectOption<Moeda>[] = MOEDAS.map((moeda) => ({
   value: moeda,
   label: MOEDA_LABEL[moeda],

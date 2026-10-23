@@ -6,6 +6,10 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { exigirAllowRealDbOuSair } from "./_guardBancoReal.mjs";
+
+// Acessa o Supabase REAL (produção): só roda com ALLOW_REAL_DB=1, e checa antes de qualquer conexão.
+exigirAllowRealDbOuSair("smoke-processos-supabase");
 
 // Raiz do projeto (crm/) — 2 níveis acima de scripts/integration/.
 const CRM = join(dirname(fileURLToPath(import.meta.url)), "..", "..");

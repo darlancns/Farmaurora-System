@@ -56,7 +56,7 @@ describe("montarLote", () => {
     const row: LoteRow = {
       id: "lote_2",
       data: "2026-09-10",
-      empresa: "MAINZFARMA",
+      empresa: "FARMAURORA",
       moeda: "EUR",
       numero_lote: 0,
       xp_taxa_corretagem: 0,

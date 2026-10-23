@@ -1,11 +1,10 @@
-import { computed, ref, type ComputedRef } from "vue";
+import { ref, type ComputedRef } from "vue";
 import type {
   AtualizarCotacaoDTO,
   AtualizarLancamentoBancoDTO,
   BancoCambio,
   LancamentoBanco,
   LoteBanco,
-  Moeda,
   NovoLancamentoBancoDTO,
   TaxaLancamentoRendimento,
 } from "#shared/types/Pagamento";
@@ -31,43 +30,23 @@ export function useBancoActions(readonly: ComputedRef<boolean>) {
   const showLancamentoModal = ref(false);
   const editingLancamento = ref<LancamentoBanco | null>(null);
   const deletingLancamento = ref<LancamentoBanco | null>(null);
-  // Destino de um novo lançamento: "+ Novo lote" (força lote novo, moeda livre) ou
-  // "+ Lançamento" de um card (loteId fixo, moeda travada). null quando o modal
-  // está fechado ou em modo edição.
-  const novoLancamentoAlvo = ref<{ forcarLoteNovo: true } | { loteId: string; moeda: Moeda } | null>(
-    null,
-  );
 
-  const moedaFixaLancamento = computed<Moeda | null>(() =>
-    novoLancamentoAlvo.value && "loteId" in novoLancamentoAlvo.value
-      ? novoLancamentoAlvo.value.moeda
-      : null,
-  );
-
-  function abrirNovoLote(): void {
+  // "Novo pagamento": a moeda escolhida no modal define o lote — o servidor entra
+  // no lote aberto dessa moeda ou cria um junto com o lançamento.
+  function abrirNovoPagamento(): void {
     if (readonly.value) return;
     editingLancamento.value = null;
-    novoLancamentoAlvo.value = { forcarLoteNovo: true };
-    showLancamentoModal.value = true;
-  }
-
-  function abrirLancamentoEmLote(loteId: string, moeda: Moeda): void {
-    if (readonly.value) return;
-    editingLancamento.value = null;
-    novoLancamentoAlvo.value = { loteId, moeda };
     showLancamentoModal.value = true;
   }
 
   function fecharLancamentoModal(): void {
     showLancamentoModal.value = false;
     editingLancamento.value = null;
-    novoLancamentoAlvo.value = null;
   }
 
   function handleEditarLancamento(lancamento: LancamentoBanco): void {
     if (readonly.value) return;
     editingLancamento.value = lancamento;
-    novoLancamentoAlvo.value = null;
     showLancamentoModal.value = true;
   }
 
@@ -96,17 +75,12 @@ export function useBancoActions(readonly: ComputedRef<boolean>) {
   }
 
   async function handleNovoLancamento(payload: NovoLancamentoBancoDTO): Promise<void> {
-    const alvo = novoLancamentoAlvo.value;
-    const dto: NovoLancamentoBancoDTO =
-      alvo && "loteId" in alvo
-        ? { ...payload, loteId: alvo.loteId }
-        : { ...payload, forcarLoteNovo: true };
     await withToast(
       async () => {
-        await criarLancamentoBanco(dto);
+        await criarLancamentoBanco(payload);
         fecharLancamentoModal();
       },
-      alvo && "loteId" in alvo ? "Lançamento adicionado" : "Lote criado com o lançamento",
+      "Pagamento adicionado",
       "Erro ao adicionar lançamento",
     );
   }
@@ -199,11 +173,8 @@ export function useBancoActions(readonly: ComputedRef<boolean>) {
     showLancamentoModal,
     editingLancamento,
     deletingLancamento,
-    novoLancamentoAlvo,
-    moedaFixaLancamento,
     editingLancamentoRealizado,
-    abrirNovoLote,
-    abrirLancamentoEmLote,
+    abrirNovoPagamento,
     fecharLancamentoModal,
     handleEditarLancamento,
     handleUpdateLancamento,

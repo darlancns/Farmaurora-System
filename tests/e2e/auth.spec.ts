@@ -109,8 +109,9 @@ test.describe("Autenticação", () => {
     await login(page, USER_EMAIL, USER_PASSWORD);
     await expect(page.locator("#sidebar-nav")).toBeVisible();
 
+    // Payload válido (cargo e nome): o 403 tem que vir da permissão, não de validação do corpo.
     const res = await page.request.post("/api/admin/users", {
-      data: { email: `equipe+${Date.now()}@farmaurora.com.br`, password: "senha-super-forte-123" },
+      data: { email: `equipe+${Date.now()}@farmaurora.com.br`, password: "senha-super-forte-123", role: "operacional", nome: "E2E Equipe Teste" },
     });
     expect(res.status()).toBe(403);
   });
@@ -124,11 +125,11 @@ test.describe("Autenticação", () => {
     const email = `equipe+${Date.now()}@farmaurora.com.br`;
     let id: string | null = null;
     try {
-      // role é obrigatório desde que parseRoleInput() passou a validar o cargo
-      // (server/utils/authUser.ts) — sem ele a API rejeita com 400 antes mesmo
-      // de chegar no fluxo de criação que este teste quer exercitar.
+      // role e nome são obrigatórios na criação (parseRoleInput() e parseNomeInput(..., { required: true }),
+      // server/utils/authUser.ts) — sem eles a API rejeita com 400 antes mesmo de chegar no fluxo de criação
+      // que este teste quer exercitar ("Informe o nome da conta.").
       const res = await page.request.post("/api/admin/users", {
-        data: { email, password: "senha-super-forte-123", role: "operacional" },
+        data: { email, password: "senha-super-forte-123", role: "operacional", nome: "E2E Equipe Teste" },
       });
       expect(res.status()).toBe(200);
       const body = (await res.json()) as { id: string; email: string };
@@ -136,9 +137,9 @@ test.describe("Autenticação", () => {
       expect(body.id).toBeTruthy();
       id = body.id;
 
-      // e-mail repetido -> 409
+      // e-mail repetido -> 409 (o corpo precisa ser válido: a validação do nome vem antes do createUser)
       const dup = await page.request.post("/api/admin/users", {
-        data: { email, password: "senha-super-forte-123", role: "operacional" },
+        data: { email, password: "senha-super-forte-123", role: "operacional", nome: "E2E Equipe Teste" },
       });
       expect(dup.status()).toBe(409);
     } finally {

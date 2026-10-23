@@ -151,6 +151,7 @@ test.describe("Configurações → Contas", () => {
       password: "senha-super-forte-123",
       role: "consultor",
       consultorNome: "Consultor Inexistente",
+      nome: "E2E Consultor Inválido",
     });
     expect(status).toBe(400);
     expect(String(json.statusMessage ?? json.message ?? "")).toMatch(/consultorNome/i);

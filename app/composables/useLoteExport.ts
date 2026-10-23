@@ -1,7 +1,8 @@
 import { nextTick, ref, type Ref } from "vue";
 import type { GrupoPagamento, LancamentoBanco, LoteBanco } from "#shared/types/Pagamento";
 import { useExportarImagem } from "./useExportarImagem";
-import { formatarDataLocalISO, sanitizeNomeArquivo } from "../utils/pagamentoExport";
+import { sanitizeNomeArquivo } from "../utils/pagamentoExport";
+import { dataBrasiliaDe } from "#shared/utils/dataBrasilia";
 import type GrupoPagamentoExportCard from "../components/pagamentos/cards/GrupoPagamentoExportCard.vue";
 import type LoteBancoExportCard from "../components/pagamentos/cards/LoteBancoExportCard.vue";
 
@@ -33,7 +34,7 @@ export function useLoteExport(deps: {
     if (!el) return;
     const tipo = sanitizeNomeArquivo(grupo.tipo);
     const nome = sanitizeNomeArquivo(grupo.nomeGrupo) || "sem-nome";
-    const dataArquivo = formatarDataLocalISO(dataExibicaoGrupo.value);
+    const dataArquivo = dataBrasiliaDe(dataExibicaoGrupo.value);
     await exportarParaImagem(el, `pagamento-${tipo}-${nome}-${dataArquivo}.png`);
   }
 
@@ -48,7 +49,7 @@ export function useLoteExport(deps: {
     await nextTick();
     const el = loteExportRef.value?.$el as HTMLElement | undefined;
     if (!el) return;
-    const dataArquivo = formatarDataLocalISO(dataExibicaoLote.value);
+    const dataArquivo = dataBrasiliaDe(dataExibicaoLote.value);
     await exportarParaImagem(el, `pagamento-banco-${sanitizeNomeArquivo(lote.moeda)}-${dataArquivo}.png`);
   }
 

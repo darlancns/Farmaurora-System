@@ -16,6 +16,7 @@ import type {
 import { createSupabaseAdminClient } from "../supabaseServerClient";
 import { erro, num, numOrNull, randomId } from "../storeKit";
 import { calcularNumeroLote } from "../pagamentoLoteNumero";
+import { hojeBrasilia } from "../../../shared/utils/dataBrasilia";
 import {
   BANCO_COL,
   lancToRow,
@@ -31,12 +32,14 @@ import {
  * `pagamento_lancamentos_banco` (FK lote_id ON DELETE CASCADE).
  *
  * Regras de negócio preservadas exatamente (ver investigação, seções 3a–3c):
- *  3a. destino do lançamento (ver `resolverLoteDestino`): pode haver 2+ lotes
- *      abertos por (empresa+moeda). `dto.forcarLoteNovo` cria um lote novo
- *      (`numeroLote` = maior entre os abertos + 1, ou 1); `dto.loteId` grava
- *      num lote específico (aberto, empresa+moeda batendo); sem nenhum dos dois,
- *      cai no comportamento legado (lote aberto mais recente, cria um se não há).
- *      Entrar num lote que já tinha `bancoEscolhido` invalida a cotação.
+ *  3a. destino do lançamento (ver `resolverLoteDestino`): a MOEDA define o lote.
+ *      Sem `dto.forcarLoteNovo` (é o que a UI envia), o lançamento entra no lote
+ *      aberto mais recente da (empresa+moeda) e, se não há nenhum, o lote é criado
+ *      junto (`numeroLote` = maior entre os abertos + 1, ou 1). Pode haver 2+ lotes
+ *      abertos por (empresa+moeda) só como dado legado. `dto.forcarLoteNovo` cria
+ *      um lote novo mesmo havendo aberto — a UI não o usa mais; serve para semear
+ *      testes e manutenção. Entrar num lote que já tinha `bancoEscolhido`
+ *      invalida a cotação.
  *  3b. `valorReais = valorMoeda * taxa` só em `atualizarCotacaoLote` quando
  *      `dto.bancoEscolhido` vem preenchido, só nos lançamentos com
  *      `valorReais === null`; 400 se a taxa do banco escolhido ainda é null.
@@ -52,6 +55,9 @@ import {
  * transação client-side. Se o processo cair no meio, o estado pode ficar
  * parcial; refazer a mesma ação corrige. Aceitável dado operador único e baixa
  * concorrência. `fecharLoteBanco` é uma linha só (atômico).
+ * Exceção tratada: se o insert do lançamento falha logo depois de ESTA chamada
+ * ter criado o lote, o lote vazio é descartado (`descartarLoteVazio`); um lote
+ * pré-existente nunca é apagado.
  */
 
 const T_LOTES = "pagamento_lotes_banco";
@@ -62,8 +68,9 @@ export interface BancoPayload {
   lancamentos: LancamentoBanco[];
 }
 
+// Dia do lote = dia de Brasília (não o dia UTC, que vira às 21h BRT).
 function hoje(): string {
-  return new Date().toISOString().slice(0, 10);
+  return hojeBrasilia();
 }
 
 async function proximoNumeroLote(
@@ -163,62 +170,41 @@ async function acharLoteAberto(
 }
 
 // Onde o lançamento entra:
-//  - dto.forcarLoteNovo  → cria um lote NOVO ("+ Novo lote"), numeroLote calculado
-//    na hora; nunca invalida cotação (lote recém-nascido não tem uma).
-//  - dto.loteId          → grava neste lote específico ("+ Lançamento" de um card);
-//    404 se sumiu, 409 se já pago, 400 se empresa/moeda não batem; invalida a
-//    cotação se o lote já tinha banco escolhido (regra 3a/3c).
-//  - nenhum dos dois     → comportamento legado: entra no lote aberto dessa
-//    (empresa+moeda), criando um (numeroLote 1) se não houver.
+//  - dto.forcarLoteNovo  → cria um lote NOVO, numeroLote calculado na hora; nunca
+//    invalida cotação (lote recém-nascido não tem uma). Não é enviado pela UI.
+//  - nenhum (fluxo "Novo pagamento") → entra no lote aberto mais recente dessa
+//    (empresa+moeda), criando um (numeroLote 1) se não houver; invalida a cotação
+//    se o lote já tinha banco escolhido (regra 3a/3c).
+// `criado` diz se o lote nasceu NESTA chamada — só esse pode ser desfeito se o
+// insert do lançamento falhar.
+interface LoteDestino {
+  lote: LoteBanco;
+  criado: boolean;
+}
+
+async function criarLoteAberto(
+  db: SupabaseClient,
+  empresa: EmpresaPagamento,
+  moeda: Moeda,
+): Promise<LoteBanco> {
+  const numeroLote = await proximoNumeroLote(db, empresa, moeda);
+  const lote = novoLote(empresa, moeda, numeroLote);
+  const ins = await db.from(T_LOTES).insert(loteToRow(lote));
+  if (ins.error) throw erro("criar lote", ins.error);
+  return lote;
+}
+
 async function resolverLoteDestino(
   db: SupabaseClient,
   dto: NovoLancamentoBancoDTO,
-): Promise<LoteBanco> {
+): Promise<LoteDestino> {
   if (dto.forcarLoteNovo) {
-    const numeroLote = await proximoNumeroLote(db, dto.empresa, dto.moeda);
-    const lote = novoLote(dto.empresa, dto.moeda, numeroLote);
-    const ins = await db.from(T_LOTES).insert(loteToRow(lote));
-    if (ins.error) throw erro("criar lote", ins.error);
-    return lote;
-  }
-
-  if (dto.loteId) {
-    const res = await db.from(T_LOTES).select("*").eq("id", dto.loteId).maybeSingle();
-    if (res.error) throw erro("buscar lote alvo", res.error);
-    if (!res.data) throw createError({ statusCode: 404, statusMessage: "Lote não encontrado." });
-    const row = res.data as LoteRow;
-    if (row.realizado) {
-      throw createError({
-        statusCode: 409,
-        statusMessage: "Lote já foi pago; não aceita novos lançamentos.",
-      });
-    }
-    if (row.empresa !== dto.empresa || row.moeda !== dto.moeda) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: "Lote alvo não corresponde à empresa/moeda do lançamento.",
-      });
-    }
-    let lote = montarLote(row);
-    if (lote.bancoEscolhido !== null) {
-      await invalidarCotacao(db, lote.id);
-      lote = {
-        ...lote,
-        bancoEscolhido: null,
-        taxaEscolhida: null,
-        opcoes: lote.opcoes.map((o) => ({ ...o, taxa: null })),
-      };
-    }
-    return lote;
+    return { lote: await criarLoteAberto(db, dto.empresa, dto.moeda), criado: true };
   }
 
   const abertoRow = await acharLoteAberto(db, dto.empresa, dto.moeda);
   if (!abertoRow) {
-    const numeroLote = await proximoNumeroLote(db, dto.empresa, dto.moeda);
-    const lote = novoLote(dto.empresa, dto.moeda, numeroLote);
-    const ins = await db.from(T_LOTES).insert(loteToRow(lote));
-    if (ins.error) throw erro("criar lote", ins.error);
-    return lote;
+    return { lote: await criarLoteAberto(db, dto.empresa, dto.moeda), criado: true };
   }
 
   let lote = montarLote(abertoRow);
@@ -231,7 +217,21 @@ async function resolverLoteDestino(
       opcoes: lote.opcoes.map((o) => ({ ...o, taxa: null })),
     };
   }
-  return lote;
+  return { lote, criado: false };
+}
+
+// Rollback do lote criado nesta chamada quando o insert do lançamento falhou.
+// Best-effort: só apaga se o lote continua sem nenhum lançamento (um insert que
+// "falhou" por timeout pode ter gravado) e nunca propaga erro próprio — quem
+// chama relança o erro ORIGINAL.
+async function descartarLoteVazio(db: SupabaseClient, loteId: string): Promise<void> {
+  try {
+    const rest = await db.from(T_LANC).select("id").eq("lote_id", loteId).limit(1);
+    if (rest.error || (rest.data ?? []).length > 0) return;
+    await db.from(T_LOTES).delete().eq("id", loteId);
+  } catch {
+    // mantém o erro original do insert como o que sobe
+  }
 }
 
 export async function criarLancamentoBanco(
@@ -239,7 +239,7 @@ export async function criarLancamentoBanco(
 ): Promise<{ lancamento: LancamentoBanco; lote: LoteBanco }> {
   const db = createSupabaseAdminClient();
 
-  const lote = await resolverLoteDestino(db, dto);
+  const { lote, criado } = await resolverLoteDestino(db, dto);
 
   const lancamento: LancamentoBanco = {
     id: randomId("lanc_"),
@@ -255,8 +255,13 @@ export async function criarLancamentoBanco(
     taxa: null,
     createdAt: new Date().toISOString(),
   };
-  const insL = await db.from(T_LANC).insert(lancToRow(lancamento));
-  if (insL.error) throw erro("criar lançamento", insL.error);
+  try {
+    const insL = await db.from(T_LANC).insert(lancToRow(lancamento));
+    if (insL.error) throw erro("criar lançamento", insL.error);
+  } catch (e) {
+    if (criado) await descartarLoteVazio(db, lote.id);
+    throw e;
+  }
 
   return { lancamento, lote };
 }

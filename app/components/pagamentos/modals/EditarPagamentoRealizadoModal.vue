@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import { dataBrasiliaDe, ehDataFutura, hojeBrasilia } from "#shared/utils/dataBrasilia";
 import { useTitleCaseInput } from "../../../composables/useTitleCaseInput";
 import AppSelect from "../../AppSelect.vue";
 import BaseModal from "../../BaseModal.vue";
@@ -30,17 +31,11 @@ const onNomeInput = useTitleCaseInput((value) => {
   nomeStr.value = value;
 });
 
-// Data LOCAL (não a fatia UTC de `pagoEm`) — precisa bater com o que
-// `toLocaleDateString("pt-BR")` já mostra na tela pra pré-preencher certo.
-function toDateInputValue(d: Date): string {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-const maxData = toDateInputValue(new Date());
-const dataStr = ref(toDateInputValue(new Date(props.pagoEm)));
+// Datas em Brasília (não no fuso do navegador): a data pré-preenchida é o dia de Brasília do
+// instante `pagoEm`, e o máximo do input (`max` nativo) é o "hoje" de Brasília — o mesmo critério
+// que o servidor usa para recusar data futura.
+const maxData = hojeBrasilia();
+const dataStr = ref(dataBrasiliaDe(props.pagoEm));
 
 function submit(): void {
   const nome = nomeStr.value.trim();
@@ -52,7 +47,7 @@ function submit(): void {
     emit("invalid", "Informe a data do pagamento.");
     return;
   }
-  if (dataStr.value > maxData) {
+  if (ehDataFutura(dataStr.value)) {
     emit("invalid", "A data do pagamento não pode ser posterior a hoje.");
     return;
   }

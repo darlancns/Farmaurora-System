@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { useRoute } from "#app";
-import { EMPRESAS_PAGAMENTO, TIPO_GRUPO_PAGAMENTO_LABEL } from "#shared/constants/pagamentos";
-import type { EmpresaPagamento } from "#shared/types/Pagamento";
+import { TIPO_GRUPO_PAGAMENTO_LABEL } from "#shared/constants/pagamentos";
 import type { AppSelectOption } from "../types/appSelect";
 import { usePagamentos } from "../composables/usePagamentos";
 import { useAuth } from "../composables/useAuth";
@@ -10,8 +8,11 @@ import { useToast } from "../composables/useToast";
 import { useBancoActions } from "../composables/useBancoActions";
 import { useGrupoActions } from "../composables/useGrupoActions";
 import { useLoteExport } from "../composables/useLoteExport";
+import { usePagamentoConfirmacao } from "../composables/usePagamentoConfirmacao";
+import { ROTULO_CONFIRMAR_PAGO } from "../utils/pagamentoConfirmacao";
 import { DESPACHANTE_PAGAMENTO_OPTIONS, TRANSPORTADORA_PAGAMENTO_OPTIONS } from "../utils/pagamentoOptions";
 import ConfirmDialog from "../components/ConfirmDialog.vue";
+import FloatingAddButton from "../components/FloatingAddButton.vue";
 import GlobalHeader from "../components/GlobalHeader.vue";
 import BancoTab from "../components/pagamentos/tabs/BancoTab.vue";
 import CotacaoTab from "../components/pagamentos/tabs/CotacaoTab.vue";
@@ -25,7 +26,6 @@ import LoteBancoExportCard from "../components/pagamentos/cards/LoteBancoExportC
 
 const {
   empresaSelecionada,
-  dataSelecionada,
   lotesBanco,
   lancamentosBanco,
   gruposDespachante,
@@ -37,16 +37,13 @@ const { canWrite } = useAuth();
 // socio, operacional e administrador escrevem em Pagamentos.
 const readonly = computed<boolean>(() => !canWrite("pagamentos"));
 const { showToast } = useToast();
-const route = useRoute();
 
 const {
   showLancamentoModal,
   editingLancamento,
   deletingLancamento,
-  moedaFixaLancamento,
   editingLancamentoRealizado,
-  abrirNovoLote,
-  abrirLancamentoEmLote,
+  abrirNovoPagamento,
   fecharLancamentoModal,
   handleEditarLancamento,
   handleUpdateLancamento,
@@ -60,16 +57,8 @@ const {
   handleSalvarLancamentoRealizado,
 } = useBancoActions(readonly);
 
+// O CRM opera só com Farmaurora: empresaSelecionada fica no default "FARMAURORA" de usePagamentos.ts.
 onMounted(() => {
-  // O CRM opera só com Farmaurora — sem seletor na UI, empresaSelecionada
-  // fica travada no default "FARMAURORA" de usePagamentos.ts. Único jeito de
-  // trocar é este override por query string, sem UI nenhuma, existe só pra
-  // isolar dados de teste e2e em MAINZFARMA (ver tests/e2e/pagamentos-fluxo.spec.ts,
-  // que roda toda a suíte lá pra nunca escrever em cima de dados reais).
-  const empresaOverride = route.query.empresa;
-  if (typeof empresaOverride === "string" && EMPRESAS_PAGAMENTO.includes(empresaOverride as EmpresaPagamento)) {
-    empresaSelecionada.value = empresaOverride as EmpresaPagamento;
-  }
   fetchAll();
 });
 
@@ -94,6 +83,23 @@ const {
   handleEditarGrupoRealizado,
   handleSalvarGrupoRealizado,
 } = useGrupoActions(readonly);
+
+// "Pago" (lote do Banco e grupos): uma janela de confirmação só, aberta por qualquer botão "Pago" (desktop e
+// mobile são o mesmo botão). Confirmar chama os MESMOS handlers de sempre (handleFecharLote / handlePagarGrupo).
+const {
+  pendente: pagamentoPendente,
+  confirmando: pagando,
+  pedir: pedirPagamento,
+  cancelar: cancelarPagamento,
+  confirmar: confirmarPagamento,
+} = usePagamentoConfirmacao({
+  executar: (p) => (p.alvo === "LOTE" ? handleFecharLote(p.id) : handlePagarGrupo(p.alvo, p.id)),
+  continuaAberto: (p) => {
+    if (p.alvo === "LOTE") return lotesBanco.value.some((l) => l.id === p.id && !l.realizado);
+    const grupos = p.alvo === "DESPACHANTE" ? gruposDespachante.value : gruposTransportadora.value;
+    return grupos.some((g) => g.id === p.id && !g.realizado);
+  },
+});
 
 // Igual a `grupoOptions` em NovoGrupoPagamentoModal.vue: nomeGrupo é escolhido
 // de uma lista fechada (não texto livre), pra não quebrar o vínculo com a
@@ -124,23 +130,43 @@ interface TabDef {
 }
 const tabs: TabDef[] = [
   { key: "banco", label: "Banco" },
-  { key: "cotacao", label: "Cotação Câmbio" },
+  { key: "cotacao", label: "Câmbio" },
   { key: "despachante", label: "Despachante" },
   { key: "transportadora", label: "Transporte" },
 ];
+
+// Abaixo de lg os botões "+ Novo pagamento" / "+ Adicionar pagamento" das seções saem da tela e
+// entram num único "+" flutuante; a ação depende da aba ativa e chama os MESMOS handlers
+// dos botões de sempre. Câmbio não tem ação de adicionar, e somente-leitura não vê o botão.
+const showFab = computed<boolean>(() => !readonly.value && activeTab.value !== "cotacao");
+const fabLabel = computed<string>(() => (activeTab.value === "banco" ? "Novo pagamento" : "Adicionar pagamento"));
+
+function handleFab(): void {
+  if (activeTab.value === "banco") abrirNovoPagamento();
+  else if (activeTab.value === "despachante") abrirGrupoModal("DESPACHANTE");
+  else if (activeTab.value === "transportadora") abrirGrupoModal("TRANSPORTADORA");
+}
 </script>
 
 <template>
-  <div id="pagamentos-page" class="mx-auto max-w-[1400px]">
+  <!--
+    pb-20 abaixo de lg: folga pro "+" flutuante nunca cobrir o último card ou o total do lote.
+    Classe ESTÁTICA de propósito (condicionar por cargo/aba daria atributo divergente entre SSR
+    e client): cargos somente-leitura e a aba Câmbio ficam com 80px de folga a mais, sem efeito visível.
+  -->
+  <div id="pagamentos-page" class="mx-auto max-w-[1400px] pb-20 lg:pb-0">
     <GlobalHeader title="Pagamentos" subtitle="Banco, cotação de câmbio, despachante e transportadora.">
       <template #tabs>
-        <div class="mb-3.5 flex gap-1 border-b border-hairline">
+        <!-- Abaixo de lg: as 4 abas centralizadas, sem corte nem scroll, com toque >= 44px. O -mt-[13px] compensa o mb-4 do
+             cabeçalho (16px - 13px = 3px de folga até o botão): o texto, centrado no botão de 44px, fica com o mesmo
+             respiro acima (linha do cabeçalho) e abaixo (linha da barra), medido com a fonte Inter. Em lg+ como sempre. -->
+        <div class="-mt-[13px] mb-3.5 flex justify-center gap-0 border-b border-hairline lg:mt-0 lg:justify-start lg:gap-1">
           <button
             v-for="tab in tabs"
             :id="`tab-${tab.key}`"
             :key="tab.key"
             type="button"
-            class="border-b-2 px-3.5 py-2 text-[13.5px] font-semibold transition-colors"
+            class="min-h-11 border-b-2 px-2 text-[13px] font-semibold whitespace-nowrap transition-colors lg:min-h-0 lg:px-3.5 lg:py-2 lg:text-[13.5px]"
             :class="activeTab === tab.key ? 'border-accent-dark text-accent-dark' : 'border-transparent text-ink-soft hover:text-ink'"
             @click="activeTab = tab.key"
           >
@@ -156,11 +182,10 @@ const tabs: TabDef[] = [
       :lotes="lotesBanco"
       :lancamentos="lancamentosBanco"
       :readonly="readonly"
-      @novo-lote="abrirNovoLote"
-      @novo-lancamento-lote="abrirLancamentoEmLote"
+      @novo-pagamento="abrirNovoPagamento"
       @editar-lancamento="handleEditarLancamento"
       @excluir-lancamento="deletingLancamento = $event"
-      @fechar-lote="handleFecharLote"
+      @pedir-fechar-lote="(pedido) => pedirPagamento('LOTE', pedido)"
       @exportar-lote="handleExportarLote"
       @editar-lancamento-realizado="handleEditarLancamentoRealizado"
     />
@@ -186,7 +211,7 @@ const tabs: TabDef[] = [
       @ciclo-status="(grupoId, index, status) => handleCicloStatus('DESPACHANTE', grupoId, index, status)"
       @editar-item="(grupoId, index) => handleEditarItem('DESPACHANTE', grupoId, index)"
       @excluir-item="(grupoId, index) => handleExcluirItem('DESPACHANTE', grupoId, index)"
-      @pagar-grupo="(grupoId) => handlePagarGrupo('DESPACHANTE', grupoId)"
+      @pedir-pagar-grupo="(pedido) => pedirPagamento('DESPACHANTE', pedido)"
       @exportar-foto="handleExportarGrupo"
       @editar-realizado="(grupo) => handleEditarGrupoRealizado('DESPACHANTE', grupo)"
     />
@@ -201,16 +226,18 @@ const tabs: TabDef[] = [
       @ciclo-status="(grupoId, index, status) => handleCicloStatus('TRANSPORTADORA', grupoId, index, status)"
       @editar-item="(grupoId, index) => handleEditarItem('TRANSPORTADORA', grupoId, index)"
       @excluir-item="(grupoId, index) => handleExcluirItem('TRANSPORTADORA', grupoId, index)"
-      @pagar-grupo="(grupoId) => handlePagarGrupo('TRANSPORTADORA', grupoId)"
+      @pedir-pagar-grupo="(pedido) => pedirPagamento('TRANSPORTADORA', pedido)"
       @exportar-foto="handleExportarGrupo"
       @editar-realizado="(grupo) => handleEditarGrupoRealizado('TRANSPORTADORA', grupo)"
     />
+
+    <FloatingAddButton v-if="showFab" id="fab-pagamentos" :label="fabLabel" @click="handleFab" />
 
     <NovoLancamentoBancoModal
       v-if="showLancamentoModal && !readonly"
       :empresa="empresaSelecionada"
       :editing="editingLancamento"
-      :moeda-fixa="moedaFixaLancamento"
+      :lotes="lotesBanco"
       @submit="handleNovoLancamento"
       @update="handleUpdateLancamento"
       @close="fecharLancamentoModal"
@@ -242,7 +269,6 @@ const tabs: TabDef[] = [
       v-if="showGrupoModal && !readonly"
       :tipo="grupoModalTipo"
       :empresa="empresaSelecionada"
-      :data="dataSelecionada"
       :pix-map="grupoPix[grupoModalTipo]"
       @submit="handleNovoGrupo"
       @salvar-pix="handleSalvarPix"
@@ -279,6 +305,18 @@ const tabs: TabDef[] = [
       @submit="handleSalvarGrupoRealizado"
       @close="editandoGrupoRealizado = null"
       @invalid="showToast"
+    />
+
+    <ConfirmDialog
+      v-if="pagamentoPendente && !readonly"
+      reforcado
+      :title="pagamentoPendente.titulo"
+      :message="pagamentoPendente.mensagem"
+      :confirm-label="ROTULO_CONFIRMAR_PAGO"
+      cancel-label="Cancelar"
+      :loading="pagando"
+      @confirm="confirmarPagamento"
+      @close="cancelarPagamento"
     />
 
     <!-- Cartões de exportação — fora da tela, só pra virarem imagem -->

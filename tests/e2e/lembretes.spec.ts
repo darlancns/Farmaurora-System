@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { assertSupabaseLocal } from "./_guards/supabaseLocal";
 
 // Aba "Meus" de /recados (Fase D2) — lembretes pessoais: sempre privados ao
 // dono, sem destinatário. Cria 2 contas de teste (A cria os lembretes, B só
@@ -27,6 +28,8 @@ function lerEnv(): { url: string; serviceKey: string } {
   }
 }
 
+// Aborta (antes de qualquer escrita) se o Supabase em uso não for o local do harness.
+assertSupabaseLocal();
 const env = lerEnv();
 const runnable = Boolean(env.url && env.serviceKey);
 const RUN = Date.now().toString(36);

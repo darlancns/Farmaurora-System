@@ -9,11 +9,15 @@ const props = withDefaults(
     id?: string;
     placeholder?: string;
     disabled?: boolean;
+    // Abre a lista pra cima — pra selects no rodapé da tela (ex.: bottom sheet
+    // de filtros), onde abrir pra baixo cortaria as opções.
+    dropUp?: boolean;
   }>(),
   {
     id: undefined,
     placeholder: "Selecione",
     disabled: false,
+    dropUp: false,
   }
 );
 
@@ -178,7 +182,8 @@ onBeforeUnmount(() => {
       v-if="open"
       :id="listboxId"
       role="listbox"
-      class="absolute z-50 mt-1 w-max min-w-full max-w-[min(20rem,90vw)] max-h-56 overflow-y-auto rounded-md border border-hairline bg-paper-raised py-1 text-[13.5px] shadow-lg"
+      class="absolute z-50 w-max min-w-full max-w-[min(20rem,90vw)] max-h-56 overflow-y-auto rounded-md border border-hairline bg-paper-raised py-1 text-[13.5px] shadow-lg"
+      :class="dropUp ? 'bottom-full mb-1' : 'mt-1'"
     >
       <li
         v-for="(option, index) in options"

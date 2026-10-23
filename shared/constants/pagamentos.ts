@@ -9,20 +9,19 @@ import type {
   TransportadoraPagamento,
 } from "../types/Pagamento";
 
-// Mesmas 2 empresas usadas em Patient/Processo, redeclaradas aqui como valores
-// independentes — Pagamento não importa nada de Patient nem de Processo.
-export const EMPRESAS_PAGAMENTO: EmpresaPagamento[] = ["FARMAURORA", "MAINZFARMA"];
+// Empresas de Pagamentos, redeclaradas aqui como valores independentes — Pagamento não
+// importa nada de Patient nem de Processo.
+export const EMPRESAS_PAGAMENTO: EmpresaPagamento[] = ["FARMAURORA"];
 
 export const EMPRESA_PAGAMENTO_LABEL: Record<EmpresaPagamento, string> = {
   FARMAURORA: "Farmaurora",
-  MAINZFARMA: "MainzFarma",
 };
 
 export const MOEDAS: Moeda[] = ["USD", "EUR"];
 
 export const MOEDA_LABEL: Record<Moeda, string> = {
-  USD: "Dólar (USD)",
-  EUR: "Euro (EUR)",
+  USD: "Dólar · USD",
+  EUR: "Euro · EUR",
 };
 
 export const MOEDA_SIMBOLO: Record<Moeda, string> = {

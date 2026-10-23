@@ -27,7 +27,7 @@ function recado(overrides: Partial<Recado> & Pick<Recado, "id">): Recado {
 }
 
 describe("dividirRecados", () => {
-  it("divide um conjunto misto (público, cargo, pessoa, autorado por mim, concluído por mim) em todos/recebidos/enviados", () => {
+  it("divide um conjunto misto (público, cargo, pessoa, autorado por mim, concluído por mim) em recebidos/enviados", () => {
     const publico = recado({ id: "r-publico", destinatarioTipo: "publico", createdAt: "2026-09-10T08:00:00.000Z" });
     const deCargo = recado({
       id: "r-cargo",
@@ -54,26 +54,21 @@ describe("dividirRecados", () => {
       createdAt: "2026-09-10T12:00:00.000Z",
     });
 
-    const { todos, recebidos, enviados } = dividirRecados(
+    const { recebidos, enviados } = dividirRecados(
       [publico, deCargo, dePessoa, autoradoPorMim, concluidoPorMim],
       EU,
     );
 
-    const idsTodos = todos.map((r) => r.id);
     const idsRecebidos = recebidos.map((r) => r.id);
     const idsEnviados = enviados.map((r) => r.id);
 
     // concluído por mim some de TODAS as abas — concluir é individual e
     // definitivo, não apaga o recado (outros destinatários continuam vendo).
-    expect(idsTodos).not.toContain("r-concluido-por-mim");
     expect(idsRecebidos).not.toContain("r-concluido-por-mim");
     expect(idsEnviados).not.toContain("r-concluido-por-mim");
 
-    // todos = tudo que não foi concluído por mim (público + cargo + pessoa +
-    // o que eu autorei).
-    expect(idsTodos.sort()).toEqual(["r-autorado-por-mim", "r-cargo", "r-pessoa", "r-publico"].sort());
-
-    // recebidos = todos, exceto o que eu mesmo criei.
+    // recebidos = tudo que não foi concluído por mim (público + cargo +
+    // pessoa), exceto o que eu mesmo criei.
     expect(idsRecebidos.sort()).toEqual(["r-cargo", "r-pessoa", "r-publico"].sort());
     expect(idsRecebidos).not.toContain("r-autorado-por-mim");
 
@@ -81,16 +76,16 @@ describe("dividirRecados", () => {
     expect(idsEnviados).toEqual(["r-autorado-por-mim"]);
   });
 
-  it("ordena fixado primeiro, depois created_at desc — dentro de todos/recebidos/enviados", () => {
+  it("ordena fixado primeiro, depois created_at desc — dentro de recebidos/enviados", () => {
     const antigoFixado = recado({ id: "r-antigo-fixado", fixadoPorMim: true, createdAt: "2026-09-01T00:00:00.000Z" });
     const recenteNaoFixado = recado({ id: "r-recente", fixadoPorMim: false, createdAt: "2026-09-12T00:00:00.000Z" });
     const meioNaoFixado = recado({ id: "r-meio", fixadoPorMim: false, createdAt: "2026-09-05T00:00:00.000Z" });
 
-    const { todos } = dividirRecados([recenteNaoFixado, meioNaoFixado, antigoFixado], EU);
+    const { recebidos } = dividirRecados([recenteNaoFixado, meioNaoFixado, antigoFixado], EU);
 
     // fixado vem primeiro mesmo sendo o mais antigo dos 3; os não-fixados
     // ficam depois, ordenados por created_at desc entre si.
-    expect(todos.map((r) => r.id)).toEqual(["r-antigo-fixado", "r-recente", "r-meio"]);
+    expect(recebidos.map((r) => r.id)).toEqual(["r-antigo-fixado", "r-recente", "r-meio"]);
   });
 
   it("meuId null (ex.: sessão ainda não resolvida) não quebra e trata tudo como recebido", () => {
@@ -101,9 +96,8 @@ describe("dividirRecados", () => {
     expect(enviados).toEqual([]);
   });
 
-  it("lista vazia devolve as 3 abas vazias", () => {
-    const { todos, recebidos, enviados } = dividirRecados([], EU);
-    expect(todos).toEqual([]);
+  it("lista vazia devolve as 2 abas vazias", () => {
+    const { recebidos, enviados } = dividirRecados([], EU);
     expect(recebidos).toEqual([]);
     expect(enviados).toEqual([]);
   });

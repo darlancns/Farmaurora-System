@@ -5,7 +5,8 @@
 // aqui como tipo independente, seguindo o precedente de EmpresaProcesso em
 // shared/types/processo.ts — não importar de Patient.ts.
 
-export type EmpresaPagamento = "FARMAURORA" | "MAINZFARMA";
+// O CRM opera só com a Farmaurora em Pagamentos; o campo `empresa` segue nas colunas, DTOs e stores.
+export type EmpresaPagamento = "FARMAURORA";
 
 export type Moeda = "USD" | "EUR";
 
@@ -69,9 +70,9 @@ export interface OpcaoCotacao {
 
 // "Lote" = conjunto de lançamentos de uma mesma (empresa + moeda) que ainda não
 // foi marcado como Pago. É a unidade que a Cotação agrega e que o botão "Pago"
-// fecha e move para "Pagamentos realizados". Pode haver 2+ lotes abertos
-// simultâneos para a mesma (empresa + moeda) — o lançamento entra num lote
-// escolhido explicitamente (ver NovoLancamentoBancoDTO).
+// fecha e move para "Pagamentos realizados". O normal é 1 lote aberto por
+// (empresa + moeda); 2+ só existe como dado legado — o lançamento novo entra no
+// mais recente (ver NovoLancamentoBancoDTO).
 export interface LoteBanco {
   id: string;
   data: string; // ISO date — dia em que o lote foi aberto
@@ -137,11 +138,10 @@ export interface NovoLancamentoBancoDTO {
   invoice: string;
   cliente: string;
   valorMoeda: number;
-  // Escolha do lote de destino. Mutuamente exclusivos; os dois ausentes = comportamento
-  // legado (entra no lote aberto dessa empresa+moeda, criando um se não existir).
-  //  - loteId: grava neste lote específico (deve estar aberto e com empresa+moeda batendo).
-  //  - forcarLoteNovo: cria um lote NOVO (fluxo "+ Novo lote"), ignorando os abertos.
-  loteId?: string;
+  // Ausente = a moeda define o lote: entra no lote aberto mais recente dessa
+  // empresa+moeda, criando um se não existir (é o que a UI envia).
+  // true = cria um lote NOVO mesmo havendo aberto (semear testes/manutenção;
+  // a UI não usa).
   forcarLoteNovo?: boolean;
 }
 
