@@ -90,17 +90,19 @@ describe("buildLabelledAnexoList", () => {
   });
 });
 
+const SIGNED = (slotKey: string, id = "p_1") => `https://storage.test/sign/${id}/${slotKey}.png?token=t`;
+
 describe("buildRemessasList / buildDespachanteList / buildTransporteList", () => {
   it("buildRemessasList: remessas = 0 → 1 item (placeholder nas duas imagens)", () => {
     const patient = buildPatient({ remessas: 0, attachedSlots: [] });
-    expect(buildRemessasList(patient)).toEqual([
+    expect(buildRemessasList(patient, {})).toEqual([
       { label: "", anexo_invoice: PLACEHOLDER_IMAGE_URL, anexo_cambio: PLACEHOLDER_IMAGE_URL },
     ]);
   });
 
   it("buildRemessasList: remessas = 1 sem anexo → 1 item com placeholder", () => {
     const patient = buildPatient({ remessas: 1, attachedSlots: [] });
-    expect(buildRemessasList(patient)).toEqual([
+    expect(buildRemessasList(patient, {})).toEqual([
       { label: "", anexo_invoice: PLACEHOLDER_IMAGE_URL, anexo_cambio: PLACEHOLDER_IMAGE_URL },
     ]);
   });
@@ -110,29 +112,30 @@ describe("buildRemessasList / buildDespachanteList / buildTransporteList", () =>
       remessas: 2,
       attachedSlots: ["invoice_1", "cambio_2"],
     });
-    expect(buildRemessasList(patient)).toEqual([
-      { label: " 1", anexo_invoice: "/uploads/attachments/p_1/invoice_1.png", anexo_cambio: PLACEHOLDER_IMAGE_URL },
-      { label: " 2", anexo_invoice: PLACEHOLDER_IMAGE_URL, anexo_cambio: "/uploads/attachments/p_1/cambio_2.png" },
+    const signed = { invoice_1: SIGNED("invoice_1"), cambio_2: SIGNED("cambio_2") };
+    expect(buildRemessasList(patient, signed)).toEqual([
+      { label: " 1", anexo_invoice: SIGNED("invoice_1"), anexo_cambio: PLACEHOLDER_IMAGE_URL },
+      { label: " 2", anexo_invoice: PLACEHOLDER_IMAGE_URL, anexo_cambio: SIGNED("cambio_2") },
     ]);
   });
 
   it("buildDespachanteList: despachanteRemessas = 0 → 1 item com placeholder (mesma regra de count=0)", () => {
     const patient = buildPatient({ despachanteRemessas: 0 });
-    expect(buildDespachanteList(patient)).toEqual([{ label: "", anexo_despachante: PLACEHOLDER_IMAGE_URL }]);
+    expect(buildDespachanteList(patient, {})).toEqual([{ label: "", anexo_despachante: PLACEHOLDER_IMAGE_URL }]);
   });
 
   it("buildDespachanteList: despachanteRemessas = 3 com 1 anexo no meio → labels numeradas, só o item 2 resolvido", () => {
     const patient = buildPatient({ despachanteRemessas: 3, attachedSlots: ["despachante_2"] });
-    expect(buildDespachanteList(patient)).toEqual([
+    expect(buildDespachanteList(patient, { despachante_2: SIGNED("despachante_2") })).toEqual([
       { label: " 1", anexo_despachante: PLACEHOLDER_IMAGE_URL },
-      { label: " 2", anexo_despachante: "/uploads/attachments/p_1/despachante_2.png" },
+      { label: " 2", anexo_despachante: SIGNED("despachante_2") },
       { label: " 3", anexo_despachante: PLACEHOLDER_IMAGE_URL },
     ]);
   });
 
   it("buildTransporteList: transporteRemessas = 0 → 1 item com placeholder", () => {
     const patient = buildPatient({ transporteRemessas: 0 });
-    expect(buildTransporteList(patient)).toEqual([{ label: "", anexo_transporte: PLACEHOLDER_IMAGE_URL }]);
+    expect(buildTransporteList(patient, {})).toEqual([{ label: "", anexo_transporte: PLACEHOLDER_IMAGE_URL }]);
   });
 
   it("buildTransporteList: transporteRemessas = 2 com todos anexados", () => {
@@ -140,22 +143,43 @@ describe("buildRemessasList / buildDespachanteList / buildTransporteList", () =>
       transporteRemessas: 2,
       attachedSlots: ["transporte_1", "transporte_2"],
     });
-    expect(buildTransporteList(patient)).toEqual([
-      { label: " 1", anexo_transporte: "/uploads/attachments/p_1/transporte_1.png" },
-      { label: " 2", anexo_transporte: "/uploads/attachments/p_1/transporte_2.png" },
+    const signed = { transporte_1: SIGNED("transporte_1"), transporte_2: SIGNED("transporte_2") };
+    expect(buildTransporteList(patient, signed)).toEqual([
+      { label: " 1", anexo_transporte: SIGNED("transporte_1") },
+      { label: " 2", anexo_transporte: SIGNED("transporte_2") },
     ]);
+  });
+
+  it("slot marcado como anexado sem arquivo no Storage → erro citando o slot (nunca placeholder em silêncio)", () => {
+    const patient = buildPatient({ remessas: 2, attachedSlots: ["invoice_2"] });
+    expect(() => buildRemessasList(patient, {})).toThrow('"Invoice (remessa 2)"');
   });
 });
 
 describe("resolveAttachmentUrl", () => {
   it("slot não anexado → URL placeholder", () => {
     const patient = buildPatient({ attachedSlots: [] });
-    expect(resolveAttachmentUrl(patient, "servico")).toBe(PLACEHOLDER_IMAGE_URL);
+    expect(resolveAttachmentUrl(patient, "servico", {})).toBe(PLACEHOLDER_IMAGE_URL);
   });
 
-  it("slot anexado → URL pública do anexo (patient.id + slotKey)", () => {
+  it("slot não anexado ignora uma signed URL que sobrou no mapa", () => {
+    const patient = buildPatient({ attachedSlots: [] });
+    expect(resolveAttachmentUrl(patient, "servico", { servico: SIGNED("servico") })).toBe(PLACEHOLDER_IMAGE_URL);
+  });
+
+  it("slot anexado → signed URL de leitura do slot", () => {
     const patient = buildPatient({ id: "p_42", attachedSlots: ["servico"] });
-    expect(resolveAttachmentUrl(patient, "servico")).toBe("/uploads/attachments/p_42/servico.png");
+    expect(resolveAttachmentUrl(patient, "servico", { servico: SIGNED("servico", "p_42") })).toBe(
+      SIGNED("servico", "p_42")
+    );
+  });
+
+  it("slot anexado sem signed URL → erro claro com o rótulo do slot", () => {
+    const patient = buildPatient({ attachedSlots: ["servico", "dsi"] });
+    expect(() => resolveAttachmentUrl(patient, "servico", {})).toThrow(
+      /"Nota de Prestação de Serviço".*não foi encontrado no armazenamento/
+    );
+    expect(() => resolveAttachmentUrl(patient, "dsi", {})).toThrow('"DSI"');
   });
 });
 

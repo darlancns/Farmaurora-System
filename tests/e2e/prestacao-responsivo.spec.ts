@@ -9,9 +9,10 @@ import { test, expect, type Page } from "@playwright/test";
 //   leem/escrevem em "patients", ver shared/utils/rbac.ts; operacional e
 //   consultor são redirecionados pra fora de /prestacao)
 //
-// 1024px é o breakpoint escolhido (lg) pra colapsar formulário+tabela em
-// coluna única — abaixo dele o layout empilha (formulário primeiro), a
-// partir dele fica lado a lado, idêntico ao layout anterior à Rodada 4.
+// O formulário não fica mais numa coluna lateral: abre num modal, como em
+// Recados/Pagamentos/Processos. 1024px (lg) é o breakpoint do gatilho — a
+// partir dele o botão "+ Nova prestação"; abaixo, o "+" flutuante (FAB). O
+// modal é tela cheia abaixo de lg e cartão centralizado a partir dele.
 
 const writer = {
   email: process.env.E2E_ADMIN_EMAIL ?? process.env.E2E_SOCIO_EMAIL ?? "",
@@ -40,6 +41,11 @@ async function gotoPrestacao(page: Page, viewport: { width: number; height: numb
   await page.goto("/prestacao", { waitUntil: "networkidle" });
 }
 
+async function abrirForm(page: Page, viewport: { width: number }): Promise<void> {
+  await page.locator(viewport.width >= 1024 ? "#btn-nova-prestacao" : "#fab-nova-prestacao").click();
+  await expect(page.locator("#patient-form")).toBeVisible();
+}
+
 test.describe("Responsividade de /prestacao", () => {
   test.describe.configure({ retries: 2 });
 
@@ -58,18 +64,20 @@ test.describe("Responsividade de /prestacao", () => {
         expect(await hasHorizontalOverflow(page)).toBe(false);
       });
 
-      test("formulário de lançamento visível e dentro da viewport (não escondido atrás de scroll)", async ({
-        page,
-      }) => {
-        const form = page.locator("#patient-form");
-        await expect(form).toBeVisible();
-        const box = await form.boundingBox();
+      test("formulário abre fechado e, ao abrir, fica dentro da viewport", async ({ page }) => {
+        await expect(page.locator("#patient-form")).toHaveCount(0);
+        await abrirForm(page, viewport);
+        const box = await page.locator("#patient-form").boundingBox();
         expect(box).not.toBeNull();
         expect(box!.x).toBeGreaterThanOrEqual(0);
         expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width + 1);
+        expect(box!.y).toBeGreaterThanOrEqual(0);
+        expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height + 1);
+        expect(await hasHorizontalOverflow(page)).toBe(false);
       });
 
       test("campos-chave do formulário (data, paciente, medicamento) não ficam espremidos", async ({ page }) => {
+        await abrirForm(page, viewport);
         // "Espremido" = largura menor que o necessário pro conteúdo real sem
         // rolagem interna. Data (dd/mm/aaaa, 10 caracteres monoespaçados) e
         // Medicamento (nomes reais chegam a 25+ caracteres) são os campos que
@@ -82,7 +90,21 @@ test.describe("Responsividade de /prestacao", () => {
         expect(medicamentoBox!.width).toBeGreaterThanOrEqual(150);
       });
 
+      test("seção de anexos expande dentro do formulário sem estourar a largura", async ({ page }) => {
+        await abrirForm(page, viewport);
+        await page.locator("#f-custo").fill("10000");
+        await page.locator("#btn-open-attachments").click();
+        const panel = page.locator("#attachments-panel");
+        await expect(panel).toBeVisible();
+        const formBox = await page.locator("#patient-form").boundingBox();
+        const panelBox = await panel.boundingBox();
+        expect(panelBox!.x).toBeGreaterThanOrEqual(formBox!.x - 1);
+        expect(panelBox!.x + panelBox!.width).toBeLessThanOrEqual(formBox!.x + formBox!.width + 1);
+        expect(await hasHorizontalOverflow(page)).toBe(false);
+      });
+
       test("dropdown de consultor abre dentro da viewport, sem cortar", async ({ page }) => {
+        await abrirForm(page, viewport);
         await page.locator("#f-consultor").click();
         const listbox = page.locator("#f-consultor-listbox");
         await expect(listbox).toBeVisible();
@@ -94,7 +116,7 @@ test.describe("Responsividade de /prestacao", () => {
     });
   }
 
-  test("abaixo de lg (375px e 768px): formulário empilha acima da tabela", async ({ page }) => {
+  test("abaixo de lg (375px e 768px): só o FAB aparece; a lista ocupa a largura toda", async ({ page }) => {
     test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD ou E2E_SOCIO_EMAIL/PASSWORD");
 
     for (const viewport of [
@@ -102,19 +124,18 @@ test.describe("Responsividade de /prestacao", () => {
       { width: 768, height: 1024 },
     ]) {
       await gotoPrestacao(page, viewport);
-      const container = page.locator("#patient-form").locator("xpath=../..");
-      expect(await container.evaluate((el) => getComputedStyle(el).flexDirection)).toBe("column");
+      await expect(page.locator("#fab-nova-prestacao")).toBeVisible();
+      await expect(page.locator("#btn-nova-prestacao")).toBeHidden();
+      await expect(page.locator("#patient-form")).toHaveCount(0);
 
-      const formBox = await page.locator("#patient-form").boundingBox();
       const searchBox = await page.locator("#patient-search").boundingBox();
-      expect(formBox).not.toBeNull();
-      expect(searchBox).not.toBeNull();
-      // Formulário primeiro: a busca (topo da tabela) começa abaixo dele.
-      expect(searchBox!.y).toBeGreaterThanOrEqual(formBox!.y + formBox!.height - 1);
+      expect(searchBox!.width).toBeGreaterThan(viewport.width - 64);
     }
   });
 
-  test("lg+ (1024px e 1440px): formulário e tabela lado a lado, igual ao layout anterior", async ({ page }) => {
+  test("lg+ (1024px e 1440px): botão com texto à direita da busca, FAB oculto, lista em largura total", async ({
+    page,
+  }) => {
     test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD ou E2E_SOCIO_EMAIL/PASSWORD");
 
     for (const viewport of [
@@ -122,15 +143,15 @@ test.describe("Responsividade de /prestacao", () => {
       { width: 1440, height: 900 },
     ]) {
       await gotoPrestacao(page, viewport);
-      const container = page.locator("#patient-form").locator("xpath=../..");
-      expect(await container.evaluate((el) => getComputedStyle(el).flexDirection)).toBe("row");
+      await expect(page.locator("#btn-nova-prestacao")).toBeVisible();
+      await expect(page.locator("#fab-nova-prestacao")).toBeHidden();
+      await expect(page.locator("#patient-form")).toHaveCount(0);
 
-      const formBox = await page.locator("#patient-form").boundingBox();
       const searchBox = await page.locator("#patient-search").boundingBox();
-      expect(formBox).not.toBeNull();
-      expect(searchBox).not.toBeNull();
-      // Lado a lado: a busca fica à direita do formulário, na mesma altura aproximada.
-      expect(searchBox!.x).toBeGreaterThanOrEqual(formBox!.x + formBox!.width - 1);
+      const buttonBox = await page.locator("#btn-nova-prestacao").boundingBox();
+      // Mesma linha: botão à direita da busca, e a busca ocupa o resto da largura.
+      expect(buttonBox!.x).toBeGreaterThanOrEqual(searchBox!.x + searchBox!.width - 1);
+      expect(searchBox!.width).toBeGreaterThan(viewport.width * 0.5);
     }
   });
 });

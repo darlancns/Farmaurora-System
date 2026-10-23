@@ -22,7 +22,7 @@ const emit = defineEmits<{
 const generating = ref(false);
 const showDeleteConfirm = ref(false);
 const deleteConfirmMessage = computed(
-  () => `Excluir o lançamento de ${props.patient.paciente}? Essa ação não pode ser desfeita.`
+  () => `Excluir a prestação de ${props.patient.paciente}? Essa ação não pode ser desfeita.`
 );
 
 function confirmDelete(): void {
@@ -193,7 +193,7 @@ async function handleGenerateWord(): Promise<void> {
 
   <ConfirmDialog
     v-if="showDeleteConfirm"
-    title="Excluir lançamento"
+    title="Excluir prestação"
     :message="deleteConfirmMessage"
     confirm-label="Sim, excluir"
     cancel-label="Cancelar"

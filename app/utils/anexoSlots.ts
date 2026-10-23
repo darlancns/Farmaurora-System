@@ -16,6 +16,23 @@ export interface AnexoSlotSource {
   transporteRemessas: number;
 }
 
+const NUMBERED_SLOT_LABEL: Record<string, string> = {
+  invoice: "Invoice",
+  cambio: "Contrato de Câmbio",
+  despachante: "Despachante",
+  transporte: "Transporte",
+};
+
+// Rótulo legível de um slotKey ("invoice_2" → "Invoice (remessa 2)"). Fonte única:
+// getRequiredSlots (rótulos da tela) e as mensagens de erro do Word usam a mesma.
+export function slotLabel(slotKey: string): string {
+  const numbered = slotKey.match(/^(invoice|cambio|despachante|transporte)_(\d+)$/);
+  if (numbered) return `${NUMBERED_SLOT_LABEL[numbered[1]!]} (remessa ${numbered[2]})`;
+  if (slotKey === "dsi") return "DSI";
+  if (slotKey === "servico") return "Nota de Prestação de Serviço";
+  return slotKey;
+}
+
 export function getRequiredSlots(patient: AnexoSlotSource): AnexoSlot[] {
   if (patient.empresa === "MAINZFARMA") return [];
 
@@ -23,10 +40,10 @@ export function getRequiredSlots(patient: AnexoSlotSource): AnexoSlot[] {
     const simpleSlots: AnexoSlot[] = [];
 
     for (let n = 1; n <= patient.remessas; n++) {
-      simpleSlots.push({ key: `invoice_${n}`, label: `Invoice (remessa ${n})` });
-      simpleSlots.push({ key: `cambio_${n}`, label: `Contrato de Câmbio (remessa ${n})` });
+      simpleSlots.push({ key: `invoice_${n}`, label: slotLabel(`invoice_${n}`) });
+      simpleSlots.push({ key: `cambio_${n}`, label: slotLabel(`cambio_${n}`) });
     }
-    simpleSlots.push({ key: "servico", label: "Nota de Prestação de Serviço" });
+    simpleSlots.push({ key: "servico", label: slotLabel("servico") });
 
     return simpleSlots;
   }
@@ -34,19 +51,19 @@ export function getRequiredSlots(patient: AnexoSlotSource): AnexoSlot[] {
   const slots: AnexoSlot[] = [];
 
   for (let n = 1; n <= patient.remessas; n++) {
-    slots.push({ key: `invoice_${n}`, label: `Invoice (remessa ${n})` });
-    slots.push({ key: `cambio_${n}`, label: `Contrato de Câmbio (remessa ${n})` });
+    slots.push({ key: `invoice_${n}`, label: slotLabel(`invoice_${n}`) });
+    slots.push({ key: `cambio_${n}`, label: slotLabel(`cambio_${n}`) });
   }
   for (let n = 1; n <= patient.despachanteRemessas; n++) {
-    slots.push({ key: `despachante_${n}`, label: `Despachante (remessa ${n})` });
+    slots.push({ key: `despachante_${n}`, label: slotLabel(`despachante_${n}`) });
   }
   for (let n = 1; n <= patient.transporteRemessas; n++) {
-    slots.push({ key: `transporte_${n}`, label: `Transporte (remessa ${n})` });
+    slots.push({ key: `transporte_${n}`, label: slotLabel(`transporte_${n}`) });
   }
   if (patient.despesaTotal > 0 && patient.transporteTotal > 0) {
-    slots.push({ key: "dsi", label: "DSI" });
+    slots.push({ key: "dsi", label: slotLabel("dsi") });
   }
-  slots.push({ key: "servico", label: "Nota de Prestação de Serviço" });
+  slots.push({ key: "servico", label: slotLabel("servico") });
 
   return slots;
 }

@@ -65,7 +65,6 @@ export interface UsePatientFormReturn {
   cancelarReducaoRemessas: () => void;
   addMedicamentoItem: () => void;
   removeMedicamentoItem: (index: number) => void;
-  resetFormState: () => void;
   onDataInput: (event: Event) => void;
   onPacienteInput: (event: Event) => void;
   onMedicamentoInput: (index: number, event: Event) => void;
@@ -181,9 +180,13 @@ export function usePatientForm(options: UsePatientFormOptions): UsePatientFormRe
     form.remessas = String(patient.remessas);
   }
 
+  // Observa só o id: subir/remover um anexo no modo edição devolve o paciente
+  // atualizado (objeto novo, mesmo id) e recarregar o form aí descartaria o que
+  // o usuário já digitou e ainda não salvou.
   watch(
-    options.editingPatient,
-    (patient) => {
+    () => options.editingPatient()?.id,
+    () => {
+      const patient = options.editingPatient();
       if (patient) {
         loadPatientIntoForm(patient);
       } else {
@@ -302,7 +305,6 @@ export function usePatientForm(options: UsePatientFormOptions): UsePatientFormRe
     cancelarReducaoRemessas,
     addMedicamentoItem,
     removeMedicamentoItem,
-    resetFormState,
     onDataInput,
     onPacienteInput,
     onMedicamentoInput,

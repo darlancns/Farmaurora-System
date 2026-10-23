@@ -4,8 +4,8 @@ import ImageModule from "docxtemplater-image-module-free";
 import type { PatientComputed } from "#shared/types/Patient";
 import { isFarmauroraModeloCompleto } from "../utils/calculations";
 import { formatCurrency } from "../utils/formatters";
+import { slotLabel } from "../utils/anexoSlots";
 import {
-  PLACEHOLDER_IMAGE_URL,
   type ImageBox,
   sanitizeFilenamePart,
   resolveTemplateUrl,
@@ -16,7 +16,10 @@ import {
   buildTransporteList,
   calculateFitSize,
 } from "../utils/docxLayout";
+import { useAttachments } from "./useAttachments";
 
+// O Word baixa as imagens logo depois de buscar os links; 60s sobra.
+const SIGNED_URL_TTL_SECONDS = 60;
 const MAX_IMAGE_WIDTH = 560;
 const MAX_IMAGE_HEIGHT = 792;
 // Seção de anexos do template_farmaurora.docx e do template_farmaurora_completo.docx
@@ -42,7 +45,14 @@ async function loadImageEntry(url: string, box: ImageBox): Promise<ImageCacheEnt
   return { buffer, size };
 }
 
-async function buildImageCache(urls: string[], box: ImageBox): Promise<Map<string, ImageCacheEntry>> {
+// Anexo de slot marcado como anexado que não carrega NÃO vira placeholder em silêncio:
+// o Word não é gerado e o erro cita o slot (`labelByUrl` liga cada signed URL ao seu slot).
+// O placeholder só serve pra slot que nunca foi anexado.
+async function buildImageCache(
+  urls: string[],
+  box: ImageBox,
+  labelByUrl: Map<string, string>
+): Promise<Map<string, ImageCacheEntry>> {
   const uniqueUrls = [...new Set(urls)];
   const cache = new Map<string, ImageCacheEntry>();
 
@@ -50,8 +60,12 @@ async function buildImageCache(urls: string[], box: ImageBox): Promise<Map<strin
     uniqueUrls.map(async (url) => {
       try {
         cache.set(url, await loadImageEntry(url, box));
-      } catch {
-        cache.set(url, await loadImageEntry(PLACEHOLDER_IMAGE_URL, box));
+      } catch (e) {
+        const label = labelByUrl.get(url);
+        if (label === undefined) throw e;
+        throw new Error(
+          `Não foi possível carregar o anexo "${label}" para o Word. Verifique a conexão e tente de novo; se persistir, anexe o documento novamente.`
+        );
       }
     })
   );
@@ -60,6 +74,8 @@ async function buildImageCache(urls: string[], box: ImageBox): Promise<Map<strin
 }
 
 export function useDocxGenerator() {
+  const { fetchSignedUrls } = useAttachments();
+
   async function generateDocx(patient: PatientComputed): Promise<void> {
     const templateUrl = resolveTemplateUrl(patient);
     const templateResponse = await fetch(templateUrl);
@@ -67,6 +83,10 @@ export function useDocxGenerator() {
       throw new Error("Não foi possível carregar o modelo do documento.");
     }
     const templateBuffer = await templateResponse.arrayBuffer();
+
+    // Links de leitura de curta duração, buscados agora (as imagens são baixadas logo em seguida).
+    const signedUrls = await fetchSignedUrls(patient.id, patient.attachedSlots, SIGNED_URL_TTL_SECONDS);
+    const labelByUrl = new Map(Object.entries(signedUrls).map(([slotKey, url]) => [url, slotLabel(slotKey)]));
 
     const remessaLabel = patient.remessas > 1 ? "REMESSAS" : "REMESSA";
 
@@ -90,12 +110,12 @@ export function useDocxGenerator() {
 
     if (patient.empresa === "FARMAURORA") {
       if (isCompleto) {
-        const remessasList = buildRemessasList(patient);
-        const despachanteList = buildDespachanteList(patient);
-        const transporteList = buildTransporteList(patient);
+        const remessasList = buildRemessasList(patient, signedUrls);
+        const despachanteList = buildDespachanteList(patient, signedUrls);
+        const transporteList = buildTransporteList(patient, signedUrls);
         const mostrarDsi = patient.despesaTotal > 0 && patient.transporteTotal > 0;
-        const anexoDsi = mostrarDsi ? resolveAttachmentUrl(patient, "dsi") : undefined;
-        const anexoServico = resolveAttachmentUrl(patient, "servico");
+        const anexoDsi = mostrarDsi ? resolveAttachmentUrl(patient, "dsi", signedUrls) : undefined;
+        const anexoServico = resolveAttachmentUrl(patient, "servico", signedUrls);
 
         Object.assign(renderData, {
           despesa: formatCurrency(patient.despesaTotal),
@@ -118,8 +138,8 @@ export function useDocxGenerator() {
           anexoServico,
         ];
       } else {
-        const remessasList = buildRemessasList(patient);
-        const anexoServico = resolveAttachmentUrl(patient, "servico");
+        const remessasList = buildRemessasList(patient, signedUrls);
+        const anexoServico = resolveAttachmentUrl(patient, "servico", signedUrls);
 
         Object.assign(renderData, {
           remessasList,
@@ -133,7 +153,7 @@ export function useDocxGenerator() {
       }
     }
 
-    const imageCache = await buildImageCache(imageUrls, imageBox);
+    const imageCache = await buildImageCache(imageUrls, imageBox, labelByUrl);
 
     function getCachedEntry(tagValue: string): ImageCacheEntry {
       const entry = imageCache.get(tagValue);

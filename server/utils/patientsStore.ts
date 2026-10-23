@@ -85,6 +85,15 @@ export async function deletePatient(id: string): Promise<boolean> {
   return ((data ?? []) as unknown[]).length > 0;
 }
 
+export async function patientExists(id: string): Promise<boolean> {
+  const db = createSupabaseAdminClient();
+
+  const { data, error } = await db.from(TABELA).select("id").eq("id", id).maybeSingle();
+  if (error) throw erro("buscar paciente", error);
+
+  return data !== null;
+}
+
 export async function addAttachedSlot(patientId: string, slotKey: string): Promise<Patient | null> {
   const db = createSupabaseAdminClient();
 

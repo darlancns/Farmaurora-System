@@ -65,10 +65,10 @@ test.describe("RBAC", () => {
 
     await login(page, socio.email, socio.password);
 
-    // Prestações — vê a listagem COM form e botões de editar/excluir.
+    // Prestações — vê a listagem COM o botão "+ Nova prestação" e os botões de editar/excluir.
     await page.goto("/prestacao", { waitUntil: "networkidle" });
     await expect(page).toHaveURL(/\/prestacao$/);
-    await expect(page.locator("#patient-form")).toBeVisible();
+    await expect(page.locator("#btn-nova-prestacao")).toBeVisible();
     // Gerar Word continua disponível.
     await expect(page.locator("[id^='btn-generate-word-']").first()).toBeVisible();
 
@@ -181,7 +181,7 @@ test.describe("RBAC", () => {
     await login(page, admin.email, admin.password);
 
     await page.goto("/prestacao", { waitUntil: "networkidle" });
-    await expect(page.locator("#patient-form")).toBeVisible();
+    await expect(page.locator("#btn-nova-prestacao")).toBeVisible();
 
     await page.goto("/processos", { waitUntil: "networkidle" });
     await expect(page.locator("#btn-novo-processo")).toBeVisible();

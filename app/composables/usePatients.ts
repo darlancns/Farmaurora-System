@@ -19,7 +19,7 @@ export function usePatients() {
     loading.value = true;
     error.value = null;
     try {
-      patients.value = await apiFetch<Patient[]>("/api/patients", undefined, "Falha ao carregar lançamentos.");
+      patients.value = await apiFetch<Patient[]>("/api/patients", undefined, "Falha ao carregar prestações.");
     } catch (e) {
       error.value = e instanceof Error ? e.message : "Erro desconhecido.";
     } finally {
@@ -35,7 +35,7 @@ export function usePatients() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       },
-      "Erro ao salvar lançamento."
+      "Erro ao salvar prestação."
     );
     patients.value = [created, ...patients.value];
     return created;
@@ -49,7 +49,7 @@ export function usePatients() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       },
-      "Erro ao atualizar lançamento."
+      "Erro ao atualizar prestação."
     );
     const index = patients.value.findIndex((p) => p.id === id);
     if (index !== -1) {
@@ -59,8 +59,8 @@ export function usePatients() {
   }
 
   async function removePatient(id: string): Promise<void> {
-    await deleteTolerant(`/api/patients/${id}`, "Erro ao remover lançamento.");
-    // 404 significa que o lançamento já não existe no servidor — trata como
+    await deleteTolerant(`/api/patients/${id}`, "Erro ao remover prestação.");
+    // 404 significa que a prestação já não existe no servidor — trata como
     // sucesso e limpa do estado local, em vez de deixar o card preso na tela.
     patients.value = patients.value.filter((p) => p.id !== id);
   }

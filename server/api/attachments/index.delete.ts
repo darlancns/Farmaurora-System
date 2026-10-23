@@ -1,8 +1,7 @@
-import { unlink } from "node:fs/promises";
-import { existsSync } from "node:fs";
 import { defineEventHandler, readBody, createError } from "h3";
 import { removeAttachedSlot } from "../../utils/patientsStore";
-import { SAFE_ATTACHMENT_KEY, getAttachmentFilePath } from "../../utils/attachmentPaths";
+import { removeAttachmentObject } from "../../utils/attachmentStorage";
+import { SAFE_ATTACHMENT_KEY } from "../../../shared/utils/attachments";
 import type { Patient } from "../../../shared/types/Patient";
 
 interface AttachmentDeleteBody {
@@ -33,15 +32,13 @@ export default defineEventHandler(async (event): Promise<{ deleted: true; patien
 
   const { patientId, slotKey } = body;
 
+  // Banco primeiro, Storage depois: se o Storage falhar sobra só um arquivo órfão.
   const patient = await removeAttachedSlot(patientId, slotKey);
   if (!patient) {
-    throw createError({ statusCode: 404, statusMessage: "Lançamento não encontrado." });
+    throw createError({ statusCode: 404, statusMessage: "Prestação não encontrada." });
   }
 
-  const filePath = getAttachmentFilePath(patientId, slotKey);
-  if (existsSync(filePath)) {
-    await unlink(filePath);
-  }
+  await removeAttachmentObject(patientId, slotKey);
 
   return { deleted: true, patient };
 });

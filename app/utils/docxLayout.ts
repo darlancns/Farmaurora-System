@@ -1,7 +1,7 @@
 import type { PatientComputed } from "#shared/types/Patient";
-import { getAttachmentPublicUrl } from "#shared/utils/attachments";
 import { EMPRESA_TEMPLATE, TEMPLATE_FARMAURORA_COMPLETO } from "#shared/constants/empresas";
 import { isFarmauroraModeloCompleto } from "./calculations";
+import { slotLabel } from "./anexoSlots";
 
 // Funções puras extraídas de useDocxGenerator.ts (Round 1, item b) — nenhuma
 // delas depende de `#imports`, DOM ou estado do composable, então saem daqui
@@ -25,10 +25,23 @@ export function resolveTemplateUrl(patient: PatientComputed): string {
   return isFarmauroraModeloCompleto(patient) ? TEMPLATE_FARMAURORA_COMPLETO : EMPRESA_TEMPLATE[patient.empresa];
 }
 
-export function resolveAttachmentUrl(patient: PatientComputed, slotKey: string): string {
-  return patient.attachedSlots.includes(slotKey)
-    ? getAttachmentPublicUrl(patient.id, slotKey)
-    : PLACEHOLDER_IMAGE_URL;
+// Slot nunca anexado → placeholder. Slot marcado como anexado → signed URL de leitura;
+// se não há URL (arquivo ausente no Storage), erro claro citando o slot — NUNCA
+// troca em silêncio por placeholder um anexo que deveria existir.
+export function resolveAttachmentUrl(
+  patient: PatientComputed,
+  slotKey: string,
+  signedUrls: Record<string, string>
+): string {
+  if (!patient.attachedSlots.includes(slotKey)) return PLACEHOLDER_IMAGE_URL;
+
+  const url = signedUrls[slotKey];
+  if (!url) {
+    throw new Error(
+      `O anexo "${slotLabel(slotKey)}" está marcado como anexado, mas o arquivo não foi encontrado no armazenamento. Anexe o documento de novo e gere o Word outra vez.`
+    );
+  }
+  return url;
 }
 
 export function buildRemessaQualifier(remessasPreenchidas: number, totalRemessas: number): string {
@@ -51,22 +64,22 @@ export function buildLabelledAnexoList<T extends Record<string, string>>(
   });
 }
 
-export function buildRemessasList(patient: PatientComputed) {
+export function buildRemessasList(patient: PatientComputed, signedUrls: Record<string, string>) {
   return buildLabelledAnexoList(patient.remessas, (n) => ({
-    anexo_invoice: resolveAttachmentUrl(patient, `invoice_${n}`),
-    anexo_cambio: resolveAttachmentUrl(patient, `cambio_${n}`),
+    anexo_invoice: resolveAttachmentUrl(patient, `invoice_${n}`, signedUrls),
+    anexo_cambio: resolveAttachmentUrl(patient, `cambio_${n}`, signedUrls),
   }));
 }
 
-export function buildDespachanteList(patient: PatientComputed) {
+export function buildDespachanteList(patient: PatientComputed, signedUrls: Record<string, string>) {
   return buildLabelledAnexoList(patient.despachanteRemessas, (n) => ({
-    anexo_despachante: resolveAttachmentUrl(patient, `despachante_${n}`),
+    anexo_despachante: resolveAttachmentUrl(patient, `despachante_${n}`, signedUrls),
   }));
 }
 
-export function buildTransporteList(patient: PatientComputed) {
+export function buildTransporteList(patient: PatientComputed, signedUrls: Record<string, string>) {
   return buildLabelledAnexoList(patient.transporteRemessas, (n) => ({
-    anexo_transporte: resolveAttachmentUrl(patient, `transporte_${n}`),
+    anexo_transporte: resolveAttachmentUrl(patient, `transporte_${n}`, signedUrls),
   }));
 }
 

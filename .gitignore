@@ -13,8 +13,11 @@ node_modules/
 data/*.json
 !data/.gitkeep
 
-# Patient attachments (uploaded screenshots) — sensitive, never commit
+# Resíduo local dos anexos de antes do Supabase Storage — dados de pacientes, nunca commitar
 public/uploads/
+
+# Relatório local de prestações com anexos (nomes de pacientes) — nunca commitar
+relatorio-anexos-orfaos.json
 
 # Env
 .env

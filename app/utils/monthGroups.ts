@@ -1,4 +1,5 @@
 import type { Patient } from "#shared/types/Patient";
+import type { AppSelectOption } from "../types/appSelect";
 
 const MONTH_NAMES_PT = [
   "Janeiro",
@@ -83,4 +84,13 @@ export function groupPatientsByMonth<T extends Pick<Patient, "data" | "createdAt
   }
 
   return [...groups.values()].sort((a, b) => b.year - a.year || b.month - a.month);
+}
+
+// Opções do seletor "Mês" do painel de filtros (abaixo de lg): "Todos os meses" (valor "", que
+// a página mapeia para selectedMonthKey = null) + cada mês com a contagem, na mesma ordem dos chips.
+export function monthFilterOptions<T>(groups: Array<MonthGroup<T>>): Array<AppSelectOption<string>> {
+  return [
+    { value: "", label: "Todos os meses" },
+    ...groups.map((group) => ({ value: group.key, label: `${monthKeyLabel(group)} (${group.patients.length})` })),
+  ];
 }

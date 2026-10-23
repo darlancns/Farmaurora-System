@@ -91,6 +91,8 @@ describe("rbac — mapeamento de rotas", () => {
     expect(sectionForApiPath("/api/patients")).toBe("patients");
     expect(sectionForApiPath("/api/patients/abc")).toBe("patients");
     expect(sectionForApiPath("/api/attachments")).toBe("patients");
+    expect(sectionForApiPath("/api/attachments/upload-url")).toBe("patients");
+    expect(sectionForApiPath("/api/attachments/signed-urls?patientId=p_1&slots=servico")).toBe("patients");
     expect(sectionForApiPath("/api/processos/xyz?foo=1")).toBe("processos");
     expect(sectionForApiPath("/api/pagamentos/banco")).toBe("pagamentos");
     expect(sectionForApiPath("/api/admin/users")).toBe("admin");

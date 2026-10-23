@@ -158,11 +158,13 @@ test.describe("Rodada 7 — Parte 2: touch targets ≥44px em mobile", () => {
     await login(page);
     await page.goto("/prestacao", { waitUntil: "networkidle" });
 
-    const addBtn = page.locator('button[title="Adicionar medicamento"]');
-    if ((await addBtn.count()) === 0) {
+    // O formulário abre num modal; abaixo de lg o gatilho é o "+" flutuante.
+    const fab = page.locator("#fab-nova-prestacao");
+    if ((await fab.count()) === 0) {
       test.skip(true, "sem permissão de escrita em patients nesta conta");
     }
-    await addBtn.click();
+    await fab.click();
+    await page.locator('button[title="Adicionar medicamento"]').click();
     await assertTouch44Mobile(page, 'button[title="Remover medicamento"]', "PatientForm remover medicamento");
   });
 

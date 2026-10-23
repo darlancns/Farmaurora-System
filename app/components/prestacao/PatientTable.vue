@@ -69,9 +69,9 @@ watch(
       class="rounded-[10px] border border-hairline bg-paper-raised p-10 text-center text-[13.5px] text-ink-soft"
     >
       <template v-if="searchQuery?.trim()">
-        Nenhum lançamento encontrado para "{{ searchQuery.trim() }}".
+        Nenhuma prestação encontrada para "{{ searchQuery.trim() }}".
       </template>
-      <template v-else> Nenhum lançamento ainda. Preencha o formulário ao lado para começar. </template>
+      <template v-else> Nenhuma prestação ainda. Clique em "+ Nova prestação" para começar. </template>
     </div>
 
     <div

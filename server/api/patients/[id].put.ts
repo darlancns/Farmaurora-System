@@ -22,7 +22,7 @@ export default defineEventHandler(async (event): Promise<Patient> => {
   const updated = await updatePatient(id, { ...body, empresa: "FARMAURORA" });
 
   if (!updated) {
-    throw createError({ statusCode: 404, statusMessage: "Lançamento não encontrado." });
+    throw createError({ statusCode: 404, statusMessage: "Prestação não encontrada." });
   }
 
   return updated;

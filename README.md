@@ -120,12 +120,12 @@ Detalhes:
 | Pacientes / Prestações | Supabase Postgres — tabela `prestacao_pacientes` |
 | Processos / Follow-Up | Supabase Postgres — tabela `follow_up` |
 | Pagamentos (lotes de banco, lançamentos, grupos) | Supabase Postgres — `pagamento_lotes_banco`, `pagamento_lancamentos_banco`, `pagamento_grupos` |
-| Chave PIX padrão por despachante / transportadora | **Arquivo local** — `data/pagamentos-despachante-pix.json`, `data/pagamentos-transportadora-pix.json` |
-| Anexos de paciente (invoice, câmbio, despachante, transporte, serviço) | **Arquivo local** — `public/uploads/attachments/<patientId>/<slot>.png` |
+| Chave PIX por despachante / transportadora (overrides) | Supabase Postgres — `pagamento_pix_chaves` |
+| Anexos de paciente (invoice, câmbio, despachante, transporte, serviço) | **Supabase Storage** — bucket privado `attachments`, `<patientId>/<slot>.png` (ver "Anexos de prestação") |
 
 Todo acesso ao Postgres é feito com a **service role key** (sem RLS) — ver seção "Como
-funciona". Os `data/*.json` e `public/uploads/` estão no `.gitignore` (contêm dados reais de
-pacientes e CPF/CNPJ).
+funciona". `data/*.json` e `public/uploads/` (resíduo local de antes do Storage) estão no
+`.gitignore` — contêm dados reais de pacientes e CPF/CNPJ.
 
 ---
 
@@ -188,25 +188,46 @@ Por padrão sobe na porta 3000 (`PORT=8080 node .output/server/index.mjs` para m
 
 ### Deploy
 
-O build em `.output/` é um servidor Node standalone — roda em qualquer host que rode Node (VPS,
-Render, Railway, Fly.io, container Docker, PM2, etc.). Não precisa de nada específico da
-Nuxt/Vercel.
+**Produção roda na Vercel** (`system.farmaurora.com.br`): funções serverless, **sem disco
+gravável e sem estado entre requisições**. Por isso nada de negócio pode depender de arquivo
+local — pacientes, processos, pagamentos, chaves PIX e anexos ficam no Supabase (Postgres e
+Storage).
 
-```bash
-pm2 start .output/server/index.mjs --name farmaurora-crm
-```
+O mesmo build também roda como servidor Node standalone (`npm run build` →
+`node .output/server/index.mjs`) em qualquer host que rode Node, mas esse não é o deploy de
+produção.
 
-**Sobre persistência em produção:**
+**Variáveis de ambiente exigidas** (Vercel → Settings → Environment Variables; modelo em
+`.env.example`):
 
-- **Pacientes, Processos e Pagamentos** ficam no Postgres do Supabase — **não** dependem de
-  volume local.
-- **Ainda dependem de disco local** (portanto exigem volume persistente e **não** funcionam bem
-  com múltiplos containers / servidores):
-  - as chaves PIX (`data/pagamentos-*-pix.json`);
-  - os anexos de paciente (`public/uploads/attachments/`), que hoje também são **servidos como
-    estático** por essa pasta — a leitura de um anexo não passa por checagem de cargo.
-- Variáveis de ambiente: ver `.env.example`. A `NUXT_SUPABASE_SERVICE_ROLE_KEY` é server-only e
-  nunca vai para o bundle do browser.
+| Variável | Onde é lida | Observação |
+|---|---|---|
+| `NUXT_PUBLIC_SUPABASE_URL` | server **e** browser | URL do projeto (pública por natureza) |
+| `NUXT_PUBLIC_SUPABASE_ANON_KEY` | server **e** browser | chave anon (login e envio de anexo com signed URL) |
+| `NUXT_SUPABASE_SERVICE_ROLE_KEY` | **só server** | sem prefixo público; gera as signed URLs de anexo e acessa o Postgres. Nunca vai pro bundle |
+| `NUXT_ADMIN_EMAILS` | só server | e-mails com fallback de administrador |
+
+O código de anexos não exige nenhuma variável além dessas quatro.
+
+### Anexos de prestação (Supabase Storage)
+
+- **Bucket privado** `attachments`, um PNG por slot: `<patientId>/<slotKey>.png`, máx. 20 MB.
+  Criado pela migration `supabase/migrations/20261021000000_attachments_bucket.sql`, que
+  também define as policies de RLS (cargos `socio` e `administrador`, espelhando a seção
+  `patients` de `shared/utils/rbac.ts`; um teste Vitest falha se divergirem). **A migration é
+  aplicada manualmente** (Supabase → SQL Editor).
+- **Envio** (o arquivo não passa pela função da Vercel, então não há o limite de ~4,5 MB):
+  `POST /api/attachments/upload-url` gera a signed upload URL com a service role → o browser
+  sobe o PNG direto ao Storage → `POST /api/attachments` confere que o arquivo chegou e só
+  então marca o slot em `attached_slots`. Se o upload falhar, o banco não muda.
+- **Leitura** (preview no formulário e geração do Word): `GET /api/attachments/signed-urls`
+  devolve links assinados de curta duração (5 min no preview, renovados automaticamente; 60 s
+  no Word). Nada é público.
+- **Exclusão**: remover um anexo desmarca o slot e apaga o arquivo; excluir uma prestação
+  apaga a linha e, depois, a pasta no Storage (falha do Storage só vai pro log do servidor,
+  nunca trava a exclusão).
+- **Word**: slot nunca anexado → placeholder (`anexo_pendente.png`); slot marcado como anexado
+  cujo arquivo não carrega → o Word **não** é gerado e o erro cita o slot.
 
 ---
 
@@ -297,14 +318,14 @@ app/
 shared/                               # compartilhado entre client e server (alias #shared)
 ├─ types/                             # Patient.ts, processo.ts, Pagamento.ts, auth.ts
 ├─ constants/                         # consultores, empresas, processos, pagamentos, roles
-└─ utils/                             # rbac.ts (política de acesso), attachments.ts
+└─ utils/                             # rbac.ts (política de acesso), attachments.ts, dataBrasilia.ts (hoje/datas em Brasília)
 
 server/
 ├─ api/
 │  ├─ auth/me.get.ts                  # identidade + cargo resolvido
 │  ├─ admin/users*                    # CRUD de contas (admin only) + reset-password + anti-lockout
 │  ├─ patients/                       # index.get / index.post / [id].put / [id].delete
-│  ├─ attachments/                    # index.post (upload) / index.delete   (seção RBAC: patients)
+│  ├─ attachments/                    # upload-url.post / index.post (confirma) / index.delete / signed-urls.get   (seção RBAC: patients)
 │  ├─ processos/                      # index.get (filtra por consultor) / index.post / [id].(get|patch|delete)
 │  └─ pagamentos/                     # banco, cotacao, despachante(-pix), transportadora(-pix),
 │                                     #   .../[id]/item.(patch|delete), .../[id]/pagar.patch
@@ -315,16 +336,15 @@ server/
    ├─ patientsStore.ts / processosStore.ts / pagamentosStore.ts   # acesso às tabelas Postgres
    ├─ pagamentosPixStore.ts           # chaves PIX (arquivo local)
    ├─ patientValidation.ts / processoValidation.ts / pagamentoValidation.ts
-   └─ attachmentPaths.ts              # caminhos seguros dos anexos (regex anti path-traversal)
+   └─ attachmentStorage.ts            # bucket de anexos: signed URLs, exists, remoção (service role)
 
 public/
 ├─ templates/                         # template_farmaurora.docx, template_farmaurora_completo.docx
-├─ images/                            # logo, placeholder de anexo pendente
-└─ uploads/attachments/               # anexos enviados (arquivo local, .gitignore)
+└─ images/                            # logo, placeholder de anexo pendente
 
-data/                                 # .gitignore — dados locais
-├─ pagamentos-despachante-pix.json    # override de chave PIX (em uso)
-└─ pagamentos-transportadora-pix.json # override de chave PIX (em uso)
+
+supabase/
+└─ migrations/                        # SQL versionado (bucket de anexos + RLS) — aplicado manualmente
 
 scripts/
 └─ integration/                       # smoke tests contra o Supabase real (npm run test:integration)
@@ -343,10 +363,9 @@ Baseado no estado atual do código:
 - **RLS no Supabase** — as tabelas de negócio não têm Row Level Security; o acesso é controlado
   só na camada de API. Avaliar policies de RLS como defesa em profundidade (mesmo com a API
   usando service role).
-- **Tirar anexos e PIX do disco local** — mover os anexos de paciente para Supabase Storage
-  (bucket privado + signed URLs) e as chaves PIX para uma tabela, para suportar deploy
-  multi-instância. Hoje os anexos em `public/uploads/` também são servidos como estático, sem
-  checagem de cargo na leitura.
+- **Anexos antigos** — as 48 prestações anteriores à migração para o Storage têm `attached_slots`
+  preenchido, mas os arquivos nunca existiram no Storage (só na VPS antiga, se ainda existirem).
+  Decidir entre migrar os arquivos ou limpar os slots.
 - **Cobertura de testes** — geração do `.docx`, ciclo de cotação de câmbio (`montarCotacao` /
   `calcularTotalReais`) e cálculo de nota cheia (`calculations.ts`) não têm teste automatizado.
 - **E2E de RBAC em CI** — as suítes `tests/e2e/rbac.spec.ts` e `configuracoes.spec.ts` só rodam

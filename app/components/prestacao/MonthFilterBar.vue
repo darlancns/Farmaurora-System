@@ -45,7 +45,9 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", handleDocumentCl
 </script>
 
 <template>
-  <div id="month-filter-bar" class="relative mb-3 flex flex-wrap items-center gap-2">
+  <!-- Abaixo de lg os chips (e o "Mais meses") somem: o mês vira um seletor no painel de filtros da
+       página (ícone dentro da busca). Em lg+ a barra é a de sempre. -->
+  <div id="month-filter-bar" class="relative mb-3 hidden flex-wrap items-center gap-2 lg:flex">
     <button
       id="month-filter-all"
       type="button"
