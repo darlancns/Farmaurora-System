@@ -211,14 +211,16 @@ function handleGenerateWord(): void {
           />
         </div>
 
-        <div class="col-span-2 col-start-1 row-start-4 flex shrink-0 justify-self-end gap-1.5 @[640px]:col-span-1 @[640px]:col-start-4 @[640px]:row-start-1 @[1180px]:col-start-5">
+        <!-- Estreito (<640): os botões dividem a largura toda do card por igual (flex-1, 8px entre eles, 40px de
+             altura — exceção consciente ao 44px, a largura de ~68px compensa). Médio e largo ficam como antes. -->
+        <div class="col-span-2 col-start-1 row-start-4 flex w-full shrink-0 justify-self-end gap-2 @[640px]:col-span-1 @[640px]:w-auto @[640px]:gap-1.5 @[640px]:col-start-4 @[640px]:row-start-1 @[1180px]:col-start-5">
           <button
             :id="`btn-generate-word-${patient.id}`"
             type="button"
             title="Gerar Word"
             aria-label="Gerar Word"
             :disabled="generating"
-            class="flex h-11 w-11 items-center justify-center rounded-md bg-[#2B579A] text-white transition-opacity hover:opacity-90 disabled:opacity-55 md:h-[33px] md:w-[33px]"
+            class="flex h-11 w-11 items-center @max-[639px]:h-10 @max-[639px]:flex-1 justify-center rounded-md bg-[#2B579A] text-white transition-opacity hover:opacity-90 disabled:opacity-55 md:h-[33px] md:w-[33px]"
             @click="handleGenerateWord"
           >
             <svg viewBox="0 0 384 512" class="h-[15px] w-[15px]" fill="currentColor" aria-hidden="true">
@@ -230,7 +232,7 @@ function handleGenerateWord(): void {
             type="button"
             title="Copiar mensagem do WhatsApp"
             aria-label="Copiar mensagem do WhatsApp"
-            class="flex h-11 w-11 items-center justify-center rounded-md bg-[#25D366] text-white transition-opacity hover:opacity-90 md:h-[33px] md:w-[33px]"
+            class="flex h-11 w-11 items-center @max-[639px]:h-10 @max-[639px]:flex-1 justify-center rounded-md bg-[#25D366] text-white transition-opacity hover:opacity-90 md:h-[33px] md:w-[33px]"
             @click="emit('copy-whatsapp', patient)"
           >
             <svg viewBox="0 0 448 512" class="h-[15px] w-[15px]" fill="currentColor" aria-hidden="true">
@@ -243,7 +245,7 @@ function handleGenerateWord(): void {
             type="button"
             title="Editar"
             aria-label="Editar"
-            class="flex h-11 w-11 items-center justify-center rounded-md border border-hairline bg-paper text-ink-soft transition-colors hover:border-accent-dark hover:text-accent-dark md:h-[33px] md:w-[33px]"
+            class="flex h-11 w-11 items-center @max-[639px]:h-10 @max-[639px]:flex-1 justify-center rounded-md border border-hairline bg-paper text-ink-soft transition-colors hover:border-accent-dark hover:text-accent-dark md:h-[33px] md:w-[33px]"
             @click="emit('edit', patient)"
           >
             <svg viewBox="0 0 24 24" class="h-[15px] w-[15px]" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
@@ -257,7 +259,7 @@ function handleGenerateWord(): void {
             type="button"
             title="Excluir"
             aria-label="Excluir"
-            class="flex h-11 w-11 items-center justify-center rounded-md border border-hairline bg-paper text-ink-soft transition-colors hover:border-danger hover:text-danger md:h-[33px] md:w-[33px]"
+            class="flex h-11 w-11 items-center @max-[639px]:h-10 @max-[639px]:flex-1 justify-center rounded-md border border-hairline bg-paper text-ink-soft transition-colors hover:border-danger hover:text-danger md:h-[33px] md:w-[33px]"
             @click="showDeleteConfirm = true"
           >
             <svg viewBox="0 0 24 24" class="h-[15px] w-[15px]" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">

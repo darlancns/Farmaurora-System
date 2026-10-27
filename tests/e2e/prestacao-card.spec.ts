@@ -423,12 +423,27 @@ test.describe("Prestação — card e status", () => {
         expect(await nome.evaluate((el) => el.scrollWidth <= el.clientWidth + 1), `${rotulo}: nome`).toBe(true);
         expect(await nome.evaluate((el) => getComputedStyle(el).textOverflow)).not.toBe("ellipsis");
 
-        // toque dos botões: 44px abaixo de md (768), 33px de md em diante — o mesmo de antes
-        const minimo = width < 768 ? 44 : 33;
-        for (const s of [`#btn-generate-word-${id}`, `#btn-copy-whatsapp-${id}`, `#btn-edit-patient-${id}`, `#btn-delete-patient-${id}`]) {
+        // toque dos botões: abaixo de md (768, desenho estreito) 40 de altura (exceção consciente ao 44) e largura >= 44
+        // (cada um tem ~68px); de md em diante 33px, o mesmo de antes
+        const minimoAltura = width < 768 ? 40 : 33;
+        const minimoLargura = width < 768 ? 44 : 33;
+        const botoesToque = [`#btn-generate-word-${id}`, `#btn-copy-whatsapp-${id}`, `#btn-edit-patient-${id}`, `#btn-delete-patient-${id}`];
+        const caixasToque: Caixa[] = [];
+        for (const s of botoesToque) {
           const b = await box(page.locator(s));
-          expect(b.width, `${rotulo} ${s}`).toBeGreaterThanOrEqual(minimo);
-          expect(b.height, `${rotulo} ${s}`).toBeGreaterThanOrEqual(minimo);
+          expect(b.width, `${rotulo} ${s}`).toBeGreaterThanOrEqual(minimoLargura);
+          expect(b.height, `${rotulo} ${s}`).toBeGreaterThanOrEqual(minimoAltura);
+          caixasToque.push(b);
+        }
+        // estreito: os quatro dividem a largura do card por igual (diferença <= 1px), com 8px entre eles
+        if (width < 768) {
+          const larguras = caixasToque.map((b) => b.width);
+          expect(Math.max(...larguras) - Math.min(...larguras), `${rotulo}: larguras iguais`).toBeLessThanOrEqual(1);
+          for (const b of caixasToque) expect(Math.round(b.height), `${rotulo}: altura 40`).toBe(40);
+          for (let i = 1; i < caixasToque.length; i++) {
+            const gap = caixasToque[i]!.x - (caixasToque[i - 1]!.x + caixasToque[i - 1]!.width);
+            expect(Math.abs(gap - 8), `${rotulo}: 8px entre botões`).toBeLessThanOrEqual(1);
+          }
         }
         // o selo também tem área de toque de 44px abaixo de md (pseudo-elemento)
         if (width < 768) {
