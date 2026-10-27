@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import type { PatientComputed } from "#shared/types/Patient";
 import { monthKeyLabel, monthShortLabel, splitMonthPills, type MonthGroup } from "../../utils/monthGroups";
-import { LINHA_BUSCA_ALTURA_CLASS, LINHA_BUSCA_QUADRADO_CLASS } from "../../utils/prestacaoLinhaBusca";
+import { LINHA_BUSCA_CONTROLE_CLASS, LINHA_BUSCA_QUADRADO_CLASS } from "../../utils/prestacaoLinhaBusca";
 
 const props = defineProps<{
   months: Array<MonthGroup<PatientComputed>>;
@@ -55,7 +55,7 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", handleDocumentCl
       type="button"
       class="rounded-md border px-3 text-[13.5px] font-semibold transition-colors"
       :class="[
-        LINHA_BUSCA_ALTURA_CLASS,
+        LINHA_BUSCA_CONTROLE_CLASS,
         modelValue === null
           ? 'border-transparent bg-accent-dark text-white'
           : 'border-hairline bg-paper text-ink-soft hover:border-accent-dark hover:text-accent-dark',
@@ -72,7 +72,7 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", handleDocumentCl
       type="button"
       class="rounded-md border px-3 text-[13.5px] font-semibold transition-colors"
       :class="[
-        LINHA_BUSCA_ALTURA_CLASS,
+        LINHA_BUSCA_CONTROLE_CLASS,
         modelValue === group.key
           ? 'border-transparent bg-accent-dark text-white'
           : 'border-hairline bg-paper text-ink-soft hover:border-accent-dark hover:text-accent-dark',

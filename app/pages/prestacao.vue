@@ -19,7 +19,7 @@ import { slotLabel } from "../utils/anexoSlots";
 import { getErrorMessage } from "../utils/errorMessages";
 import { normalizeText } from "../utils/search";
 import { getPatientMonthKey, groupPatientsByMonth, monthFilterOptions, monthKeyId } from "../utils/monthGroups";
-import { LINHA_BUSCA_ALTURA_CLASS } from "../utils/prestacaoLinhaBusca";
+import { LINHA_BUSCA_CONTROLE_CLASS } from "../utils/prestacaoLinhaBusca";
 import type { NewPatientDTO, PatientComputed } from "#shared/types/Patient";
 
 const { computedPatients, fetchPatients, addPatient, updatePatient, updatePatientStatus, removePatient } = usePatients();
@@ -216,7 +216,7 @@ async function handleCopyWhatsapp(patient: PatientComputed): Promise<void> {
           type="text"
           placeholder="Buscar por paciente..."
           class="min-h-11 w-full rounded-md border border-hairline bg-paper px-3 py-2 pr-[68px] text-[13.5px] focus:bg-white focus:outline-2 focus:outline-accent-dark lg:min-h-0 lg:pr-8"
-          :class="LINHA_BUSCA_ALTURA_CLASS"
+          :class="LINHA_BUSCA_CONTROLE_CLASS"
         />
         <button
           v-if="searchQuery"
@@ -267,7 +267,7 @@ async function handleCopyWhatsapp(patient: PatientComputed): Promise<void> {
         id="btn-nova-prestacao"
         type="button"
         class="hidden shrink-0 rounded-lg bg-accent-dark px-4 text-[13px] font-semibold text-white transition-colors hover:opacity-90 lg:block"
-        :class="LINHA_BUSCA_ALTURA_CLASS"
+        :class="LINHA_BUSCA_CONTROLE_CLASS"
         @click="openCreateForm"
       >
         + Nova prestação

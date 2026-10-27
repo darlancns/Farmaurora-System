@@ -90,9 +90,20 @@ const TODOS_A = CENARIO_A.length;
 // Cenário C: contagens de 3 dígitos nos dois chips (os chips ficam mais largos; a altura não pode mudar).
 const CENARIO_C = [...grupo("e", ATUAL, 120), ...grupo("f", ANTERIOR, 105), ...grupo("g", ANTIGOS[0]!, 1)];
 
-// Altura única (44px) da 1ª linha em lg+: busca, "Todos", chips de mês, ☰ e "+ Nova prestação".
+// Altura única (44px) e raio único (8px, rounded-lg) da 1ª linha em lg+: busca, "Todos", chips de mês, ☰ e
+// "+ Nova prestação". Abaixo de lg a busca e o ícone de filtros seguem com o raio de sempre (6px, rounded-md).
 const ALTURA_LINHA = 44;
 const TOLERANCIA = 0.5;
+const RAIO_LINHA = ["8px", "8px", "8px", "8px"];
+const RAIO_ABAIXO_DE_LG = ["6px", "6px", "6px", "6px"];
+
+// border-radius computado dos 4 cantos (top-left, top-right, bottom-right, bottom-left).
+async function raios(page: Page, seletor: string): Promise<string[]> {
+  return page.locator(seletor).evaluate((el) => {
+    const c = getComputedStyle(el);
+    return [c.borderTopLeftRadius, c.borderTopRightRadius, c.borderBottomRightRadius, c.borderBottomLeftRadius];
+  });
+}
 
 async function login(page: Page): Promise<void> {
   await page.context().clearCookies();
@@ -278,6 +289,41 @@ test.describe("Chips de mês de /prestacao", () => {
         expect(await hasHorizontalOverflow(page)).toBe(false);
       });
 
+      test("os seis elementos têm canto de 8px nos quatro cantos (chip selecionado e não selecionado iguais)", async ({
+        page,
+      }) => {
+        const seletores = {
+          busca: "#patient-search",
+          todos: "#month-filter-all",
+          atual: `#month-filter-${ATUAL.key}`,
+          anterior: `#month-filter-${ANTERIOR.key}`,
+          mais: "#month-filter-more-toggle",
+          nova: "#btn-nova-prestacao",
+        };
+        const verificar = async (etapa: string) => {
+          const busca = await box(page, seletores.busca);
+          for (const [nome, seletor] of Object.entries(seletores)) {
+            expect(await raios(page, seletor), `raios de ${nome} (${etapa})`).toEqual(RAIO_LINHA);
+            // a altura (44px), o top e o bottom continuam iguais
+            const b = await box(page, seletor);
+            expect(Math.abs(b.height - ALTURA_LINHA), `altura de ${nome} (${etapa})`).toBeLessThanOrEqual(TOLERANCIA);
+            expect(Math.abs(b.y - busca.y), `top de ${nome} (${etapa})`).toBeLessThanOrEqual(TOLERANCIA);
+            expect(Math.abs(b.y + b.height - (busca.y + busca.height)), `bottom de ${nome} (${etapa})`).toBeLessThanOrEqual(
+              TOLERANCIA
+            );
+          }
+        };
+
+        await verificar("padrão");
+        await page.locator(seletores.atual).click(); // chip selecionado x não selecionado
+        await expect(page.locator(seletores.atual)).toHaveClass(/bg-accent-dark/);
+        await verificar("chip selecionado");
+        await page.locator(seletores.mais).click(); // ☰ destacado
+        await page.locator(`#month-filter-dropdown-${ANTIGOS[1]!.key}`).click();
+        await expect(page.locator(seletores.mais)).toHaveClass(/bg-accent-dark/);
+        await verificar("☰ destacado");
+      });
+
       test("chip selecionado e não selecionado, ☰ normal e destacado: mesma altura e mesma posição", async ({ page }) => {
         const atual = page.locator(`#month-filter-${ATUAL.key}`);
         const anterior = page.locator(`#month-filter-${ANTERIOR.key}`);
@@ -394,6 +440,9 @@ test.describe("Chips de mês de /prestacao", () => {
       await expect(page.locator("#btn-nova-prestacao")).toBeHidden();
       await expect(page.locator("#btn-filtros-prestacao")).toBeVisible();
       expect(await hasHorizontalOverflow(page)).toBe(false);
+      // o raio abaixo de lg é o de antes (6px): o de 8px só vale em lg+
+      expect(await raios(page, "#patient-search")).toEqual(RAIO_ABAIXO_DE_LG);
+      expect(await raios(page, "#btn-filtros-prestacao")).toEqual(RAIO_ABAIXO_DE_LG);
 
       await page.locator("#btn-filtros-prestacao").click();
       await expect(page.locator("#prestacao-filtros-sheet")).toBeVisible();
