@@ -190,7 +190,13 @@ async function handleCopyWhatsapp(patient: PatientComputed): Promise<void> {
 </script>
 
 <template>
-  <!-- pb-20 abaixo de lg: folga pro botão flutuante nunca cobrir o último card (classe estática de
+  <!-- Em lg+ a página NÃO rola: o #dashboard-page é uma coluna com a altura da área do <main> (lg:h-full; o <main>
+       é item esticado do h-screen do layout, então a altura é definida). Cabeçalho, busca e chips ficam com a
+       altura natural parados no topo, e a lista (PatientTable: flex-1 min-h-0) ocupa o resto e rola sozinha. O
+       lg:-mb-10 da lista cancela o pb-10 do <main> (DefaultLayout) para a barra de rolagem da lista ir até o fim
+       da tela; o respiro do último card fica dentro da lista (pb-10 no PatientTable). Abaixo de lg nada disso
+       vale (a lista segue com o max-height de 4 cards e a página rola como sempre).
+       pb-20 abaixo de lg: folga pro botão flutuante nunca cobrir o último card (classe estática de
        propósito — mesma razão de processos.vue: condicionar por cargo diverge entre SSR e client).
        Com o painel de filtros ou o modal do formulário aberto a lista interna (#patient-table-scroll, que tem
        rolagem própria) também trava: o useLockBodyScroll só trava body e <main>, então a roda/toque sobre o fundo
@@ -199,7 +205,7 @@ async function handleCopyWhatsapp(patient: PatientComputed): Promise<void> {
        1º render do client: sem efeito na hydration. -->
   <div
     id="dashboard-page"
-    class="mx-auto max-w-[1400px] pb-20 lg:pb-0"
+    class="mx-auto max-w-[1400px] pb-20 lg:flex lg:h-full lg:flex-col lg:pb-0"
     :class="{ 'max-lg:[&_#patient-table-scroll]:overflow-y-hidden': showFiltros || showForm }"
   >
     <GlobalHeader
@@ -208,7 +214,7 @@ async function handleCopyWhatsapp(patient: PatientComputed): Promise<void> {
       subtitle="Preencha os dados, confira os cálculos e gere a prestação com um clique."
     />
 
-    <div class="mb-3 flex items-center gap-2.5">
+    <div class="mb-3 flex items-center gap-2.5 lg:shrink-0">
       <div class="relative min-w-0 flex-1">
         <input
           id="patient-search"
@@ -275,6 +281,7 @@ async function handleCopyWhatsapp(patient: PatientComputed): Promise<void> {
     </div>
 
     <PatientTable
+      class="lg:-mb-10 lg:min-h-0 lg:flex-1"
       :patients="filteredRows"
       :search-query="searchQuery"
       :readonly="!canWritePatients"

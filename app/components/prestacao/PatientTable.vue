@@ -24,6 +24,8 @@ const emit = defineEmits<{
   "toggle-status": [patient: PatientComputed];
 }>();
 
+// Altura máxima da lista ABAIXO de lg (4 cards, medida por JS no style inline). Em lg+ o style é anulado
+// (lg:max-h-none!) e quem manda é o flex da página: a lista ocupa o resto da tela (prestacao.vue).
 const VISIBLE_CARDS = 4;
 const GAP_PX = 8;
 const FALLBACK_MAX_HEIGHT_PX = 560;
@@ -83,7 +85,7 @@ watch(
       v-else
       id="patient-table-scroll"
       ref="listRef"
-      class="flex flex-col gap-2 overflow-y-auto pr-1"
+      class="flex flex-col gap-2 overflow-y-auto pr-1 lg:max-h-none! lg:min-h-0 lg:flex-1 lg:pb-10"
       :style="{ maxHeight: `${listMaxHeightPx}px` }"
     >
       <PatientRow
