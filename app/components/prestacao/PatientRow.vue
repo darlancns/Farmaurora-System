@@ -95,10 +95,24 @@ const valorCells = computed<ValorCell[]>(() => {
 // gerar o CSS. Estreito (<640): 2 colunas. Médio (640–1179): 4 colunas (ou, com Despachante/Transporte,
 // 3 colunas × 2 linhas e 6 colunas só a partir de 900). Largo (>=1180): bloco de colunas fixas à
 // direita do nome, alinhadas entre os cards.
+//
+// Largo, 4 valores: 4 colunas de --valor-col (Alvará, Custo, Nota, Imposto), com --valor-gap entre elas.
+// Largo, 6 valores: o bloco tem a MESMA largura do de 4 e as 3 colunas de 2 valores começam nos mesmos x:
+// 1ª (Alvará/Custo) no x da 1ª coluna do bloco de 4, 3ª (Nota/Imposto) no x da 4ª (Imposto) e a 2ª
+// (Despachante/Transporte) no meio das duas. O passo entre colunas é --valor-col + --valor-gap; a 1ª e a 2ª
+// colunas ocupam 1,5 passo (--valor-meio) e a 3ª uma coluna (--valor-col), sem gap: lefts em 0, 1,5 e 3 passos.
+// Tudo derivado das duas constantes abaixo: mudar a largura da coluna move os dois desenhos juntos.
+const VALOR_COL_REM = 6.75;
+const VALOR_GAP_REM = 0.75; // = gap-x-3
+const valoresGridStyle = {
+  "--valor-col": `${VALOR_COL_REM}rem`,
+  "--valor-gap": `${VALOR_GAP_REM}rem`,
+  "--valor-meio": "calc((var(--valor-col) + var(--valor-gap)) * 1.5)",
+};
 const valoresGridClass = computed(() =>
   hasDespesaOuTransporte.value
-    ? "grid-cols-2 @[640px]:grid-flow-col @[640px]:grid-cols-3 @[640px]:grid-rows-2 @[900px]:grid-flow-row @[900px]:grid-cols-6 @[900px]:grid-rows-1 @[1180px]:grid-flow-col @[1180px]:grid-cols-[repeat(3,6.75rem)] @[1180px]:grid-rows-2"
-    : "grid-cols-2 @[640px]:grid-cols-4 @[1180px]:grid-cols-[repeat(4,6.75rem)]"
+    ? "grid-cols-2 @[640px]:grid-flow-col @[640px]:grid-cols-3 @[640px]:grid-rows-2 @[900px]:grid-flow-row @[900px]:grid-cols-6 @[900px]:grid-rows-1 @[1180px]:grid-flow-col @[1180px]:grid-cols-[var(--valor-meio)_var(--valor-meio)_var(--valor-col)] @[1180px]:grid-rows-2 @[1180px]:gap-x-0"
+    : "grid-cols-2 @[640px]:grid-cols-4 @[1180px]:grid-cols-[repeat(4,var(--valor-col))]"
 );
 
 // Linha sem status (dado antigo ou estado local anterior à migration) conta como "em andamento".
@@ -153,7 +167,7 @@ function handleGenerateWord(): void {
           :id="`patient-valores-${patient.id}`"
           class="col-span-2 col-start-1 row-start-3 border-t border-hairline pt-2.5 text-[12.5px] @[640px]:row-start-2 @[640px]:col-span-4 @[1180px]:col-span-1 @[1180px]:col-start-3 @[1180px]:row-start-1 @[1180px]:border-t-0 @[1180px]:pt-0"
         >
-          <div class="grid gap-x-3 gap-y-2" :class="valoresGridClass">
+          <div class="grid gap-x-[var(--valor-gap)] gap-y-2" :style="valoresGridStyle" :class="valoresGridClass">
             <div
               v-for="cell in valorCells"
               :id="`patient-valor-${cell.key}-${patient.id}`"

@@ -71,7 +71,9 @@ async function abrir(page: Page, width: number, height: number): Promise<void> {
   await page.setViewportSize({ width, height });
   await page.goto("/prestacao", { waitUntil: "networkidle" });
   await expect(page.locator(`#patient-row-${idNormal}`)).toBeVisible();
-  // a lista tem altura máxima de 4 cards e rolagem própria: solta para medir todos os cards
+  // abaixo de lg a lista tem altura máxima de 4 cards e rolagem própria: solta para medir todos os cards. Em lg+ ela
+  // ocupa o resto da tela (flex-1) e esta injeção não a libera — sem efeito aqui: o boundingBox é o do layout e vale
+  // também para cards fora da área visível (e estes poucos cards cabem na tela).
   await page.addStyleTag({ content: "#patient-table-scroll{max-height:none !important}" });
 }
 
@@ -303,7 +305,11 @@ test.describe("Prestação — card e status", () => {
       expect(await nome.evaluate((el) => el.scrollWidth <= el.clientWidth + 1), `${width}: nome sem corte`).toBe(true);
       expect(await nome.evaluate((el) => getComputedStyle(el).textOverflow)).not.toBe("ellipsis");
       const linhas = Math.round((await box(nome)).height / (await nome.evaluate((el) => parseFloat(getComputedStyle(el).lineHeight))));
-      if (cardBox.width >= 1180) expect(linhas, `${width}: nome em até 2 linhas no largo`).toBeLessThanOrEqual(2);
+      // Este paciente tem 6 valores. No desenho largo o bloco de 6 valores ocupa o mesmo espaço do de 4 (colunas nos
+      // mesmos x — prestacao-card-valores.spec.ts), então o nome perde 120px: em 1440 (card de 1196) a coluna do nome
+      // tem 234px e o nome de 52+ caracteres quebra em 3 linhas; em 1920 (card de 1396) segue em até 2.
+      const maxLinhas = cardBox.width >= 1300 ? 2 : 3;
+      if (cardBox.width >= 1180) expect(linhas, `${width}: nome em até ${maxLinhas} linhas no largo`).toBeLessThanOrEqual(maxLinhas);
 
       // seis valores (Despachante/Transporte entram), todos inteiros e dentro do card, sem colidir com o próximo
       const chaves = ["alvara", "custo", "despachante", "transporte", "nota", "imposto"];
