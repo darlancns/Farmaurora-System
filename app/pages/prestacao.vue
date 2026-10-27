@@ -14,13 +14,14 @@ import { useDocxGenerator } from "../composables/useDocxGenerator";
 import { useWhatsappShare } from "../composables/useWhatsappShare";
 import { useToast } from "../composables/useToast";
 import { useTravaEnvio } from "../composables/useTravaEnvio";
+import { proximoPatientStatus } from "#shared/constants/prestacaoStatus";
 import { slotLabel } from "../utils/anexoSlots";
 import { getErrorMessage } from "../utils/errorMessages";
 import { normalizeText } from "../utils/search";
 import { getPatientMonthKey, groupPatientsByMonth, monthFilterOptions, monthKeyId } from "../utils/monthGroups";
 import type { NewPatientDTO, PatientComputed } from "#shared/types/Patient";
 
-const { computedPatients, fetchPatients, addPatient, updatePatient, removePatient } = usePatients();
+const { computedPatients, fetchPatients, addPatient, updatePatient, updatePatientStatus, removePatient } = usePatients();
 const { canWrite } = useAuth();
 // socio e administrador criam/editam/excluem prestações.
 const canWritePatients = computed<boolean>(() => canWrite("patients"));
@@ -33,6 +34,9 @@ const { showToast, showAviso } = useToast();
 const { emAndamento: salvando, executar: executarEnvio } = useTravaEnvio();
 // Word em geração, por prestação: o botão só volta quando a geração termina (sucesso ou erro).
 const generatingIds = ref<string[]>([]);
+// Troca de status em andamento, por prestação: o selo fica travado até o servidor responder (evita dois PATCH
+// concorrentes chegarem fora de ordem).
+const statusPendingIds = ref<string[]>([]);
 
 const rows = computed<PatientComputed[]>(() => computedPatients());
 const searchQuery = ref("");
@@ -148,6 +152,19 @@ async function handleDelete(id: string): Promise<void> {
   }
 }
 
+async function handleToggleStatus(patient: PatientComputed): Promise<void> {
+  if (!canWritePatients.value || statusPendingIds.value.includes(patient.id)) return;
+  statusPendingIds.value = [...statusPendingIds.value, patient.id];
+  try {
+    await updatePatientStatus(patient.id, proximoPatientStatus(patient.status));
+  } catch (e) {
+    // updatePatientStatus já devolveu o selo ao valor anterior.
+    showToast(`Não foi possível alterar o status de ${patient.paciente}. ${getErrorMessage(e, "Tente novamente.")}`);
+  } finally {
+    statusPendingIds.value = statusPendingIds.value.filter((id) => id !== patient.id);
+  }
+}
+
 async function handleGenerateWord(patient: PatientComputed): Promise<void> {
   if (generatingIds.value.includes(patient.id)) return;
   generatingIds.value = [...generatingIds.value, patient.id];
@@ -259,10 +276,12 @@ async function handleCopyWhatsapp(patient: PatientComputed): Promise<void> {
       :search-query="searchQuery"
       :readonly="!canWritePatients"
       :generating-ids="generatingIds"
+      :status-pending-ids="statusPendingIds"
       @delete="handleDelete"
       @edit="handleEdit"
       @generate-word="handleGenerateWord"
       @copy-whatsapp="handleCopyWhatsapp"
+      @toggle-status="handleToggleStatus"
     />
 
     <FloatingAddButton v-if="canWritePatients" id="fab-nova-prestacao" label="Nova prestação" @click="openCreateForm" />

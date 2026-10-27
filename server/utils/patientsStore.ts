@@ -1,4 +1,5 @@
-import type { NewPatientDTO, Patient } from "../../shared/types/Patient";
+import type { NewPatientDTO, Patient, PatientStatus } from "../../shared/types/Patient";
+import { PATIENT_STATUS_PADRAO } from "../../shared/constants/prestacaoStatus";
 import { createSupabaseAdminClient } from "./supabaseServerClient";
 import { erro, randomId } from "./storeKit";
 import { colunasComuns, montarPatient, type PacienteRow } from "./patientMappers";
@@ -11,7 +12,8 @@ import { colunasComuns, montarPatient, type PacienteRow } from "./patientMappers
  * implementação interna muda.
  *
  * Schema (1 tabela, sem tabelas filhas):
- *  - colunas escalares (id, data, paciente, empresa, consultor, valores…);
+ *  - colunas escalares (id, data, paciente, empresa, consultor, valores…) e `status`
+ *    (só o PATCH dedicado grava — ver setPatientStatus);
  *  - `medicamentos`     jsonb: array de { qtd, medicamento } na ordem original;
  *  - `remessas_itens`   jsonb: array de { despachante, transporte } na ordem
  *                       original — `despachante` = despesasPorRemessa[i],
@@ -66,7 +68,8 @@ export async function createPatient(input: NewPatientDTO): Promise<Patient> {
   });
   if (error) throw erro("criar paciente", error);
 
-  return { ...input, id, attachedSlots: [], createdAt };
+  // `status` não vai no insert: a coluna assume o DEFAULT do banco (= PATIENT_STATUS_PADRAO).
+  return { ...input, id, attachedSlots: [], status: PATIENT_STATUS_PADRAO, createdAt };
 }
 
 export async function updatePatient(id: string, data: NewPatientDTO): Promise<Patient | null> {
@@ -80,6 +83,17 @@ export async function updatePatient(id: string, data: NewPatientDTO): Promise<Pa
     .eq("id", id)
     .select("*");
   if (error) throw erro("atualizar paciente", error);
+
+  const row = (rows ?? [])[0] as PacienteRow | undefined;
+  return row ? montarPatient(row) : null;
+}
+
+// Único caminho que grava `status` (o update de edição nunca toca nele). null = prestação inexistente.
+export async function setPatientStatus(id: string, status: PatientStatus): Promise<Patient | null> {
+  const db = createSupabaseAdminClient();
+
+  const { data: rows, error } = await db.from(TABELA).update({ status }).eq("id", id).select("*");
+  if (error) throw erro("atualizar status da prestação", error);
 
   const row = (rows ?? [])[0] as PacienteRow | undefined;
   return row ? montarPatient(row) : null;

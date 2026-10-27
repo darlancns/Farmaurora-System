@@ -1,4 +1,5 @@
 import type { EmpresaCodigo, ConsultorNome, MedicamentoItem, NewPatientDTO, Patient } from "../../shared/types/Patient";
+import { normalizarPatientStatus } from "../../shared/constants/prestacaoStatus";
 import { num } from "./storeKit";
 
 // Mapeadores puros linha (Supabase, tabela `prestacao_pacientes`) ↔ modelo
@@ -13,6 +14,9 @@ import { num } from "./storeKit";
 //                       volta a virar dois arrays paralelos.
 //  - `consultor === ""` ↔ coluna `consultor = NULL`. `attachedSlots` ↔
 //    `attached_slots` (text[]) direto.
+//  - `status` (em_andamento | concluida): só o PATCH dedicado grava; create usa o DEFAULT da coluna e
+//    `colunasComuns` (create/update) NUNCA o inclui, então o PUT não sobrescreve. Opcional em PacienteRow
+//    porque linhas anteriores à migration chegam sem a chave — a leitura trata como "em_andamento".
 
 export interface RemessaItem {
   despachante: string;
@@ -35,6 +39,7 @@ export interface PacienteRow {
   transporte_remessas: number | string;
   remessas: number | string;
   attached_slots: string[] | null;
+  status?: string | null;
   created_at: string;
   medicamentos: MedicamentoItem[] | null;
   remessas_itens: RemessaItem[] | null;
@@ -54,10 +59,10 @@ export function remessasItensParaColuna(dto: NewPatientDTO): RemessaItem[] {
   }));
 }
 
-// Campos comuns a create/update (sem id / created_at / attached_slots).
+// Campos comuns a create/update (sem id / created_at / attached_slots / status).
 export function colunasComuns(dto: NewPatientDTO): Omit<
   PacienteRow,
-  "id" | "created_at" | "attached_slots"
+  "id" | "created_at" | "attached_slots" | "status"
 > {
   return {
     data: dto.data,
@@ -103,6 +108,7 @@ export function montarPatient(row: PacienteRow): Patient {
     transportesPorRemessa: remessasItens.map((r) => r.transporte ?? ""),
     remessas: num(row.remessas),
     attachedSlots: row.attached_slots ?? [],
+    status: normalizarPatientStatus(row.status),
     createdAt: row.created_at,
   };
 }

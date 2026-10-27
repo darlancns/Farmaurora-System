@@ -1,5 +1,6 @@
-import type { ConsultorNome, NewPatientDTO } from "../../shared/types/Patient";
+import type { ConsultorNome, NewPatientDTO, PatientStatus } from "../../shared/types/Patient";
 import { CONSULTORES } from "../../shared/constants/consultores";
+import { isPatientStatus } from "../../shared/constants/prestacaoStatus";
 
 function isMedicamentoItem(value: unknown): value is { qtd: string; medicamento: string } {
   if (!value || typeof value !== "object") return false;
@@ -33,4 +34,10 @@ export function isValidPatientPayload(body: unknown): body is Omit<NewPatientDTO
     Array.isArray(b.transportesPorRemessa) &&
     b.transportesPorRemessa.every((v) => typeof v === "string")
   );
+}
+
+// Corpo do PATCH de status: só { status } e só um dos dois valores do enum.
+export function isValidPatientStatusPayload(body: unknown): body is { status: PatientStatus } {
+  if (!body || typeof body !== "object") return false;
+  return isPatientStatus((body as Record<string, unknown>).status);
 }

@@ -1,7 +1,7 @@
 import { useState } from "#app";
 import { withComputedFields } from "../utils/calculations";
 import { apiFetch, deleteTolerant } from "../utils/apiFetch";
-import type { NewPatientDTO, Patient, PatientComputed } from "#shared/types/Patient";
+import type { NewPatientDTO, Patient, PatientComputed, PatientStatus } from "#shared/types/Patient";
 
 export function usePatients() {
   const patients = useState<Patient[]>("patients", () => []);
@@ -68,6 +68,33 @@ export function usePatients() {
     return updated;
   }
 
+  // Alterna o status com atualização otimista: o selo muda na hora; se o servidor recusar (ou a rede
+  // falhar) volta ao valor anterior e o erro sobe para a página avisar. Só o campo `status` é trocado,
+  // nunca o objeto inteiro, para não atropelar outra alteração local (ex.: anexo recém-enviado).
+  async function updatePatientStatus(id: string, status: PatientStatus): Promise<void> {
+    const current = patients.value.find((p) => p.id === id);
+    if (!current) return;
+    const previous = current.status;
+    current.status = status;
+    try {
+      const updated = await apiFetch<Patient>(
+        `/api/patients/${id}/status`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status }),
+        },
+        "Erro ao atualizar o status da prestação."
+      );
+      const index = patients.value.findIndex((p) => p.id === id);
+      if (index !== -1) patients.value[index]!.status = updated.status;
+    } catch (e) {
+      const index = patients.value.findIndex((p) => p.id === id);
+      if (index !== -1) patients.value[index]!.status = previous;
+      throw e;
+    }
+  }
+
   async function removePatient(id: string): Promise<void> {
     await deleteTolerant(`/api/patients/${id}`, "Erro ao remover prestação.");
     // 404 significa que a prestação já não existe no servidor — trata como
@@ -84,6 +111,7 @@ export function usePatients() {
     fetchPatient,
     addPatient,
     updatePatient,
+    updatePatientStatus,
     removePatient,
   };
 }

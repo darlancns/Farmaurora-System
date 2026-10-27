@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import type { PatientComputed } from "#shared/types/Patient";
+import { normalizarPatientStatus } from "#shared/constants/prestacaoStatus";
 import { formatCurrency } from "../../utils/formatters";
 import ConfirmDialog from "../ConfirmDialog.vue";
+import PatientStatusBadge from "./PatientStatusBadge.vue";
 
 const props = withDefaults(
   defineProps<{
@@ -10,8 +12,10 @@ const props = withDefaults(
     readonly?: boolean;
     /** Word desta prestação em geração (controlado pela página: libera quando termina). */
     generating?: boolean;
+    /** Troca de status em andamento (controlado pela página): o selo fica travado até terminar. */
+    statusPending?: boolean;
   }>(),
-  { readonly: false, generating: false },
+  { readonly: false, generating: false, statusPending: false },
 );
 
 const emit = defineEmits<{
@@ -19,6 +23,7 @@ const emit = defineEmits<{
   edit: [patient: PatientComputed];
   "generate-word": [patient: PatientComputed];
   "copy-whatsapp": [patient: PatientComputed];
+  "toggle-status": [patient: PatientComputed];
 }>();
 
 const showDeleteConfirm = ref(false);
@@ -32,6 +37,9 @@ function confirmDelete(): void {
 }
 const isFarmaurora = computed(() => props.patient.empresa === "FARMAURORA");
 const stripeClass = computed(() => (isFarmaurora.value ? "bg-farm-blue" : "bg-mainz-gold"));
+const dateTileClass = computed(() =>
+  isFarmaurora.value ? "bg-farm-blue-soft text-farm-blue" : "bg-mainz-gold-soft text-mainz-gold"
+);
 const badgeLabel = computed(() => props.patient.consultor ?? "");
 const hasDespesaOuTransporte = computed(
   () => props.patient.despesaTotal > 0 || props.patient.transporteTotal > 0
@@ -53,14 +61,48 @@ const notaDisplay = computed(() => {
 const impostoDisplay = computed(() =>
   impostoEhPrejuizo.value ? "PREJUÍZO" : `R$${formatCurrency(props.patient.imposto)}`
 );
-// Largura mínima do container pra cada célula caber "Label R$valor" numa linha só,
-// sem truncar. Maior com despesa/transporte porque a grade passa de 4 pra 6 colunas.
-// As duas strings completas precisam existir literalmente aqui pro Tailwind gerar o CSS.
-const cellRowClass = computed(() =>
+
+interface ValorCell {
+  key: string;
+  label: string;
+  display: string;
+  danger: boolean;
+}
+
+// Os valores do card, na ordem de sempre. Despachante/Transporte só existem com despesa ou transporte
+// (o mesmo critério de antes). Nenhum cálculo aqui: só apresentação dos números já calculados.
+const valorCells = computed<ValorCell[]>(() => {
+  const p = props.patient;
+  const cells: ValorCell[] = [
+    { key: "alvara", label: "Alvará", display: `R$${formatCurrency(p.alvara)}`, danger: false },
+    { key: "custo", label: "Custo", display: `R$${formatCurrency(p.custoImportacao)}`, danger: false },
+  ];
+  if (hasDespesaOuTransporte.value) {
+    cells.push(
+      { key: "despachante", label: "Despachante", display: `R$${formatCurrency(p.despesaTotal)}`, danger: false },
+      { key: "transporte", label: "Transporte", display: `R$${formatCurrency(p.transporteTotal)}`, danger: false },
+    );
+  }
+  cells.push(
+    { key: "nota", label: "Nota", display: notaDisplay.value, danger: notaEhPrejuizo.value },
+    { key: "imposto", label: "Imposto", display: impostoDisplay.value, danger: impostoEhPrejuizo.value },
+  );
+  return cells;
+});
+
+// Grade dos valores por largura do CARD (container query no wrapper — o breakpoint é do card, não da
+// janela: a sidebar come ~240px). As strings completas precisam existir literalmente aqui pro Tailwind
+// gerar o CSS. Estreito (<640): 2 colunas. Médio (640–1179): 4 colunas (ou, com Despachante/Transporte,
+// 3 colunas × 2 linhas e 6 colunas só a partir de 900). Largo (>=1180): bloco de colunas fixas à
+// direita do nome, alinhadas entre os cards.
+const valoresGridClass = computed(() =>
   hasDespesaOuTransporte.value
-    ? "@[1080px]:flex-row @[1080px]:items-baseline @[1080px]:gap-1"
-    : "@[620px]:flex-row @[620px]:items-baseline @[620px]:gap-1"
+    ? "grid-cols-2 @[640px]:grid-flow-col @[640px]:grid-cols-3 @[640px]:grid-rows-2 @[900px]:grid-flow-row @[900px]:grid-cols-6 @[900px]:grid-rows-1 @[1180px]:grid-flow-col @[1180px]:grid-cols-[repeat(3,6.75rem)] @[1180px]:grid-rows-2"
+    : "grid-cols-2 @[640px]:grid-cols-4 @[1180px]:grid-cols-[repeat(4,6.75rem)]"
 );
+
+// Linha sem status (dado antigo ou estado local anterior à migration) conta como "em andamento".
+const status = computed(() => normalizarPatientStatus(props.patient.status));
 
 function handleGenerateWord(): void {
   if (props.generating) return;
@@ -69,17 +111,75 @@ function handleGenerateWord(): void {
 </script>
 
 <template>
-  <div :id="`patient-row-${patient.id}`" class="relative shrink-0 overflow-hidden rounded-lg border border-hairline bg-paper-raised">
-    <div class="absolute inset-y-0 left-0 w-1" :class="stripeClass" />
+  <!-- O wrapper é o @container (o breakpoint do desenho é a largura do card, não a da janela); os
+       @[Npx]: ficam só nos filhos — nunca no mesmo elemento do @container. -->
+  <div class="@container shrink-0">
+    <div :id="`patient-row-${patient.id}`" class="relative overflow-hidden rounded-lg border border-hairline bg-paper-raised">
+      <div class="absolute inset-y-0 left-0 w-1" :class="stripeClass" />
 
-    <div class="flex flex-col gap-1.5 py-2.5 pr-3.5 pl-4">
-      <div class="flex items-start justify-between gap-3">
-        <div class="flex items-center gap-2">
-          <span class="font-mono text-[12px] text-ink-soft">{{ patient.data }}</span>
-          <span class="text-[13px] text-ink-soft">{{ badgeLabel }}</span>
+      <!-- Três desenhos pela largura do card:
+           estreito (<640, celular): cabeçalho data | status, nome, valores (2 colunas) e as ações embaixo;
+           médio (640–1179, tablet e desktop apertado): data | nome | status | ações na 1ª linha, valores na 2ª;
+           largo (>=1180): linha única — data | nome | valores | status | ações. -->
+      <div
+        class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2.5 py-3 pr-3.5 pl-4 @[640px]:grid-cols-[auto_minmax(0,1fr)_auto_auto] @[1180px]:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto]"
+      >
+        <div
+          :id="`patient-data-${patient.id}`"
+          class="col-start-1 row-start-1 flex items-center self-stretch @[640px]:w-[8.25rem] @[640px]:border-r @[640px]:border-hairline @[640px]:pr-3"
+        >
+          <div class="flex items-center gap-2">
+            <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md" :class="dateTileClass" aria-hidden="true">
+              <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+              </svg>
+            </span>
+            <span class="flex flex-col gap-0.5 leading-tight">
+              <span class="font-mono text-[12.5px] whitespace-nowrap text-ink">{{ patient.data }}</span>
+              <span v-if="badgeLabel" class="text-[11px] whitespace-nowrap text-ink-soft">{{ badgeLabel }}</span>
+            </span>
+          </div>
         </div>
 
-        <div class="flex shrink-0 gap-1.5">
+        <div
+          :id="`patient-nome-${patient.id}`"
+          class="col-span-2 col-start-1 row-start-2 min-w-0 border-t border-hairline pt-2.5 @[640px]:col-span-1 @[640px]:col-start-2 @[640px]:row-start-1 @[640px]:border-t-0 @[640px]:pt-0"
+        >
+          <span class="block text-[15px] font-semibold break-words text-ink">{{ patient.paciente }}</span>
+          <span class="block text-[13px] break-words text-ink-soft">{{ patient.descricaoResumo }}</span>
+        </div>
+
+        <div
+          :id="`patient-valores-${patient.id}`"
+          class="col-span-2 col-start-1 row-start-3 border-t border-hairline pt-2.5 text-[12.5px] @[640px]:row-start-2 @[640px]:col-span-4 @[1180px]:col-span-1 @[1180px]:col-start-3 @[1180px]:row-start-1 @[1180px]:border-t-0 @[1180px]:pt-0"
+        >
+          <div class="grid gap-x-3 gap-y-2" :class="valoresGridClass">
+            <div
+              v-for="cell in valorCells"
+              :id="`patient-valor-${cell.key}-${patient.id}`"
+              :key="cell.key"
+              class="flex min-w-0 flex-col gap-0.5"
+            >
+              <span class="text-[11.5px] leading-tight text-ink-soft">{{ cell.label }}</span>
+              <span
+                class="font-mono text-[12.5px] leading-tight whitespace-nowrap"
+                :class="cell.danger ? 'font-semibold text-danger' : 'text-ink'"
+              >{{ cell.display }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-start-2 row-start-1 justify-self-end @[640px]:col-start-3 @[1180px]:col-start-4">
+          <PatientStatusBadge
+            :id="`patient-status-${patient.id}`"
+            :status="status"
+            :interactive="!readonly"
+            :pending="statusPending"
+            @toggle="emit('toggle-status', patient)"
+          />
+        </div>
+
+        <div class="col-span-2 col-start-1 row-start-4 flex shrink-0 justify-self-end gap-1.5 @[640px]:col-span-1 @[640px]:col-start-4 @[640px]:row-start-1 @[1180px]:col-start-5">
           <button
             :id="`btn-generate-word-${patient.id}`"
             type="button"
@@ -132,55 +232,6 @@ function handleGenerateWord(): void {
               <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
             </svg>
           </button>
-        </div>
-      </div>
-
-      <div>
-        <span class="block text-[15px] font-medium text-ink">{{ patient.paciente }}</span>
-        <span class="block text-[13px] text-ink-soft">{{ patient.descricaoResumo }}</span>
-      </div>
-
-      <div class="@container border-t border-hairline pt-2 text-[12.5px]">
-        <div
-          class="grid items-start gap-x-2.5 gap-y-1"
-          :class="
-            hasDespesaOuTransporte
-              ? 'grid-flow-col grid-rows-2 grid-cols-3 @[520px]:grid-flow-row @[520px]:grid-rows-none @[520px]:grid-cols-6'
-              : 'grid-cols-4'
-          "
-        >
-          <div :class="['flex flex-col gap-0.5', cellRowClass]">
-            <span class="min-w-0 truncate text-ink-soft">Alvará</span>
-            <span class="min-w-0 truncate font-mono text-[clamp(11px,1.1vw,13px)] text-ink">R${{ formatCurrency(patient.alvara) }}</span>
-          </div>
-          <div :class="['flex flex-col gap-0.5', cellRowClass]">
-            <span class="min-w-0 truncate text-ink-soft">Custo</span>
-            <span class="min-w-0 truncate font-mono text-[clamp(11px,1.1vw,13px)] text-ink">R${{ formatCurrency(patient.custoImportacao) }}</span>
-          </div>
-          <template v-if="hasDespesaOuTransporte">
-            <div :class="['flex flex-col gap-0.5', cellRowClass]">
-              <span class="min-w-0 truncate text-ink-soft">Despachante</span>
-              <span class="min-w-0 truncate font-mono text-[clamp(11px,1.1vw,13px)] text-ink">R${{ formatCurrency(patient.despesaTotal) }}</span>
-            </div>
-            <div :class="['flex flex-col gap-0.5', cellRowClass]">
-              <span class="min-w-0 truncate text-ink-soft">Transporte</span>
-              <span class="min-w-0 truncate font-mono text-[clamp(11px,1.1vw,13px)] text-ink">R${{ formatCurrency(patient.transporteTotal) }}</span>
-            </div>
-          </template>
-          <div :class="['flex flex-col gap-0.5', cellRowClass]">
-            <span class="min-w-0 truncate text-ink-soft">Nota</span>
-            <span
-              class="min-w-0 truncate font-mono text-[clamp(11px,1.1vw,13px)]"
-              :class="notaEhPrejuizo ? 'font-semibold text-danger' : 'text-ink'"
-            >{{ notaDisplay }}</span>
-          </div>
-          <div :class="['flex flex-col gap-0.5', cellRowClass]">
-            <span class="min-w-0 truncate text-ink-soft">Imposto</span>
-            <span
-              class="min-w-0 truncate font-mono text-[clamp(11px,1.1vw,13px)]"
-              :class="impostoEhPrejuizo ? 'font-semibold text-danger' : 'text-ink'"
-            >{{ impostoDisplay }}</span>
-          </div>
         </div>
       </div>
     </div>

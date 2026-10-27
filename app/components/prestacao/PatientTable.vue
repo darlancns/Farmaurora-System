@@ -10,8 +10,10 @@ const props = withDefaults(
     readonly?: boolean;
     /** Ids com o Word em geração. */
     generatingIds?: readonly string[];
+    /** Ids com a troca de status em andamento. */
+    statusPendingIds?: readonly string[];
   }>(),
-  { readonly: false, generatingIds: () => [] },
+  { readonly: false, generatingIds: () => [], statusPendingIds: () => [] },
 );
 
 const emit = defineEmits<{
@@ -19,6 +21,7 @@ const emit = defineEmits<{
   edit: [patient: PatientComputed];
   "generate-word": [patient: PatientComputed];
   "copy-whatsapp": [patient: PatientComputed];
+  "toggle-status": [patient: PatientComputed];
 }>();
 
 const VISIBLE_CARDS = 4;
@@ -89,10 +92,12 @@ watch(
         :patient="patient"
         :readonly="readonly"
         :generating="generatingIds.includes(patient.id)"
+        :status-pending="statusPendingIds.includes(patient.id)"
         @delete="emit('delete', $event)"
         @edit="emit('edit', $event)"
         @generate-word="emit('generate-word', $event)"
         @copy-whatsapp="emit('copy-whatsapp', $event)"
+        @toggle-status="emit('toggle-status', $event)"
       />
     </div>
   </div>
