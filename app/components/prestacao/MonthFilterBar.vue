@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import type { PatientComputed } from "#shared/types/Patient";
 import { monthKeyLabel, monthShortLabel, splitMonthPills, type MonthGroup } from "../../utils/monthGroups";
+import { LINHA_BUSCA_ALTURA_CLASS, LINHA_BUSCA_QUADRADO_CLASS } from "../../utils/prestacaoLinhaBusca";
 
 const props = defineProps<{
   months: Array<MonthGroup<PatientComputed>>;
@@ -52,12 +53,13 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", handleDocumentCl
     <button
       id="month-filter-all"
       type="button"
-      class="rounded-md border px-3 py-2 text-[13.5px] font-semibold transition-colors"
-      :class="
+      class="rounded-md border px-3 text-[13.5px] font-semibold transition-colors"
+      :class="[
+        LINHA_BUSCA_ALTURA_CLASS,
         modelValue === null
           ? 'border-transparent bg-accent-dark text-white'
-          : 'border-hairline bg-paper text-ink-soft hover:border-accent-dark hover:text-accent-dark'
-      "
+          : 'border-hairline bg-paper text-ink-soft hover:border-accent-dark hover:text-accent-dark',
+      ]"
       @click="selectMonth(null)"
     >
       Todos
@@ -68,12 +70,13 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", handleDocumentCl
       :id="`month-filter-${group.key}`"
       :key="group.key"
       type="button"
-      class="rounded-md border px-3 py-2 text-[13.5px] font-semibold transition-colors"
-      :class="
+      class="rounded-md border px-3 text-[13.5px] font-semibold transition-colors"
+      :class="[
+        LINHA_BUSCA_ALTURA_CLASS,
         modelValue === group.key
           ? 'border-transparent bg-accent-dark text-white'
-          : 'border-hairline bg-paper text-ink-soft hover:border-accent-dark hover:text-accent-dark'
-      "
+          : 'border-hairline bg-paper text-ink-soft hover:border-accent-dark hover:text-accent-dark',
+      ]"
       @click="selectMonth(group.key)"
     >
       {{ monthShortLabel(group) }} ({{ group.patients.length }})
@@ -86,12 +89,13 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", handleDocumentCl
       type="button"
       title="Mais meses"
       aria-label="Mais meses"
-      class="flex items-center justify-center rounded-md border px-2.5 py-2 transition-colors"
-      :class="
+      class="flex items-center justify-center rounded-md border transition-colors"
+      :class="[
+        LINHA_BUSCA_QUADRADO_CLASS,
         isOverflowSelected
           ? 'border-transparent bg-accent-dark text-white'
-          : 'border-hairline bg-paper text-ink-soft hover:border-accent-dark hover:text-accent-dark'
-      "
+          : 'border-hairline bg-paper text-ink-soft hover:border-accent-dark hover:text-accent-dark',
+      ]"
       @click="toggleDropdown"
     >
       <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">

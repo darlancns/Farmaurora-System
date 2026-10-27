@@ -79,13 +79,20 @@ function paciente(id: string, mes: Mes, dia: number) {
 }
 
 function grupo(prefixo: string, mes: Mes, quantidade: number) {
-  return Array.from({ length: quantidade }, (_, i) => paciente(`${prefixo}${i + 1}`, mes, i + 1));
+  // dia de 1 a 28 (cicla): grupos grandes não podem gerar data inválida, que cairia no mês corrente
+  return Array.from({ length: quantidade }, (_, i) => paciente(`${prefixo}${i + 1}`, mes, (i % 28) + 1));
 }
 
 // Cenário A: os dois meses dos chips têm prestações. Cenário B: o mês corrente está vazio.
 const CENARIO_A = [...grupo("a", ATUAL, 3), ...grupo("b", ANTERIOR, 2), ...grupo("c", ANTIGOS[0]!, 1), ...grupo("d", ANTIGOS[1]!, 2)];
 const CENARIO_B = [...grupo("b", ANTERIOR, 2), ...grupo("c", ANTIGOS[0]!, 1)];
 const TODOS_A = CENARIO_A.length;
+// Cenário C: contagens de 3 dígitos nos dois chips (os chips ficam mais largos; a altura não pode mudar).
+const CENARIO_C = [...grupo("e", ATUAL, 120), ...grupo("f", ANTERIOR, 105), ...grupo("g", ANTIGOS[0]!, 1)];
+
+// Altura única (44px) da 1ª linha em lg+: busca, "Todos", chips de mês, ☰ e "+ Nova prestação".
+const ALTURA_LINHA = 44;
+const TOLERANCIA = 0.5;
 
 async function login(page: Page): Promise<void> {
   await page.context().clearCookies();
@@ -136,6 +143,7 @@ test.describe("Chips de mês de /prestacao", () => {
   for (const viewport of [
     { name: "1024px", width: 1024, height: 768 },
     { name: "1280px", width: 1280, height: 800 },
+    { name: "1440px", width: 1440, height: 900 },
     { name: "1920px", width: 1920, height: 1080 },
   ]) {
     test.describe(`lg+ ${viewport.name}`, () => {
@@ -240,6 +248,101 @@ test.describe("Chips de mês de /prestacao", () => {
       test("'+ Nova prestação' continua à direita e abre o formulário", async ({ page }) => {
         await page.locator("#btn-nova-prestacao").click();
         await expect(page.locator("#patient-form")).toBeVisible();
+        expect(await hasHorizontalOverflow(page)).toBe(false);
+      });
+
+      test("os seis elementos da linha têm a mesma altura (44px), o mesmo top e o mesmo bottom", async ({ page }) => {
+        const seletores = {
+          busca: "#patient-search",
+          todos: "#month-filter-all",
+          atual: `#month-filter-${ATUAL.key}`,
+          anterior: `#month-filter-${ANTERIOR.key}`,
+          mais: "#month-filter-more-toggle",
+          nova: "#btn-nova-prestacao",
+        };
+        const caixas = new Map<string, Awaited<ReturnType<typeof box>>>();
+        for (const [nome, seletor] of Object.entries(seletores)) caixas.set(nome, await box(page, seletor));
+
+        const referencia = caixas.get("busca")!;
+        for (const [nome, b] of caixas) {
+          expect(Math.abs(b.height - ALTURA_LINHA), `altura de ${nome}`).toBeLessThanOrEqual(TOLERANCIA);
+          expect(Math.abs(b.y - referencia.y), `top de ${nome}`).toBeLessThanOrEqual(TOLERANCIA);
+          expect(Math.abs(b.y + b.height - (referencia.y + referencia.height)), `bottom de ${nome}`).toBeLessThanOrEqual(
+            TOLERANCIA
+          );
+        }
+        // ☰ quadrado 44x44
+        expect(Math.abs(caixas.get("mais")!.width - ALTURA_LINHA)).toBeLessThanOrEqual(TOLERANCIA);
+
+        expect(referencia.width).toBeGreaterThanOrEqual(240);
+        expect(await hasHorizontalOverflow(page)).toBe(false);
+      });
+
+      test("chip selecionado e não selecionado, ☰ normal e destacado: mesma altura e mesma posição", async ({ page }) => {
+        const atual = page.locator(`#month-filter-${ATUAL.key}`);
+        const anterior = page.locator(`#month-filter-${ANTERIOR.key}`);
+        const mais = page.locator("#month-filter-more-toggle");
+
+        const atualNormal = await box(page, `#month-filter-${ATUAL.key}`);
+        const maisNormal = await box(page, "#month-filter-more-toggle");
+
+        await atual.click();
+        await expect(atual).toHaveClass(/bg-accent-dark/);
+        const atualSelecionado = await box(page, `#month-filter-${ATUAL.key}`);
+        const anteriorNaoSel = await box(page, `#month-filter-${ANTERIOR.key}`);
+        for (const campo of ["y", "height", "width", "x"] as const) {
+          expect(Math.abs(atualSelecionado[campo] - atualNormal[campo]), `chip selecionado: ${campo}`).toBeLessThanOrEqual(
+            TOLERANCIA
+          );
+        }
+        expect(Math.abs(atualSelecionado.height - anteriorNaoSel.height)).toBeLessThanOrEqual(TOLERANCIA);
+        expect(Math.abs(atualSelecionado.y - anteriorNaoSel.y)).toBeLessThanOrEqual(TOLERANCIA);
+        await expect(anterior).not.toHaveClass(/bg-accent-dark/);
+
+        await mais.click();
+        await page.locator(`#month-filter-dropdown-${ANTIGOS[1]!.key}`).click();
+        await expect(mais).toHaveClass(/bg-accent-dark/);
+        const maisDestacado = await box(page, "#month-filter-more-toggle");
+        for (const campo of ["y", "height", "width", "x"] as const) {
+          expect(Math.abs(maisDestacado[campo] - maisNormal[campo]), `☰ destacado: ${campo}`).toBeLessThanOrEqual(
+            TOLERANCIA
+          );
+        }
+      });
+
+      test("o dropdown do ☰ continua ancorado embaixo do botão, alinhado à direita dele", async ({ page }) => {
+        await page.locator("#month-filter-more-toggle").click();
+        const toggle = await box(page, "#month-filter-more-toggle");
+        const dropdown = await box(page, "#month-filter-dropdown");
+        expect(dropdown.y - (toggle.y + toggle.height)).toBeCloseTo(6, 0); // mt-1.5, como antes
+        expect(Math.abs(dropdown.x + dropdown.width - (toggle.x + toggle.width))).toBeLessThanOrEqual(TOLERANCIA);
+      });
+
+      test("com contagens de 3 dígitos nos chips a altura não muda e nada quebra em duas linhas", async ({ page }) => {
+        // a rota registrada por último vence a do beforeEach
+        await page.route(
+          (url) => url.pathname === "/api/patients",
+          (route) =>
+            route.request().method() === "GET"
+              ? route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(CENARIO_C) })
+              : route.abort()
+        );
+        await page.goto("/prestacao", { waitUntil: "networkidle" });
+        await expect(page.locator(`#month-filter-${ATUAL.key}`)).toHaveText(`${ATUAL.nome} (120)`);
+        await expect(page.locator(`#month-filter-${ANTERIOR.key}`)).toHaveText(`${ANTERIOR.nome} (105)`);
+
+        const busca = await box(page, "#patient-search");
+        for (const seletor of [
+          "#month-filter-all",
+          `#month-filter-${ATUAL.key}`,
+          `#month-filter-${ANTERIOR.key}`,
+          "#month-filter-more-toggle",
+          "#btn-nova-prestacao",
+        ]) {
+          const b = await box(page, seletor);
+          expect(Math.abs(b.height - ALTURA_LINHA), seletor).toBeLessThanOrEqual(TOLERANCIA);
+          expect(Math.abs(b.y - busca.y), seletor).toBeLessThanOrEqual(TOLERANCIA);
+        }
         expect(await hasHorizontalOverflow(page)).toBe(false);
       });
 
