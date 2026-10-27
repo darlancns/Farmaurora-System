@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 
-// Altura da lista de /prestacao.
+// Altura da lista de /prestacao e ícone da data do card.
 //
 // Em lg+ (>= 1024px) a PÁGINA NÃO ROLA: cabeçalho, busca e chips ficam parados no topo e a lista (PatientTable)
 // ocupa todo o resto da tela, com rolagem própria — a barra de rolagem vai do topo da lista ao fim da tela, e o
@@ -286,10 +286,50 @@ test.describe("Abaixo de lg a lista e a rolagem são as de sempre", () => {
   }
 });
 
-test("sem aviso de hydration vindo da lista (desktop e mobile)", async ({ page }) => {
+test.describe("Ícone de calendário ao lado da data do card", () => {
+  test.describe.configure({ retries: 2 });
+
+  // d do SVG de calendário do card de Follow-Up (ProcessoRow) — o glifo de documento antigo começava com "M19.5 14.25"
+  const CALENDARIO = /^M6\.75 3v2\.25M17\.25 3v2\.25/;
+
+  for (const viewport of [
+    { name: "largo (>= 1180 de card)", width: 1920, height: 1080 },
+    { name: "médio (640 a 1179 de card)", width: 1280, height: 800 },
+    { name: "estreito (< 640 de card)", width: 375, height: 667 },
+  ]) {
+    test(`modo ${viewport.name}: calendário decorativo, quadradinho 28px e data em texto`, async ({ page }) => {
+      test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD ou E2E_SOCIO_EMAIL/PASSWORD");
+      await gotoPrestacao(page, viewport, POUCAS);
+
+      const id = POUCAS[0]!.id;
+      const tile = page.locator(`#patient-data-${id} span[aria-hidden="true"]`);
+      await expect(tile).toBeVisible();
+      const t = await tile.boundingBox();
+      expect(Math.abs(t!.width - 28)).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(t!.height - 28)).toBeLessThanOrEqual(0.5);
+
+      const svg = tile.locator("svg");
+      const s = await svg.boundingBox();
+      expect(Math.abs(s!.width - 16)).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(s!.height - 16)).toBeLessThanOrEqual(0.5);
+      expect(await svg.locator("path").getAttribute("d")).toMatch(CALENDARIO);
+      // quadradinho com fundo claro e ícone na cor da empresa (Farmaurora = azul)
+      expect(await tile.evaluate((el) => el.className)).toMatch(/bg-farm-blue-soft/);
+      expect(await tile.evaluate((el) => el.className)).toMatch(/text-farm-blue/);
+      // centralizado no quadradinho
+      expect(Math.abs(s!.x + s!.width / 2 - (t!.x + t!.width / 2))).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(s!.y + s!.height / 2 - (t!.y + t!.height / 2))).toBeLessThanOrEqual(0.5);
+
+      // a data continua como texto, ao lado do ícone
+      await expect(page.locator(`#patient-data-${id}`)).toContainText(POUCAS[0]!.data);
+    });
+  }
+});
+
+test("sem aviso de hydration vindo da lista nem do ícone (desktop e mobile)", async ({ page }) => {
   test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD ou E2E_SOCIO_EMAIL/PASSWORD");
   // Os avisos de /prestacao que já existem (FloatingAddButton x cargo) ficam de fora: aqui só se exige que nenhum
-  // aviso aponte para a lista ou o card.
+  // aviso aponte para a lista, o card ou o ícone.
   for (const viewport of [
     { width: 1280, height: 800 },
     { width: 375, height: 667 },
