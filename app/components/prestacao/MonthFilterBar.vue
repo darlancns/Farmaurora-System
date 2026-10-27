@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import type { PatientComputed } from "#shared/types/Patient";
-import { monthKeyLabel, monthShortLabel, type MonthGroup } from "../../utils/monthGroups";
-
-const VISIBLE_PILL_COUNT = 3;
+import { monthKeyLabel, monthShortLabel, splitMonthPills, type MonthGroup } from "../../utils/monthGroups";
 
 const props = defineProps<{
   months: Array<MonthGroup<PatientComputed>>;
@@ -14,8 +12,10 @@ const emit = defineEmits<{
   "update:modelValue": [value: string | null];
 }>();
 
-const visibleMonths = computed(() => props.months.slice(0, VISIBLE_PILL_COUNT));
-const overflowMonths = computed(() => props.months.slice(VISIBLE_PILL_COUNT));
+// Chips: só o mês corrente e o anterior (Brasília), mesmo sem prestações; os demais meses ficam no "Mais meses".
+const monthSplit = computed(() => splitMonthPills(props.months));
+const visibleMonths = computed(() => monthSplit.value.pills);
+const overflowMonths = computed(() => monthSplit.value.overflow);
 
 const isOverflowSelected = computed(() =>
   overflowMonths.value.some((group) => group.key === props.modelValue)
@@ -46,8 +46,9 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", handleDocumentCl
 
 <template>
   <!-- Abaixo de lg os chips (e o "Mais meses") somem: o mês vira um seletor no painel de filtros da
-       página (ícone dentro da busca). Em lg+ a barra é a de sempre. -->
-  <div id="month-filter-bar" class="relative mb-3 hidden flex-wrap items-center gap-2 lg:flex">
+       página (ícone dentro da busca). Em lg+ a barra fica na MESMA linha da busca (entre a busca e o botão
+       "+ Nova prestação"), sem margem própria: o espaçamento é do contêiner da página. -->
+  <div id="month-filter-bar" class="relative hidden shrink-0 flex-wrap items-center gap-2 lg:flex">
     <button
       id="month-filter-all"
       type="button"

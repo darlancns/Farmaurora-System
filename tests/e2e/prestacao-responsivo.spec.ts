@@ -149,9 +149,10 @@ test.describe("Responsividade de /prestacao", () => {
 
       const searchBox = await page.locator("#patient-search").boundingBox();
       const buttonBox = await page.locator("#btn-nova-prestacao").boundingBox();
-      // Mesma linha: botão à direita da busca, e a busca ocupa o resto da largura.
+      // Mesma linha: botão à direita da busca. Os chips de mês dividem essa linha (entre a busca e o botão),
+      // então a busca ocupa o que sobra, com piso de 240px (prestacao-meses-chips.spec.ts cobre a linha toda).
       expect(buttonBox!.x).toBeGreaterThanOrEqual(searchBox!.x + searchBox!.width - 1);
-      expect(searchBox!.width).toBeGreaterThan(viewport.width * 0.5);
+      expect(searchBox!.width).toBeGreaterThanOrEqual(240);
     }
   });
 });

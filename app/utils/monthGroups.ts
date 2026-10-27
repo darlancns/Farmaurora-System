@@ -1,4 +1,5 @@
 import type { Patient } from "#shared/types/Patient";
+import { hojeBrasilia, parseDataISO } from "#shared/utils/dataBrasilia";
 import type { AppSelectOption } from "../types/appSelect";
 
 const MONTH_NAMES_PT = [
@@ -84,6 +85,37 @@ export function groupPatientsByMonth<T extends Pick<Patient, "data" | "createdAt
   }
 
   return [...groups.values()].sort((a, b) => b.year - a.year || b.month - a.month);
+}
+
+// Mês corrente e mês anterior segundo o "hoje" de Brasília (nunca o fuso do navegador: o servidor roda em
+// UTC e a virada do mês precisa ser a mesma nos dois lados, senão a hydration diverge). Janeiro => dezembro
+// do ano anterior. `agora` existe para testar.
+export function currentAndPreviousMonthKeys(agora: Date = new Date()): [MonthKey, MonthKey] {
+  const hoje = parseDataISO(hojeBrasilia(agora));
+  const atual: MonthKey = hoje ? { year: hoje.ano, month: hoje.mes - 1 } : { year: agora.getUTCFullYear(), month: agora.getUTCMonth() };
+  const anterior: MonthKey =
+    atual.month === 0 ? { year: atual.year - 1, month: 11 } : { year: atual.year, month: atual.month - 1 };
+  return [atual, anterior];
+}
+
+// Divide os meses da barra de filtros (lg+): os chips são SÓ o mês corrente e o anterior (mais recente
+// primeiro, mesmo sem prestações — viram um grupo vazio, "(0)"); todos os demais meses vão para o dropdown
+// "Mais meses", na ordem original (do mais recente ao mais antigo).
+export function splitMonthPills<T>(
+  groups: Array<MonthGroup<T>>,
+  agora: Date = new Date()
+): { pills: Array<MonthGroup<T>>; overflow: Array<MonthGroup<T>> } {
+  const pillKeys = currentAndPreviousMonthKeys(agora);
+  const pillIds = pillKeys.map(monthKeyId);
+
+  const pills = pillKeys.map((monthKey, index): MonthGroup<T> => {
+    const id = pillIds[index]!;
+    return (
+      groups.find((group) => group.key === id) ?? { ...monthKey, key: id, label: monthKeyLabel(monthKey), patients: [] }
+    );
+  });
+
+  return { pills, overflow: groups.filter((group) => !pillIds.includes(group.key)) };
 }
 
 // Opções do seletor "Mês" do painel de filtros (abaixo de lg): "Todos os meses" (valor "", que

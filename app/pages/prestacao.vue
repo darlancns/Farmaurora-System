@@ -238,6 +238,9 @@ async function handleCopyWhatsapp(patient: PatientComputed): Promise<void> {
         </button>
       </div>
 
+      <!-- Em lg+ os chips de mês ficam na mesma linha, entre a busca e o botão (abaixo de lg a barra some). -->
+      <MonthFilterBar v-model="selectedMonthKey" :months="monthGroups" />
+
       <!-- Abaixo de lg: só o "+" flutuante (FloatingAddButton) acima do BottomNav. Em lg+ o botão
            com texto fica à direita da busca, como "+ Novo processo" e "+ Novo recado". -->
       <button
@@ -250,8 +253,6 @@ async function handleCopyWhatsapp(patient: PatientComputed): Promise<void> {
         + Nova prestação
       </button>
     </div>
-
-    <MonthFilterBar v-model="selectedMonthKey" :months="monthGroups" />
 
     <PatientTable
       :patients="filteredRows"
