@@ -60,8 +60,9 @@ function paciente(n: number) {
 
 const MUITAS = Array.from({ length: 45 }, (_, i) => paciente(i));
 const POUCAS = Array.from({ length: 4 }, (_, i) => paciente(i));
-// Em 1024x768 e 1280x600 a lista é baixa (602 e 434px) e 4 cards (2 linhas cada, no layout médio) não cabem: lá o
-// teste "cabe tudo" usa 2 prestações.
+// Em 1024x768, 1280x800 e 1280x600 a lista é baixa (602, 634 e 434px) e 4 cards (de 6 valores, em 2 níveis, no
+// desenho médio: 161px cada) não cabem: lá o teste "cabe tudo" usa 2 prestações. (Em 1280x800 cabiam 4 enquanto os
+// 6 valores ficavam numa linha só: 121px por card.)
 const DUAS = POUCAS.slice(0, 2);
 
 async function login(page: Page): Promise<void> {
@@ -125,7 +126,7 @@ test.describe("Lista de /prestacao ocupa o resto da tela (lg+)", () => {
 
   for (const viewport of [
     { name: "1024x768", width: 1024, height: 768, poucas: DUAS },
-    { name: "1280x800", width: 1280, height: 800, poucas: POUCAS },
+    { name: "1280x800", width: 1280, height: 800, poucas: DUAS },
     { name: "1440x900", width: 1440, height: 900, poucas: POUCAS },
     { name: "1920x1080", width: 1920, height: 1080, poucas: POUCAS },
     { name: "1280x600", width: 1280, height: 600, poucas: DUAS },

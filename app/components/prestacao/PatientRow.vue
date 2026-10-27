@@ -109,9 +109,26 @@ const valoresGridStyle = {
   "--valor-gap": `${VALOR_GAP_REM}rem`,
   "--valor-meio": "calc((var(--valor-col) + var(--valor-gap)) * 1.5)",
 };
+//
+// Médio (640–1179) em lg+ (viewport >= 1024), 6 valores: a MESMA organização do largo (3 colunas de 2 valores)
+// e a mesma regra de posição, tendo o bloco de 4 valores (4 colunas iguais, com --valor-gap) como referência.
+// Os dois blocos ocupam a mesma largura W. Com 8 trilhas iguais e o MESMO gap, o passo entre trilhas é
+// (W + gap) / 8 = meia coluna do bloco de 4: a 1ª coluna (3 trilhas) começa na trilha 1 (x da coluna 1 do bloco
+// de 4), a 2ª (3 trilhas) na 4 (no meio) e a 3ª (2 trilhas, a largura exata de uma coluna do bloco de 4) na 7 (x
+// da coluna 4, o Imposto). A colocação é automática (coluna a coluna, 2 linhas): só as larguras (span) por célula.
+// Abaixo de lg o médio é o de antes (max-lg:): o tablet não muda. As regras de cada faixa são excludentes
+// (max-lg / lg + faixa do card / @[1180px]), sem depender da ordem do CSS.
+const SEIS_VALORES_MEDIO_LG = [
+  "lg:@[640px]:@max-[1179px]:col-span-3",
+  "lg:@[640px]:@max-[1179px]:col-span-3",
+  "lg:@[640px]:@max-[1179px]:col-span-3",
+  "lg:@[640px]:@max-[1179px]:col-span-3",
+  "lg:@[640px]:@max-[1179px]:col-span-2",
+  "lg:@[640px]:@max-[1179px]:col-span-2",
+];
 const valoresGridClass = computed(() =>
   hasDespesaOuTransporte.value
-    ? "grid-cols-2 @[640px]:grid-flow-col @[640px]:grid-cols-3 @[640px]:grid-rows-2 @[900px]:grid-flow-row @[900px]:grid-cols-6 @[900px]:grid-rows-1 @[1180px]:grid-flow-col @[1180px]:grid-cols-[var(--valor-meio)_var(--valor-meio)_var(--valor-col)] @[1180px]:grid-rows-2 @[1180px]:gap-x-0"
+    ? "grid-cols-2 max-lg:@[640px]:grid-flow-col max-lg:@[640px]:grid-cols-3 max-lg:@[640px]:grid-rows-2 max-lg:@[900px]:grid-flow-row max-lg:@[900px]:grid-cols-6 max-lg:@[900px]:grid-rows-1 lg:@[640px]:@max-[1179px]:grid-flow-col lg:@[640px]:@max-[1179px]:grid-cols-8 lg:@[640px]:@max-[1179px]:grid-rows-2 @[1180px]:grid-flow-col @[1180px]:grid-cols-[var(--valor-meio)_var(--valor-meio)_var(--valor-col)] @[1180px]:grid-rows-2 @[1180px]:gap-x-0"
     : "grid-cols-2 @[640px]:grid-cols-4 @[1180px]:grid-cols-[repeat(4,var(--valor-col))]"
 );
 
@@ -169,10 +186,11 @@ function handleGenerateWord(): void {
         >
           <div class="grid gap-x-[var(--valor-gap)] gap-y-2" :style="valoresGridStyle" :class="valoresGridClass">
             <div
-              v-for="cell in valorCells"
+              v-for="(cell, index) in valorCells"
               :id="`patient-valor-${cell.key}-${patient.id}`"
               :key="cell.key"
               class="flex min-w-0 flex-col gap-0.5"
+              :class="hasDespesaOuTransporte ? SEIS_VALORES_MEDIO_LG[index] : undefined"
             >
               <span class="text-[11.5px] leading-tight text-ink-soft">{{ cell.label }}</span>
               <span

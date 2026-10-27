@@ -1,7 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
 
-// Posição horizontal dos valores do card de /prestacao no desenho LARGO (card com 1180px ou mais: 1440x900 e
-// 1920x1080). O card de 6 valores (com Despachante e Transporte) mantém as 3 colunas de 2 valores — Alvará/Custo,
+// Posição horizontal dos valores do card de /prestacao nos desenhos LARGO (card com 1180px ou mais: 1440x900 e
+// 1920x1080) e MÉDIO em lg+ (card de 640 a 1179px num viewport >= 1024px: 1024x768, 1100x800, 1280x800 e
+// 1366x768). O card de 6 valores (com Despachante e Transporte) mantém as 3 colunas de 2 valores — Alvará/Custo,
 // Despachante/Transporte, Nota/Imposto —, mas agora elas começam nos mesmos x do bloco de 4 valores:
 //   coluna 1 (Alvará)   = x do Alvará do card de 4 valores;
 //   coluna 3 (Imposto)  = x do Imposto do card de 4 valores;
@@ -65,8 +66,11 @@ const DADOS = [
   paciente("c6c", 10, "Seis Valores Terceiro", { despesaTotal: 12345.67, transporteTotal: 9876.5, status: "concluida" }),
 ];
 
-// Altura do card de 6 valores no desenho largo (dois níveis de valores), a mesma de antes da mudança.
+// Altura do card de 6 valores (dois níveis de valores). Largo: a mesma de antes da mudança. Médio: antes, em 1280 e
+// 1366, os 6 valores ficavam numa linha só (121px); agora são dois níveis, como em 1024 e 1100 (161px).
 const ALTURA_CARD_SEIS = 98;
+const ALTURA_CARD_SEIS_MEDIO = 161;
+const ALTURA_CARD_QUATRO_MEDIO = 121;
 // Distância do Alvará do card de 4 valores até a borda direita do card (selo + ações + paddings): fixa e igual à de antes.
 const ALVARA4_ATE_BORDA_DIREITA = 789;
 // Passo entre colunas do bloco de 4 valores: 6.75rem + 0.75rem de gap (16px de raiz).
@@ -132,14 +136,21 @@ async function celulas(page: Page, id: string): Promise<Partial<Record<Chave, Ca
 
 const perto = (a: number, b: number, tol = TOL) => Math.abs(a - b) <= tol;
 
-test.describe("Valores do card de /prestacao no desenho largo", () => {
+type Modo = "largo" | "medio";
+const VIEWPORTS: Array<{ name: string; width: number; height: number; modo: Modo }> = [
+  { name: "1024x768", width: 1024, height: 768, modo: "medio" },
+  { name: "1100x800", width: 1100, height: 800, modo: "medio" },
+  { name: "1280x800", width: 1280, height: 800, modo: "medio" },
+  { name: "1366x768", width: 1366, height: 768, modo: "medio" },
+  { name: "1440x900", width: 1440, height: 900, modo: "largo" },
+  { name: "1920x1080", width: 1920, height: 1080, modo: "largo" },
+];
+
+test.describe("Valores do card de /prestacao (lg+): largo e médio", () => {
   test.describe.configure({ retries: 2 });
 
-  for (const viewport of [
-    { name: "1440x900", width: 1440, height: 900 },
-    { name: "1920x1080", width: 1920, height: 1080 },
-  ]) {
-    test.describe(viewport.name, () => {
+  for (const viewport of VIEWPORTS) {
+    test.describe(`${viewport.name} (${viewport.modo})`, () => {
       test.beforeEach(async ({ page }) => {
         test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD ou E2E_SOCIO_EMAIL/PASSWORD");
         await gotoPrestacao(page, viewport);
@@ -152,18 +163,28 @@ test.describe("Valores do card de /prestacao no desenho largo", () => {
           const card = await box(page, `#patient-row-${id}`);
           const direita = card.x + card.width;
           expect(Object.keys(c)).toEqual(["alvara", "custo", "nota", "imposto"]);
-          // x absoluto igual ao de antes: a distância do Alvará à borda direita do card é fixa
-          expect(perto(direita - c.alvara!.x, ALVARA4_ATE_BORDA_DIREITA), `${id}: Alvará até a borda`).toBe(true);
-          expect(perto(c.custo!.x - c.alvara!.x, PASSO), `${id}: passo Alvará->Custo`).toBe(true);
-          expect(perto(c.nota!.x - c.custo!.x, PASSO), `${id}: passo Custo->Nota`).toBe(true);
-          expect(perto(c.imposto!.x - c.nota!.x, PASSO), `${id}: passo Nota->Imposto`).toBe(true);
+          if (viewport.modo === "largo") {
+            // x absoluto igual ao de antes: a distância do Alvará à borda direita do card é fixa
+            expect(perto(direita - c.alvara!.x, ALVARA4_ATE_BORDA_DIREITA), `${id}: Alvará até a borda`).toBe(true);
+            expect(perto(c.custo!.x - c.alvara!.x, PASSO), `${id}: passo Alvará->Custo`).toBe(true);
+            expect(perto(c.nota!.x - c.custo!.x, PASSO), `${id}: passo Custo->Nota`).toBe(true);
+            expect(perto(c.imposto!.x - c.nota!.x, PASSO), `${id}: passo Nota->Imposto`).toBe(true);
+          } else {
+            // médio: 4 colunas iguais ocupando o miolo do card (borda 1 + padding 16 à esquerda, 14 + 1 à direita), gap 12
+            const bloco = card.width - 32;
+            const passo = (bloco - 3 * 12) / 4 + 12;
+            expect(perto(c.alvara!.x - card.x, 17), `${id}: Alvará x`).toBe(true);
+            expect(perto(c.custo!.x - c.alvara!.x, passo), `${id}: passo Alvará->Custo`).toBe(true);
+            expect(perto(c.nota!.x - c.custo!.x, passo), `${id}: passo Custo->Nota`).toBe(true);
+            expect(perto(c.imposto!.x - c.nota!.x, passo), `${id}: passo Nota->Imposto`).toBe(true);
+          }
           // iguais entre os cards de 4 valores
           for (const k of ["alvara", "custo", "nota", "imposto"] as const) {
             expect(perto(c[k]!.x - card.x, referencia[k]!.x - (await box(page, `#patient-row-${QUATRO[0]}`)).x), `${id}: ${k}`).toBe(
               true
             );
           }
-          // uma linha só de valores (card de 68px)
+          // uma linha só de valores
           expect(perto(c.alvara!.y, c.imposto!.y)).toBe(true);
         }
       });
@@ -173,7 +194,12 @@ test.describe("Valores do card de /prestacao no desenho largo", () => {
         const x1 = ref.alvara!.x;
         const x3 = ref.imposto!.x;
         const x2 = (x1 + x3) / 2;
+        const bloco4 = await box(page, `#patient-valores-${QUATRO[0]}`);
         for (const id of SEIS) {
+          // o bloco de 6 valores ocupa a mesma largura (e o mesmo x) do bloco de 4
+          const bloco6 = await box(page, `#patient-valores-${id}`);
+          expect(perto(bloco6.width, bloco4.width), `${id}: largura do bloco`).toBe(true);
+          expect(perto(bloco6.x, bloco4.x), `${id}: x do bloco`).toBe(true);
           const c = await celulas(page, id);
           expect(Object.keys(c).sort(), `${id}: os 6 valores`).toEqual([...CHAVES].sort());
           // coluna 1 = Alvará (em cima) e Custo (embaixo)
@@ -237,31 +263,39 @@ test.describe("Valores do card de /prestacao no desenho largo", () => {
               return r.getBoundingClientRect().right;
             });
           const status = await box(page, `#patient-status-${id}`);
+          const card = await box(page, `#patient-row-${id}`);
+          const fimDaLinha = viewport.modo === "largo" ? status.x : card.x + card.width;
           if (id === "c6b") {
             expect(await textoDireita("alvara")).toBeLessThanOrEqual(c.despachante!.x + 0.5);
             expect(await textoDireita("custo")).toBeLessThanOrEqual(c.transporte!.x + 0.5);
             expect(await textoDireita("despachante")).toBeLessThanOrEqual(c.nota!.x + 0.5);
             expect(await textoDireita("transporte")).toBeLessThanOrEqual(c.imposto!.x + 0.5);
-            expect(await textoDireita("imposto")).toBeLessThanOrEqual(status.x);
+            expect(await textoDireita("imposto")).toBeLessThanOrEqual(fimDaLinha);
           } else {
             expect(await textoDireita("alvara")).toBeLessThanOrEqual(c.custo!.x + 0.5);
             expect(await textoDireita("custo")).toBeLessThanOrEqual(c.nota!.x + 0.5);
-            expect(await textoDireita("imposto")).toBeLessThanOrEqual(status.x);
+            expect(await textoDireita("imposto")).toBeLessThanOrEqual(fimDaLinha);
           }
-          // o nome termina antes do bloco de valores
+          // largo: o nome termina antes do bloco de valores (mesma linha); médio: o bloco fica abaixo do nome
           const nome = await box(page, `#patient-nome-${id}`);
           const bloco = await box(page, `#patient-valores-${id}`);
-          expect(nome.x + nome.width).toBeLessThanOrEqual(bloco.x + 0.5);
+          if (viewport.modo === "largo") expect(nome.x + nome.width).toBeLessThanOrEqual(bloco.x + 0.5);
+          else expect(nome.y + nome.height).toBeLessThanOrEqual(bloco.y + 0.5);
         }
       });
 
       test("altura do card de 6 valores é a de antes (dois níveis) e a lista não ganha overflow horizontal", async ({ page }) => {
-        for (const id of SEIS) {
+        // c6b tem nome de 44 caracteres, que em 1024/1100 quebra em 2 linhas: a altura de referência é a dos outros
+        const largo = viewport.modo === "largo";
+        for (const id of ["c6a", "c6c"]) {
           const card = await box(page, `#patient-row-${id}`);
-          expect(perto(card.height, ALTURA_CARD_SEIS), `${id}: altura ${card.height}`).toBe(true);
+          const esperada = largo ? ALTURA_CARD_SEIS : ALTURA_CARD_SEIS_MEDIO;
+          expect(perto(card.height, esperada), `${id}: altura ${card.height}`).toBe(true);
         }
-        // o card de 4 valores segue com uma linha de valores (68px)
-        for (const id of QUATRO) expect(perto((await box(page, `#patient-row-${id}`)).height, 68)).toBe(true);
+        // o card de 4 valores segue com uma linha de valores
+        for (const id of QUATRO) {
+          expect(perto((await box(page, `#patient-row-${id}`)).height, largo ? 68 : ALTURA_CARD_QUATRO_MEDIO)).toBe(true);
+        }
         expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1)).toBe(
           false
         );
@@ -282,21 +316,11 @@ test.describe("Valores do card de /prestacao no desenho largo", () => {
   });
 });
 
-test.describe("Abaixo do desenho largo nada muda", () => {
+// Abaixo de lg (celular e tablet) o desenho é o de sempre: 2 colunas no celular; no tablet em retrato (card de ~716px) 3
+// colunas de 2 valores; em 1023px (card de ~975px) 6 colunas numa linha. O médio novo (3 colunas alinhadas ao bloco
+// de 4) só vale em lg+.
+test.describe("Abaixo de lg nada muda", () => {
   test.describe.configure({ retries: 2 });
-
-  test("1280x800 (card de ~1036px, desenho médio, 6 colunas): 4 valores em 4 colunas, 6 valores em 6", async ({ page }) => {
-    test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD ou E2E_SOCIO_EMAIL/PASSWORD");
-    await gotoPrestacao(page, { width: 1280, height: 800 });
-    const c4 = await celulas(page, "c4a");
-    const c6 = await celulas(page, "c6a");
-    // o desenho médio de hoje: o card de 6 valores usa 6 colunas lado a lado, com passo diferente do de 4 colunas
-    const xs6 = CHAVES.map((k) => c6[k]!.x);
-    expect(xs6).toEqual([...xs6].sort((a, b) => a - b));
-    expect(new Set(xs6.map((x) => Math.round(x))).size).toBe(6);
-    expect(perto(c6.alvara!.x, c4.alvara!.x)).toBe(true);
-    expect(perto(c6.alvara!.y, c6.imposto!.y)).toBe(true); // uma linha só
-  });
 
   for (const viewport of [
     { name: "375px (estreito: 2 colunas)", width: 375, height: 667 },
