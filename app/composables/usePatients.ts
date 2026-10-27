@@ -27,6 +27,16 @@ export function usePatients() {
     }
   }
 
+  // Relê UMA prestação do servidor e troca a cópia local pela fresca (se estiver na lista).
+  async function fetchPatient(id: string): Promise<Patient> {
+    const fresh = await apiFetch<Patient>(`/api/patients/${id}`, undefined, "Falha ao carregar a prestação.");
+    const index = patients.value.findIndex((p) => p.id === id);
+    if (index !== -1) {
+      patients.value[index] = fresh;
+    }
+    return fresh;
+  }
+
   async function addPatient(input: NewPatientDTO): Promise<Patient> {
     const created = await apiFetch<Patient>(
       "/api/patients",
@@ -71,6 +81,7 @@ export function usePatients() {
     error,
     computedPatients,
     fetchPatients,
+    fetchPatient,
     addPatient,
     updatePatient,
     removePatient,

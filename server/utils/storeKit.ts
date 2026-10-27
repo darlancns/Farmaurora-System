@@ -9,7 +9,17 @@
 // existia como helper nomeado em pagamentosStore.ts (`randomId`); em
 // patients/processos o mesmo template estava inline no ponto de uso.
 
-export function erro(acao: string, e: { message: string }): Error {
+import { createError } from "h3";
+
+export const MENSAGEM_FALHA_TRANSITORIA = "Falha temporária. Tente novamente.";
+
+// 401/PGRST303 que sobrou depois do retry do cliente admin (retryFetch.ts): vira uma mensagem
+// clara pro usuário (503 com statusMessage), em vez do "Server Error" genérico do Nitro.
+export function erro(acao: string, e: { message: string; code?: string }): Error {
+  if (e.code === "PGRST303") {
+    console.error(`[supabase] falha transitória (PGRST303) ao ${acao} — ${e.message}`);
+    return createError({ statusCode: 503, statusMessage: MENSAGEM_FALHA_TRANSITORIA });
+  }
   return new Error(`Supabase: falha ao ${acao} — ${e.message}`);
 }
 

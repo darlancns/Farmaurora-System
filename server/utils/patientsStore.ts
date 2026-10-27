@@ -44,6 +44,15 @@ export async function listPatients(): Promise<Patient[]> {
   return ((data ?? []) as PacienteRow[]).map(montarPatient);
 }
 
+export async function getPatient(id: string): Promise<Patient | null> {
+  const db = createSupabaseAdminClient();
+
+  const { data, error } = await db.from(TABELA).select("*").eq("id", id).maybeSingle();
+  if (error) throw erro("buscar paciente", error);
+
+  return data ? montarPatient(data as PacienteRow) : null;
+}
+
 export async function createPatient(input: NewPatientDTO): Promise<Patient> {
   const db = createSupabaseAdminClient();
   const id = randomId("p_");

@@ -8,8 +8,10 @@ const props = withDefaults(
     patients: PatientComputed[];
     searchQuery?: string;
     readonly?: boolean;
+    /** Ids com o Word em geração. */
+    generatingIds?: readonly string[];
   }>(),
-  { readonly: false },
+  { readonly: false, generatingIds: () => [] },
 );
 
 const emit = defineEmits<{
@@ -86,6 +88,7 @@ watch(
         :key="patient.id"
         :patient="patient"
         :readonly="readonly"
+        :generating="generatingIds.includes(patient.id)"
         @delete="emit('delete', $event)"
         @edit="emit('edit', $event)"
         @generate-word="emit('generate-word', $event)"

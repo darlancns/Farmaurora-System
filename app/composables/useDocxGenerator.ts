@@ -2,7 +2,7 @@ import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import ImageModule from "docxtemplater-image-module-free";
 import type { PatientComputed } from "#shared/types/Patient";
-import { isFarmauroraModeloCompleto } from "../utils/calculations";
+import { isFarmauroraModeloCompleto, withComputedFields } from "../utils/calculations";
 import { formatCurrency } from "../utils/formatters";
 import { slotLabel } from "../utils/anexoSlots";
 import {
@@ -17,6 +17,7 @@ import {
   calculateFitSize,
 } from "../utils/docxLayout";
 import { useAttachments } from "./useAttachments";
+import { usePatients } from "./usePatients";
 
 // O Word baixa as imagens logo depois de buscar os links; 60s sobra.
 const SIGNED_URL_TTL_SECONDS = 60;
@@ -75,8 +76,23 @@ async function buildImageCache(
 
 export function useDocxGenerator() {
   const { fetchSignedUrls } = useAttachments();
+  const { fetchPatient } = usePatients();
 
-  async function generateDocx(patient: PatientComputed): Promise<void> {
+  // O Word nunca confia só na cópia da tela: a lista é carregada uma vez ao abrir a página, então um
+  // anexo marcado depois (outra aba, outro usuário, resposta perdida) não estaria em `attachedSlots`
+  // e viraria "anexo pendente" sem ter motivo. Se a releitura falhar, segue com a cópia da tela (sem
+  // toast; só um aviso no console).
+  async function loadFreshPatient(patient: PatientComputed): Promise<PatientComputed> {
+    try {
+      return withComputedFields(await fetchPatient(patient.id));
+    } catch (e) {
+      console.warn("[word] não foi possível reler a prestação do servidor; usando os dados da tela:", e);
+      return patient;
+    }
+  }
+
+  async function generateDocx(localPatient: PatientComputed): Promise<void> {
+    const patient = await loadFreshPatient(localPatient);
     const templateUrl = resolveTemplateUrl(patient);
     const templateResponse = await fetch(templateUrl);
     if (!templateResponse.ok) {

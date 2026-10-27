@@ -1,17 +1,27 @@
 import { useState } from "#app";
+import type { Ref } from "vue";
 import { getErrorMessage } from "../utils/errorMessages";
+import { createToastScheduler, type ToastOptions } from "../utils/toastScheduler";
 
-let hideTimeoutId: ReturnType<typeof setTimeout> | undefined;
+// Estado de agendamento compartilhado entre todos os useToast() do navegador (o toast é um só).
+let currentMessage: Ref<string | null> | null = null;
+const scheduler = createToastScheduler({
+  setMessage: (text) => {
+    if (currentMessage) currentMessage.value = text;
+  },
+});
 
 export function useToast() {
   const message = useState<string | null>("toast-message", () => null);
+  currentMessage = message;
 
-  function showToast(text: string): void {
-    message.value = text;
-    if (hideTimeoutId) clearTimeout(hideTimeoutId);
-    hideTimeoutId = setTimeout(() => {
-      message.value = null;
-    }, 2200);
+  function showToast(text: string, options?: ToastOptions): void {
+    scheduler.show(text, options);
+  }
+
+  // Aviso que precisa ser lido (falha parcial, pendência): dura mais e não é sobrescrito por outro toast.
+  function showAviso(text: string): void {
+    scheduler.show(text, { protegido: true });
   }
 
   // Padrão repetido: roda a ação, toast de sucesso; em erro, toast de erro. Não
@@ -28,5 +38,5 @@ export function useToast() {
     }
   }
 
-  return { message, showToast, withToast };
+  return { message, showToast, showAviso, withToast };
 }

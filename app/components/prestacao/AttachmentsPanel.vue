@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { reactive } from "vue";
-import type { AnexoSlot } from "../../utils/anexoSlots";
+import { slotLabel, type AnexoSlot } from "../../utils/anexoSlots";
 import { useAttachments } from "../../composables/useAttachments";
 import { useToast } from "../../composables/useToast";
 import { ensurePngBlob } from "../../utils/attachmentImage";
@@ -26,7 +26,7 @@ const emit = defineEmits<{
 }>();
 
 const { uploadAttachment, deleteAttachment } = useAttachments();
-const { showToast } = useToast();
+const { showToast, showAviso } = useToast();
 
 const uploading = reactive<Record<string, boolean>>({});
 
@@ -38,6 +38,7 @@ async function onPaste(slotKey: string, event: ClipboardEvent): Promise<void> {
   if (!imageItem) return;
 
   event.preventDefault();
+  if (uploading[slotKey]) return; // já tem um print deste slot a caminho
   const file = imageItem.getAsFile();
   if (!file) return;
 
@@ -54,7 +55,8 @@ async function onPaste(slotKey: string, event: ClipboardEvent): Promise<void> {
 
     emit("stage", slotKey, png);
   } catch (e) {
-    showToast(getErrorMessage(e, "Erro ao enviar anexo"));
+    // Aviso (dura mais e não é sobrescrito): cobre também o arquivo descartado por não ter sido registrado.
+    showAviso(`${slotLabel(slotKey)}: ${getErrorMessage(e, "Erro ao enviar anexo")}`);
   } finally {
     uploading[slotKey] = false;
   }
@@ -66,7 +68,7 @@ async function onRemove(slotKey: string): Promise<void> {
       await deleteAttachment(props.patientId, slotKey);
       showToast("Anexo removido");
     } catch (e) {
-      showToast(getErrorMessage(e, "Erro ao remover anexo"));
+      showAviso(`${slotLabel(slotKey)}: ${getErrorMessage(e, "Erro ao remover anexo")}`);
     }
     return;
   }

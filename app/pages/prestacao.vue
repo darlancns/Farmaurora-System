@@ -13,6 +13,8 @@ import { useAttachments } from "../composables/useAttachments";
 import { useDocxGenerator } from "../composables/useDocxGenerator";
 import { useWhatsappShare } from "../composables/useWhatsappShare";
 import { useToast } from "../composables/useToast";
+import { useTravaEnvio } from "../composables/useTravaEnvio";
+import { slotLabel } from "../utils/anexoSlots";
 import { getErrorMessage } from "../utils/errorMessages";
 import { normalizeText } from "../utils/search";
 import { getPatientMonthKey, groupPatientsByMonth, monthFilterOptions, monthKeyId } from "../utils/monthGroups";
@@ -25,7 +27,12 @@ const canWritePatients = computed<boolean>(() => canWrite("patients"));
 const { uploadAttachment } = useAttachments();
 const { generateDocx } = useDocxGenerator();
 const { copyMessage } = useWhatsappShare();
-const { showToast } = useToast();
+const { showToast, showAviso } = useToast();
+// Uma trava só pra criar, editar e subir os anexos da criação: o botão do formulário fica desabilitado
+// e qualquer segundo envio no mesmo instante (duplo clique, Enter + clique) é ignorado aqui no handler.
+const { emAndamento: salvando, executar: executarEnvio } = useTravaEnvio();
+// Word em geração, por prestação: o botão só volta quando a geração termina (sucesso ou erro).
+const generatingIds = ref<string[]>([]);
 
 const rows = computed<PatientComputed[]>(() => computedPatients());
 const searchQuery = ref("");
@@ -79,28 +86,36 @@ function closeForm(): void {
 }
 
 async function handleSubmit(payload: NewPatientDTO, attachments: Record<string, Blob>): Promise<void> {
-  try {
-    const created = await addPatient(payload);
-    closeForm();
+  await executarEnvio(async () => {
+    try {
+      const created = await addPatient(payload);
+      closeForm();
 
-    const attachmentEntries = Object.entries(attachments);
-    const failures: string[] = [];
-    for (const [slotKey, image] of attachmentEntries) {
-      try {
-        await uploadAttachment(created.id, slotKey, image);
-      } catch (e) {
-        failures.push(getErrorMessage(e, "erro ao enviar"));
+      const attachmentEntries = Object.entries(attachments);
+      const failures: { slotKey: string; reason: string }[] = [];
+      for (const [slotKey, image] of attachmentEntries) {
+        try {
+          await uploadAttachment(created.id, slotKey, image);
+        } catch (e) {
+          failures.push({ slotKey, reason: getErrorMessage(e, "erro ao enviar") });
+        }
       }
-    }
 
-    if (failures.length > 0) {
-      showToast(`Prestação adicionada, mas ${failures.length} anexo(s) falharam ao enviar: ${failures[0]}`);
-    } else {
-      showToast(attachmentEntries.length > 0 ? "Prestação adicionada com anexos" : "Prestação adicionada");
+      if (failures.length > 0) {
+        showAviso(formatUploadFailures(failures));
+      } else {
+        showToast(attachmentEntries.length > 0 ? "Prestação adicionada com anexos" : "Prestação adicionada");
+      }
+    } catch (e) {
+      showToast(getErrorMessage(e, "Erro ao adicionar prestação"));
     }
-  } catch (e) {
-    showToast(getErrorMessage(e, "Erro ao adicionar prestação"));
-  }
+  });
+}
+
+// Lista o rótulo de CADA anexo que falhou (não só o primeiro) e o motivo da primeira falha.
+function formatUploadFailures(failures: { slotKey: string; reason: string }[]): string {
+  const labels = failures.map((failure) => slotLabel(failure.slotKey)).join(", ");
+  return `Prestação adicionada, mas ${failures.length} anexo(s) falharam ao enviar: ${labels}. Abra a prestação em Editar para anexar de novo. Motivo: ${failures[0]!.reason}`;
 }
 
 function handleInvalid(message: string): void {
@@ -113,13 +128,15 @@ function handleEdit(patient: PatientComputed): void {
 }
 
 async function handleUpdate(id: string, payload: NewPatientDTO): Promise<void> {
-  try {
-    await updatePatient(id, payload);
-    showToast("Prestação atualizada");
-    closeForm();
-  } catch (e) {
-    showToast(getErrorMessage(e, "Erro ao atualizar prestação"));
-  }
+  await executarEnvio(async () => {
+    try {
+      await updatePatient(id, payload);
+      showToast("Prestação atualizada");
+      closeForm();
+    } catch (e) {
+      showToast(getErrorMessage(e, "Erro ao atualizar prestação"));
+    }
+  });
 }
 
 async function handleDelete(id: string): Promise<void> {
@@ -132,11 +149,15 @@ async function handleDelete(id: string): Promise<void> {
 }
 
 async function handleGenerateWord(patient: PatientComputed): Promise<void> {
+  if (generatingIds.value.includes(patient.id)) return;
+  generatingIds.value = [...generatingIds.value, patient.id];
   try {
     await generateDocx(patient);
     showToast(`Documento gerado para ${patient.paciente}`);
   } catch (e) {
     showToast(getErrorMessage(e, "Erro ao gerar documento"));
+  } finally {
+    generatingIds.value = generatingIds.value.filter((id) => id !== patient.id);
   }
 }
 
@@ -236,6 +257,7 @@ async function handleCopyWhatsapp(patient: PatientComputed): Promise<void> {
       :patients="filteredRows"
       :search-query="searchQuery"
       :readonly="!canWritePatients"
+      :generating-ids="generatingIds"
       @delete="handleDelete"
       @edit="handleEdit"
       @generate-word="handleGenerateWord"
@@ -259,6 +281,7 @@ async function handleCopyWhatsapp(patient: PatientComputed): Promise<void> {
     <PatientForm
       v-if="canWritePatients && showForm"
       :editing-patient="editingPatient"
+      :saving="salvando"
       @submit="handleSubmit"
       @update="handleUpdate"
       @close="closeForm"

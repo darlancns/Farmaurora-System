@@ -11,6 +11,8 @@ import type { AppSelectOption } from "../../types/appSelect";
 
 const props = defineProps<{
   editingPatient?: Patient | null;
+  /** Há um envio (criar, editar ou subir anexos) em andamento: o botão fica desabilitado. */
+  saving?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -72,6 +74,13 @@ const {
   medicamentos,
 });
 
+// Enter e cliques repetidos: com um envio em andamento o submit é ignorado (a trava de verdade fica
+// no handler da página; isto só poupa a validação e os toasts).
+function onFormSubmit(): void {
+  if (props.saving) return;
+  handleSubmit();
+}
+
 // Esc com o diálogo "Reduzir remessas" aberto fecha só o diálogo (o listener do
 // formulário roda primeiro, ainda com a pendência marcada, e ignora o Esc).
 function handleOverlayClose(): void {
@@ -114,7 +123,7 @@ function handleOverlayClose(): void {
 
       <form
         class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain p-4 lg:p-5"
-        @submit.prevent="handleSubmit"
+        @submit.prevent="onFormSubmit"
       >
         <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-[1fr_1.6fr_0.6fr]">
           <div>
@@ -296,9 +305,10 @@ function handleOverlayClose(): void {
         <button
           id="btn-add-patient"
           type="submit"
-          class="mt-1 w-full rounded-lg bg-accent-dark px-4 py-2.5 text-[13px] font-semibold text-white transition-colors"
+          :disabled="saving"
+          class="mt-1 w-full rounded-lg bg-accent-dark px-4 py-2.5 text-[13px] font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {{ editingPatient ? "Salvar alterações" : "+ Adicionar prestação" }}
+          {{ saving ? "Salvando…" : editingPatient ? "Salvar alterações" : "+ Adicionar prestação" }}
         </button>
       </form>
     </div>

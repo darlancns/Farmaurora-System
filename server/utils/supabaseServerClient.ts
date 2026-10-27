@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseCookies, setCookie, type H3Event } from "h3";
 import { useRuntimeConfig } from "#imports";
+import { createRetryingFetch } from "./retryFetch";
 
 /**
  * Client Supabase server-side ligado à sessão do usuário.
@@ -53,5 +54,8 @@ export function createSupabaseAdminClient(): SupabaseClient {
 
   return createClient(url, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
+    // Um retry para a recusa transitória 401/PGRST303 (ver retryFetch.ts). O `fetch` global é
+    // resolvido a cada chamada (e não capturado aqui) pra continuar substituível em testes.
+    global: { fetch: createRetryingFetch((input, init) => fetch(input, init)) },
   });
 }

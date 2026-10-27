@@ -8,8 +8,10 @@ const props = withDefaults(
   defineProps<{
     patient: PatientComputed;
     readonly?: boolean;
+    /** Word desta prestação em geração (controlado pela página: libera quando termina). */
+    generating?: boolean;
   }>(),
-  { readonly: false },
+  { readonly: false, generating: false },
 );
 
 const emit = defineEmits<{
@@ -19,7 +21,6 @@ const emit = defineEmits<{
   "copy-whatsapp": [patient: PatientComputed];
 }>();
 
-const generating = ref(false);
 const showDeleteConfirm = ref(false);
 const deleteConfirmMessage = computed(
   () => `Excluir a prestação de ${props.patient.paciente}? Essa ação não pode ser desfeita.`
@@ -61,15 +62,9 @@ const cellRowClass = computed(() =>
     : "@[620px]:flex-row @[620px]:items-baseline @[620px]:gap-1"
 );
 
-async function handleGenerateWord(): Promise<void> {
-  generating.value = true;
-  try {
-    emit("generate-word", props.patient);
-  } finally {
-    setTimeout(() => {
-      generating.value = false;
-    }, 600);
-  }
+function handleGenerateWord(): void {
+  if (props.generating) return;
+  emit("generate-word", props.patient);
 }
 </script>
 
