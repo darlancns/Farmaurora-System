@@ -210,10 +210,15 @@ test.describe.serial("Prestação de Contas", () => {
     await expect(page.locator("#btn-nova-prestacao")).toBeVisible();
     await expect(page.locator("#btn-nova-prestacao")).toHaveText("+ Nova prestação");
 
-    // Sem coluna lateral: a busca (topo da lista) ocupa quase toda a largura útil do conteúdo.
+    // Sem coluna lateral: a lista usa a largura toda do conteúdo. Desde os chips de mês (d554297) a busca divide a
+    // linha com os chips e o botão (busca | chips | botão): ocupa o que sobra, com piso de 240px
+    // (prestacao-meses-chips.spec.ts cobre a linha toda); a lista, essa sim, segue em largura total.
     const search = await page.locator("#patient-search").boundingBox();
-    const viewport = page.viewportSize()!;
-    expect(search!.width).toBeGreaterThan(viewport.width * 0.5);
+    const button = await page.locator("#btn-nova-prestacao").boundingBox();
+    const list = await page.locator("#patient-table-wrap").boundingBox();
+    expect(search!.width).toBeGreaterThanOrEqual(240);
+    expect(button!.x + button!.width).toBeGreaterThan(list!.x + list!.width - 4);
+    expect(list!.width).toBeGreaterThan(page.viewportSize()!.width * 0.5);
 
     await abrirFormNovo(page);
     await expect(page.locator("#btn-add-patient")).toHaveText("+ Adicionar prestação");
