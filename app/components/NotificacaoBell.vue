@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { navigateTo } from "#app";
 import type { Notificacao } from "#shared/types/notificacao";
 import { podeResolverAlertaMandado } from "#shared/utils/mandadoPermissao";
 import { calcularNotificacoesFornecedor, type NotificacaoFornecedor } from "../utils/prazoFornecedor";
 import { calcularNotificacoesMandadoDoUsuario, type NotificacaoMandado } from "../utils/prazoMandado";
+import { criarAcoesSino } from "../utils/acoesSino";
 import { useAuth } from "../composables/useAuth";
 import { useProcessos } from "../composables/useProcessos";
 import { useNotificacoes } from "../composables/useNotificacoes";
@@ -114,20 +116,40 @@ async function resolverNotificacaoMandado(notificacao: NotificacaoMandado): Prom
   }
 }
 
-// O check do Mandado só aparece pra quem pode resolver (mesma regra do servidor: administrador ou
-// o operacional responsável — shared/utils/mandadoPermissao.ts).
-function podeResolverMandado(notificacao: NotificacaoMandado): boolean {
-  return podeResolverAlertaMandado({ role: user.value?.role, nome: user.value?.nome }, notificacao.responsavel);
-}
-
-// Clicar no item marca como lida — sem navegar (a página /recados ainda não
-// existe, ver Fase D).
+// Recado: marca como lida (erro vira toast, como sempre). A navegação já aconteceu antes (ver
+// acoesSino.ts), então uma falha aqui nunca impede de abrir /recados.
 async function marcarNotificacaoRecadoComoLida(notificacao: Notificacao): Promise<void> {
   try {
     await marcarComoLida(notificacao.id);
   } catch (e) {
     showToast(getErrorMessage(e, "Erro ao marcar notificação como lida"));
   }
+}
+
+// Os 3 tipos de item (Fornecedor, Mandado, Recados) usam o MESMO ponto de navegação e o mesmo
+// padrão visual: linha com hover, elemento clicável = <button> real (foco, Enter) com o mesmo
+// contorno de foco. Texto do alerta de processo -> /processos?processo=<id>; recado ->
+// /recados?recado=<id> + lida; check -> só resolve (sem navegar). Lógica em acoesSino.ts, testada
+// sem DOM. O check do Mandado só aparece pra quem pode resolver (mesma regra do servidor).
+const CLASSE_LINHA_ITEM =
+  "flex items-center justify-between gap-2 border-b border-hairline px-3.5 py-2.5 transition-colors last:border-b-0 hover:bg-paper";
+const CLASSE_ITEM_ABRIR = "min-w-0 flex-1 rounded-md text-left focus-visible:outline-2 focus-visible:outline-accent-dark";
+
+const {
+  abrirProcesso: abrirProcessoDoAlerta,
+  abrirRecado,
+  resolverFornecedor: resolverAlertaFornecedor,
+  resolverMandado: resolverAlertaMandado,
+} = criarAcoesSino({
+  navegar: (rota) => navigateTo(rota),
+  fecharPainel: () => closePanel(),
+  resolverFornecedor: resolverNotificacaoFornecedor,
+  resolverMandado: resolverNotificacaoMandado,
+  marcarRecadoLido: marcarNotificacaoRecadoComoLida,
+});
+
+function podeResolverMandado(notificacao: NotificacaoMandado): boolean {
+  return podeResolverAlertaMandado({ role: user.value?.role, nome: user.value?.nome }, notificacao.responsavel);
 }
 
 function onClickOutside(event: MouseEvent): void {
@@ -197,25 +219,31 @@ onBeforeUnmount(() => {
           v-for="notificacao in notificacoesFornecedorVisiveis"
           :key="notificacao.processoId"
           :id="`notificacao-fornecedor-${notificacao.processoId}`"
-          class="flex items-center justify-between gap-2 border-b border-hairline px-3.5 py-2.5 last:border-b-0"
+          :class="CLASSE_LINHA_ITEM"
         >
-          <div class="min-w-0">
-            <p class="truncate text-[13px] font-medium text-ink">
+          <button
+            :id="`btn-abrir-fornecedor-${notificacao.processoId}`"
+            type="button"
+            title="Ir para o processo"
+            :class="CLASSE_ITEM_ABRIR"
+            @click="abrirProcessoDoAlerta(notificacao)"
+          >
+            <span class="block truncate text-[13px] font-medium text-ink">
               {{ notificacao.paciente }}
               <span class="font-mono text-[11px] font-normal text-ink-soft">· {{ notificacao.pasta }}</span>
-            </p>
-            <p class="text-[11.5px] text-danger">
+            </span>
+            <span class="block text-[11.5px] text-danger">
               {{ notificacao.fornecedor }} — {{ notificacao.diasDeAtraso }}
               {{ notificacao.diasDeAtraso === 1 ? "dia" : "dias" }} de atraso
-            </p>
-          </div>
+            </span>
+          </button>
           <button
             :id="`btn-resolver-notificacao-${notificacao.processoId}`"
             type="button"
             title="Marcar como resolvido"
             aria-label="Marcar como resolvido"
             class="shrink-0 rounded-md p-3.5 text-ink-soft transition-colors hover:text-accent-dark md:p-1.5"
-            @click="resolverNotificacaoFornecedor(notificacao)"
+            @click="resolverAlertaFornecedor(notificacao, $event)"
           >
             <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
@@ -232,13 +260,19 @@ onBeforeUnmount(() => {
           v-for="notificacao in notificacoesMandadoVisiveis"
           :key="notificacao.processoId"
           :id="`notificacao-mandado-${notificacao.processoId}`"
-          class="flex items-center justify-between gap-2 border-b border-hairline px-3.5 py-2.5 last:border-b-0"
+          :class="CLASSE_LINHA_ITEM"
         >
-          <p class="min-w-0 text-[12.5px] text-danger">
+          <button
+            :id="`btn-abrir-mandado-${notificacao.processoId}`"
+            type="button"
+            title="Ir para o processo"
+            :class="[CLASSE_ITEM_ABRIR, 'text-[12.5px] text-danger']"
+            @click="abrirProcessoDoAlerta(notificacao)"
+          >
             Solicitar Mandado de Segurança — {{ notificacao.paciente }} (pasta {{ notificacao.pasta }}). Registro do LPCO em
             {{ notificacao.registroDDMM }}, há {{ notificacao.diasDecorridos }}
             {{ notificacao.diasDecorridos === 1 ? "dia" : "dias" }}.
-          </p>
+          </button>
           <button
             v-if="podeResolverMandado(notificacao)"
             :id="`btn-resolver-mandado-${notificacao.processoId}`"
@@ -246,7 +280,7 @@ onBeforeUnmount(() => {
             title="Marcar como resolvido"
             aria-label="Marcar como resolvido"
             class="shrink-0 rounded-md p-3.5 text-ink-soft transition-colors hover:text-accent-dark md:p-1.5"
-            @click="resolverNotificacaoMandado(notificacao)"
+            @click="resolverAlertaMandado(notificacao, $event)"
           >
             <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
@@ -262,11 +296,17 @@ onBeforeUnmount(() => {
         <div
           v-for="notificacao in notificacoesRecadosVisiveis"
           :key="notificacao.id"
-          :id="`notificacao-recado-${notificacao.id}`"
-          class="cursor-pointer border-b border-hairline px-3.5 py-2.5 text-[13px] text-ink transition-colors last:border-b-0 hover:bg-paper"
-          @click="marcarNotificacaoRecadoComoLida(notificacao)"
+          :class="CLASSE_LINHA_ITEM"
         >
-          {{ notificacao.mensagem }}
+          <button
+            :id="`notificacao-recado-${notificacao.id}`"
+            type="button"
+            title="Abrir em Recados"
+            :class="[CLASSE_ITEM_ABRIR, 'text-[13px] text-ink']"
+            @click="abrirRecado(notificacao)"
+          >
+            {{ notificacao.mensagem }}
+          </button>
         </div>
       </template>
 

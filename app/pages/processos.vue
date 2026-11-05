@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "#app";
 import type {
   EmpresaProcesso,
   NewProcessoDTO,
@@ -13,6 +14,12 @@ import { useToast } from "../composables/useToast";
 import { getErrorMessage } from "../utils/errorMessages";
 import { normalizeText } from "../utils/search";
 import { filtrarPorStatus, separarAbas } from "../utils/processoListas";
+import {
+  DESTAQUE_PROCESSO_MS,
+  planejarFocoProcesso,
+  processoIdDaQuery,
+  QUERY_PROCESSO,
+} from "../utils/processoFoco";
 import { EMPRESA_FILTER_OPTIONS, RESPONSAVEL_FILTER_OPTIONS, STATUS_FILTER_OPTIONS } from "../utils/processoOptions";
 import AppSelect from "../components/AppSelect.vue";
 import FloatingAddButton from "../components/FloatingAddButton.vue";
@@ -22,7 +29,9 @@ import ProcessoDeliveredList from "../components/processos/ProcessoDeliveredList
 import ProcessoFiltrosSheet from "../components/processos/ProcessoFiltrosSheet.vue";
 import ProcessoFormModal from "../components/processos/ProcessoFormModal.vue";
 
-const { processos, fetchProcessos, addProcesso, patchProcesso, removeProcesso } = useProcessos();
+const { processos, error, fetchProcessos, addProcesso, patchProcesso, removeProcesso } = useProcessos();
+const route = useRoute();
+const router = useRouter();
 const { role, consultorNome, canWrite } = useAuth();
 const { showToast } = useToast();
 
@@ -31,9 +40,6 @@ const canWriteProcessos = computed<boolean>(() => canWrite("processos"));
 // consultor vê a própria lista direto, sem o agrupamento por consultor.
 const flatList = computed<boolean>(() => role.value === "consultor");
 
-onMounted(() => {
-  fetchProcessos();
-});
 
 type Tab = "andamento" | "entregues";
 const activeTab = ref<Tab>("andamento");
@@ -76,6 +82,73 @@ const filteredProcessos = computed<Processo[]>(() => {
 
 const andamentoList = computed(() => separarAbas(filteredProcessos.value).andamento);
 const entregueList = computed(() => separarAbas(filteredProcessos.value).entregues);
+
+// ── Ir até um processo (?processo=<id>, ex.: clique num alerta do sino) ─────────────────────────
+// A rota é /processos?processo=<id>. A página não tinha âncora nem modal de detalhe (o detalhe é um
+// acordeão local de cada linha), então: troca a aba se preciso, limpa filtros que escondem o
+// processo, expande o grupo do consultor (ProcessoGroupList reage ao foco), rola até a linha e a
+// destaca por DESTAQUE_PROCESSO_MS. O ?processo= é removido da URL ao tratar — assim um novo clique
+// com a rota já em /processos (mesmo id) muda a query de novo e dispara o watch.
+const focoId = ref("");
+let timerDestaque: ReturnType<typeof setTimeout> | null = null;
+
+function limparQueryProcesso(): void {
+  const { [QUERY_PROCESSO]: _removido, ...resto } = route.query;
+  router.replace({ path: route.path, query: resto });
+}
+
+async function irParaProcesso(id: string): Promise<void> {
+  const plano = planejarFocoProcesso(processos.value, filteredProcessos.value, id);
+  limparQueryProcesso();
+  if (!plano) {
+    if (!error.value) showToast("Processo não encontrado.");
+    return;
+  }
+
+  if (plano.limparFiltros) {
+    searchQuery.value = "";
+    statusFilter.value = "";
+    empresaFilter.value = "";
+    responsavelFilter.value = "";
+  }
+  activeTab.value = plano.aba;
+
+  // Reinicia o foco (mesmo id seguido de outro clique) e espera a lista re-renderizar já com o
+  // grupo expandido antes de procurar a linha no DOM.
+  focoId.value = "";
+  await nextTick();
+  focoId.value = id;
+  await nextTick();
+  await nextTick();
+
+  const linha = document.getElementById(`processo-row-${id}`) ?? document.getElementById(`processo-delivered-${id}`);
+  linha?.scrollIntoView({ block: "center", behavior: "smooth" });
+
+  if (timerDestaque) clearTimeout(timerDestaque);
+  timerDestaque = setTimeout(() => {
+    focoId.value = "";
+    timerDestaque = null;
+  }, DESTAQUE_PROCESSO_MS);
+}
+
+onMounted(async () => {
+  await fetchProcessos();
+  const id = processoIdDaQuery(route.query[QUERY_PROCESSO]);
+  if (id) await irParaProcesso(id);
+});
+
+// Já em /processos: a rota não muda de página, só a query — por isso o watch (e não só o onMounted).
+watch(
+  () => route.query[QUERY_PROCESSO],
+  (valor) => {
+    const id = processoIdDaQuery(valor);
+    if (id) void irParaProcesso(id);
+  },
+);
+
+onBeforeUnmount(() => {
+  if (timerDestaque) clearTimeout(timerDestaque);
+});
 
 const showFormModal = ref(false);
 const editingProcesso = ref<Processo | null>(null);
@@ -258,6 +331,7 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
       :processos="andamentoList"
       :readonly="!canWriteProcessos"
       :flat="flatList"
+      :foco-id="focoId"
       @edit="openEditForm"
       @delete="handleDelete"
       @patch="handlePatch"
@@ -266,6 +340,7 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
       v-else
       :processos="entregueList"
       :readonly="!canWriteProcessos"
+      :foco-id="focoId"
       @edit="openEditForm"
       @delete="handleDelete"
       @patch="handlePatch"

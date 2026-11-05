@@ -10,8 +10,10 @@ const props = withDefaults(
   defineProps<{
     processos: Processo[];
     readonly?: boolean;
+    // Realce temporário (chegou aqui por ?processo=<id>).
+    focoId?: string;
   }>(),
-  { readonly: false },
+  { readonly: false, focoId: "" },
 );
 
 const emit = defineEmits<{
@@ -61,7 +63,8 @@ function confirmDelete(): void {
       v-for="processo in sortedProcessos"
       :key="processo.id"
       :id="`processo-delivered-${processo.id}`"
-      class="@container border-b border-hairline last:border-b-0"
+      class="@container border-b border-hairline transition-colors last:border-b-0"
+      :class="{ 'bg-accent-dark/10 outline-2 -outline-offset-2 outline-accent-dark': processo.id === focoId }"
     >
       <div
         class="flex flex-col gap-1.5 px-3.5 py-2.5 @[760px]:flex-row @[760px]:items-center @[760px]:gap-3"

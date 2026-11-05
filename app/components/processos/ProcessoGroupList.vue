@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive } from "vue";
+import { computed, reactive, watch } from "vue";
 import { CONSULTORES_PROCESSO } from "#shared/constants/processos";
 import type { ConsultorProcesso, NewProcessoDTO, Processo } from "#shared/types/processo";
 import { agruparProcessosPorConsultor, type ProcessoGroup } from "../../utils/agruparProcessosPorConsultor";
@@ -13,8 +13,10 @@ const props = withDefaults(
     // Lista direta, sem o agrupamento por consultor (usado pelo cargo consultor,
     // que só vê os próprios processos).
     flat?: boolean;
+    // Processo a revelar/destacar (vindo de ?processo=<id>): expande o grupo do consultor dele.
+    focoId?: string;
   }>(),
-  { readonly: false, flat: false },
+  { readonly: false, flat: false, focoId: "" },
 );
 
 const emit = defineEmits<{
@@ -34,6 +36,16 @@ function toggleGroup(consultor: ConsultorProcesso): void {
     collapsedGroups.add(consultor);
   }
 }
+
+watch(
+  () => props.focoId,
+  (id) => {
+    if (!id) return;
+    const alvo = props.processos.find((p) => p.id === id);
+    if (alvo) collapsedGroups.delete(alvo.consultor);
+  },
+  { immediate: true },
+);
 
 const groups = computed<ProcessoGroup[]>(() => agruparProcessosPorConsultor(props.processos));
 </script>
@@ -57,6 +69,7 @@ const groups = computed<ProcessoGroup[]>(() => agruparProcessosPorConsultor(prop
         :key="processo.id"
         :processo="processo"
         :readonly="readonly"
+        :destaque="processo.id === focoId"
         @edit="emit('edit', $event)"
         @delete="emit('delete', $event)"
         @patch="(id, patch) => emit('patch', id, patch)"
@@ -99,6 +112,7 @@ const groups = computed<ProcessoGroup[]>(() => agruparProcessosPorConsultor(prop
           :key="processo.id"
           :processo="processo"
           :readonly="readonly"
+          :destaque="processo.id === focoId"
           @edit="emit('edit', $event)"
           @delete="emit('delete', $event)"
           @patch="(id, patch) => emit('patch', id, patch)"

@@ -9,8 +9,10 @@ const props = withDefaults(
   defineProps<{
     processo: Processo;
     readonly?: boolean;
+    // Realce temporário (chegou aqui por ?processo=<id>).
+    destaque?: boolean;
   }>(),
-  { readonly: false },
+  { readonly: false, destaque: false },
 );
 
 const emit = defineEmits<{
@@ -51,7 +53,11 @@ function handleAddAtualizacao(id: string, atualizacao: AtualizacaoProcesso): voi
 </script>
 
 <template>
-  <div :id="`processo-row-${processo.id}`" class="@container border-b border-hairline last:border-b-0">
+  <div
+    :id="`processo-row-${processo.id}`"
+    class="@container border-b border-hairline transition-colors last:border-b-0"
+    :class="{ 'bg-accent-dark/10 outline-2 -outline-offset-2 outline-accent-dark': destaque }"
+  >
     <button
       type="button"
       class="flex w-full flex-col items-stretch gap-1.5 px-3.5 py-2.5 text-left transition-colors hover:bg-paper @[700px]:flex-row @[700px]:items-center @[700px]:gap-3"

@@ -11,6 +11,8 @@ import ConfirmDialog from "../ConfirmDialog.vue";
 
 const props = defineProps<{
   recado: Recado;
+  // Realce temporário (chegou aqui por ?recado=<id>).
+  destaque?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -59,7 +61,7 @@ function confirmarExcluir(): void {
   <div
     :id="`recado-card-${recado.id}`"
     class="shadow-postit flex flex-col gap-2 rounded-md p-4"
-    :class="tipoMeta.bgClass"
+    :class="[tipoMeta.bgClass, { 'outline-2 outline-offset-2 outline-accent-dark': destaque }]"
   >
     <div class="flex items-start justify-between gap-2">
       <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">

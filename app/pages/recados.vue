@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "#app";
 import type { NewRecadoDTO, Recado, RecadoUpdateDTO } from "#shared/types/recado";
 import type { LembretePessoal, LembreteUpdateDTO, NewLembreteDTO } from "#shared/types/lembretePessoal";
 import { useRecados } from "../composables/useRecados";
@@ -8,6 +9,8 @@ import { useContasSelecao } from "../composables/useContasSelecao";
 import { useToast } from "../composables/useToast";
 import { getErrorMessage } from "../utils/errorMessages";
 import { filtrarLembretesVisiveis } from "../utils/lembretesFiltros";
+import { processoIdDaQuery } from "../utils/processoFoco";
+import { DESTAQUE_RECADO_MS, planejarFocoRecado, QUERY_RECADO } from "../utils/recadoFoco";
 import GlobalHeader from "../components/GlobalHeader.vue";
 import FloatingAddButton from "../components/FloatingAddButton.vue";
 import BotaoNovoRecado from "../components/recados/BotaoNovoRecado.vue";
@@ -22,11 +25,8 @@ const { lembretes, fetchLembretes, criarLembrete, atualizarLembrete, excluirLemb
 const { fetchContas } = useContasSelecao();
 const { showToast } = useToast();
 
-onMounted(() => {
-  fetchRecados();
-  fetchLembretes();
-  fetchContas();
-});
+const route = useRoute();
+const router = useRouter();
 
 type Tab = "recebidos" | "enviados" | "meus";
 const activeTab = ref<Tab>("recebidos");
@@ -39,6 +39,60 @@ const listaAtiva = computed<Recado[]>(() => {
 
 // Aba "Meus lembretes" cria lembrete; as demais criam recado.
 const rotuloNovo = computed<string>(() => (activeTab.value === "meus" ? "Novo lembrete" : "Novo recado"));
+
+// ── Ir até um recado (?recado=<id>, ex.: clique numa notificação do sino) ───────────────────────
+// Mesmo mecanismo do ?processo= de /processos: escolhe a aba onde o recado está, rola até o card e
+// o destaca por DESTAQUE_RECADO_MS. Recado apagado, já concluído por mim ou sem acesso não está em
+// nenhuma lista: a página segue normalmente (sem erro, sem aviso) e o ?recado= é só descartado.
+const focoId = ref("");
+let timerDestaque: ReturnType<typeof setTimeout> | null = null;
+
+function limparQueryRecado(): void {
+  const { [QUERY_RECADO]: _removido, ...resto } = route.query;
+  router.replace({ path: route.path, query: resto });
+}
+
+async function irParaRecado(id: string): Promise<void> {
+  const plano = planejarFocoRecado(recebidos.value, enviados.value, id);
+  limparQueryRecado();
+  if (!plano) return;
+
+  activeTab.value = plano.aba;
+  focoId.value = "";
+  await nextTick();
+  focoId.value = id;
+  await nextTick();
+  await nextTick();
+
+  document.getElementById(`recado-card-${id}`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+
+  if (timerDestaque) clearTimeout(timerDestaque);
+  timerDestaque = setTimeout(() => {
+    focoId.value = "";
+    timerDestaque = null;
+  }, DESTAQUE_RECADO_MS);
+}
+
+onMounted(async () => {
+  fetchLembretes();
+  fetchContas();
+  await fetchRecados();
+  const id = processoIdDaQuery(route.query[QUERY_RECADO]);
+  if (id) await irParaRecado(id);
+});
+
+// Já em /recados: a rota não muda de página, só a query — por isso o watch (e não só o onMounted).
+watch(
+  () => route.query[QUERY_RECADO],
+  (valor) => {
+    const id = processoIdDaQuery(valor);
+    if (id) void irParaRecado(id);
+  },
+);
+
+onBeforeUnmount(() => {
+  if (timerDestaque) clearTimeout(timerDestaque);
+});
 
 const showFormModal = ref(false);
 const editingRecado = ref<Recado | null>(null);
@@ -257,6 +311,7 @@ async function handleConcluirLembrete(id: string): Promise<void> {
           v-for="recado in listaAtiva"
           :key="recado.id"
           :recado="recado"
+          :destaque="recado.id === focoId"
           @editar="openEditForm"
           @excluir="handleExcluir"
           @fixar="handleFixar"
