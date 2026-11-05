@@ -41,5 +41,8 @@ coverage/
 
 # Migração do Follow-Up — dados de pacientes: NUNCA versionar o texto-fonte
 # nem os backups da tabela follow_up.
-scripts/migration/follow-up-source.txt
+scripts/migration/follow-up-source*.txt
 scripts/migration/backups/
+
+# Dados de pacientes (CSV da planilha DIR etc.) — NUNCA versionar.
+scratch/
