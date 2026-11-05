@@ -1,4 +1,3 @@
-import { domToBlob } from "modern-screenshot";
 import { useToast } from "./useToast";
 import { copiarImagemParaClipboard, baixarBlob } from "../utils/pagamentoExport";
 
@@ -15,6 +14,8 @@ export function useExportarImagem() {
       // rasterizar (evita fallback no primeiro export da sessão).
       if (document.fonts?.ready) await document.fonts.ready;
 
+      // Carrega a lib só no primeiro export. Se o chunk falhar, cai no mesmo catch (toast de erro) de antes.
+      const { domToBlob } = await import("modern-screenshot");
       blob = await domToBlob(elemento, {
         scale: 2, // equivalente ao pixelRatio 2 → PNG de 920px de largura
         backgroundColor: "#ffffff",

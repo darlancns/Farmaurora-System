@@ -1,6 +1,3 @@
-import PizZip from "pizzip";
-import Docxtemplater from "docxtemplater";
-import ImageModule from "docxtemplater-image-module-free";
 import type { PatientComputed } from "#shared/types/Patient";
 import { isFarmauroraModeloCompleto, withComputedFields } from "../utils/calculations";
 import { formatCurrency } from "../utils/formatters";
@@ -92,6 +89,17 @@ export function useDocxGenerator() {
   }
 
   async function generateDocx(localPatient: PatientComputed): Promise<void> {
+    // pizzip/docxtemplater só entram no clique de gerar o Word (fora do bundle inicial de Prestações). O
+    // download começa já aqui e corre em paralelo com a releitura, o modelo e as imagens; só é aguardado
+    // na hora de montar o documento. O `catch` vazio só evita "unhandled rejection" se outra etapa falhar
+    // antes: o `await` lá embaixo é quem relança um eventual erro do chunk.
+    const bibliotecas = Promise.all([
+      import("pizzip"),
+      import("docxtemplater"),
+      import("docxtemplater-image-module-free"),
+    ]);
+    bibliotecas.catch(() => undefined);
+
     const patient = await loadFreshPatient(localPatient);
     const templateUrl = resolveTemplateUrl(patient);
     const templateResponse = await fetch(templateUrl);
@@ -178,6 +186,8 @@ export function useDocxGenerator() {
       }
       return entry;
     }
+
+    const [{ default: PizZip }, { default: Docxtemplater }, { default: ImageModule }] = await bibliotecas;
 
     const imageModule = new ImageModule({
       getImage: (tagValue) => getCachedEntry(tagValue).buffer,

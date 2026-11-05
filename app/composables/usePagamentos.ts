@@ -14,6 +14,7 @@ import type {
 } from "#shared/types/Pagamento";
 import { apiFetch, deleteTolerant } from "../utils/apiFetch";
 import { criarFilaPorChave, criarGuardaSequencia } from "../utils/respostaMaisRecente";
+import { aplicarGrupoNaLista } from "../utils/gruposLista";
 
 interface BancoPayload {
   lotes: LoteBanco[];
@@ -82,6 +83,12 @@ export function usePagamentos() {
     );
     if (tipo === "DESPACHANTE") gruposDespachante.value = grupos;
     else gruposTransportadora.value = grupos;
+  }
+
+  // Aplica um grupo devolvido pelo servidor (PATCH/POST) na lista do tipo, sem refazer o GET.
+  function aplicarGrupo(tipo: TipoGrupoPagamento, grupo: GrupoPagamento): void {
+    if (tipo === "DESPACHANTE") gruposDespachante.value = aplicarGrupoNaLista(gruposDespachante.value, grupo);
+    else gruposTransportadora.value = aplicarGrupoNaLista(gruposTransportadora.value, grupo);
   }
 
   function pixPath(tipo: TipoGrupoPagamento): string {
@@ -232,7 +239,8 @@ export function usePagamentos() {
   }
 
   async function criarGrupo(tipo: TipoGrupoPagamento, input: Omit<NovoGrupoPagamentoDTO, "tipo">): Promise<void> {
-    await apiFetch(
+    // O POST devolve o grupo completo (novo, ou o aberto que recebeu os itens): aplica direto.
+    const grupo = await apiFetch<GrupoPagamento>(
       `/api/pagamentos/${tipoPath(tipo)}`,
       {
         method: "POST",
@@ -241,7 +249,7 @@ export function usePagamentos() {
       },
       "Erro ao adicionar pagamento."
     );
-    await fetchGrupos(tipo);
+    aplicarGrupo(tipo, grupo);
   }
 
   async function atualizarStatusItem(
@@ -250,7 +258,7 @@ export function usePagamentos() {
     index: number,
     status: StatusItemGrupo
   ): Promise<void> {
-    await apiFetch(
+    const grupo = await apiFetch<GrupoPagamento>(
       `/api/pagamentos/${tipoPath(tipo)}/${grupoId}`,
       {
         method: "PATCH",
@@ -259,7 +267,7 @@ export function usePagamentos() {
       },
       "Erro ao atualizar status."
     );
-    await fetchGrupos(tipo);
+    aplicarGrupo(tipo, grupo);
   }
 
   async function editarItemGrupo(
@@ -269,7 +277,7 @@ export function usePagamentos() {
     paciente: string,
     valor: number
   ): Promise<void> {
-    await apiFetch(
+    const grupo = await apiFetch<GrupoPagamento>(
       `/api/pagamentos/${tipoPath(tipo)}/${grupoId}/item`,
       {
         method: "PATCH",
@@ -278,7 +286,7 @@ export function usePagamentos() {
       },
       "Erro ao editar o pagamento."
     );
-    await fetchGrupos(tipo);
+    aplicarGrupo(tipo, grupo);
   }
 
   async function excluirItemGrupo(
