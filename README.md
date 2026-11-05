@@ -188,7 +188,7 @@ Por padrão sobe na porta 3000 (`PORT=8080 node .output/server/index.mjs` para m
 
 ### Deploy
 
-**Produção roda na Vercel** (`system.farmaurora.com.br`): funções serverless, **sem disco
+**Produção roda na Vercel** (`app.farmaurora.com.br`): funções serverless, **sem disco
 gravável e sem estado entre requisições**. Por isso nada de negócio pode depender de arquivo
 local — pacientes, processos, pagamentos, chaves PIX e anexos ficam no Supabase (Postgres e
 Storage).
