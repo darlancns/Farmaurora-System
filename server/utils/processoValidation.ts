@@ -94,6 +94,7 @@ export function isValidProcessoPatch(body: unknown): body is Partial<NewProcesso
   }
   if (b.datas !== undefined && !isValidDatas(b.datas)) return false;
   if (b.transportadoraNacional !== undefined && !isValidTransportadora(b.transportadoraNacional)) return false;
+  if (b.alertaMandadoResolvido !== undefined && typeof b.alertaMandadoResolvido !== "boolean") return false;
 
   return true;
 }

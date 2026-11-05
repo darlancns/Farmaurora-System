@@ -105,6 +105,7 @@ describe("status 'outro' — mappers", () => {
       pendencias: [],
       status_pagamento: null,
       alerta_fornecedor_resolvido: false,
+      alerta_mandado_resolvido: false,
       atualizacoes: [],
       created_at: "2026-10-14T00:00:00.000Z",
       updated_at: "2026-10-14T00:00:00.000Z",

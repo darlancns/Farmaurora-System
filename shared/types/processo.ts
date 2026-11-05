@@ -118,6 +118,9 @@ export interface Processo {
   // resolvido pra este processo, suprimindo a notificação mesmo que o prazo
   // já tenha passado (ver app/utils/prazoFornecedor.ts).
   alertaFornecedorResolvido?: boolean;
+  // true = o alerta "solicitar Mandado de Segurança" (7 dias após o registro do LPCO) foi
+  // resolvido pra este processo, some do sino pra todos (ver app/utils/prazoMandado.ts).
+  alertaMandadoResolvido?: boolean;
   atualizacoes: AtualizacaoProcesso[];
   createdAt: string;
   updatedAt: string;

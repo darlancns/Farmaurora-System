@@ -87,6 +87,12 @@ describe("colunasDeDTO", () => {
     expect("alerta_fornecedor_resolvido" in colunasDeDTO({ paciente: "X" })).toBe(false);
     expect(colunasDeDTO({ alertaFornecedorResolvido: false }).alerta_fornecedor_resolvido).toBe(false);
   });
+
+  it("alertaMandadoResolvido ausente do patch não mexe na coluna; presente grava true/false; não toca no alerta do fornecedor", () => {
+    expect("alerta_mandado_resolvido" in colunasDeDTO({ paciente: "X" })).toBe(false);
+    expect(colunasDeDTO({ alertaMandadoResolvido: true })).toEqual({ alerta_mandado_resolvido: true });
+    expect(colunasDeDTO({ alertaMandadoResolvido: false }).alerta_mandado_resolvido).toBe(false);
+  });
 });
 
 describe("montarProcesso", () => {
@@ -124,6 +130,7 @@ describe("montarProcesso", () => {
       pendencias: ["pendência 1"],
       status_pagamento: "pendente",
       alerta_fornecedor_resolvido: true,
+      alerta_mandado_resolvido: true,
       atualizacoes: [{ data: "2026-01-10", texto: "chegou" }],
       created_at: "2026-01-01T00:00:00.000Z",
       updated_at: "2026-01-10T00:00:00.000Z",
@@ -156,6 +163,7 @@ describe("montarProcesso", () => {
       pendencias: ["pendência 1"],
       statusPagamento: "pendente",
       alertaFornecedorResolvido: true,
+      alertaMandadoResolvido: true,
       atualizacoes: [{ data: "2026-01-10", texto: "chegou" }],
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-10T00:00:00.000Z",
@@ -186,12 +194,14 @@ describe("montarProcesso", () => {
     row.ordem = null;
     row.responsavel_operacional = null;
     row.alerta_fornecedor_resolvido = false;
+    row.alerta_mandado_resolvido = false;
 
     const processo = montarProcesso(row);
 
     expect("ordem" in processo).toBe(false);
     expect("responsavelOperacional" in processo).toBe(false);
     expect("alertaFornecedorResolvido" in processo).toBe(false);
+    expect("alertaMandadoResolvido" in processo).toBe(false);
   });
 
   it("medicamentos/pendencias/atualizacoes null viram array vazio (nunca null)", () => {

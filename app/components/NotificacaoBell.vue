@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import type { Notificacao } from "#shared/types/notificacao";
+import { podeResolverAlertaMandado } from "#shared/utils/mandadoPermissao";
 import { calcularNotificacoesFornecedor, type NotificacaoFornecedor } from "../utils/prazoFornecedor";
+import { calcularNotificacoesMandadoDoUsuario, type NotificacaoMandado } from "../utils/prazoMandado";
 import { useAuth } from "../composables/useAuth";
 import { useProcessos } from "../composables/useProcessos";
 import { useNotificacoes } from "../composables/useNotificacoes";
@@ -10,11 +12,15 @@ import { getErrorMessage } from "../utils/errorMessages";
 
 /**
  * Sino global (Fase C2) — renderizado direto pelo GlobalHeader em toda
- * página, não mais um slot de Processos. Agrega 2 fontes que continuam
+ * página, não mais um slot de Processos. Agrega 3 fontes que continuam
  * isoladas por baixo do capô (ver docs/recados-spec.md seção 7):
  *  - Fornecedor: alertas de SLA calculados on-the-fly a partir de
  *    Processo[] (calcularNotificacoesFornecedor, inalterada) — só aparece
  *    pra quem tem escrita em Processos.
+ *  - Mandado de Segurança: 7 dias após o registro do LPCO, calculado a partir
+ *    de Processo[] (calcularNotificacoesMandadoDoUsuario). Administrador vê
+ *    todos; operacional só os seus (vínculo pelo primeiro nome); consultor e
+ *    sócio não veem.
  *  - Recados: tabela `notificacoes`, aparece pra qualquer conta.
  * IDs preservados de NotificacaoFornecedorBell.vue (ver
  * tests/e2e/notificacao-fornecedor.spec.ts): btn/badge/painel
@@ -23,7 +29,7 @@ import { getErrorMessage } from "../utils/errorMessages";
  * combinados; renomear quebraria esse spec sem necessidade.
  */
 
-const { canWrite } = useAuth();
+const { canWrite, user } = useAuth();
 const canWriteProcessos = computed<boolean>(() => canWrite("processos"));
 
 const { processos, patchProcesso, fetchProcessos } = useProcessos();
@@ -55,12 +61,28 @@ const notificacoesFornecedorVisiveis = computed(() =>
   notificacoesFornecedor.value.filter((n) => !dismissedIds.has(n.processoId)),
 );
 
+// Mandado: mesmo esquema otimista do Fornecedor, com conjunto próprio (o mesmo
+// processo pode ter os dois alertas e resolver um não pode esconder o outro).
+const dismissedMandadoIds = reactive(new Set<string>());
+
+const notificacoesMandado = computed<NotificacaoMandado[]>(() =>
+  canWriteProcessos.value
+    ? calcularNotificacoesMandadoDoUsuario(processos.value, { role: user.value?.role, nome: user.value?.nome })
+    : [],
+);
+const notificacoesMandadoVisiveis = computed(() =>
+  notificacoesMandado.value.filter((n) => !dismissedMandadoIds.has(n.processoId)),
+);
+
 // Recados: só as não lidas aparecem no sino — mesmo espírito de "some da
 // lista ao resolver" do lado Fornecedor, aplicado a "marcar como lida".
 const notificacoesRecadosVisiveis = computed<Notificacao[]>(() => notificacoes.value.filter((n) => !n.lida));
 
 const badgeCount = computed(
-  () => notificacoesFornecedorVisiveis.value.length + notificacoesRecadosVisiveis.value.length,
+  () =>
+    notificacoesFornecedorVisiveis.value.length +
+    notificacoesMandadoVisiveis.value.length +
+    notificacoesRecadosVisiveis.value.length,
 );
 
 function togglePanel(): void {
@@ -80,6 +102,22 @@ async function resolverNotificacaoFornecedor(notificacao: NotificacaoFornecedor)
     dismissedIds.delete(notificacao.processoId);
     showToast(getErrorMessage(e, "Erro ao marcar alerta como resolvido"));
   }
+}
+
+async function resolverNotificacaoMandado(notificacao: NotificacaoMandado): Promise<void> {
+  dismissedMandadoIds.add(notificacao.processoId);
+  try {
+    await patchProcesso(notificacao.processoId, { alertaMandadoResolvido: true });
+  } catch (e) {
+    dismissedMandadoIds.delete(notificacao.processoId);
+    showToast(getErrorMessage(e, "Erro ao marcar alerta como resolvido"));
+  }
+}
+
+// O check do Mandado só aparece pra quem pode resolver (mesma regra do servidor: administrador ou
+// o operacional responsável — shared/utils/mandadoPermissao.ts).
+function podeResolverMandado(notificacao: NotificacaoMandado): boolean {
+  return podeResolverAlertaMandado({ role: user.value?.role, nome: user.value?.nome }, notificacao.responsavel);
 }
 
 // Clicar no item marca como lida — sem navegar (a página /recados ainda não
@@ -186,6 +224,37 @@ onBeforeUnmount(() => {
         </div>
       </template>
 
+      <template v-if="notificacoesMandadoVisiveis.length">
+        <p class="border-b border-hairline px-3.5 py-2.5 text-[11px] font-semibold tracking-wide text-ink-soft uppercase">
+          Mandado de Segurança
+        </p>
+        <div
+          v-for="notificacao in notificacoesMandadoVisiveis"
+          :key="notificacao.processoId"
+          :id="`notificacao-mandado-${notificacao.processoId}`"
+          class="flex items-center justify-between gap-2 border-b border-hairline px-3.5 py-2.5 last:border-b-0"
+        >
+          <p class="min-w-0 text-[12.5px] text-danger">
+            Solicitar Mandado de Segurança — {{ notificacao.paciente }} (pasta {{ notificacao.pasta }}). Registro do LPCO em
+            {{ notificacao.registroDDMM }}, há {{ notificacao.diasDecorridos }}
+            {{ notificacao.diasDecorridos === 1 ? "dia" : "dias" }}.
+          </p>
+          <button
+            v-if="podeResolverMandado(notificacao)"
+            :id="`btn-resolver-mandado-${notificacao.processoId}`"
+            type="button"
+            title="Marcar como resolvido"
+            aria-label="Marcar como resolvido"
+            class="shrink-0 rounded-md p-3.5 text-ink-soft transition-colors hover:text-accent-dark md:p-1.5"
+            @click="resolverNotificacaoMandado(notificacao)"
+          >
+            <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+          </button>
+        </div>
+      </template>
+
       <template v-if="notificacoesRecadosVisiveis.length">
         <p class="border-b border-hairline px-3.5 py-2.5 text-[11px] font-semibold tracking-wide text-ink-soft uppercase">
           Recados
@@ -202,7 +271,11 @@ onBeforeUnmount(() => {
       </template>
 
       <p
-        v-if="!notificacoesFornecedorVisiveis.length && !notificacoesRecadosVisiveis.length"
+        v-if="
+          !notificacoesFornecedorVisiveis.length &&
+          !notificacoesMandadoVisiveis.length &&
+          !notificacoesRecadosVisiveis.length
+        "
         class="px-3.5 py-6 text-center text-[12.5px] text-ink-soft"
       >
         Nenhuma notificação no momento.

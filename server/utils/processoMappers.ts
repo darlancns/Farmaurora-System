@@ -27,7 +27,8 @@ import { num } from "./storeKit";
 //  - Campo opcional ausente no DTO → NULL no banco; coluna NULL no banco →
 //    chave OMITIDA no objeto retornado (consistente com os campos serem `?`).
 //  - `alertaFornecedorResolvido` (coluna boolean NOT NULL default false): chave
-//    omitida quando `false`, incluída como `true` quando `true`.
+//    omitida quando `false`, incluída como `true` quando `true`. Idem
+//    `alertaMandadoResolvido` (coluna `alerta_mandado_resolvido`).
 
 export interface FollowUpRow {
   id: string;
@@ -63,6 +64,7 @@ export interface FollowUpRow {
   pendencias: string[] | null;
   status_pagamento: StatusPagamentoProcesso | null;
   alerta_fornecedor_resolvido: boolean | null;
+  alerta_mandado_resolvido: boolean | null;
   atualizacoes: AtualizacaoProcesso[] | null;
   created_at: string;
   updated_at: string;
@@ -103,6 +105,9 @@ export function colunasDeDTO(src: Partial<NewProcessoDTO>): Record<string, unkno
   if ("statusPagamento" in src) col.status_pagamento = src.statusPagamento ?? null;
   if ("alertaFornecedorResolvido" in src) {
     col.alerta_fornecedor_resolvido = src.alertaFornecedorResolvido ?? false;
+  }
+  if ("alertaMandadoResolvido" in src) {
+    col.alerta_mandado_resolvido = src.alertaMandadoResolvido ?? false;
   }
 
   if ("medicamentos" in src) col.medicamentos = src.medicamentos ?? [];
@@ -173,6 +178,7 @@ export function montarProcesso(row: FollowUpRow): Processo {
   if (row.numero_processo != null) processo.numeroProcesso = row.numero_processo;
   if (row.status_pagamento != null) processo.statusPagamento = row.status_pagamento;
   if (row.alerta_fornecedor_resolvido === true) processo.alertaFornecedorResolvido = true;
+  if (row.alerta_mandado_resolvido === true) processo.alertaMandadoResolvido = true;
 
   if (row.transportadora_nacional_nome != null) {
     const tn: TransportadoraNacional = { nome: row.transportadora_nacional_nome };
