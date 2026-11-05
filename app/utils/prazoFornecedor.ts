@@ -1,4 +1,4 @@
-import type { FornecedorProcesso, Processo } from "#shared/types/processo";
+import type { FornecedorProcesso, Processo, StatusProcesso } from "#shared/types/processo";
 import { diferencaEmDias, hojeBrasilia, parseDataISO, somarDiasISO } from "#shared/utils/dataBrasilia";
 
 // Prazo em dias CORRIDOS a partir de datas.dataCompraPO (dia da compra = dia 0)
@@ -12,6 +12,14 @@ const PRAZO_DIAS_POR_FORNECEDOR: Partial<Record<FornecedorProcesso, number>> = {
   "Beldimed - Bélgica": 7,
   "Pharyx - China": 10,
 };
+
+// Só processos nestes status geram o alerta de prazo do fornecedor (cobrar o fornecedor só faz sentido
+// enquanto a compra ainda está sendo encaminhada). Fácil de alterar: é a única lista.
+export const STATUS_ALERTAVEIS_FORNECEDOR: readonly StatusProcesso[] = ["elaboracao_fornecedores", "aguardando_inicio"];
+
+// Primeira data NO INÍCIO do texto livre (DD/MM ou DD/MM/AAAA); o resto é ignorado. O lookahead recusa
+// continuações como "04/11/26" ou "04/112": melhor não suprimir o alerta do que assumir uma data errada.
+const PRIMEIRA_DATA_RE = /^\s*(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?(?![\d/])/;
 
 const DATA_BR_RE = /^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/;
 
@@ -32,6 +40,17 @@ export function parseDataBR(str: string | undefined | null, hoje: Date = new Dat
   const iso = `${String(ano).padStart(4, "0")}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
   // parseDataISO rejeita datas inexistentes (ex.: 31/02), que um `new Date` normalizaria em silêncio.
   return parseDataISO(iso) ? iso : null;
+}
+
+// Data de embarque interpretada ("YYYY-MM-DD") a partir do texto livre de datas.dataEmbarque, usando só a
+// primeira data do início do texto ("10/11 (previsto)" -> 10/11). Sem ano, ano corrente de Brasília.
+// Sem data válida (vazio, "ASD", "semana que vem", 31/02) devolve null — e quem chama não suprime.
+export function interpretarDataEmbarque(texto: string | undefined | null, hoje: Date = new Date()): string | null {
+  if (!texto) return null;
+  const m = PRIMEIRA_DATA_RE.exec(texto);
+  if (!m) return null;
+  const [, dia, mes, ano] = m;
+  return parseDataBR(`${dia}/${mes}${ano ? `/${ano}` : ""}`, hoje);
 }
 
 export interface NotificacaoFornecedor {
@@ -57,7 +76,13 @@ export function calcularNotificacoesFornecedor(
 
   for (const processo of processos) {
     if (processo.alertaFornecedorResolvido) continue;
+    if (!STATUS_ALERTAVEIS_FORNECEDOR.includes(processo.status)) continue;
     if (processo.datas.aberturaThread?.trim()) continue;
+
+    // Embarque agendado para depois de hoje: ainda dentro do combinado, não cobra. No dia do embarque
+    // (ou depois) e sem abertura de thread, o alerta volta.
+    const embarque = interpretarDataEmbarque(processo.datas.dataEmbarque, hoje);
+    if (embarque && embarque > hojeISO) continue;
 
     const fornecedor = processo.fornecedor;
     if (!fornecedor) continue;

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { calcularNotificacoesFornecedor, parseDataBR } from "../../app/utils/prazoFornecedor";
+import {
+  STATUS_ALERTAVEIS_FORNECEDOR,
+  calcularNotificacoesFornecedor,
+  interpretarDataEmbarque,
+  parseDataBR,
+} from "../../app/utils/prazoFornecedor";
 import type { Processo } from "#shared/types/processo";
 
 // Note: a importação de `Processo` acima é só de tipo (`import type`), erasada
@@ -9,6 +14,9 @@ import type { Processo } from "#shared/types/processo";
 // 08/09/2026, meio-dia em Brasília (UTC-3). Um instante (não "meia-noite local"), pra o resultado
 // ser o mesmo em qualquer TZ da máquina.
 const HOJE = new Date("2026-09-08T12:00:00-03:00");
+
+// Instante a partir de um horário de parede de Brasília (UTC-3).
+const brtLocal = (iso: string) => new Date(`${iso}-03:00`);
 
 let seq = 0;
 function buildProcesso(overrides: Partial<Processo> = {}): Processo {
@@ -171,6 +179,97 @@ describe("calcularNotificacoesFornecedor", () => {
       const notificacoes = calcularNotificacoesFornecedor([processo], HOJE);
       expect(notificacoes.length, `fornecedor ${fornecedor}`).toBe(deveNotificar ? 1 : 0);
     }
+  });
+});
+
+// ── Status alertáveis e embarque futuro ──────────────────────────────────────
+
+describe("calcularNotificacoesFornecedor — status que alertam", () => {
+  // Poros (prazo 3), comprado em 01/09: em 08/09 o prazo já estourou — só o status decide.
+  const comStatus = (status: Processo["status"]) =>
+    buildProcesso({ status, fornecedor: "Poros - Turquia", datas: { dataCompraPO: "01/09" } });
+
+  it("a lista de status alertáveis é uma constante nomeada (inicial: elaboração e aguardando início)", () => {
+    expect([...STATUS_ALERTAVEIS_FORNECEDOR]).toEqual(["elaboracao_fornecedores", "aguardando_inicio"]);
+  });
+
+  it.each(["elaboracao_fornecedores", "aguardando_inicio"] as const)("status %s alerta", (status) => {
+    expect(calcularNotificacoesFornecedor([comStatus(status)], HOJE)).toHaveLength(1);
+  });
+
+  it.each(["desembaraco", "em_transito", "liberado", "liberado_parcial", "entregue", "outro"] as const)(
+    "status %s NÃO alerta, mesmo com prazo estourado e sem abertura de thread",
+    (status) => {
+      expect(calcularNotificacoesFornecedor([comStatus(status)], HOJE)).toHaveLength(0);
+    },
+  );
+});
+
+describe("interpretarDataEmbarque", () => {
+  it("usa só a primeira data do início do texto, ignorando o resto", () => {
+    expect(interpretarDataEmbarque("10/11", HOJE)).toBe("2026-11-10");
+    expect(interpretarDataEmbarque("10/11/2027", HOJE)).toBe("2027-11-10");
+    expect(interpretarDataEmbarque("  10/11 (previsto)", HOJE)).toBe("2026-11-10");
+    expect(interpretarDataEmbarque("10/11 - confirmar com o fornecedor; antes 05/11", HOJE)).toBe("2026-11-10");
+  });
+
+  it("sem data válida no início devolve null (nunca lança erro)", () => {
+    for (const t of ["ASD", "", "   ", "semana que vem", "previsto 10/11", "31/02", "10/13", "10/11/26", "10/112", undefined, null]) {
+      expect(interpretarDataEmbarque(t as string | undefined | null, HOJE), String(t)).toBeNull();
+    }
+  });
+});
+
+describe("calcularNotificacoesFornecedor — data de embarque", () => {
+  // Poros (prazo 3), comprado em 01/09, sem thread, status inicial: alertaria em 08/09 (4 dias de atraso).
+  const comEmbarque = (dataEmbarque?: string) =>
+    buildProcesso({
+      fornecedor: "Poros - Turquia",
+      datas: { dataCompraPO: "01/09", ...(dataEmbarque === undefined ? {} : { dataEmbarque }) },
+    });
+
+  it("embarque FUTURO suprime o alerta", () => {
+    expect(calcularNotificacoesFornecedor([comEmbarque("09/09")], HOJE)).toHaveLength(0);
+    expect(calcularNotificacoesFornecedor([comEmbarque("30/12")], HOJE)).toHaveLength(0);
+    expect(calcularNotificacoesFornecedor([comEmbarque("01/01/2027")], HOJE)).toHaveLength(0);
+  });
+
+  it("embarque no dia de HOJE NÃO suprime", () => {
+    const n = calcularNotificacoesFornecedor([comEmbarque("08/09")], HOJE);
+    expect(n).toHaveLength(1);
+    expect(n[0]!.diasDeAtraso).toBe(4);
+  });
+
+  it("embarque PASSADO (e thread ainda sem abertura) mantém o alerta", () => {
+    expect(calcularNotificacoesFornecedor([comEmbarque("07/09")], HOJE)).toHaveLength(1);
+    expect(calcularNotificacoesFornecedor([comEmbarque("01/09/2026")], HOJE)).toHaveLength(1);
+  });
+
+  it("texto sujo: vale só a primeira data no início", () => {
+    expect(calcularNotificacoesFornecedor([comEmbarque("15/09 (previsto)")], HOJE)).toHaveLength(0); // futuro
+    expect(calcularNotificacoesFornecedor([comEmbarque("05/09 - embarcou; chega 20/09")], HOJE)).toHaveLength(1); // passado
+    expect(calcularNotificacoesFornecedor([comEmbarque("previsto 20/09")], HOJE)).toHaveLength(1); // não começa com data
+    expect(calcularNotificacoesFornecedor([comEmbarque("31/02")], HOJE)).toHaveLength(1); // data inexistente
+  });
+
+  it("sem data de embarque (ausente, vazia, ASD) não suprime", () => {
+    expect(calcularNotificacoesFornecedor([comEmbarque()], HOJE)).toHaveLength(1);
+    expect(calcularNotificacoesFornecedor([comEmbarque("")], HOJE)).toHaveLength(1);
+    expect(calcularNotificacoesFornecedor([comEmbarque("ASD")], HOJE)).toHaveLength(1);
+  });
+
+  it("embarque sem ano usa o ano de Brasília; 'hoje' é o dia de Brasília (22:00 BRT)", () => {
+    // 22:00 BRT de 07/09 (UTC já é 08/09): embarque em 08/09 ainda é FUTURO em Brasília.
+    expect(calcularNotificacoesFornecedor([comEmbarque("08/09")], brtLocal("2026-09-07T22:00:00"))).toHaveLength(0);
+    // À meia-noite de Brasília vira "hoje" e o alerta volta.
+    expect(calcularNotificacoesFornecedor([comEmbarque("08/09")], brtLocal("2026-09-08T00:00:00"))).toHaveLength(1);
+  });
+
+  it("as outras supressões continuam valendo: thread aberta, resolvido, fornecedor sem prazo", () => {
+    const base = { fornecedor: "Poros - Turquia" as const };
+    expect(calcularNotificacoesFornecedor([buildProcesso({ ...base, datas: { dataCompraPO: "01/09", aberturaThread: "05/09", dataEmbarque: "01/09" } })], HOJE)).toHaveLength(0);
+    expect(calcularNotificacoesFornecedor([buildProcesso({ ...base, alertaFornecedorResolvido: true, datas: { dataCompraPO: "01/09", dataEmbarque: "01/09" } })], HOJE)).toHaveLength(0);
+    expect(calcularNotificacoesFornecedor([buildProcesso({ fornecedor: "Baiyue", datas: { dataCompraPO: "01/01", dataEmbarque: "01/01" } })], HOJE)).toHaveLength(0);
   });
 });
 
