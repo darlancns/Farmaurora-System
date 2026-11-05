@@ -3,6 +3,8 @@ import { erro, randomId } from "./storeKit";
 import { listAllAuthUsers, toAdminUserSummary } from "./authUser";
 import type { Notificacao, TipoNotificacao } from "#shared/types/notificacao";
 import type { Recado } from "#shared/types/recado";
+import type { CampoContaEditado } from "#shared/types/conta";
+import { nomeEmUmaLinha } from "#shared/utils/contaCampos";
 
 /**
  * Persistência de Notificacao — tabela `notificacoes` — + fan-out das
@@ -137,6 +139,56 @@ export async function notificarDestinatariosRecado(recado: Recado, autorNome: st
     .map((destinatarioId) => ({ destinatarioId, tipo: "recado_novo" as const, recadoId: recado.id, mensagem }));
 
   await inserirNotificacoes(rows);
+}
+
+// ── Notificação de conta editada (pros administradores) ────────────────────
+
+const ROTULO_CAMPO_CONTA: Record<CampoContaEditado, string> = {
+  senha: "a senha",
+  nome: "o nome",
+  email: "o e-mail",
+};
+
+/**
+ * "{nome} editou a senha" / "o nome" / "o e-mail". Só o NOME de quem editou entra no texto — nunca a
+ * senha, o e-mail ou o valor novo. Quebras de linha/controle do nome (contas antigas, sem validação)
+ * viram espaço.
+ */
+export function mensagemContaEditada(autorNome: string, campo: CampoContaEditado): string {
+  const nome = nomeEmUmaLinha(autorNome);
+  return `${nome || "Uma conta"} editou ${ROTULO_CAMPO_CONTA[campo]}`;
+}
+
+/**
+ * Uma linha por administrador (um único INSERT), EXCETO `autorId` — quem fez a edição não se avisa.
+ * Administrador = `app_metadata.role === "administrador"` (mesma regra de countAdmins): uma conta que
+ * só é admin pelo fallback de NUXT_ADMIN_EMAILS, sem cargo gravado, NÃO recebe. Devolve quantas
+ * notificações gerou.
+ */
+export async function notificarAdministradores(autorId: string, mensagem: string): Promise<number> {
+  const admin = createSupabaseAdminClient();
+  const contas = await listAllAuthUsers(admin);
+  const destinatarios = contas
+    .filter((conta) => toAdminUserSummary(conta).role === "administrador" && conta.id !== autorId)
+    .map((conta) => conta.id);
+
+  await inserirNotificacoes(
+    destinatarios.map((destinatarioId) => ({
+      destinatarioId,
+      tipo: "conta_editada" as const,
+      recadoId: null,
+      mensagem,
+    })),
+  );
+  return destinatarios.length;
+}
+
+/** Uma notificação (todas as linhas de uma vez) por campo alterado. */
+export async function notificarContaEditada(
+  autor: { id: string; nome: string },
+  campo: CampoContaEditado,
+): Promise<void> {
+  await notificarAdministradores(autor.id, mensagemContaEditada(autor.nome, campo));
 }
 
 /** Notifica o autor original de que alguém concluiu o recado dele. */

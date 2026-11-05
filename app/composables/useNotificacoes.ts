@@ -2,6 +2,7 @@ import { computed, type ComputedRef } from "vue";
 import { useState } from "#app";
 import type { Notificacao } from "#shared/types/notificacao";
 import { apiFetch } from "../utils/apiFetch";
+import { naoLidasDeContas, naoLidasDeRecados } from "../utils/notificacoesPorTipo";
 
 // Só a fonte de notificações de Recados (tabela `notificacoes`). Agregar com
 // os alertas de Fornecedor (calculados on-the-fly, sem tabela — ver
@@ -42,5 +43,18 @@ export function useNotificacoes() {
   // Pro badge do sino global (Fase C).
   const naoLidas: ComputedRef<number> = computed(() => notificacoes.value.filter((n) => !n.lida).length);
 
-  return { notificacoes, loading, error, fetchNotificacoes, marcarComoLida, naoLidas };
+  // Seções do sino global: cada tipo cai em UMA só (ver utils/notificacoesPorTipo.ts).
+  const recadosNaoLidos: ComputedRef<Notificacao[]> = computed(() => naoLidasDeRecados(notificacoes.value));
+  const contasNaoLidas: ComputedRef<Notificacao[]> = computed(() => naoLidasDeContas(notificacoes.value));
+
+  return {
+    notificacoes,
+    loading,
+    error,
+    fetchNotificacoes,
+    marcarComoLida,
+    naoLidas,
+    recadosNaoLidos,
+    contasNaoLidas,
+  };
 }

@@ -37,7 +37,9 @@ const READ_ACCESS: Record<Section, readonly Role[]> = {
   // "admin" cobre GET /api/admin/users (lista de contas) — socio só lê, nunca
   // escreve (ver WRITE_ACCESS.admin abaixo).
   admin: ["socio", "administrador"],
-  config: ["socio", "administrador"],
+  // "config" (página /configuracoes) abre pra TODOS os cargos: "Minha conta" é de todo mundo. O que é de
+  // gestão (aba Contas, /api/admin/**) continua atrás da seção "admin" acima, não desta.
+  config: ROLES,
   recados: ROLES,
 };
 

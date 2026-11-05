@@ -82,8 +82,8 @@ test.describe("RBAC", () => {
     await expect(page.locator("#btn-novo-pagamento-banco")).toBeVisible();
 
     // Configurações — acessa a página e vê a lista de contas, sem controles de gestão.
-    await page.goto("/configuracoes", { waitUntil: "networkidle" });
-    await expect(page).toHaveURL(/\/configuracoes$/);
+    await page.goto("/configuracoes?aba=contas", { waitUntil: "networkidle" });
+    await expect(page).toHaveURL(/\/configuracoes\?aba=contas$/);
     await expect(page.locator("#contas-tab")).toBeVisible();
     await expect(page.locator("#btn-nova-conta")).toHaveCount(0);
     await expect(page.locator("[id^='btn-acoes-conta-']")).toHaveCount(0);

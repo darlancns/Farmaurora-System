@@ -39,8 +39,16 @@ function montar() {
   const resolverFornecedor = vi.fn().mockResolvedValue(undefined);
   const resolverMandado = vi.fn().mockResolvedValue(undefined);
   const marcarRecadoLido = vi.fn().mockResolvedValue(undefined);
-  const acoes = criarAcoesSino({ navegar, fecharPainel, resolverFornecedor, resolverMandado, marcarRecadoLido });
-  return { acoes, navegar, fecharPainel, resolverFornecedor, resolverMandado, marcarRecadoLido };
+  const marcarContaLida = vi.fn().mockResolvedValue(undefined);
+  const acoes = criarAcoesSino({
+    navegar,
+    fecharPainel,
+    resolverFornecedor,
+    resolverMandado,
+    marcarRecadoLido,
+    marcarContaLida,
+  });
+  return { acoes, navegar, fecharPainel, resolverFornecedor, resolverMandado, marcarRecadoLido, marcarContaLida };
 }
 
 describe("clique no TEXTO do alerta de Fornecedor", () => {
@@ -133,6 +141,56 @@ describe("clique na notificação de RECADO", () => {
     marcarRecadoLido.mockRejectedValue(new Error("falhou"));
 
     await expect(acoes.abrirRecado(recado())).rejects.toThrow("falhou");
+
+    expect(fecharPainel).toHaveBeenCalledTimes(1);
+    expect(navegar).toHaveBeenCalledTimes(1);
+  });
+});
+
+const conta = (over: Partial<Notificacao> = {}): Notificacao => ({
+  id: "notif_conta_1",
+  destinatarioId: "u1",
+  tipo: "conta_editada",
+  mensagem: "Fulano editou a senha",
+  lida: false,
+  createdAt: "2026-11-05T12:00:00.000Z",
+  ...over,
+});
+
+describe("clique na notificação de CONTA EDITADA", () => {
+  it("navega para /configuracoes?aba=contas, marca como lida e fecha o sino", async () => {
+    const { acoes, navegar, fecharPainel, marcarContaLida } = montar();
+    const n = conta();
+
+    await acoes.abrirConta(n);
+
+    expect(navegar).toHaveBeenCalledTimes(1);
+    expect(navegar).toHaveBeenCalledWith({ path: "/configuracoes", query: { aba: "contas" } });
+    expect(fecharPainel).toHaveBeenCalledTimes(1);
+    expect(marcarContaLida).toHaveBeenCalledTimes(1);
+    expect(marcarContaLida).toHaveBeenCalledWith(n);
+  });
+
+  it("não aciona nenhuma outra ação do sino (recado, Fornecedor, Mandado)", async () => {
+    const { acoes, marcarRecadoLido, resolverFornecedor, resolverMandado } = montar();
+    await acoes.abrirConta(conta());
+    expect(marcarRecadoLido).not.toHaveBeenCalled();
+    expect(resolverFornecedor).not.toHaveBeenCalled();
+    expect(resolverMandado).not.toHaveBeenCalled();
+  });
+
+  it("e o clique em recado não marca como lida pela ação de conta", async () => {
+    const { acoes, marcarContaLida, marcarRecadoLido } = montar();
+    await acoes.abrirRecado(recado());
+    expect(marcarRecadoLido).toHaveBeenCalledTimes(1);
+    expect(marcarContaLida).not.toHaveBeenCalled();
+  });
+
+  it("navega ANTES de marcar como lida: falha ao marcar não impede de abrir a página", async () => {
+    const { acoes, navegar, fecharPainel, marcarContaLida } = montar();
+    marcarContaLida.mockRejectedValue(new Error("falhou"));
+
+    await expect(acoes.abrirConta(conta())).rejects.toThrow("falhou");
 
     expect(fecharPainel).toHaveBeenCalledTimes(1);
     expect(navegar).toHaveBeenCalledTimes(1);

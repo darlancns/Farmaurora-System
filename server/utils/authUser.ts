@@ -65,6 +65,21 @@ export function roleAppMetadata(
 }
 
 /**
+ * app_metadata da EDIÇÃO de uma conta existente (PATCH do administrador). Igual a `roleAppMetadata`,
+ * exceto que `nome` omitido NÃO entra no objeto: o GoTrue faz merge raso e preserva a chave ausente.
+ * Com `nome: null` (o que `roleAppMetadata` faz) o nome que a própria pessoa editou em "Minha conta"
+ * seria apagado sempre que o PATCH viesse sem nome.
+ */
+export function roleAppMetadataEdicao(
+  role: Role,
+  consultorNome?: ConsultorProcesso,
+  nome?: string,
+): Record<string, unknown> {
+  const { nome: _ignorado, ...semNome } = roleAppMetadata(role, consultorNome, nome);
+  return nome === undefined ? semNome : { ...semNome, nome };
+}
+
+/**
  * Valida `nome` (campo genérico de exibição, sem lista fixa — diferente de
  * `consultorNome`). Na criação é obrigatório; na edição é opcional, pra não
  * forçar preenchimento retroativo de contas que ainda não têm nome. Lança 400

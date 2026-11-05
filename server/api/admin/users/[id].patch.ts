@@ -3,7 +3,7 @@ import { createSupabaseAdminClient } from "../../../utils/supabaseServerClient";
 import {
   parseRoleInput,
   parseNomeInput,
-  roleAppMetadata,
+  roleAppMetadataEdicao,
   toAdminUserSummary,
   assertNotLastAdmin,
 } from "../../../utils/authUser";
@@ -38,8 +38,8 @@ export default defineEventHandler(async (event): Promise<AdminUserSummary> => {
 
   const body = (await readBody(event)) as PatchBody;
   const { role, consultorNome } = parseRoleInput(body);
-  // Nome não é obrigatório na edição — contas antigas podem ficar sem nome
-  // até serem preenchidas manualmente pela mesma tela.
+  // Nome não é obrigatório na edição — contas antigas podem ficar sem nome até serem preenchidas
+  // manualmente pela mesma tela. Omitido, o nome atual da conta é PRESERVADO (roleAppMetadataEdicao).
   const nome = parseNomeInput(body, { required: false });
 
   const admin = createSupabaseAdminClient();
@@ -50,7 +50,7 @@ export default defineEventHandler(async (event): Promise<AdminUserSummary> => {
   }
 
   const { data, error } = await admin.auth.admin.updateUserById(id, {
-    app_metadata: roleAppMetadata(role, consultorNome, nome),
+    app_metadata: roleAppMetadataEdicao(role, consultorNome, nome),
   });
 
   if (error || !data.user) {

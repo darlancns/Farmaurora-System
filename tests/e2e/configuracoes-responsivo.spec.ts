@@ -6,8 +6,8 @@ import { test, expect, type Page } from "@playwright/test";
 //
 //   E2E_ADMIN_EMAIL / E2E_ADMIN_PASSWORD (preferido)
 //   E2E_SOCIO_EMAIL / E2E_SOCIO_PASSWORD (fallback — só socio e administrador
-//   leem "config", ver shared/utils/rbac.ts; os demais cargos são
-//   redirecionados pra fora de /configuracoes)
+//   leem "admin" e, por isso, veem a aba Contas medida aqui; os demais cargos abrem
+//   /configuracoes só com "Minha conta", coberta em minha-conta.spec.ts)
 //
 // A tabela de contas (ContasTab.vue) e a lista de cards equivalente
 // coexistem no DOM (mesmo esquema de SidebarNav/BottomNav da Rodada 1) —
@@ -78,7 +78,8 @@ async function verificarRespiroAba(page: Page, id: string): Promise<void> {
 async function gotoConfiguracoes(page: Page, viewport: { width: number; height: number }): Promise<void> {
   await page.setViewportSize(viewport);
   await login(page);
-  await page.goto("/configuracoes", { waitUntil: "networkidle" });
+  // A aba padrão agora é "Minha conta"; esta suíte mede a de Contas (tabela/cards).
+  await page.goto("/configuracoes?aba=contas", { waitUntil: "networkidle" });
 }
 
 test.describe("Responsividade de /configuracoes", () => {

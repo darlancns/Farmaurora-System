@@ -1,6 +1,7 @@
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
 
-// Página /configuracoes → aba Contas. Usa a conta administrador já configurada:
+// Página /configuracoes → aba Contas (abre com ?aba=contas: a aba padrão agora é "Minha conta", ver
+// minha-conta.spec.ts). Usa a conta administrador já configurada:
 //   E2E_ADMIN_EMAIL / E2E_ADMIN_PASSWORD
 // O teste 8 (socio só leitura) usa, se disponível:
 //   E2E_SOCIO_EMAIL / E2E_SOCIO_PASSWORD
@@ -86,9 +87,9 @@ test.describe("Configurações → Contas", () => {
 
   test("1. admin acessa /configuracoes e vê a aba Contas + a própria conta na lista", async ({ page }) => {
     await login(page, admin.email, admin.password);
-    await page.goto("/configuracoes", { waitUntil: "networkidle" });
+    await page.goto("/configuracoes?aba=contas", { waitUntil: "networkidle" });
 
-    await expect(page).toHaveURL(/\/configuracoes$/);
+    await expect(page).toHaveURL(/\/configuracoes\?aba=contas$/);
     await expect(page.locator("#tab-contas")).toBeVisible();
     await expect(page.locator("#contas-tab")).toBeVisible();
     // .first(): a lista de contas existe em duas renderizações paralelas no
@@ -102,7 +103,7 @@ test.describe("Configurações → Contas", () => {
 
   test("2. cria conta com cargo Sócio → aparece na lista após refetch", async ({ page }) => {
     await login(page, admin.email, admin.password);
-    await page.goto("/configuracoes", { waitUntil: "networkidle" });
+    await page.goto("/configuracoes?aba=contas", { waitUntil: "networkidle" });
 
     const email = `e2e+socio-${Date.now()}@farmaurora.com.br`;
     try {
@@ -131,7 +132,7 @@ test.describe("Configurações → Contas", () => {
 
   test("3. cargo Consultor sem nome → validação impede o envio", async ({ page }) => {
     await login(page, admin.email, admin.password);
-    await page.goto("/configuracoes", { waitUntil: "networkidle" });
+    await page.goto("/configuracoes?aba=contas", { waitUntil: "networkidle" });
 
     await page.locator("#btn-nova-conta").click();
     await page.locator("#conta-email").fill(`e2e+c-${Date.now()}@farmaurora.com.br`);
@@ -170,7 +171,7 @@ test.describe("Configurações → Contas", () => {
     const id = String(created.json.id);
 
     try {
-      await page.goto("/configuracoes", { waitUntil: "networkidle" });
+      await page.goto("/configuracoes?aba=contas", { waitUntil: "networkidle" });
       await abrirMenuAcoes(page, id);
       await page.locator(`#btn-editar-conta-${id}`).click();
       await page.locator("#conta-role").click();
@@ -196,7 +197,7 @@ test.describe("Configurações → Contas", () => {
     });
     const id = String(created.json.id);
 
-    await page.goto("/configuracoes", { waitUntil: "networkidle" });
+    await page.goto("/configuracoes?aba=contas", { waitUntil: "networkidle" });
     await expect(page.locator(`#conta-row-${id}`)).toBeVisible();
 
     await abrirMenuAcoes(page, id);
@@ -211,7 +212,7 @@ test.describe("Configurações → Contas", () => {
 
     const meId = await apiMeId(page.request);
 
-    await page.goto("/configuracoes", { waitUntil: "networkidle" });
+    await page.goto("/configuracoes?aba=contas", { waitUntil: "networkidle" });
     const row = page.locator(`#conta-row-${meId}`);
     await expect(row).toBeVisible();
     await expect(row).toContainText("(você)");
@@ -352,9 +353,9 @@ test.describe("Configurações → Contas", () => {
     test.skip(!hasSocio, "defina E2E_SOCIO_EMAIL / E2E_SOCIO_PASSWORD");
 
     await login(page, socio.email, socio.password);
-    await page.goto("/configuracoes", { waitUntil: "networkidle" });
+    await page.goto("/configuracoes?aba=contas", { waitUntil: "networkidle" });
 
-    await expect(page).toHaveURL(/\/configuracoes$/);
+    await expect(page).toHaveURL(/\/configuracoes\?aba=contas$/);
     await expect(page.locator("#contas-tab")).toBeVisible();
     // .first(): mesma ambiguidade de tabela+cards em paralelo explicada no
     // teste 1 acima.
@@ -375,16 +376,17 @@ test.describe("Configurações → Contas", () => {
     expect(post.status).toBe(403);
   });
 
-  test("9. cargo sem leitura de config (operacional) em /configuracoes é redirecionado", async ({ page }) => {
+  test("9. operacional abre /configuracoes (aba 'Minha conta'), mas sem a aba Contas nem as APIs de gestão", async ({ page }) => {
     test.skip(!hasOperacional, "defina E2E_OPERACIONAL_EMAIL / E2E_OPERACIONAL_PASSWORD");
 
+    // Antes da aba "Minha conta" a rota era só de sócio/administrador e o operacional era redirecionado.
+    // Agora a página é de todos os cargos; a gestão de contas continua restrita (aba e /api/admin/**).
     await login(page, operacional.email, operacional.password);
-    await page.goto("/configuracoes");
-    await expect(page).not.toHaveURL(/\/configuracoes$/);
-    // O guard de autorização (authz.global.ts) é assíncrono (await load()) —
-    // a página pode renderizar #configuracoes-page brevemente antes do
-    // redirect completar. Timeout maior aqui evita falso negativo por essa
-    // corrida; a asserção continua a mesma (a página não deve ficar visível).
-    await expect(page.locator("#configuracoes-page")).toHaveCount(0, { timeout: 10000 });
+    await page.goto("/configuracoes", { waitUntil: "networkidle" });
+    await expect(page).toHaveURL(/\/configuracoes$/);
+    await expect(page.locator("#minha-conta-tab")).toBeVisible();
+    await expect(page.locator("#tab-contas")).toHaveCount(0);
+    await expect(page.locator("#contas-tab")).toHaveCount(0);
+    expect((await page.request.get("/api/admin/users")).status()).toBe(403);
   });
 });

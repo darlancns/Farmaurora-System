@@ -1,39 +1,59 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { useRoute, useRouter } from "#app";
 import { useAuth } from "../composables/useAuth";
 import GlobalHeader from "../components/GlobalHeader.vue";
 import ContasTab from "../components/configuracoes/ContasTab.vue";
+import MinhaContaTab from "../components/configuracoes/MinhaContaTab.vue";
+import {
+  abasParaCargo,
+  resolverAba,
+  type AbaConfiguracoes,
+  type AbaConfiguracoesDef,
+} from "../utils/abasConfiguracoes";
+import { QUERY_ABA } from "../utils/contaFoco";
 
-// A autorização real (redirect de quem não pode nem ler) é feita por
-// app/middleware/authz.global.ts via sectionForPageRoute("/configuracoes") ===
-// "config". Este bloco é só um reforço defensivo. socio lê (vê a lista de
-// contas); só administrador escreve — a aba ContasTab decide, por conta
-// própria, quais controles de escrita mostrar (ver canWrite("admin") lá).
+// A página abre pra TODOS os cargos (seção "config" em shared/utils/rbac.ts); o que muda é QUAIS abas
+// cada um vê (app/utils/abasConfiguracoes.ts): sócio e administrador, "Minha conta" + "Contas";
+// consultor e operacional, só "Minha conta". "Minha conta" é a primeira aba e a padrão de todos. A autorização real das ações de gestão continua no
+// servidor (/api/admin/**) e dentro do ContasTab — esconder a aba aqui é só a parte visível disso.
 //
-// O cargo só existe no client (via /api/auth/me), então o conteúdo dependente
-// dele só é montado depois da hidratação — o HTML do SSR (sem conteúdo) bate
-// com o primeiro render do client, evitando hydration mismatch.
-const { canRead } = useAuth();
+// O cargo só existe no client (via /api/auth/me), então o conteúdo dependente dele só é montado
+// depois da hidratação — o HTML do SSR (sem conteúdo) bate com o primeiro render do client, evitando
+// hydration mismatch.
+const { role } = useAuth();
+const route = useRoute();
+const router = useRouter();
+
 const mounted = ref(false);
 onMounted(() => {
   mounted.value = true;
 });
-const podeVer = computed(() => canRead("config"));
-const showContent = computed(() => mounted.value && podeVer.value);
+const showContent = computed(() => mounted.value && role.value !== null);
 
-type Tab = "contas";
-const activeTab = ref<Tab>("contas");
+// ?aba= escolhe a aba, validado contra as permitidas ao cargo; inválido/não permitido → aba padrão.
+const tabs = computed<AbaConfiguracoesDef[]>(() => abasParaCargo(role.value));
+const activeTab = computed<AbaConfiguracoes>(() => resolverAba(role.value, route.query[QUERY_ABA]));
 
-interface TabDef {
-  key: Tab;
-  label: string;
+// Trocar de aba grava ?aba= na URL (replace: não enche o histórico) — o link do sino e o recarregar
+// da página caem na mesma aba.
+function selecionarAba(aba: AbaConfiguracoes): void {
+  if (aba === activeTab.value) return;
+  router.replace({ path: route.path, query: { ...route.query, [QUERY_ABA]: aba } });
 }
-const tabs: TabDef[] = [{ key: "contas", label: "Contas" }];
+
+// Subtítulo da aba ativa: "Gestão de contas e acessos da equipe." só na aba Contas (texto de sempre);
+// em "Minha conta" — e antes de o cargo carregar, quando a aba padrão é essa — vale o da conta própria.
+const subtitle = computed<string>(() =>
+  showContent.value && activeTab.value === "contas"
+    ? "Gestão de contas e acessos da equipe."
+    : "Seus dados de acesso.",
+);
 </script>
 
 <template>
   <div id="configuracoes-page" class="mx-auto max-w-[1400px]">
-    <GlobalHeader title="Configurações" subtitle="Gestão de contas e acessos da equipe.">
+    <GlobalHeader title="Configurações" :subtitle="subtitle">
       <template v-if="showContent" #tabs>
         <!-- Abaixo de lg: -mt-3.5 desconta 14px do mb-4 do GlobalHeader (sobram 2px = a espessura do sublinhado) e a aba
              tem 44px, então o texto fica com o mesmo respiro acima (linha do cabeçalho) e abaixo (linha da barra). -->
@@ -49,7 +69,7 @@ const tabs: TabDef[] = [{ key: "contas", label: "Contas" }];
                 ? 'border-accent-dark text-accent-dark'
                 : 'border-transparent text-ink-soft hover:text-ink'
             "
-            @click="activeTab = tab.key"
+            @click="selecionarAba(tab.key)"
           >
             {{ tab.label }}
           </button>
@@ -58,6 +78,6 @@ const tabs: TabDef[] = [{ key: "contas", label: "Contas" }];
     </GlobalHeader>
 
     <ContasTab v-if="showContent && activeTab === 'contas'" />
-    <p v-else-if="mounted && !podeVer" class="text-[13px] text-ink-soft">Acesso restrito.</p>
+    <MinhaContaTab v-else-if="showContent && activeTab === 'minha-conta'" />
   </div>
 </template>

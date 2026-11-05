@@ -36,6 +36,29 @@ export function createSupabaseServerClient(event: H3Event): SupabaseClient {
 }
 
 /**
+ * Client Supabase anônimo e DESCARTÁVEL, sem persistência de sessão. Serve só pra conferir uma senha
+ * (`signInWithPassword`) sem tocar na sessão do usuário nem nos cookies da request. Quem usa deve
+ * encerrar a sessão criada com `signOut({ scope: "local" })` — o escopo padrão ("global") derrubaria
+ * TODAS as sessões da pessoa, inclusive a do navegador dela.
+ */
+export function createSupabaseAnonClient(): SupabaseClient {
+  const config = useRuntimeConfig();
+  const url = String(config.public.supabaseUrl ?? "");
+  const anonKey = String(config.public.supabaseAnonKey ?? "");
+
+  if (!url || !anonKey) {
+    throw new Error(
+      "Supabase não configurado: defina NUXT_PUBLIC_SUPABASE_URL e " +
+        "NUXT_PUBLIC_SUPABASE_ANON_KEY no .env.",
+    );
+  }
+
+  return createClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+}
+
+/**
  * Client Supabase com a service role key — bypassa RLS e permite operações
  * administrativas (ex.: criar contas da equipe). NUNCA deve ser exposto ao
  * client: a chave só existe em runtimeConfig server-only.

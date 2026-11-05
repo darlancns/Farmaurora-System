@@ -3,7 +3,12 @@
 // aqui — "recado_editado" não existe como tipo à parte: edição reusa
 // "recado_novo" porque as 3 mensagens (pessoa/cargo/público) são idênticas
 // nos dois casos, só muda o evento que dispara.
-export type TipoNotificacao = "recado_novo" | "recado_concluido";
+//
+// "conta_editada": uma pessoa alterou a própria conta (senha, nome ou e-mail) — vai pros
+// administradores, uma linha por campo, com o texto já pronto em `mensagem` e `recadoId` ausente.
+// Exige o valor 'conta_editada' no enum Postgres `tipo_notificacao`
+// (supabase/migrations/20261105000000_notificacao_conta_editada.sql).
+export type TipoNotificacao = "recado_novo" | "recado_concluido" | "conta_editada";
 
 export interface Notificacao {
   id: string;

@@ -5,6 +5,7 @@ import type { Notificacao } from "#shared/types/notificacao";
 import { podeResolverAlertaMandado } from "#shared/utils/mandadoPermissao";
 import { calcularNotificacoesFornecedor, type NotificacaoFornecedor } from "../utils/prazoFornecedor";
 import { calcularNotificacoesMandadoDoUsuario, type NotificacaoMandado } from "../utils/prazoMandado";
+import { totalDoBadgeSino } from "../utils/notificacoesPorTipo";
 import { criarAcoesSino } from "../utils/acoesSino";
 import { useAuth } from "../composables/useAuth";
 import { useProcessos } from "../composables/useProcessos";
@@ -23,7 +24,9 @@ import { getErrorMessage } from "../utils/errorMessages";
  *    de Processo[] (calcularNotificacoesMandadoDoUsuario). Administrador vê
  *    todos; operacional só os seus (vínculo pelo primeiro nome); consultor e
  *    sócio não veem.
- *  - Recados: tabela `notificacoes`, aparece pra qualquer conta.
+ *  - Recados: tabela `notificacoes` (tipos recado_novo e recado_concluido), aparece pra qualquer conta.
+ *  - Contas: tabela `notificacoes` (tipo conta_editada — alguém alterou a própria senha, nome ou
+ *    e-mail), só chega aos administradores. Seção própria; nunca cai em "Recados".
  * IDs preservados de NotificacaoFornecedorBell.vue (ver
  * tests/e2e/notificacao-fornecedor.spec.ts): btn/badge/painel
  * "-notificacoes-fornecedor", item/botão "-notificacao-fornecedor-{id}" —
@@ -35,7 +38,7 @@ const { canWrite, user } = useAuth();
 const canWriteProcessos = computed<boolean>(() => canWrite("processos"));
 
 const { processos, patchProcesso, fetchProcessos } = useProcessos();
-const { notificacoes, fetchNotificacoes, marcarComoLida } = useNotificacoes();
+const { fetchNotificacoes, marcarComoLida, recadosNaoLidos, contasNaoLidas } = useNotificacoes();
 const { showToast } = useToast();
 
 onMounted(() => {
@@ -77,14 +80,18 @@ const notificacoesMandadoVisiveis = computed(() =>
 );
 
 // Recados: só as não lidas aparecem no sino — mesmo espírito de "some da
-// lista ao resolver" do lado Fornecedor, aplicado a "marcar como lida".
-const notificacoesRecadosVisiveis = computed<Notificacao[]>(() => notificacoes.value.filter((n) => !n.lida));
+// lista ao resolver" do lado Fornecedor, aplicado a "marcar como lida". Só os tipos recado_novo e
+// recado_concluido (useNotificacoes().recadosNaoLidos); conta_editada vai pra seção "Contas".
+const notificacoesRecadosVisiveis = recadosNaoLidos;
+const notificacoesContasVisiveis = contasNaoLidas;
 
-const badgeCount = computed(
-  () =>
-    notificacoesFornecedorVisiveis.value.length +
-    notificacoesMandadoVisiveis.value.length +
-    notificacoesRecadosVisiveis.value.length,
+const badgeCount = computed(() =>
+  totalDoBadgeSino({
+    fornecedor: notificacoesFornecedorVisiveis.value.length,
+    mandado: notificacoesMandadoVisiveis.value.length,
+    recados: notificacoesRecadosVisiveis.value.length,
+    contas: notificacoesContasVisiveis.value.length,
+  }),
 );
 
 function togglePanel(): void {
@@ -126,7 +133,10 @@ async function marcarNotificacaoRecadoComoLida(notificacao: Notificacao): Promis
   }
 }
 
-// Os 3 tipos de item (Fornecedor, Mandado, Recados) usam o MESMO ponto de navegação e o mesmo
+// Conta editada: mesma ação de marcar como lida (a navegação já aconteceu antes — ver acoesSino.ts).
+const marcarNotificacaoContaComoLida = marcarNotificacaoRecadoComoLida;
+
+// Os 4 tipos de item (Fornecedor, Mandado, Recados, Contas) usam o MESMO ponto de navegação e o mesmo
 // padrão visual: linha com hover, elemento clicável = <button> real (foco, Enter) com o mesmo
 // contorno de foco. Texto do alerta de processo -> /processos?processo=<id>; recado ->
 // /recados?recado=<id> + lida; check -> só resolve (sem navegar). Lógica em acoesSino.ts, testada
@@ -138,6 +148,7 @@ const CLASSE_ITEM_ABRIR = "min-w-0 flex-1 rounded-md text-left focus-visible:out
 const {
   abrirProcesso: abrirProcessoDoAlerta,
   abrirRecado,
+  abrirConta,
   resolverFornecedor: resolverAlertaFornecedor,
   resolverMandado: resolverAlertaMandado,
 } = criarAcoesSino({
@@ -146,6 +157,7 @@ const {
   resolverFornecedor: resolverNotificacaoFornecedor,
   resolverMandado: resolverNotificacaoMandado,
   marcarRecadoLido: marcarNotificacaoRecadoComoLida,
+  marcarContaLida: marcarNotificacaoContaComoLida,
 });
 
 function podeResolverMandado(notificacao: NotificacaoMandado): boolean {
@@ -310,11 +322,36 @@ onBeforeUnmount(() => {
         </div>
       </template>
 
+      <template v-if="notificacoesContasVisiveis.length">
+        <p
+          id="secao-notificacoes-conta"
+          class="border-b border-hairline px-3.5 py-2.5 text-[11px] font-semibold tracking-wide text-ink-soft uppercase"
+        >
+          Contas
+        </p>
+        <div
+          v-for="notificacao in notificacoesContasVisiveis"
+          :key="notificacao.id"
+          :class="[CLASSE_LINHA_ITEM, 'max-lg:min-h-11']"
+        >
+          <button
+            :id="`notificacao-conta-${notificacao.id}`"
+            type="button"
+            title="Abrir em Configurações"
+            :class="[CLASSE_ITEM_ABRIR, 'text-[13px] text-ink']"
+            @click="abrirConta(notificacao)"
+          >
+            {{ notificacao.mensagem }}
+          </button>
+        </div>
+      </template>
+
       <p
         v-if="
           !notificacoesFornecedorVisiveis.length &&
           !notificacoesMandadoVisiveis.length &&
-          !notificacoesRecadosVisiveis.length
+          !notificacoesRecadosVisiveis.length &&
+          !notificacoesContasVisiveis.length
         "
         class="px-3.5 py-6 text-center text-[12.5px] text-ink-soft"
       >
