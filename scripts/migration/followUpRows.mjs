@@ -39,6 +39,7 @@ export const COLUNAS_FOLLOW_UP = [
   "pendencias",
   "status_pagamento",
   "alerta_fornecedor_resolvido",
+  "alerta_mandado_resolvido",
   "atualizacoes",
   "created_at",
   "updated_at",
@@ -49,7 +50,8 @@ export function idCarga(ms, indice) {
   return `proc_${ms}_${indice.toString(36).padStart(6, "0")}`;
 }
 
-export function registroParaLinha(rec, { id, agora }) {
+/** `flags` (opcional): marcas de alerta a preservar/definir — padrão false ("começa sem valor"). */
+export function registroParaLinha(rec, { id, agora, flags = {} }) {
   const d = rec.datas ?? {};
   const t = rec.transportadoraNacional;
   return {
@@ -85,7 +87,8 @@ export function registroParaLinha(rec, { id, agora }) {
     numero_processo: rec.numeroProcesso ?? null,
     pendencias: rec.pendencias ?? [],
     status_pagamento: rec.statusPagamento ?? null,
-    alerta_fornecedor_resolvido: false, // "começa sem valor"
+    alerta_fornecedor_resolvido: flags.fornecedor === true, // padrão: "começa sem valor"
+    alerta_mandado_resolvido: flags.mandado === true,
     atualizacoes: rec.atualizacoes ?? [],
     created_at: agora,
     updated_at: agora,

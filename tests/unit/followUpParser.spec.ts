@@ -291,6 +291,187 @@ describe("parser do Follow-Up — campos", () => {
   });
 });
 
+// ── Formato da fonte de 2026-11-05 ──────────────────────────────────────────
+
+describe("parser do Follow-Up — formato novo (seção de grupo, rótulos por medicamento, asteriscos)", () => {
+  const SEP_ = "_".repeat(70);
+  const grupo = [
+    "Paulinho - Bráulio - Bolívar",
+    "Rodrigão - Alessandra - Daniel - Flávia",
+    "",
+    "1. Ciclano Souza (2026 - 276) - Bráulio - FARMAURORA",
+    "Status: desembaraço",
+    "2. Maria Souza (2026 - 366)- Flavinha -  FARMAURORA",
+    "Status: desembaraço",
+    "3. Rita Souza (2026 - 369) - Dani - FARMAURORA",
+    "Status: liberado",
+    "4. Ana Souza (2026 - 361) - Alessandra - FARMAURORA",
+    "Status: liberado",
+    "5. Joao Souza (2026 - 322) - Daniel - FARMAURORA",
+    "Status: liberado",
+    "6. Pedro Souza (2026 - 323) - FARMAURORA",
+    "Status: liberado",
+    SEP_,
+    "André",
+    "1. Fulano Teste - Ordem 1 (2026 - 409) - FARMAURORA",
+    "Status: desembaraço",
+    "2. Fulano Teste - Ordem 2 (2026 - 409) - FARMAURORA",
+    "Status: desembaraço",
+  ].join("\n");
+  const { entradas, erros } = parse(grupo);
+
+  it("cabeçalho com vários nomes em 2 linhas vira seção de grupo (sem erro de parsing)", () => expect(erros).toEqual([]));
+
+  it("consultor de cada item vem do título do item: Dani e Flavinha continuam distintos", () => {
+    expect(entradas.map((e) => e.record?.consultor)).toEqual([
+      "Bráulio",
+      "Flavinha",
+      "Dani",
+      "Alessandra",
+      undefined, // "Daniel" não é consultor cadastrado
+      undefined, // sem rótulo
+      "André Vitório",
+      "André Vitório",
+    ]);
+    expect(entradas[4]!.motivos.join(" ")).toMatch(/não corresponde a nenhum consultor/);
+    expect(entradas[5]!.motivos.join(" ")).toMatch(/SEM rótulo/);
+  });
+
+  it("avisa (nota) quando o rótulo do item não aparece literalmente no cabeçalho (Dani × Daniel)", () => {
+    expect(entradas[2]!.notas.join(" ")).toMatch(/"Dani".*não aparece literalmente no cabeçalho/);
+    expect(entradas[0]!.notas.join(" ")).not.toMatch(/não aparece literalmente/);
+  });
+
+  it("mesma pasta com Ordem 1 e Ordem 2 são processos separados (chave = pasta + ordem)", () => {
+    const [a, b] = [entradas[6]!.record!, entradas[7]!.record!];
+    expect(a.pasta).toBe(b.pasta);
+    expect([a.ordem, b.ordem]).toEqual(["Ordem 1", "Ordem 2"]);
+  });
+
+  it('rótulos com nome do medicamento ("Status X", "Fornecedor X", "Previsão de entrega X", "Documentos de embarque X")', () => {
+    const e = um([
+      "Status Verzenios: elaboração dos fornecedores",
+      "Medicamento: Verzenios (Abemaciclibe) 150mg - 14 comp. - 13 caixas",
+      "Data de embarque: 10/11",
+      "Previsão de entrega Verzenios: 30/11",
+      "Fornecedor Verzenios: Baiyue - Courier",
+      "Documentos de embarque Verzenios: AWB, CI e PL",
+    ]);
+    const r = e.record!;
+    expect(r.status).toBe("elaboracao_fornecedores");
+    expect(r.datas).toEqual({ dataEmbarque: "10/11", previsaoEntrega: "30/11" });
+    expect(r.fornecedor).toBe("Baiyue");
+    expect(r.atualizacoes.map((a: { texto: string }) => a.texto)).toContain("Documentos de embarque Verzenios: AWB, CI e PL");
+  });
+
+  it("sufixo que NÃO é um dos medicamentos do item → item não interpretado (nada de adivinhar)", () => {
+    const e = um(["Status: desembaraço", "Medicamento: Keytruda 100mg - 10 ampolas", "Fornecedor Opdivo: Poros - Air Cargo"]);
+    expect(e.record).toBeNull();
+    expect(e.motivos.join(" ")).toMatch(/Fornecedor Opdivo.*não é nenhum dos medicamentos/);
+  });
+
+  it('asteriscos de destaque saem do texto ("R$ 886,95***", "***Obs.: …")', () => {
+    const r = um([
+      "Status: desembaraço",
+      "Transportadora: AJC - Cotação 13151 - R$ 886,95***",
+      "***Obs.: não seguir com a entrega antes de ter a decisão judicial",
+    ]).record!;
+    expect(r.transportadoraNacional).toEqual({ nome: "AJC", cotacao: "13151", valor: 886.95 });
+    expect(r.atualizacoes).toEqual([{ data: "", texto: "Obs.: não seguir com a entrega antes de ter a decisão judicial" }]);
+    expect(JSON.stringify(r)).not.toContain("*");
+  });
+
+  it("modal: Courier simples → Courier Simples; FedEx Formal → Courier Formal; Courier sem qualificar → vazio + atualização", () => {
+    const simples = um(["Status: desembaraço", "Fornecedor: Pharyx - Courier simples", "FedEX: 8793 3511 1009"]).record!;
+    expect(simples.modalEnvio).toBe("Courier Simples");
+    expect(simples.fornecedor).toBe("Pharyx - China");
+    expect(simples.codigoRastreio).toBe("8793 3511 1009");
+    expect(um(["Status: desembaraço", "Fornecedor: Venecza - FedEx Courier simples", "Fedex: 1"]).record!.modalEnvio).toBe("Courier Simples");
+    expect(um(["Status: desembaraço", "Fornecedor: Beldimed - FedEx Formal", "Swiss: 724-90455282"]).record!.modalEnvio).toBe("Courier Formal");
+    const cru = um(["Status: elaboração dos fornecedores", "Fornecedor: Baiyue - Courier"]).record!;
+    expect(cru.modalEnvio).toBeUndefined();
+    expect(cru.atualizacoes.some((a: { texto: string }) => /Classificar o modal/.test(a.texto) && /Baiyue - Courier/.test(a.texto))).toBe(true);
+  });
+
+  it('"Simples" e "Formal" no mesmo item → não interpretado (modal ambíguo)', () => {
+    const e = um(["Status: desembaraço", "Fornecedor: Poros - Courier simples", "Fedex Formal: 1"]);
+    expect(e.record).toBeNull();
+    expect(e.motivos.join(" ")).toMatch(/modal ambíguo/);
+  });
+
+  it('fornecedor do enum colado ao modal sem hífen ("Speciality Courier"); fornecedor novo fica literal', () => {
+    const colado = um(["Status: desembaraço", "Fornecedor: Speciality Courier", "Fedex: 8787 6804 6810"]).record!;
+    expect(colado.fornecedor).toBe("Speciality - Índia");
+    const novo = um(["Status: desembaraço", "Fornecedor: Can Pharma - Air Cargo - pagamento após AWB"]).record!;
+    expect(novo.fornecedor).toBe("Can Pharma");
+    expect(novo.modalEnvio).toBe("Air Cargo");
+    expect(novo.atualizacoes).toEqual([{ data: "", texto: "pagamento após AWB" }]);
+  });
+
+  it('normalização explícita: "Veneza" → "Venecza" (só esse caso); "Venecza" e "Andreza Bernardes" ficam como estão', () => {
+    const r = um(["Status: desembaraço", "Fornecedor: Veneza - Air Cargo"]).record!;
+    expect(r.fornecedor).toBe("Venecza");
+    expect(r.modalEnvio).toBe("Air Cargo");
+    expect(um(["Status: desembaraço", "Fornecedor: Venecza - Air Cargo"]).record!.fornecedor).toBe("Venecza");
+    // sem aproximação genérica: nomes parecidos continuam literais
+    expect(um(["Status: desembaraço", "Fornecedor: Venezza - Air Cargo"]).record!.fornecedor).toBe("Venezza");
+    expect(um(["Status: desembaraço", "Fornecedor: Baiyue - Air Cargo"]).record!.fornecedor).toBe("Baiyue");
+    expect(um(["Status: desembaraço", "Despachante: Andreza Bernardes"]).record!.despachante).toBe("Andreza Bernardes");
+  });
+
+  it('status: "VCP" (com/sem parênteses) é descartado; "(GRU)" e "(GRU) - Anvisa" ficam como pendência', () => {
+    for (const t of ["desembaraço (VCP)", "desembaraço VCP"]) {
+      const r = um([`Status: ${t}`]).record!;
+      expect(r.status, t).toBe("desembaraco");
+      expect(r.pendencias, t).toEqual([]);
+    }
+    expect(um(["Status: desembaraço (GRU)"]).record!.pendencias).toEqual(["(GRU)"]);
+    expect(um(["Status: desembaraço (GRU) - Anvisa"]).record!.pendencias).toEqual(["(GRU) - Anvisa"]);
+    const r = um(["Status: elaboração dos fornecedores - AWB emitida; aguardando confirmação de embarque"]).record!;
+    expect(r.status).toBe("elaboracao_fornecedores");
+    expect(r.pendencias).toEqual(["AWB emitida; aguardando confirmação de embarque"]);
+  });
+
+  it('rótulo "Registro da DUMP pelo despachante" (grafia) é lido como DUIMP, com nota', () => {
+    const e = um(["Status: desembaraço", "Registro da DUMP pelo despachante: 04/11"]);
+    expect(e.record!.datas.registroDuimp).toBe("04/11");
+    expect(e.notas.join(" ")).toMatch(/DUMP/);
+  });
+
+  it("despachante com texto extra (isenção) → nome canônico + texto nas atualizações", () => {
+    const r = um(["Status: desembaraço", "Despachante: Andreza Faconi - solicitar isenção do imposto"]).record!;
+    expect(r.despachante).toBe("Andreza Faconi");
+    expect(r.atualizacoes).toEqual([{ data: "", texto: "solicitar isenção do imposto" }]);
+  });
+
+  it('"Protocolo:" e linhas soltas após o nº do processo (com data) vão para as atualizações', () => {
+    const r = um([
+      "Status: desembaraço",
+      "Número do processo: 123",
+      "Protocolo: 264319142",
+      "Nova exigência 22/10",
+      "28/10 Protocolo: C-263188097",
+    ]).record!;
+    expect(r.atualizacoes).toEqual([
+      { data: "", texto: "Protocolo: 264319142" },
+      { data: "22/10", texto: "Nova exigência 22/10" },
+      { data: "28/10", texto: "Protocolo: C-263188097" },
+    ]);
+  });
+
+  it("transportadora sem nome (só cotação e valor) NÃO inventa nome: vai para atualizações", () => {
+    const e = um(["Status: desembaraço", "Transportadora: Cotação 13716 - R$ 1.708,48"]);
+    expect(e.record!.transportadoraNacional).toBeUndefined();
+    expect(e.record!.atualizacoes).toEqual([{ data: "", texto: "Transportadora: Cotação 13716 - R$ 1.708,48" }]);
+    expect(e.fallback[0]!.motivo).toMatch(/transportadora fora do formato/);
+  });
+
+  it("Suposta estimativa e Data de embarque têm coluna própria", () => {
+    const r = um(["Status: elaboração dos fornecedores", "Suposta estimativa: 30/11", "Data de embarque: 04/11"]).record!;
+    expect(r.datas).toEqual({ supostaEstimativa: "30/11", dataEmbarque: "04/11" });
+  });
+});
+
 // ── Paridade da linha de carga com o mapper real ────────────────────────────
 // @ts-expect-error — .mjs sem tipos (scripts de migração one-time)
 import { COLUNAS_FOLLOW_UP, idCarga, registroParaLinha } from "../../scripts/migration/followUpRows.mjs";
@@ -299,7 +480,9 @@ import { colunasDeDTO } from "../../server/utils/processoMappers";
 import { isValidProcessoPayload } from "../../server/utils/processoValidation";
 import type { NewProcessoDTO } from "#shared/types/processo";
 
+// Fontes reais (dados de pacientes, podem não existir na máquina): cada uma entra só se o arquivo existir.
 const FONTE_REAL = "scripts/migration/follow-up-source.txt";
+const FONTE_REAL_2026_11 = "scripts/migration/follow-up-source-2026-11-05.txt";
 const SINTETICO = [
   "André",
   "1. Fulano Teste - Ordem 2 (2026 - 100) - FARMAURORA",
@@ -325,14 +508,18 @@ function linhasDe(texto: string) {
 describe.each([
   ["sintético", SINTETICO],
   ...(existsSync(FONTE_REAL) ? ([["texto-fonte real", readFileSync(FONTE_REAL, "utf-8")]] as Array<[string, string]>) : []),
+  ...(existsSync(FONTE_REAL_2026_11)
+    ? ([["texto-fonte real 2026-11-05", readFileSync(FONTE_REAL_2026_11, "utf-8")]] as Array<[string, string]>)
+    : []),
 ])("linha de carga × colunasDeDTO (%s)", (_nome, texto) => {
   const pares = linhasDe(texto);
 
   it("gera registros", () => expect(pares.length).toBeGreaterThan(0));
 
-  it("tem exatamente as 36 colunas da tabela, na ordem", () => {
+  it("tem exatamente as 37 colunas da tabela (inclui alerta_mandado_resolvido)", () => {
     for (const { linha } of pares) expect(Object.keys(linha)).toEqual(COLUNAS_FOLLOW_UP);
-    expect(COLUNAS_FOLLOW_UP).toHaveLength(36);
+    expect(COLUNAS_FOLLOW_UP).toHaveLength(37);
+    expect(COLUNAS_FOLLOW_UP).toContain("alerta_mandado_resolvido");
   });
 
   it("cada coluna que o mapper real grava tem o MESMO valor na linha de carga", () => {
@@ -348,11 +535,21 @@ describe.each([
     for (const { rec } of pares) expect(isValidProcessoPayload(rec), rec.pasta).toBe(true);
   });
 
-  it("alertaFornecedorResolvido começa false; created_at = updated_at; ids únicos", () => {
+  it("as duas flags de alerta começam false; created_at = updated_at; ids únicos", () => {
     for (const { linha } of pares) {
       expect(linha.alerta_fornecedor_resolvido).toBe(false);
+      expect(linha.alerta_mandado_resolvido).toBe(false);
       expect(linha.created_at).toBe(linha.updated_at);
     }
     expect(new Set(pares.map((p) => p.linha.id)).size).toBe(pares.length);
+  });
+
+  it("flags informadas (preservadas do banco / regra) vão para as colunas; qualquer outra coisa vira false", () => {
+    const { rec } = pares[0]!;
+    const agora = "2026-11-05T15:00:00.000Z";
+    const l1 = registroParaLinha(rec, { id: "x", agora, flags: { fornecedor: true, mandado: true } }) as Record<string, unknown>;
+    expect([l1.alerta_fornecedor_resolvido, l1.alerta_mandado_resolvido]).toEqual([true, true]);
+    const l2 = registroParaLinha(rec, { id: "x", agora, flags: { fornecedor: false, mandado: undefined } }) as Record<string, unknown>;
+    expect([l2.alerta_fornecedor_resolvido, l2.alerta_mandado_resolvido]).toEqual([false, false]);
   });
 });

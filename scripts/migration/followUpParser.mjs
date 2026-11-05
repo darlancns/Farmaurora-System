@@ -38,8 +38,14 @@ const SECAO_CONSULTOR = {
   [norm("Thiago Guedes")]: "Thiago Guedes",
   [norm("Vini")]: "Vinícius Alves",
 };
-const SECAO_GRUPO = norm("Paulinho - Bráulio - Bolívar");
 const SECAO_ENTREGUES = norm("Entregues");
+
+/** Cabeçalho com VÁRIOS nomes numa linha ("Paulinho - Bráulio - Bolívar"): seção "grupo" — o consultor de cada item vem do título do item. */
+function pessoasDoCabecalho(t) {
+  const tokens = t.split(/\s+-\s+/).map((x) => x.trim()).filter(Boolean);
+  const soNomes = tokens.every((x) => /^[\p{L}][\p{L} .]*$/u.test(x));
+  return tokens.length >= 2 && soNomes ? tokens : null;
+}
 
 // ── status (tabela exata; o que sobra vira UMA pendência) ────────────────
 
@@ -72,7 +78,8 @@ function parseStatus(raw) {
     const proximo = n.charAt(chave.length);
     if (proximo && /[a-z0-9]/.test(proximo)) continue; // "liberadoX" não conta
     let sobra = valor.slice(chave.length);
-    if (status === "desembaraco") sobra = sobra.replace(/^\s*\(\s*VCP\s*\)/i, "");
+    // "(VCP)" / "VCP" (aeroporto) é descartado — regra aprovada na 1ª carga. "(GRU)" etc. ficam como pendência.
+    if (status === "desembaraco") sobra = sobra.replace(/^\s*\(?\s*VCP\s*\)?(?![\p{L}\d])/iu, "");
     sobra = sobra.replace(/^[\s\-–—:;,]+/, "").trim();
     return { status, sobra };
   }
@@ -113,11 +120,15 @@ const ROTULO_DATA = {
   "registro radar pelo despachante": "registroRadar",
   "registro duimp pelo despachante": "registroDuimp",
   "registro da duimp pelo despachante": "registroDuimp",
+  "registro da dump pelo despachante": "registroDuimp", // erro de grafia no Doc ("DUMP") — ver nota no parser
   "registro lpco pelo despachante": "registroLpco",
   "registro da lpco pelo despachante": "registroLpco",
 };
 
-const QTD_FINAL = /^(\d+)\s+(caixas?|cxs?|ampolas?|frascos?|vials?|unidades?|seringas?)\.?$/i;
+// Rótulos que podem vir com o nome do medicamento no fim (ver parseCorpo).
+const BASES_COM_SUFIXO = ["fornecedor", "status", "previsao de entrega", "documentos de embarque"];
+
+const QTD_FINAL =/^(\d+)\s+(caixas?|cxs?|ampolas?|frascos?|vials?|unidades?|seringas?)\.?$/i;
 
 function parseMedicamento(valor) {
   const texto = valor.trim().replace(/\s+/g, " ");
@@ -199,7 +210,11 @@ function parseCorpo(linhas, rec, ctx) {
   };
 
   for (const linha of linhas) {
-    const t = linha.trim();
+    const bruto = linha.trim();
+    if (!bruto) continue;
+    // "***Obs.: …" / "R$ 886,95***": o Doc usa asteriscos como destaque — saem do texto, nada mais muda.
+    const t = bruto.replace(/^\*+\s*/, "").replace(/\s*\*+$/, "");
+    if (t !== bruto) ctx.notas.push(`asteriscos (***) removidos de: "${bruto}"`);
     if (!t) continue;
 
     // companhia aérea + AWB: "Emirates: 176-…" / "Emirates 176-…" / "Turkish Cargo: 235-…"
@@ -225,8 +240,21 @@ function parseCorpo(linhas, rec, ctx) {
 
     const idx = t.indexOf(":");
     const rotuloRaw = idx > 0 && idx <= 60 ? t.slice(0, idx) : null;
-    const rotulo = rotuloRaw ? norm(rotuloRaw) : null;
+    let rotulo = rotuloRaw ? norm(rotuloRaw) : null;
     const valor = rotuloRaw ? t.slice(idx + 1).trim() : "";
+
+    // Rótulo com o nome do medicamento ("Status Verzenios", "Fornecedor Keytruda", "Previsão de entrega
+    // Fulzos", "Documentos de embarque Lenvenib"): o item do Doc é de UM medicamento; o sufixo sai e a
+    // conferência (o sufixo precisa ser um dos medicamentos do item) é feita em processarEntrada.
+    if (rotulo) {
+      const base = BASES_COM_SUFIXO.find((b) => rotulo.startsWith(`${b} `));
+      if (base) {
+        ctx.sufixos.push({ rotuloOriginal: rotuloRaw.trim(), sufixo: rotulo.slice(base.length).trim(), linha: t });
+        ctx.notas.push(`rótulo "${rotuloRaw.trim()}" tratado como "${base}" (sufixo = nome do medicamento)`);
+        rotulo = base;
+      }
+    }
+    if (rotulo && rotulo.includes("dump")) ctx.notas.push(`rótulo "${rotuloRaw.trim()}" lido como DUIMP (grafia "DUMP" no Doc)`);
 
     if (rotulo === "status") {
       if (ctx.statusRaw !== undefined) fallback(t, "status duplicado");
@@ -288,8 +316,19 @@ function parseCorpo(linhas, rec, ctx) {
     if (rotulo === "fornecedor") {
       if (ehAsd(valor) || !valor) continue;
       const partes = valor.split(/\s+-\s+|\s+-$/).map((x) => x.trim()).filter(Boolean);
-      const base = partes.shift() ?? "";
+      let base = partes.shift() ?? "";
+      // "Speciality Courier" (fornecedor do enum colado ao modal, sem hífen)
+      const colado = base.match(/^(\S+)\s+(.+)$/);
+      if (colado && FORNECEDOR_ENUM[norm(colado[1])] && !FORNECEDOR_ENUM[norm(base)]) {
+        base = colado[1];
+        partes.unshift(colado[2]);
+      }
       if (partes.length && PAIS_FORNECEDOR.has(norm(partes[0]))) partes.shift(); // "Poros - Turquia" já escrito completo
+      // Normalização EXPLÍCITA (decisão da Cris, 2026-11-05), só para este caso — sem aproximação genérica.
+      if (norm(base) === "veneza") {
+        ctx.notas.push('Fornecedor "Veneza" normalizado para "Venecza" (decisão da Cris)');
+        base = "Venecza";
+      }
       const canon = FORNECEDOR_ENUM[norm(base)];
       if (canon) setCampo("fornecedor", canon, t);
       else {
@@ -336,7 +375,8 @@ function parseCorpo(linhas, rec, ctx) {
       continue;
     }
 
-    if (rotulo === "obs." || rotulo === "obs" || rotulo === "documentos de embarque") {
+    // Sem coluna no banco → vão (texto original, com o rótulo) para as atualizações.
+    if (rotulo === "obs." || rotulo === "obs" || rotulo === "documentos de embarque" || rotulo === "protocolo") {
       atualizacoes.push({ data: "", texto: t });
       continue;
     }
@@ -350,7 +390,7 @@ function parseCorpo(linhas, rec, ctx) {
 
 function processarEntrada(e) {
   const motivos = [];
-  const ctx = { notas: [], fallback: [], courierEvidencia: [], linhasQualificadas: [], statusRaw: undefined, dataCompraSimples: null };
+  const ctx = { notas: [], fallback: [], courierEvidencia: [], linhasQualificadas: [], sufixos: [], statusRaw: undefined, dataCompraSimples: null };
 
   // Seção Entregues: formato enxuto, sem pasta → não há como gravar sem inventar `pasta`.
   if (e.secao.kind === "entregues") {
@@ -374,8 +414,14 @@ function processarEntrada(e) {
     else if (cab.pessoas.length > 1) motivos.push(`rótulos de consultor ambíguos: ${cab.pessoas.join(" / ")}`);
     else {
       const achado = CONSULTORES_PROCESSO.find((c) => norm(c) === norm(cab.pessoas[0]));
-      if (achado) consultor = achado;
-      else motivos.push(`rótulo "${cab.pessoas[0]}" não corresponde a nenhum consultor cadastrado`);
+      if (achado) {
+        consultor = achado;
+        // Dani ≠ Daniel, Flavinha ≠ Flávia: o rótulo do item vale; só avisa se não estiver literalmente no cabeçalho da seção.
+        const doCabecalho = (e.secao.pessoas ?? []).map(norm);
+        if (!doCabecalho.includes(norm(cab.pessoas[0]))) {
+          ctx.notas.push(`consultor "${achado}" (título do item) não aparece literalmente no cabeçalho da seção (${(e.secao.pessoas ?? []).join(" / ")})`);
+        }
+      } else motivos.push(`rótulo "${cab.pessoas[0]}" não corresponde a nenhum consultor cadastrado`);
     }
   }
 
@@ -394,6 +440,13 @@ function processarEntrada(e) {
   if (cab.ordem) rec.ordem = cab.ordem;
 
   parseCorpo(e.corpo, rec, ctx);
+
+  // Rótulos "Fornecedor Keytruda" etc.: o sufixo precisa ser um dos medicamentos do item; senão não dá
+  // para saber a qual medicamento o dado se refere → entrada não interpretada com segurança.
+  for (const s of ctx.sufixos) {
+    const achou = rec.medicamentos.some((m) => norm(m.nome).includes(s.sufixo));
+    if (!achou) motivos.push(`rótulo "${s.rotuloOriginal}": "${s.sufixo}" não é nenhum dos medicamentos do item`);
+  }
 
   // status
   if (ctx.statusRaw === undefined) {
@@ -425,7 +478,11 @@ function processarEntrada(e) {
   // Fornecedor "Air Cargo" + rastreio courier = conflito: modal vazio + atualização p/ classificar.
   const courier = ctx.courierEvidencia.length > 0;
   const citaFormal = ctx.courierEvidencia.some((x) => /formal/i.test(x));
-  if (courier && rec.modalEnvio === "Air Cargo") {
+  const citaSimples = ctx.courierEvidencia.some((x) => /simples/i.test(x));
+  if (courier && citaFormal && citaSimples) {
+    // "Simples" e "Formal" no mesmo item: não dá para escolher sem inventar.
+    motivos.push(`modal ambíguo: o item cita Courier simples E formal (${ctx.courierEvidencia.join(" | ")})`);
+  } else if (courier && rec.modalEnvio === "Air Cargo") {
     delete rec.modalEnvio;
     const rastreio = ctx.linhasQualificadas[0] ?? ctx.courierEvidencia[ctx.courierEvidencia.length - 1];
     rec.atualizacoes.push({
@@ -436,8 +493,16 @@ function processarEntrada(e) {
   } else if (courier && citaFormal) {
     rec.modalEnvio = "Courier Formal";
     ctx.notas.push('texto cita "Formal" → modalEnvio = Courier Formal (decisão da Cris)');
+  } else if (courier && citaSimples) {
+    rec.modalEnvio = "Courier Simples";
+    ctx.notas.push('texto cita "simples" → modalEnvio = Courier Simples');
   } else if (courier) {
     for (const l of ctx.linhasQualificadas) rec.atualizacoes.push({ data: "", texto: l });
+    // Courier sem dizer Simples/Formal e sem linha de rastreio qualificada: o texto do Doc não pode se perder.
+    if (!ctx.linhasQualificadas.length) {
+      rec.atualizacoes.push({ data: "", texto: `Classificar o modal de envio (Simples/Formal): o doc informa só "${ctx.courierEvidencia[0]}".` });
+      ctx.notas.push("courier sem Simples/Formal → modalEnvio VAZIO + atualização para classificar");
+    }
   }
 
   // limpa chaves vazias
@@ -486,7 +551,7 @@ export function parseFollowUpSource(texto) {
         if (!secao) {
           const n = norm(t);
           if (SECAO_CONSULTOR[n]) secao = { kind: "consultor", consultor: SECAO_CONSULTOR[n], titulo: t, linha: no };
-          else if (n === SECAO_GRUPO) secao = { kind: "grupo", titulo: t, linha: no, extras: [] };
+          else if (pessoasDoCabecalho(t)) secao = { kind: "grupo", titulo: t, linha: no, extras: [], pessoas: pessoasDoCabecalho(t) };
           else if (n === SECAO_ENTREGUES) secao = { kind: "entregues", titulo: t, linha: no };
           else {
             erros.push(`linha ${no}: cabeçalho de seção não reconhecido: "${t}"`);
@@ -494,7 +559,8 @@ export function parseFollowUpSource(texto) {
           }
           secoes.push(secao);
         } else if (secao.kind === "grupo") {
-          secao.extras.push(t); // 2ª linha do cabeçalho do grupo (Rodrigão - Alessandra - …)
+          secao.extras.push(t); // linhas seguintes do cabeçalho do grupo (Rodrigão - Alessandra - …)
+          secao.pessoas.push(...(pessoasDoCabecalho(t) ?? [t]));
         } else {
           erros.push(`linha ${no}: linha inesperada no cabeçalho da seção "${secao.titulo}": "${t}"`);
         }
