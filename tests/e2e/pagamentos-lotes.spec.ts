@@ -1,8 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { assertSupabaseLocal } from "./_guards/supabaseLocal";
+import { lerEnv } from "./_guards/supabaseEnv";
 
 // "Novo pagamento" do Banco: a MOEDA define o lote.
 //   - USD sem lote aberto            → cria o lote USD junto com o pagamento
@@ -16,7 +15,7 @@ import { assertSupabaseLocal } from "./_guards/supabaseLocal";
 // Roda só no harness local (Supabase falso; a guarda aborta fora dele): a moeda define o lote,
 // então rodar contra dados reais jogaria pagamentos de teste em lotes REAIS. Precisa de:
 //   E2E_ADMIN_EMAIL/_PASSWORD  (ou E2E_OPERACIONAL_*)  — cargo com escrita
-//   .env do projeto com NUXT_PUBLIC_SUPABASE_URL + NUXT_SUPABASE_SERVICE_ROLE_KEY
+//   .env.e2e com NUXT_PUBLIC_SUPABASE_URL + NUXT_SUPABASE_SERVICE_ROLE_KEY
 //     — usados SÓ para limpar as tabelas de Banco antes/depois (seguro pela guarda).
 // Lotes "legado" (2+ da mesma moeda) são semeados pela API com forcarLoteNovo — a
 // UI não cria mais isso.
@@ -32,27 +31,6 @@ const writer = {
   password: process.env.E2E_ADMIN_PASSWORD ?? process.env.E2E_OPERACIONAL_PASSWORD ?? "",
 };
 const faultControl = process.env.E2E_FAKE_SUPABASE_CONTROL ?? "";
-
-function lerEnv(): { url: string; serviceKey: string } {
-  try {
-    const raw = readFileSync(join(process.cwd(), ".env"), "utf-8");
-    const map = Object.fromEntries(
-      raw
-        .split(/\r?\n/)
-        .filter((l) => l && !l.startsWith("#") && l.includes("="))
-        .map((l) => {
-          const i = l.indexOf("=");
-          return [l.slice(0, i).trim(), l.slice(i + 1).trim()];
-        }),
-    );
-    return {
-      url: map.NUXT_PUBLIC_SUPABASE_URL ?? "",
-      serviceKey: map.NUXT_SUPABASE_SERVICE_ROLE_KEY ?? "",
-    };
-  } catch {
-    return { url: "", serviceKey: "" };
-  }
-}
 
 // Aborta (antes de qualquer escrita) se o Supabase em uso não for o local do harness.
 assertSupabaseLocal();
@@ -217,7 +195,7 @@ test.describe.serial("Pagamentos — Novo pagamento: a moeda define o lote", () 
 
   test.skip(
     !runnable,
-    "defina E2E_ADMIN_EMAIL/_PASSWORD (ou E2E_OPERACIONAL_*) e o .env com NUXT_PUBLIC_SUPABASE_URL + NUXT_SUPABASE_SERVICE_ROLE_KEY",
+    "defina E2E_ADMIN_EMAIL/_PASSWORD (ou E2E_OPERACIONAL_*) e o .env.e2e com NUXT_PUBLIC_SUPABASE_URL + NUXT_SUPABASE_SERVICE_ROLE_KEY",
   );
 
   test.beforeAll(async () => {

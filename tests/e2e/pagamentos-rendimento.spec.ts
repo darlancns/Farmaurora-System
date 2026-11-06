@@ -1,8 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { assertSupabaseLocal } from "./_guards/supabaseLocal";
+import { lerEnv } from "./_guards/supabaseEnv";
 
 // Rendimento com 1 única ordem pendente aplica a taxa direto (sem o modal de
 // fechamento por ordem), gravando `taxaEscolhida` real no lote. Com 2+, segue
@@ -20,27 +19,6 @@ const writer = {
   email: process.env.E2E_ADMIN_EMAIL ?? process.env.E2E_OPERACIONAL_EMAIL ?? "",
   password: process.env.E2E_ADMIN_PASSWORD ?? process.env.E2E_OPERACIONAL_PASSWORD ?? "",
 };
-
-function lerEnv(): { url: string; serviceKey: string } {
-  try {
-    const raw = readFileSync(join(process.cwd(), ".env"), "utf-8");
-    const map = Object.fromEntries(
-      raw
-        .split(/\r?\n/)
-        .filter((l) => l && !l.startsWith("#") && l.includes("="))
-        .map((l) => {
-          const i = l.indexOf("=");
-          return [l.slice(0, i).trim(), l.slice(i + 1).trim()];
-        }),
-    );
-    return {
-      url: map.NUXT_PUBLIC_SUPABASE_URL ?? "",
-      serviceKey: map.NUXT_SUPABASE_SERVICE_ROLE_KEY ?? "",
-    };
-  } catch {
-    return { url: "", serviceKey: "" };
-  }
-}
 
 // Aborta (antes de qualquer escrita) se o Supabase em uso não for o local do harness.
 assertSupabaseLocal();
@@ -169,7 +147,7 @@ test.describe.serial("Pagamentos — Rendimento com 1 ordem aplica direto", () =
 
   test.skip(
     !runnable,
-    "defina E2E_ADMIN_EMAIL/_PASSWORD (ou E2E_OPERACIONAL_*) e o .env com NUXT_PUBLIC_SUPABASE_URL + NUXT_SUPABASE_SERVICE_ROLE_KEY",
+    "defina E2E_ADMIN_EMAIL/_PASSWORD (ou E2E_OPERACIONAL_*) e o .env.e2e com NUXT_PUBLIC_SUPABASE_URL + NUXT_SUPABASE_SERVICE_ROLE_KEY",
   );
 
   let lote1 = ""; // 1 pendente, fechado direto

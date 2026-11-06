@@ -1,32 +1,13 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { assertSupabaseLocal } from "./_guards/supabaseLocal";
+import { lerEnv } from "./_guards/supabaseEnv";
 
 // Aba "Meus" de /recados (Fase D2) — lembretes pessoais: sempre privados ao
 // dono, sem destinatário. Cria 2 contas de teste (A cria os lembretes, B só
 // serve pra provar isolamento) e cobre criar/editar/excluir, fixar
 // persistente, concluir definitivo (some da lista, mesmo padrão de Recado —
 // ajuste da Fase D2) e o filtro de chip de tipo reaproveitado dentro da aba.
-
-function lerEnv(): { url: string; serviceKey: string } {
-  try {
-    const raw = readFileSync(join(process.cwd(), ".env"), "utf-8");
-    const map = Object.fromEntries(
-      raw
-        .split(/\r?\n/)
-        .filter((l) => l && !l.startsWith("#") && l.includes("="))
-        .map((l) => {
-          const i = l.indexOf("=");
-          return [l.slice(0, i).trim(), l.slice(i + 1).trim()];
-        }),
-    );
-    return { url: map.NUXT_PUBLIC_SUPABASE_URL ?? "", serviceKey: map.NUXT_SUPABASE_SERVICE_ROLE_KEY ?? "" };
-  } catch {
-    return { url: "", serviceKey: "" };
-  }
-}
 
 // Aborta (antes de qualquer escrita) se o Supabase em uso não for o local do harness.
 assertSupabaseLocal();
@@ -63,7 +44,7 @@ async function irParaAbaMeus(page: Page): Promise<void> {
 
 test.describe.serial("Recados → aba Meus (lembretes pessoais)", () => {
   test.describe.configure({ retries: 2 });
-  test.skip(!runnable, "defina o .env com NUXT_PUBLIC_SUPABASE_URL + NUXT_SUPABASE_SERVICE_ROLE_KEY");
+  test.skip(!runnable, "defina o .env.e2e com NUXT_PUBLIC_SUPABASE_URL + NUXT_SUPABASE_SERVICE_ROLE_KEY");
 
   const db = runnable
     ? createClient(env.url, env.serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })

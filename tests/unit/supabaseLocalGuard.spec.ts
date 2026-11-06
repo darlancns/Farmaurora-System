@@ -35,4 +35,9 @@ describe("assertSupabaseLocal", () => {
     process.env.NUXT_PUBLIC_SUPABASE_URL = "https://abcdefgh.supabase.co";
     expect(() => assertSupabaseLocal()).toThrow(/abcdefgh\.supabase\.co.*não é local/);
   });
+
+  it("sem a variável de ambiente ABORTA — não cai no .env da raiz (que aponta pra produção)", () => {
+    delete process.env.NUXT_PUBLIC_SUPABASE_URL;
+    expect(() => assertSupabaseLocal()).toThrow(/\(não definida\).*não é local/);
+  });
 });

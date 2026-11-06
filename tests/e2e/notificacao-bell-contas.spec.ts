@@ -1,8 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { assertSupabaseLocal } from "./_guards/supabaseLocal";
+import { lerEnv } from "./_guards/supabaseEnv";
 
 // Sino global — seção "Contas" (notificação `conta_editada`, Fase B de "Minha conta"): o tipo novo
 // aparece SÓ na seção "Contas" (nunca em "Recados"), entra no badge uma vez só, e clicar leva a
@@ -13,24 +12,6 @@ import { assertSupabaseLocal } from "./_guards/supabaseLocal";
 // Supabase de teste — sem ele os testes pulam).
 
 const admin = { email: process.env.E2E_ADMIN_EMAIL ?? "", password: process.env.E2E_ADMIN_PASSWORD ?? "" };
-
-function lerEnv(): { url: string; serviceKey: string } {
-  try {
-    const raw = readFileSync(join(process.cwd(), ".env"), "utf-8");
-    const map = Object.fromEntries(
-      raw
-        .split(/\r?\n/)
-        .filter((l) => l && !l.startsWith("#") && l.includes("="))
-        .map((l) => {
-          const i = l.indexOf("=");
-          return [l.slice(0, i).trim(), l.slice(i + 1).trim()];
-        }),
-    );
-    return { url: map.NUXT_PUBLIC_SUPABASE_URL ?? "", serviceKey: map.NUXT_SUPABASE_SERVICE_ROLE_KEY ?? "" };
-  } catch {
-    return { url: "", serviceKey: "" };
-  }
-}
 
 // Aborta (antes de qualquer escrita) se o Supabase em uso não for o local do harness.
 assertSupabaseLocal();
@@ -67,7 +48,7 @@ test.describe.serial("Sino global — seção Contas", () => {
 
   test.skip(
     !runnable,
-    "defina E2E_ADMIN_EMAIL/_PASSWORD e o .env com NUXT_PUBLIC_SUPABASE_URL + NUXT_SUPABASE_SERVICE_ROLE_KEY (Supabase local)",
+    "defina E2E_ADMIN_EMAIL/_PASSWORD e o .env.e2e com NUXT_PUBLIC_SUPABASE_URL + NUXT_SUPABASE_SERVICE_ROLE_KEY (Supabase local)",
   );
 
   test.beforeAll(async () => {

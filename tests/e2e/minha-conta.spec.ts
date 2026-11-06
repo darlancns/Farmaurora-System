@@ -1,8 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { assertSupabaseLocal } from "./_guards/supabaseLocal";
+import { lerEnv } from "./_guards/supabaseEnv";
 
 // Aba "Minha conta" em /configuracoes (Fase C). Mesmo gate dos outros specs: contas de teste por cargo
 // (E2E_ADMIN_*, E2E_SOCIO_*, E2E_OPERACIONAL_*, E2E_CONSULTOR_*) e o .env de um Supabase LOCAL com a
@@ -20,24 +19,6 @@ const credenciais = {
 } as const;
 type Cargo = keyof typeof credenciais;
 const tem = (c: Cargo): boolean => Boolean(credenciais[c].email && credenciais[c].password);
-
-function lerEnv(): { url: string; serviceKey: string } {
-  try {
-    const raw = readFileSync(join(process.cwd(), ".env"), "utf-8");
-    const map = Object.fromEntries(
-      raw
-        .split(/\r?\n/)
-        .filter((l) => l && !l.startsWith("#") && l.includes("="))
-        .map((l) => {
-          const i = l.indexOf("=");
-          return [l.slice(0, i).trim(), l.slice(i + 1).trim()];
-        }),
-    );
-    return { url: map.NUXT_PUBLIC_SUPABASE_URL ?? "", serviceKey: map.NUXT_SUPABASE_SERVICE_ROLE_KEY ?? "" };
-  } catch {
-    return { url: "", serviceKey: "" };
-  }
-}
 
 // Aborta (antes de qualquer escrita) se o Supabase em uso não for o local do harness.
 assertSupabaseLocal();
@@ -402,7 +383,7 @@ test.describe("Minha conta — responsividade", () => {
 
 test.describe.serial("Minha conta — e-mail e senha (conta descartável)", () => {
   test.describe.configure({ retries: 1 });
-  test.skip(!temServiceRole, "precisa do .env com NUXT_PUBLIC_SUPABASE_URL + NUXT_SUPABASE_SERVICE_ROLE_KEY (Supabase local)");
+  test.skip(!temServiceRole, "precisa do .env.e2e com NUXT_PUBLIC_SUPABASE_URL + NUXT_SUPABASE_SERVICE_ROLE_KEY (Supabase local)");
 
   const sufixo = Date.now().toString(36);
   const SENHA_INICIAL = "SenhaInicial#2026";
