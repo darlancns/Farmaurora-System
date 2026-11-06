@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { reactive } from "vue";
-import type { AtualizacaoProcesso, Processo } from "#shared/types/processo";
-import { capitalizeFirstLetter } from "../../utils/processoFormatters";
+import type { Processo } from "#shared/types/processo";
 import { formatCurrency } from "../../utils/formatters";
 import { quebrarNumeroProcesso } from "../../utils/quebrarNumeroProcesso";
+import ProcessoAtualizacoes from "./ProcessoAtualizacoes.vue";
 
-const props = withDefaults(
+withDefaults(
   defineProps<{
     processo: Processo;
     readonly?: boolean;
@@ -18,27 +17,7 @@ const emit = defineEmits<{
   // Rodapé mobile: só pede a confirmação — quem abre o ConfirmDialog e emite o
   // `delete` é o ProcessoRow, o mesmo fluxo do botão de lixeira do cabeçalho (lg+).
   "request-delete": [];
-  "add-atualizacao": [id: string, atualizacao: AtualizacaoProcesso];
 }>();
-
-const novaAtualizacao = reactive({ data: "", texto: "" });
-
-function submitAtualizacao(): void {
-  const texto = novaAtualizacao.texto.trim();
-  if (!texto) return;
-
-  emit("add-atualizacao", props.processo.id, {
-    data: novaAtualizacao.data.trim(),
-    texto,
-  });
-  novaAtualizacao.data = "";
-  novaAtualizacao.texto = "";
-}
-
-function onAtualizacaoTextoInput(event: Event): void {
-  const target = event.target as HTMLInputElement;
-  novaAtualizacao.texto = capitalizeFirstLetter(target.value);
-}
 
 // Só apresentação (abaixo de lg): `mono` mantém a fonte monoespaçada no mobile (em lg+ todos os
 // valores já são mono); `wide` ocupa a linha toda abaixo de lg (em lg+ é uma célula comum);
@@ -172,48 +151,7 @@ function datasFields(processo: Processo): DetailField[] {
       </ul>
     </div>
 
-    <div class="border-t border-hairline pt-2.5">
-      <p class="mb-1.5 text-[11px] font-semibold tracking-wide text-ink-soft uppercase">Atualizações</p>
-
-      <ol v-if="processo.atualizacoes.length" class="flex flex-col gap-1.5 text-[12.5px]">
-        <li
-          v-for="(atualizacao, index) in processo.atualizacoes"
-          :key="index"
-          class="flex gap-2 border-l-2 border-hairline pl-2.5"
-        >
-          <span class="shrink-0 font-mono text-ink-soft">{{ atualizacao.data || "—" }}</span>
-          <span class="min-w-0 break-words text-ink lg:min-w-[auto] lg:break-normal">{{ atualizacao.texto }}</span>
-        </li>
-      </ol>
-      <p v-else class="text-[12px] text-ink-soft">Nenhuma atualização registrada ainda.</p>
-
-      <form
-        v-if="!readonly"
-        :id="`form-nova-atualizacao-${processo.id}`"
-        class="mt-2 flex flex-col gap-2 lg:flex-row lg:items-center"
-        @submit.prevent="submitAtualizacao"
-      >
-        <input
-          v-model="novaAtualizacao.data"
-          type="text"
-          placeholder="Data (ex: 31/08)"
-          class="min-h-11 w-full shrink-0 rounded-md border border-hairline bg-paper-raised px-2.5 py-1.5 font-mono text-[12.5px] focus:outline-2 focus:outline-accent-dark lg:min-h-auto lg:w-[140px]"
-        />
-        <input
-          :value="novaAtualizacao.texto"
-          type="text"
-          placeholder="Nova atualização..."
-          class="min-h-11 w-full rounded-md border border-hairline bg-paper-raised px-2.5 py-1.5 text-[12.5px] focus:outline-2 focus:outline-accent-dark lg:min-h-auto"
-          @input="onAtualizacaoTextoInput"
-        />
-        <button
-          type="submit"
-          class="min-h-11 shrink-0 rounded-md bg-accent-dark px-3 py-1.5 text-[12px] font-semibold text-white transition-colors hover:opacity-90 lg:min-h-auto"
-        >
-          Adicionar
-        </button>
-      </form>
-    </div>
+    <ProcessoAtualizacoes :processo="processo" :readonly="readonly" />
 
     <!-- Rodapé de ações — só abaixo de lg e só pra quem pode editar/excluir (mesma condição
          do botão "Editar processo" e da lixeira do cabeçalho, que ficam ocultos abaixo de lg). -->

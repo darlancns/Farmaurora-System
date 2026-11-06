@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { AtualizacaoProcesso, NewProcessoDTO, Processo } from "#shared/types/processo";
+import type { Processo } from "#shared/types/processo";
 import { STATUS_PROCESSO_META, rotuloStatusProcesso } from "../../utils/processoStatus";
 import ConfirmDialog from "../ConfirmDialog.vue";
 import ProcessoDetail from "./ProcessoDetail.vue";
@@ -18,7 +18,6 @@ const props = withDefaults(
 const emit = defineEmits<{
   edit: [processo: Processo];
   delete: [id: string];
-  patch: [id: string, patch: Partial<NewProcessoDTO>];
 }>();
 
 const expanded = ref(false);
@@ -47,9 +46,6 @@ function confirmDelete(): void {
   emit("delete", props.processo.id);
 }
 
-function handleAddAtualizacao(id: string, atualizacao: AtualizacaoProcesso): void {
-  emit("patch", id, { atualizacoes: [...props.processo.atualizacoes, atualizacao] });
-}
 </script>
 
 <template>
@@ -238,7 +234,6 @@ function handleAddAtualizacao(id: string, atualizacao: AtualizacaoProcesso): voi
       :readonly="readonly"
       @edit="emit('edit', $event)"
       @request-delete="showDeleteConfirm = true"
-      @add-atualizacao="handleAddAtualizacao"
     />
   </div>
 

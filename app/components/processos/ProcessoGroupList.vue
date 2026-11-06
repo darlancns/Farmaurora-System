@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, watch } from "vue";
 import { CONSULTORES_PROCESSO } from "#shared/constants/processos";
-import type { ConsultorProcesso, NewProcessoDTO, Processo } from "#shared/types/processo";
+import type { ConsultorProcesso, Processo } from "#shared/types/processo";
 import { agruparProcessosPorConsultor, type ProcessoGroup } from "../../utils/agruparProcessosPorConsultor";
 import ProcessoRow from "./ProcessoRow.vue";
 
@@ -22,7 +22,6 @@ const props = withDefaults(
 const emit = defineEmits<{
   edit: [processo: Processo];
   delete: [id: string];
-  patch: [id: string, patch: Partial<NewProcessoDTO>];
 }>();
 
 // Todos os grupos começam colapsados — ao entrar na página o usuário vê só os
@@ -72,7 +71,6 @@ const groups = computed<ProcessoGroup[]>(() => agruparProcessosPorConsultor(prop
         :destaque="processo.id === focoId"
         @edit="emit('edit', $event)"
         @delete="emit('delete', $event)"
-        @patch="(id, patch) => emit('patch', id, patch)"
       />
     </div>
 
@@ -115,7 +113,6 @@ const groups = computed<ProcessoGroup[]>(() => agruparProcessosPorConsultor(prop
           :destaque="processo.id === focoId"
           @edit="emit('edit', $event)"
           @delete="emit('delete', $event)"
-          @patch="(id, patch) => emit('patch', id, patch)"
         />
       </div>
     </div>

@@ -74,3 +74,10 @@ export const STATUS_PROCESSO_LABELS: Record<StatusProcesso, string> = {
   entregue: "Entregue",
   outro: "Outro",
 };
+
+// Limites das atualizações (timeline) de um processo. Escolhidos com folga sobre a produção
+// (medido em 2026-11-06, só SELECT): maior texto = 296 caracteres, maior data = 5, mais itens num
+// processo = 16 (82 processos, 128 itens) — ou seja, nunca rejeitam um dado já existente.
+export const LIMITE_ATUALIZACAO_TEXTO = 2000;
+export const LIMITE_ATUALIZACAO_DATA = 40;
+export const LIMITE_ATUALIZACOES_POR_PROCESSO = 200;

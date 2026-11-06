@@ -1,6 +1,11 @@
 import { useState } from "#app";
-import { apiFetch, deleteTolerant } from "../utils/apiFetch";
-import type { NewProcessoDTO, Processo } from "#shared/types/processo";
+import { ApiError, apiFetch, deleteTolerant } from "../utils/apiFetch";
+import {
+  ConflitoVersaoError,
+  criarGravadorAtualizacoes,
+  type AlteracaoAtualizacoes,
+} from "../utils/gravadorAtualizacoes";
+import type { AtualizacaoProcesso, NewProcessoDTO, Processo } from "#shared/types/processo";
 
 // Módulo é singleton no bundle client — mesmo efeito de um useState, mas não
 // precisa ser serializado no payload SSR. Só é populado a partir de
@@ -13,6 +18,9 @@ let lastFetchedAt = 0;
 // sequência rápida — a 2ª chamada reaproveita o resultado recém-buscado em
 // vez de repetir a requisição de rede.
 const RECENT_FETCH_WINDOW_MS = 5000;
+// Fila de gravações das atualizações, por processo — uma só por app (módulo), mesmo que vários
+// componentes chamem useProcessos().
+const filasAtualizacoes = new Map<string, Promise<unknown>>();
 
 export function useProcessos() {
   const processos = useState<Processo[]>("processos", () => []);
@@ -75,6 +83,53 @@ export function useProcessos() {
     return updated;
   }
 
+  // Recarrega UM processo do servidor (usado após um 409). Se ele sumiu (404), tira da lista local.
+  async function recarregarProcesso(id: string): Promise<void> {
+    try {
+      const atual = await apiFetch<Processo>(`/api/processos/${id}`, undefined, "Erro ao recarregar processo.");
+      const index = processos.value.findIndex((p) => p.id === id);
+      if (index !== -1) processos.value[index] = atual;
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) {
+        processos.value = processos.value.filter((p) => p.id !== id);
+        return;
+      }
+      throw e;
+    }
+  }
+
+  const gravarAtualizacoes = criarGravadorAtualizacoes({
+    obter: (id) => processos.value.find((p) => p.id === id),
+    enviar: async (id, atualizacoes: AtualizacaoProcesso[], versao) => {
+      try {
+        return await apiFetch<Processo>(
+          `/api/processos/${id}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            // `versao` é o updatedAt como veio do servidor — string opaca, sem passar por Date.
+            body: JSON.stringify({ atualizacoes, versao }),
+          },
+          "Erro ao atualizar processo."
+        );
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 409) throw new ConflitoVersaoError();
+        throw e;
+      }
+    },
+    aplicar: (atualizado) => {
+      const index = processos.value.findIndex((p) => p.id === atualizado.id);
+      if (index !== -1) processos.value[index] = atualizado;
+    },
+    recarregar: recarregarProcesso,
+  }, filasAtualizacoes);
+
+  // ÚNICO caminho de gravação das atualizações (adicionar/editar/excluir): fila por processo +
+  // conferência de versão. `alterar` recebe a lista mais recente e devolve a nova (ou null).
+  function alterarAtualizacoes(id: string, alterar: AlteracaoAtualizacoes): Promise<Processo> {
+    return gravarAtualizacoes(id, alterar);
+  }
+
   async function removeProcesso(id: string): Promise<void> {
     await deleteTolerant(`/api/processos/${id}`, "Erro ao remover processo.");
     // 404 significa que o processo já não existe no servidor — trata como
@@ -89,6 +144,8 @@ export function useProcessos() {
     fetchProcessos,
     addProcesso,
     patchProcesso,
+    alterarAtualizacoes,
+    recarregarProcesso,
     removeProcesso,
   };
 }

@@ -35,7 +35,8 @@ const router = useRouter();
 const { role, consultorNome, canWrite } = useAuth();
 const { showToast } = useToast();
 
-// operacional e administrador escrevem; consultor e socio são somente leitura.
+// socio, operacional e administrador escrevem em Processos (WRITE_ACCESS.processos no RBAC);
+// só o consultor é somente leitura.
 const canWriteProcessos = computed<boolean>(() => canWrite("processos"));
 // consultor vê a própria lista direto, sem o agrupamento por consultor.
 const flatList = computed<boolean>(() => role.value === "consultor");
@@ -334,7 +335,6 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
       :foco-id="focoId"
       @edit="openEditForm"
       @delete="handleDelete"
-      @patch="handlePatch"
     />
     <ProcessoDeliveredList
       v-else

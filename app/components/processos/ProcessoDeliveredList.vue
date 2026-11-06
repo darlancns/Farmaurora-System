@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, reactive, ref } from "vue";
 import type { NewProcessoDTO, Processo, StatusPagamentoProcesso } from "#shared/types/processo";
 import { STATUS_PAGAMENTO_PROCESSO } from "#shared/constants/processos";
 import AppSelect from "../AppSelect.vue";
 import type { AppSelectOption } from "../../types/appSelect";
 import ConfirmDialog from "../ConfirmDialog.vue";
+import ProcessoDetail from "./ProcessoDetail.vue";
 
 const props = withDefaults(
   defineProps<{
@@ -44,6 +45,16 @@ function onStatusPagamentoChange(processo: Processo, statusPagamento: StatusPaga
   emit("patch", processo.id, { statusPagamento });
 }
 
+// Linhas expandidas (mostram o ProcessoDetail, o mesmo da aba Em andamento — inclui as atualizações
+// com adicionar/editar/excluir). A expansão é por um botão próprio (chevron) e não pela linha toda,
+// porque a linha já tem controles (select de pagamento, editar, excluir).
+const expandidos = reactive(new Set<string>());
+
+function toggleExpand(id: string): void {
+  if (expandidos.has(id)) expandidos.delete(id);
+  else expandidos.add(id);
+}
+
 const deleteConfirmProcesso = ref<Processo | null>(null);
 
 function confirmDelete(): void {
@@ -69,9 +80,32 @@ function confirmDelete(): void {
       <div
         class="flex flex-col gap-1.5 px-3.5 py-2.5 @[760px]:flex-row @[760px]:items-center @[760px]:gap-3"
       >
-        <div class="min-w-0 @[760px]:flex-1">
-          <span class="block truncate text-[13.5px] font-medium text-ink">{{ processo.paciente }}</span>
-          <span class="block text-[11.5px] text-ink-soft">{{ processo.empresa }}</span>
+        <div class="flex min-w-0 items-center gap-1 @[760px]:flex-1">
+          <button
+            :id="`btn-toggle-entregue-${processo.id}`"
+            type="button"
+            :aria-expanded="expandidos.has(processo.id)"
+            :aria-controls="`processo-detail-${processo.id}`"
+            :aria-label="`${expandidos.has(processo.id) ? 'Recolher' : 'Expandir'} detalhes de ${processo.paciente}`"
+            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-ink-soft transition-colors hover:text-accent-dark md:h-7 md:w-7"
+            @click="toggleExpand(processo.id)"
+          >
+            <svg
+              viewBox="0 0 20 20"
+              class="h-3.5 w-3.5 transition-transform"
+              :class="{ 'rotate-90': expandidos.has(processo.id) }"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              aria-hidden="true"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 5l5 5-5 5" />
+            </svg>
+          </button>
+          <div class="min-w-0 flex-1">
+            <span class="block truncate text-[13.5px] font-medium text-ink">{{ processo.paciente }}</span>
+            <span class="block text-[11.5px] text-ink-soft">{{ processo.empresa }}</span>
+          </div>
         </div>
 
         <!--
@@ -138,6 +172,14 @@ function confirmDelete(): void {
           </button>
         </div>
       </div>
+
+      <ProcessoDetail
+        v-if="expandidos.has(processo.id)"
+        :processo="processo"
+        :readonly="readonly"
+        @edit="emit('edit', $event)"
+        @request-delete="deleteConfirmProcesso = processo"
+      />
     </div>
 
     <ConfirmDialog

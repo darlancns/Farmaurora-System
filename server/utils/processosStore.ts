@@ -81,6 +81,45 @@ export async function patchProcesso(
   return row ? montarProcesso(row) : null;
 }
 
+export type ResultadoPatchVersionado =
+  | { tipo: "ok"; processo: Processo }
+  | { tipo: "nao_encontrado" }
+  | { tipo: "versao_desatualizada" };
+
+// Garante que o novo updated_at é sempre MAIOR que a versão anterior (o relógio do servidor pode cair
+// no mesmo milissegundo da gravação anterior, e a versão guardada pelo banco tem microssegundos).
+export function proximoUpdatedAt(versaoAnterior: string, agoraMs: number = Date.now()): string {
+  const anterior = Date.parse(versaoAnterior);
+  const ms = Number.isFinite(anterior) && agoraMs <= anterior ? anterior + 1 : agoraMs;
+  return new Date(ms).toISOString();
+}
+
+// PATCH com conferência de versão (optimistic locking): UM UPDATE ... WHERE id = ? AND updated_at = ?,
+// atômico — sem ler e depois gravar. `versao` é o updated_at que o cliente viu, usado como veio (string
+// opaca; não passa por Date, senão perderia os microssegundos da coluna timestamptz(6)). Nenhuma linha
+// gravada = ou o processo não existe (404) ou a versão está desatualizada (409): uma leitura
+// posterior, só para escolher a resposta, desempata.
+export async function patchProcessoVersionado(
+  id: string,
+  patch: Partial<NewProcessoDTO>,
+  versao: string,
+): Promise<ResultadoPatchVersionado> {
+  const db = createSupabaseAdminClient();
+
+  const { data, error } = await db
+    .from(TABELA)
+    .update({ ...colunasDeDTO(patch), updated_at: proximoUpdatedAt(versao) })
+    .eq("id", id)
+    .eq("updated_at", versao)
+    .select("*");
+  if (error) throw erro("atualizar processo", error);
+
+  const row = (data ?? [])[0] as FollowUpRow | undefined;
+  if (row) return { tipo: "ok", processo: montarProcesso(row) };
+
+  return (await getProcesso(id)) ? { tipo: "versao_desatualizada" } : { tipo: "nao_encontrado" };
+}
+
 export async function deleteProcesso(id: string): Promise<boolean> {
   const db = createSupabaseAdminClient();
 

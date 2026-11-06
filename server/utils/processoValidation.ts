@@ -1,4 +1,11 @@
-import { CONSULTORES_PROCESSO, EMPRESAS_PROCESSO, STATUS_PROCESSO_ORDER } from "../../shared/constants/processos";
+import {
+  CONSULTORES_PROCESSO,
+  EMPRESAS_PROCESSO,
+  LIMITE_ATUALIZACAO_DATA,
+  LIMITE_ATUALIZACAO_TEXTO,
+  LIMITE_ATUALIZACOES_POR_PROCESSO,
+  STATUS_PROCESSO_ORDER,
+} from "../../shared/constants/processos";
 import type {
   AtualizacaoProcesso,
   ConsultorProcesso,
@@ -22,10 +29,32 @@ function isMedicamento(value: unknown): value is Medicamento {
   return typeof v.nome === "string" && isOptionalString(v.dosagem) && isOptionalString(v.quantidade);
 }
 
+// data: string (aceita vazia); texto: string não vazia após trim; ambos com limite de tamanho (os
+// limites têm folga sobre os maiores valores já existentes em produção — ver shared/constants).
 function isAtualizacao(value: unknown): value is AtualizacaoProcesso {
   if (!value || typeof value !== "object") return false;
   const v = value as Record<string, unknown>;
-  return typeof v.data === "string" && typeof v.texto === "string";
+  return (
+    typeof v.data === "string" &&
+    v.data.length <= LIMITE_ATUALIZACAO_DATA &&
+    isNonEmptyString(v.texto) &&
+    v.texto.length <= LIMITE_ATUALIZACAO_TEXTO
+  );
+}
+
+export function isValidAtualizacoes(value: unknown): value is AtualizacaoProcesso[] {
+  return Array.isArray(value) && value.length <= LIMITE_ATUALIZACOES_POR_PROCESSO && value.every(isAtualizacao);
+}
+
+// `versao` = o updated_at que o cliente viu (string opaca, devolvida do servidor sem conversão).
+export function isVersaoValida(value: unknown): value is string {
+  return isNonEmptyString(value);
+}
+
+// O PATCH traz `atualizacoes` → exige `versao` (conferência de versão). Sem `atualizacoes` a versão
+// não é exigida (pagamento, alertas, formulário seguem como estavam).
+export function patchExigeVersao(body: unknown): boolean {
+  return !!body && typeof body === "object" && (body as Record<string, unknown>).atualizacoes !== undefined;
 }
 
 function isValidDatas(value: unknown): boolean {
@@ -63,8 +92,7 @@ export function isValidProcessoPayload(body: unknown): body is NewProcessoDTO {
     b.medicamentos.every(isMedicamento) &&
     Array.isArray(b.pendencias) &&
     b.pendencias.every((v) => typeof v === "string") &&
-    Array.isArray(b.atualizacoes) &&
-    b.atualizacoes.every(isAtualizacao) &&
+    isValidAtualizacoes(b.atualizacoes) &&
     isValidDatas(b.datas) &&
     isValidTransportadora(b.transportadoraNacional)
   );
@@ -89,9 +117,9 @@ export function isValidProcessoPatch(body: unknown): body is Partial<NewProcesso
   if (b.pendencias !== undefined && (!Array.isArray(b.pendencias) || !b.pendencias.every((v) => typeof v === "string"))) {
     return false;
   }
-  if (b.atualizacoes !== undefined && (!Array.isArray(b.atualizacoes) || !b.atualizacoes.every(isAtualizacao))) {
-    return false;
-  }
+  if (b.atualizacoes !== undefined && !isValidAtualizacoes(b.atualizacoes)) return false;
+  if (b.atualizacoes !== undefined && !isVersaoValida(b.versao)) return false;
+  if (b.versao !== undefined && !isVersaoValida(b.versao)) return false;
   if (b.datas !== undefined && !isValidDatas(b.datas)) return false;
   if (b.transportadoraNacional !== undefined && !isValidTransportadora(b.transportadoraNacional)) return false;
   if (b.alertaMandadoResolvido !== undefined && typeof b.alertaMandadoResolvido !== "boolean") return false;
