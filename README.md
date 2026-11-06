@@ -148,10 +148,11 @@ resto redireciona para lá.
 ```bash
 npm run test:unit          # vitest — unitários (rbac, prazo de fornecedor, formatação de
                            # valores, PIX store, validação de status de item de pagamento)
-npm run test:e2e           # Playwright, contra o dev server. SÓ no harness local: os specs criam e
-                           # APAGAM dados e abortam (globalSetup + guarda em cada spec) se a URL do
-                           # Supabase em uso não for loopback. A maior parte dos casos é test.skip
-                           # sem as env vars E2E_* (contas de teste)
+npm run test:e2e           # Playwright, contra um dev server PRÓPRIO (porta 3100). SÓ no Supabase
+                           # local: lê o `.env.e2e` (nunca o `.env`) e aborta se a URL não for
+                           # loopback. Os specs criam e APAGAM dados — alguns esvaziam tabelas inteiras
+npm run e2e:setup-users    # cria/atualiza as 4 contas de teste no Supabase LOCAL e grava E2E_* no
+                           # `.env.e2e` (senhas nunca impressas). Idempotente; --rotate troca as senhas
 ALLOW_REAL_DB=1 npm run test:integration
                            # smoke tests em Node puro CONTRA O SUPABASE REAL do .env (criam e apagam
                            # registros com id de prefixo TESTE_). Sem ALLOW_REAL_DB=1 saem antes de
@@ -159,8 +160,23 @@ ALLOW_REAL_DB=1 npm run test:integration
 ```
 
 > **O `.env` aponta para produção.** Nunca rode e2e, smoke ou migração contra ele sem ter
-> certeza. Para e2e/visual use um Supabase falso local (`NUXT_PUBLIC_SUPABASE_URL=http://localhost:…`);
-> a guarda de `tests/e2e/_guards/supabaseLocal.ts` recusa qualquer outra URL.
+> certeza. A suíte e2e **nunca lê o `.env`**: o `playwright.config.ts` carrega só o `.env.e2e`
+> (ou o arquivo de `E2E_ENV_FILE`), põe o conteúdo no ambiente do processo e repassa o mesmo
+> ambiente ao dev server. A URL e a service key dos specs vêm de um helper único
+> (`tests/e2e/_guards/supabaseEnv.ts`, que confere a guarda sobre a MESMA URL que devolve) — antes,
+> a guarda olhava o ambiente enquanto cada spec lia URL e chave do `.env`, e bastava exportar uma
+> URL local no shell para a guarda passar com os specs agindo na produção.
+>
+> **Rodar a e2e (Supabase local):**
+> 1. `supabase start` (Docker) e `supabase status -o env` para ver a URL e as chaves.
+> 2. `cp .env.e2e.example .env.e2e` e preencher `NUXT_PUBLIC_SUPABASE_URL` (loopback),
+>    `NUXT_PUBLIC_SUPABASE_ANON_KEY` e `NUXT_SUPABASE_SERVICE_ROLE_KEY`. O `.env.e2e` é ignorado pelo git.
+> 3. `npm run e2e:setup-users` — cria admin, operacional, sócio e consultor (`app_metadata` no mesmo
+>    formato do app) e escreve as `E2E_*` no `.env.e2e`.
+> 4. `npx playwright test`. Sem `.env.e2e`, sem chave ou com URL não local, a config lança e nada sobe.
+>
+> O Supabase local precisa do schema da produção. Hoje `supabase/migrations/` só versiona parte das
+> tabelas (ver "RLS versionado" em Pendências) — gerar o baseline é uma etapa à parte.
 
 ### Datas e fuso
 
@@ -369,7 +385,8 @@ Baseado no estado atual do código:
 - **Cobertura de testes** — geração do `.docx`, ciclo de cotação de câmbio (`montarCotacao` /
   `calcularTotalReais`) e cálculo de nota cheia (`calculations.ts`) não têm teste automatizado.
 - **E2E de RBAC em CI** — as suítes `tests/e2e/rbac.spec.ts` e `configuracoes.spec.ts` só rodam
-  com as env vars `E2E_*` (contas de teste no Supabase); hoje não há pipeline que as forneça.
+  com as env vars `E2E_*` (contas de teste no Supabase local, criadas por
+  `npm run e2e:setup-users`); hoje não há pipeline que suba o Supabase local e as forneça.
 - **Anexar automaticamente os arquivos de invoice/câmbio/nota de serviço** — hoje o upload é
   manual pelo `AttachmentsModal`; confirmado como objetivo futuro, ainda não implementado.
 - **NFS-e (Focus NFe)** e **importar dados do Google Sheets** — ambas seguem no radar; nenhum

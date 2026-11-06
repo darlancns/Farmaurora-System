@@ -23,6 +23,7 @@ relatorio-anexos-orfaos.json
 .env
 .env.*
 !.env.example
+!.env.e2e.example
 
 # Vercel
 .vercel/

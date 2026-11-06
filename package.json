@@ -11,7 +11,8 @@
     "test:e2e": "playwright test",
     "test:unit": "vitest run",
     "test:integration": "node scripts/integration/run-all.mjs",
-    "test:integration:store": "vitest run --config vitest.integration.config.ts"
+    "test:integration:store": "vitest run --config vitest.integration.config.ts",
+    "e2e:setup-users": "node scripts/setup-e2e-local-users.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
