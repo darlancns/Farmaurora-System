@@ -137,10 +137,11 @@ test.describe("/processos em lg+ — card e detalhe inalterados", () => {
         await page.goto("/processos", { waitUntil: "networkidle" });
         await expect(page.locator("#tab-andamento")).toBeVisible();
         await page.locator("#processo-search").fill(RUN);
-        for (const consultor of ["Bolívar", "Flávia"]) {
-          await page.locator("#processo-group-list button").filter({ hasText: consultor }).first().click();
-        }
+        // A busca acha 2 processos (≤ 5): os grupos E os detalhes abrem sozinhos. Os testes partem dos cards
+        // FECHADOS, então recolhe os detalhes (clicar no grupo aqui o fecharia).
         await expect(page.locator("[id^='processo-row-proc_']")).toHaveCount(2);
+        for (const botao of await page.locator("[id^='processo-row-proc_'] > button").all()) await botao.click();
+        await expect(page.locator("[id^='processo-detail-']")).toHaveCount(0);
       });
 
       test("card fechado: linha única (nome, ordem·pasta, medicamento | badge, data, responsável | lixeira), sem o card mobile", async ({

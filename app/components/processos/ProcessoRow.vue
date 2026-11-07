@@ -20,7 +20,9 @@ const emit = defineEmits<{
   delete: [id: string];
 }>();
 
-const expanded = ref(false);
+// Detalhe aberto. `v-model:expandido` deixa o PAI controlar (ex.: abrir sozinho ao buscar); sem ele, o
+// estado é local e a linha se comporta como sempre (clicar abre/fecha).
+const expandido = defineModel<boolean>("expandido", { default: false });
 const showDeleteConfirm = ref(false);
 const deleteConfirmMessage = computed(
   () => `Excluir o processo de ${props.processo.paciente}? Essa ação não pode ser desfeita.`
@@ -38,7 +40,7 @@ const medicamentoResumo = computed(() => {
 });
 
 function toggleExpand(): void {
-  expanded.value = !expanded.value;
+  expandido.value = !expandido.value;
 }
 
 function confirmDelete(): void {
@@ -71,7 +73,7 @@ function confirmDelete(): void {
           <svg
             viewBox="0 0 20 20"
             class="mt-[3px] h-3.5 w-3.5 shrink-0 text-ink-soft transition-transform"
-            :class="{ 'rotate-90': expanded }"
+            :class="{ 'rotate-90': expandido }"
             fill="none"
             stroke="currentColor"
             stroke-width="1.8"
@@ -152,7 +154,7 @@ function confirmDelete(): void {
         <svg
           viewBox="0 0 20 20"
           class="h-3.5 w-3.5 shrink-0 text-ink-soft transition-transform"
-          :class="{ 'rotate-90': expanded }"
+          :class="{ 'rotate-90': expandido }"
           fill="none"
           stroke="currentColor"
           stroke-width="1.8"
@@ -229,7 +231,7 @@ function confirmDelete(): void {
     </button>
 
     <ProcessoDetail
-      v-if="expanded"
+      v-if="expandido"
       :processo="processo"
       :readonly="readonly"
       @edit="emit('edit', $event)"

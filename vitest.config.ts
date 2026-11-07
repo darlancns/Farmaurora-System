@@ -1,7 +1,10 @@
 import { fileURLToPath } from "node:url";
+import vue from "@vitejs/plugin-vue";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  // Compila os .vue dos specs de componentes (tests/unit/*Componentes*.spec.ts).
+  plugins: [vue()],
   resolve: {
     alias: {
       "#shared": fileURLToPath(new URL("./shared", import.meta.url)),

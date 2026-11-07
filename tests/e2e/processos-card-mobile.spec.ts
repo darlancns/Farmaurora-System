@@ -161,11 +161,11 @@ async function irParaProcessos(page: Page, viewport: { width: number; height: nu
   await expect(page.locator("#tab-andamento")).toBeVisible();
   // Só os processos deste spec.
   await page.locator("#processo-search").fill(RUN);
-  await expect(page.locator("#processo-group-list [id^='processo-row-']")).toHaveCount(0); // grupos colapsados
-  for (const consultor of ["Bolívar", "Dani", "Flávia"]) {
-    await page.locator("#processo-group-list button").filter({ hasText: consultor }).first().click();
-  }
+  // A busca acha 3 processos (≤ 5): os grupos E os detalhes abrem sozinhos. Os testes partem dos cards
+  // FECHADOS, então recolhe os detalhes (clicar no grupo aqui o fecharia).
   await expect(page.locator("[id^='processo-row-proc_']")).toHaveCount(3);
+  for (const botao of await page.locator("[id^='processo-row-proc_'] > button").all()) await botao.click();
+  await expect(page.locator("[id^='processo-detail-']")).toHaveCount(0);
 }
 
 const linha = (id: string) => `#processo-row-${id}`;

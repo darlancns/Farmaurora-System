@@ -8,11 +8,12 @@ import type {
   ProcessoFormPatchPayload,
   StatusProcesso,
 } from "#shared/types/processo";
+import { useAberturaPorBusca } from "../composables/useAberturaPorBusca";
 import { useProcessos } from "../composables/useProcessos";
 import { useAuth } from "../composables/useAuth";
 import { useToast } from "../composables/useToast";
 import { getErrorMessage } from "../utils/errorMessages";
-import { normalizeText } from "../utils/search";
+import { filtrarPorBusca } from "../utils/processoBusca";
 import { filtrarPorStatus, separarAbas } from "../utils/processoListas";
 import {
   DESTAQUE_PROCESSO_MS,
@@ -73,16 +74,26 @@ const filteredProcessos = computed<Processo[]>(() => {
   if (responsavelFilter.value) {
     list = list.filter((p) => p.responsavelOperacional === responsavelFilter.value);
   }
-  const query = normalizeText(searchQuery.value);
-  if (query) {
-    list = list.filter((p) => normalizeText(p.paciente).includes(query));
-  }
-
-  return list;
+  // Paciente OU pasta (a pasta ignora espaços e hífens: "2026-375", "2026 375" e "375" acham "2026 - 375").
+  return filtrarPorBusca(list, searchQuery.value);
 });
 
 const andamentoList = computed(() => separarAbas(filteredProcessos.value).andamento);
 const entregueList = computed(() => separarAbas(filteredProcessos.value).entregues);
+
+// Abertura automática ao buscar: grupos com resultado e, com até 5 resultados na aba, o detalhe de cada
+// um. Uma instância por aba, na página (trocar de aba não perde o estado); ao apagar a busca volta ao
+// que estava antes de digitar. Ver utils/processoBusca.ts.
+const aberturaAndamento = useAberturaPorBusca({
+  termo: () => searchQuery.value,
+  encontrados: () => andamentoList.value,
+  agrupado: () => !flatList.value,
+});
+const aberturaEntregues = useAberturaPorBusca({
+  termo: () => searchQuery.value,
+  encontrados: () => entregueList.value,
+  agrupado: () => false,
+});
 
 // ── Ir até um processo (?processo=<id>, ex.: clique num alerta do sino) ─────────────────────────
 // A rota é /processos?processo=<id>. A página não tinha âncora nem modal de detalhe (o detalhe é um
@@ -241,7 +252,7 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
                 id="processo-search"
                 v-model="searchQuery"
                 type="text"
-                placeholder="Buscar por paciente..."
+                placeholder="Buscar por paciente ou pasta"
                 class="w-full rounded-md border border-hairline bg-paper px-3 py-[11px] pr-[68px] text-[13.5px] focus:bg-white focus:outline-2 focus:outline-accent-dark lg:py-2 lg:pr-8"
               />
               <button
@@ -339,6 +350,7 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
       :readonly="!canWriteProcessos"
       :flat="flatList"
       :foco-id="focoId"
+      :abertura="aberturaAndamento"
       @edit="openEditForm"
       @delete="handleDelete"
     />
@@ -347,6 +359,7 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
       :processos="entregueList"
       :readonly="!canWriteProcessos"
       :foco-id="focoId"
+      :abertura="aberturaEntregues"
       @edit="openEditForm"
       @delete="handleDelete"
       @patch="handlePatch"

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
+import { computed, ref } from "vue";
 import type { NewProcessoDTO, Processo, StatusPagamentoProcesso } from "#shared/types/processo";
 import { STATUS_PAGAMENTO_PROCESSO } from "#shared/constants/processos";
+import { useAberturaPorBusca, type AberturaPorBusca } from "../../composables/useAberturaPorBusca";
 import AppSelect from "../AppSelect.vue";
 import type { AppSelectOption } from "../../types/appSelect";
 import ConfirmDialog from "../ConfirmDialog.vue";
@@ -13,8 +14,11 @@ const props = withDefaults(
     readonly?: boolean;
     // Realce temporário (chegou aqui por ?processo=<id>).
     focoId?: string;
+    // Estado de abertura dos detalhes, controlado pela página (abre sozinho ao buscar). Sem ele a lista
+    // cuida do próprio estado, como sempre.
+    abertura?: AberturaPorBusca;
   }>(),
-  { readonly: false, focoId: "" },
+  { readonly: false, focoId: "", abertura: undefined },
 );
 
 const emit = defineEmits<{
@@ -48,11 +52,12 @@ function onStatusPagamentoChange(processo: Processo, statusPagamento: StatusPaga
 // Linhas expandidas (mostram o ProcessoDetail, o mesmo da aba Em andamento — inclui as atualizações
 // com adicionar/editar/excluir). A expansão é por um botão próprio (chevron) e não pela linha toda,
 // porque a linha já tem controles (select de pagamento, editar, excluir).
-const expandidos = reactive(new Set<string>());
+const semBusca = useAberturaPorBusca({ termo: () => "", encontrados: () => [], agrupado: () => false });
+const controle = computed<AberturaPorBusca>(() => props.abertura ?? semBusca);
+const expandidos = computed(() => controle.value.detalhes);
 
 function toggleExpand(id: string): void {
-  if (expandidos.has(id)) expandidos.delete(id);
-  else expandidos.add(id);
+  controle.value.alternarDetalhe(id);
 }
 
 const deleteConfirmProcesso = ref<Processo | null>(null);

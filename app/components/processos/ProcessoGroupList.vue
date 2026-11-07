@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from "vue";
-import { CONSULTORES_PROCESSO } from "#shared/constants/processos";
+import { computed, watch } from "vue";
 import type { ConsultorProcesso, Processo } from "#shared/types/processo";
+import { useAberturaPorBusca, type AberturaPorBusca } from "../../composables/useAberturaPorBusca";
 import { agruparProcessosPorConsultor, type ProcessoGroup } from "../../utils/agruparProcessosPorConsultor";
 import ProcessoRow from "./ProcessoRow.vue";
 
@@ -15,8 +15,11 @@ const props = withDefaults(
     flat?: boolean;
     // Processo a revelar/destacar (vindo de ?processo=<id>): expande o grupo do consultor dele.
     focoId?: string;
+    // Estado de abertura (grupos e detalhes) controlado pela página — é ele que abre sozinho ao buscar.
+    // Sem ele a lista cuida do próprio estado (tudo recolhido no começo), como sempre.
+    abertura?: AberturaPorBusca;
   }>(),
-  { readonly: false, flat: false, focoId: "" },
+  { readonly: false, flat: false, focoId: "", abertura: undefined },
 );
 
 const emit = defineEmits<{
@@ -26,14 +29,18 @@ const emit = defineEmits<{
 
 // Todos os grupos começam colapsados — ao entrar na página o usuário vê só os
 // nomes dos consultores, e expande o que quiser conferir.
-const collapsedGroups = reactive(new Set<ConsultorProcesso>(CONSULTORES_PROCESSO));
+const semBusca = useAberturaPorBusca({ termo: () => "", encontrados: () => [], agrupado: () => true });
+const controle = computed<AberturaPorBusca>(() => props.abertura ?? semBusca);
 
-function toggleGroup(consultor: ConsultorProcesso): void {
-  if (collapsedGroups.has(consultor)) {
-    collapsedGroups.delete(consultor);
-  } else {
-    collapsedGroups.add(consultor);
-  }
+function grupoAberto(consultor: ConsultorProcesso): boolean {
+  return controle.value.grupos.has(consultor);
+}
+
+function toggleGroup(group: ProcessoGroup): void {
+  controle.value.alternarGrupo(
+    group.consultor,
+    group.processos.map((processo) => processo.id),
+  );
 }
 
 watch(
@@ -41,7 +48,7 @@ watch(
   (id) => {
     if (!id) return;
     const alvo = props.processos.find((p) => p.id === id);
-    if (alvo) collapsedGroups.delete(alvo.consultor);
+    if (alvo) controle.value.abrirGrupo(alvo.consultor);
   },
   { immediate: true },
 );
@@ -69,6 +76,8 @@ const groups = computed<ProcessoGroup[]>(() => agruparProcessosPorConsultor(prop
         :processo="processo"
         :readonly="readonly"
         :destaque="processo.id === focoId"
+        :expandido="controle.detalhes.has(processo.id)"
+        @update:expandido="controle.definirDetalhe(processo.id, $event)"
         @edit="emit('edit', $event)"
         @delete="emit('delete', $event)"
       />
@@ -83,13 +92,13 @@ const groups = computed<ProcessoGroup[]>(() => agruparProcessosPorConsultor(prop
       <button
         type="button"
         class="flex w-full items-center justify-between px-3.5 py-2.5 text-left transition-colors hover:bg-paper"
-        @click="toggleGroup(group.consultor)"
+        @click="toggleGroup(group)"
       >
         <div class="flex items-center gap-2">
           <svg
             viewBox="0 0 20 20"
             class="h-3.5 w-3.5 shrink-0 text-ink-soft transition-transform"
-            :class="{ 'rotate-90': !collapsedGroups.has(group.consultor) }"
+            :class="{ 'rotate-90': grupoAberto(group.consultor) }"
             fill="none"
             stroke="currentColor"
             stroke-width="1.8"
@@ -104,13 +113,15 @@ const groups = computed<ProcessoGroup[]>(() => agruparProcessosPorConsultor(prop
         </span>
       </button>
 
-      <div v-if="!collapsedGroups.has(group.consultor)">
+      <div v-if="grupoAberto(group.consultor)">
         <ProcessoRow
           v-for="processo in group.processos"
           :key="processo.id"
           :processo="processo"
           :readonly="readonly"
           :destaque="processo.id === focoId"
+          :expandido="controle.detalhes.has(processo.id)"
+          @update:expandido="controle.definirDetalhe(processo.id, $event)"
           @edit="emit('edit', $event)"
           @delete="emit('delete', $event)"
         />

@@ -103,8 +103,14 @@ async function abrirModal(page: Page, modo: Modo): Promise<void> {
   if (modo === "novo") {
     await page.locator("#btn-novo-processo").click();
   } else {
-    await page.locator("#processo-group-list button").filter({ hasText: "Alessandra" }).first().click();
-    await page.locator(`#processo-row-${processoId} > button`).click();
+    // A busca (RUN) acha só este processo: o grupo e o detalhe já abrem sozinhos. Idempotente: só clica
+    // no que ainda estiver fechado (clicar de novo no que abriu sozinho o FECHARIA).
+    if (!(await page.locator(`#processo-row-${processoId}`).isVisible())) {
+      await page.locator("#processo-group-list button").filter({ hasText: "Alessandra" }).first().click();
+    }
+    if (!(await page.locator(`#processo-detail-${processoId}`).isVisible())) {
+      await page.locator(`#processo-row-${processoId} > button`).click();
+    }
     await page
       .locator(`#btn-edit-processo-${processoId}, #btn-edit-processo-footer-${processoId}`)
       .locator("visible=true")
