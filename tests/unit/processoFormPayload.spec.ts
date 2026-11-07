@@ -8,6 +8,7 @@ import {
   validarProcessoForm,
   type ProcessoFormState,
 } from "../../app/utils/processoFormPayload";
+import { isValidProcessoPatch, isValidProcessoPayload } from "../../server/utils/processoValidation";
 
 // Caracterização (Round 9) — funções puras extraídas de ProcessoFormModal.vue.
 // Documenta o comportamento ATUAL, sem corrigir nada — achados suspeitos vão
@@ -286,11 +287,32 @@ describe("validarProcessoForm", () => {
     });
   });
 
-  it("Air Cargo sem transportadora: erro", () => {
+  it("Air Cargo com despachante e SEM transportadora: válido (transportadora é opcional)", () => {
     const form = { ...formValido(), modalEnvio: "Air Cargo", despachante: "Marcelo Lima", transportadoraNome: "" };
+    const resultado = validarProcessoForm(form, [], [], "");
+    expect(resultado.valido).toBe(true);
+    if (resultado.valido) expect(resultado.payload.transportadoraNacional).toBeUndefined();
+  });
+
+  it("Courier Formal com despachante e SEM transportadora: válido", () => {
+    const form = { ...formValido(), modalEnvio: "Courier Formal", despachante: "Marcelo Lima", transportadoraNome: "" };
+    expect(validarProcessoForm(form, [], [], "").valido).toBe(true);
+  });
+
+  it("o payload sem transportadora também é aceito pelo servidor (criação e edição)", () => {
+    const form = { ...formValido(), modalEnvio: "Air Cargo", despachante: "Marcelo Lima", transportadoraNome: "" };
+    const resultado = validarProcessoForm(form, [], [], "");
+    expect(resultado.valido).toBe(true);
+    if (!resultado.valido) return;
+    expect(isValidProcessoPayload({ ...resultado.payload, atualizacoes: [] })).toBe(true);
+    expect(isValidProcessoPatch(resultado.payload)).toBe(true);
+  });
+
+  it("Air Cargo sem despachante e sem transportadora: o erro é o do despachante", () => {
+    const form = { ...formValido(), modalEnvio: "Air Cargo", despachante: "", transportadoraNome: "" };
     expect(validarProcessoForm(form, [], [], "")).toEqual({
       valido: false,
-      erro: "Transportadora é obrigatória para o modal de envio selecionado.",
+      erro: "Despachante é obrigatório para o modal de envio selecionado.",
     });
   });
 

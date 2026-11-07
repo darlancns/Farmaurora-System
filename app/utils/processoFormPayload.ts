@@ -129,9 +129,8 @@ export type ValidarProcessoFormResult =
 // Validação de handleSubmit, reformulada como função pura: decide só
 // valido/inválido + payload ou mensagem de erro. O componente decide o que
 // fazer com o resultado (emitir "invalid", ou "update"/"submit" com o
-// payload). Ordem de checagem preservada exatamente: paciente, pasta,
-// consultor, e só então despachante/transportadora condicionados ao
-// modalEnvio.
+// payload). Ordem de checagem: paciente, pasta, consultor, status "outro", e só
+// então o despachante, condicionado ao modalEnvio (a transportadora é opcional).
 export function validarProcessoForm(
   form: ProcessoFormState,
   medicamentos: Medicamento[],
@@ -150,12 +149,11 @@ export function validarProcessoForm(
   if (form.status === "outro" && !form.statusOutro.trim()) {
     return { valido: false, erro: 'Informe qual é o status (opção "Outro").' };
   }
+  // Só o Despachante é obrigatório nesses modais; a Transportadora nacional é opcional (o bloco
+  // continua visível, mas pode ficar em branco — buildTransportadoraNacional devolve undefined).
   if (form.modalEnvio === "Air Cargo" || form.modalEnvio === "Courier Formal") {
     if (!form.despachante.trim()) {
       return { valido: false, erro: "Despachante é obrigatório para o modal de envio selecionado." };
-    }
-    if (!form.transportadoraNome.trim()) {
-      return { valido: false, erro: "Transportadora é obrigatória para o modal de envio selecionado." };
     }
   }
 
