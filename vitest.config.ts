@@ -5,6 +5,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "#shared": fileURLToPath(new URL("./shared", import.meta.url)),
+      // Runtime do Nuxt: só um substituto mínimo (ver o arquivo) para specs em DOM de teste.
+      "#app": fileURLToPath(new URL("./tests/unit/helpers/nuxtAppStub.ts", import.meta.url)),
     },
   },
   test: {

@@ -142,6 +142,7 @@ const classeAcao =
           <input
             :id="idItem('input-edit-atualizacao-data', index)"
             v-model="edicao.data"
+            data-sem-maiuscula
             type="text"
             :maxlength="LIMITE_ATUALIZACAO_DATA"
             placeholder="Data (ex: 31/08)"
@@ -220,6 +221,7 @@ const classeAcao =
     >
       <input
         v-model="novaAtualizacao.data"
+        data-sem-maiuscula
         type="text"
         :maxlength="LIMITE_ATUALIZACAO_DATA"
         placeholder="Data (ex: 31/08)"

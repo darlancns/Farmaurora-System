@@ -36,6 +36,7 @@ function handleConfirmar(): void {
       <div class="flex gap-2">
         <input
           id="reset-senha-input"
+          data-sem-maiuscula
           v-model="senha"
           type="text"
           autocomplete="off"

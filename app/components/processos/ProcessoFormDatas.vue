@@ -12,7 +12,8 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <fieldset class="min-w-0 rounded-md border border-hairline p-3 lg:min-w-min">
+  <fieldset data-sem-maiuscula class="min-w-0 rounded-md border border-hairline p-3 lg:min-w-min">
+    <!-- data-sem-maiuscula: as 9 datas são texto com máscara DD/MM (a 1ª letra não pode ser alterada). -->
     <legend class="px-1 text-[11px] font-semibold text-ink-soft uppercase">Datas</legend>
     <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
       <div>

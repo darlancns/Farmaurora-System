@@ -141,6 +141,7 @@ function handleSubmit(): void {
                 <label for="pf-pasta" :class="LABEL_CLASS">Pasta</label>
                 <input
                   id="pf-pasta"
+                  data-sem-maiuscula
                   :value="form.pasta"
                   type="text"
                   inputmode="numeric"
@@ -154,7 +155,7 @@ function handleSubmit(): void {
             <div class="contents lg:grid lg:grid-cols-3 lg:gap-2.5">
               <div>
                 <label for="pf-ordem" :class="LABEL_CLASS">Ordem</label>
-                <input id="pf-ordem" v-model="form.ordem" type="number" min="1" :class="INPUT_MONO_CLASS" />
+                <input id="pf-ordem" data-sem-maiuscula v-model="form.ordem" type="number" min="1" :class="INPUT_MONO_CLASS" />
               </div>
               <div class="col-span-2 sm:col-span-1" :class="SELECT_CAMPO_CLASS">
                 <label for="pf-empresa" :class="LABEL_CLASS">Empresa</label>
@@ -222,7 +223,7 @@ function handleSubmit(): void {
               </div>
               <div>
                 <label for="pf-transp-cotacao" :class="LABEL_CLASS">Cotação</label>
-                <input id="pf-transp-cotacao" v-model="form.transportadoraCotacao" type="text" :class="INPUT_CLASS" />
+                <input id="pf-transp-cotacao" data-sem-maiuscula v-model="form.transportadoraCotacao" type="text" :class="INPUT_CLASS" />
               </div>
               <div>
                 <label for="pf-transp-valor" :class="LABEL_CLASS">Valor (R$)</label>
@@ -245,11 +246,11 @@ function handleSubmit(): void {
             </div>
             <div>
               <label for="pf-awb" :class="LABEL_CLASS">Nº AWB</label>
-              <input id="pf-awb" v-model="form.numeroAwb" type="text" :class="INPUT_MONO_CLASS" />
+              <input id="pf-awb" data-sem-maiuscula v-model="form.numeroAwb" type="text" :class="INPUT_MONO_CLASS" />
             </div>
             <div class="col-span-2 sm:col-span-1">
               <label for="pf-rastreio" :class="LABEL_CLASS">Rastreio</label>
-              <input id="pf-rastreio" v-model="form.codigoRastreio" type="text" :class="INPUT_MONO_CLASS" />
+              <input id="pf-rastreio" data-sem-maiuscula v-model="form.codigoRastreio" type="text" :class="INPUT_MONO_CLASS" />
             </div>
           </div>
 
@@ -271,7 +272,7 @@ function handleSubmit(): void {
             </div>
             <div>
               <label for="pf-numero-processo" :class="LABEL_CLASS">Nº do processo</label>
-              <input id="pf-numero-processo" v-model="form.numeroProcesso" type="text" :class="INPUT_MONO_CLASS" />
+              <input id="pf-numero-processo" data-sem-maiuscula v-model="form.numeroProcesso" type="text" :class="INPUT_MONO_CLASS" />
             </div>
           </div>
 

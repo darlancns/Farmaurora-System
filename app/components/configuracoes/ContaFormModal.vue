@@ -140,6 +140,7 @@ function handleSubmit(): void {
           <div class="flex gap-2">
             <input
               id="conta-senha"
+              data-sem-maiuscula
               v-model="form.password"
               type="text"
               autocomplete="off"

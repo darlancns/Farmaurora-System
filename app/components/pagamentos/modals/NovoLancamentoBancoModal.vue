@@ -178,6 +178,7 @@ function submit(): void {
             Invoice
             <input
               id="nl-invoice"
+              data-sem-maiuscula
               v-model="form.invoice"
               type="text"
               :class="INPUT_CLASS"

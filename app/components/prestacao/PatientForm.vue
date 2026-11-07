@@ -130,6 +130,7 @@ function handleOverlayClose(): void {
             <label for="f-data" class="mb-1.5 block text-[10.5px] text-ink-soft">Data</label>
             <input
               id="f-data"
+              data-sem-maiuscula
               :value="form.data"
               type="text"
               inputmode="numeric"

@@ -179,6 +179,7 @@ function submit(): void {
           <div class="flex items-center gap-2">
             <input
               id="ng-chave-pix"
+              data-sem-maiuscula
               v-model="form.chavePix"
               type="text"
               :readonly="!pixEditavel"
