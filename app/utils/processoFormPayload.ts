@@ -235,16 +235,53 @@ export type ValidarProcessoFormResult =
   | { valido: true; payload: ProcessoFormUpdatePayload }
   | { valido: false; erro: string };
 
+// Valor da transportadora como o formulário o representa: o input é type="number", e o Vue 3 entrega
+// string OU number em runtime (vazio = ""). "Preenchido" = número finito, e 0 CONTA (um 0 digitado é
+// uma escolha do usuário). Texto não numérico, que o formulário descarta ao montar o payload, conta
+// como NÃO preenchido (devolve "").
+function valorNormalizado(valor: string | number): string {
+  const texto = String(valor).trim();
+  if (texto === "") return "";
+  const numero = Number(texto);
+  return Number.isFinite(numero) ? String(numero) : "";
+}
+
+// O usuário alterou algum dos três campos do bloco da transportadora (nome, cotação, valor) em relação
+// ao estado inicial carregado? Comparação pela mesma normalização usada para salvar (trim; valor numérico).
+export function blocoTransportadoraTocado(inicial: ProcessoFormState, atual: ProcessoFormState): boolean {
+  return (
+    inicial.transportadoraNome.trim() !== atual.transportadoraNome.trim() ||
+    inicial.transportadoraCotacao.trim() !== atual.transportadoraCotacao.trim() ||
+    valorNormalizado(inicial.transportadoraValor) !== valorNormalizado(atual.transportadoraValor)
+  );
+}
+
+// Cotação ou valor preenchidos sem o nome da transportadora: o dado ficaria órfão no banco (a tela só
+// mostra a transportadora quando há nome).
+function transportadoraSemNome(form: ProcessoFormState): boolean {
+  return (
+    form.transportadoraNome.trim() === "" &&
+    (form.transportadoraCotacao.trim() !== "" || valorNormalizado(form.transportadoraValor) !== "")
+  );
+}
+
 // Validação de handleSubmit, reformulada como função pura: decide só
 // valido/inválido + payload ou mensagem de erro. O componente decide o que
 // fazer com o resultado (emitir "invalid", ou "update"/"submit" com o
-// payload). Ordem de checagem: paciente, pasta, consultor, status "outro", e só
-// então o despachante, condicionado ao modalEnvio (a transportadora é opcional).
+// payload). Ordem de checagem: paciente, pasta, consultor, status "outro",
+// despachante (condicionado ao modalEnvio) e, por último, a transportadora
+// (opcional, mas cotação/valor exigem o nome).
+//
+// `inicial` = estado do formulário quando foi carregado (na criação, o formulário vazio). Só com ele a
+// transportadora é validada, e apenas se o bloco foi TOCADO e está VISÍVEL: um processo que já tem
+// cotação/valor órfãos no banco não fica impedido de salvar outra coisa, e os campos ocultos (Courier
+// Simples) seguem sem alteração. Sem `inicial` (chamadas antigas), não valida a transportadora.
 export function validarProcessoForm(
   form: ProcessoFormState,
   medicamentos: Medicamento[],
   pendencias: string[],
   fornecedor: string,
+  inicial?: ProcessoFormState,
 ): ValidarProcessoFormResult {
   if (!form.paciente.trim()) {
     return { valido: false, erro: "Informe o nome do paciente." };
@@ -264,6 +301,14 @@ export function validarProcessoForm(
     if (!form.despachante.trim()) {
       return { valido: false, erro: "Despachante é obrigatório para o modal de envio selecionado." };
     }
+  }
+  if (
+    inicial &&
+    precisaDespachanteTransportadora(form.modalEnvio) &&
+    blocoTransportadoraTocado(inicial, form) &&
+    transportadoraSemNome(form)
+  ) {
+    return { valido: false, erro: "Informe o nome da transportadora ou limpe a cotação e o valor." };
   }
 
   return { valido: true, payload: buildBasePayload(form, medicamentos, pendencias, fornecedor) };

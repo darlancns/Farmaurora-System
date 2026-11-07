@@ -277,7 +277,9 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
   }
 
   function validar(): ValidarProcessoFormResult {
-    return validarProcessoForm(form, medicamentos, pendencias, fornecedor.build());
+    // Edição: compara com o estado carregado. Criação: com o formulário vazio (tudo que o usuário
+    // digitou conta como alterado).
+    return validarProcessoForm(form, medicamentos, pendencias, fornecedor.build(), inicial?.form ?? emptyForm());
   }
 
   // Edição: valida o formulário inteiro (as mesmas regras de sempre) e monta o patch só com o que mudou.
