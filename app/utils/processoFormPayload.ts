@@ -124,19 +124,110 @@ export function buildBasePayload(
   };
 }
 
-// Payload de EDIÇÃO: o `payload` do formulário omite (undefined) os campos opcionais vazios, e o JSON
-// do PATCH descarta `undefined` — a chave sumiria e o servidor nunca limparia a coluna (o valor antigo
-// voltaria ao reabrir). Aqui cada campo opcional do formulário (CAMPOS_PROCESSO_LIMPAVEIS) vazio vira
-// `null` ("limpe a coluna"). Campos preenchidos, `datas`, medicamentos e pendências seguem como estão
-// (já vão sempre no corpo), e nada fora do formulário (atualizações, alertas) é incluído.
+// Estado do formulário num instante: o que buildBasePayload precisa. A edição guarda um destes ao
+// carregar o processo (o "inicial") e compara com o estado na hora de salvar.
+export interface EstadoEdicao {
+  form: ProcessoFormState;
+  medicamentos: Medicamento[];
+  pendencias: string[];
+  fornecedor: string;
+}
+
+const CAMPOS_DATA: ReadonlyArray<keyof ProcessoDatas> = [
+  "dataCompraPO",
+  "dataEmbarque",
+  "aberturaThread",
+  "dataChegadaBrasil",
+  "registroRadar",
+  "registroDuimp",
+  "registroLpco",
+  "previsaoEntrega",
+  "supostaEstimativa",
+];
+
+// Obrigatórios e opcionais de valor único: vão no patch SÓ se o valor mudou. Opcionais esvaziados vão
+// como `null` (CAMPOS_PROCESSO_LIMPAVEIS). `transportadoraNacional`, `datas`, medicamentos, pendências
+// e o par status/statusOutro têm tratamento próprio abaixo.
+const CAMPOS_ESCALARES = [
+  "paciente",
+  "pasta",
+  "empresa",
+  "consultor",
+  "ordem",
+  "responsavelOperacional",
+  "despachante",
+  "fornecedor",
+  "modalEnvio",
+  "companhiaAerea",
+  "numeroAwb",
+  "codigoRastreio",
+  "localEntrega",
+  "numeroProcesso",
+  "statusPagamento",
+] as const;
+
+const LIMPAVEIS = new Set<string>(CAMPOS_PROCESSO_LIMPAVEIS);
+
+// PATCH de EDIÇÃO diferencial: só o que o usuário alterou desde que o formulário foi aberto.
 //
-// Valores ocultos (Despachante/Transportadora em "Courier Simples") NÃO são tratados à parte: o form
-// os mantém no estado e o payload os reenvia como carregados — nada é apagado só por estar oculto.
-export function paraPatchDeEdicao(payload: ProcessoFormUpdatePayload): ProcessoFormPatchPayload {
-  const patch: Record<string, unknown> = { ...payload };
-  for (const campo of CAMPOS_PROCESSO_LIMPAVEIS) {
-    if (patch[campo] === undefined) patch[campo] = null;
+// Por quê: (1) o JSON do PATCH descarta `undefined`, então um campo esvaziado precisa ir como `null`
+// para o servidor limpar a coluna; (2) mas mandar TODOS os vazios como null (ou listas/blocos inteiros)
+// faria uma edição aberta há tempo apagar o que outra pessoa preencheu depois; (3) um valor do banco
+// que o formulário não representa (ordem fora do formato "Ordem N", fornecedor/despachante/modal fora
+// das listas) carrega "vazio" ou diferente e seria apagado por qualquer salvamento.
+//
+// Compara o payload normalizado do estado inicial com o do estado atual (a MESMA normalização usada
+// para salvar: trim, vazio → undefined, ordem → "Ordem N"). Campo que o usuário não tocou é idêntico
+// nos dois e não vai, seja ou não representável. Retorna `null` quando nada mudou.
+//
+// - status + statusOutro viajam juntos (o servidor deriva status_outro do status).
+// - medicamentos e pendências: se mudaram, vai a lista inteira (substitui, como sempre).
+// - datas: só as chaves alteradas (null limpa). Transportadora: só as chaves alteradas; nome esvaziado
+//   = `transportadoraNacional: null` (limpa nome, cotação e valor).
+// - Nunca inclui atualizações nem alerta*: o formulário não os controla.
+// - Valores ocultos (Despachante/Transportadora em "Courier Simples") seguem o mesmo critério: o form
+//   os mantém no estado; se o usuário não os alterou, não vão (nada é apagado por estar oculto).
+// - `parcial: true` avisa o servidor de que `datas`/`transportadoraNacional` são por chave.
+export function montarPatchDiferencial(inicial: EstadoEdicao, atual: EstadoEdicao): ProcessoFormPatchPayload | null {
+  const p0 = buildBasePayload(inicial.form, inicial.medicamentos, inicial.pendencias, inicial.fornecedor);
+  const p1 = buildBasePayload(atual.form, atual.medicamentos, atual.pendencias, atual.fornecedor);
+  const patch: Record<string, unknown> = {};
+
+  for (const campo of CAMPOS_ESCALARES) {
+    const antes = p0[campo];
+    const depois = p1[campo];
+    if (antes === depois) continue;
+    patch[campo] = depois === undefined && LIMPAVEIS.has(campo) ? null : depois;
   }
+
+  if (p0.status !== p1.status || p0.statusOutro !== p1.statusOutro) {
+    patch.status = p1.status;
+    if (p1.statusOutro !== undefined) patch.statusOutro = p1.statusOutro;
+  }
+
+  if (JSON.stringify(p0.medicamentos) !== JSON.stringify(p1.medicamentos)) patch.medicamentos = p1.medicamentos;
+  if (JSON.stringify(p0.pendencias) !== JSON.stringify(p1.pendencias)) patch.pendencias = p1.pendencias;
+
+  const datas: Record<string, string | null> = {};
+  for (const chave of CAMPOS_DATA) {
+    if (p0.datas[chave] !== p1.datas[chave]) datas[chave] = p1.datas[chave] ?? null;
+  }
+  if (Object.keys(datas).length) patch.datas = datas;
+
+  const t0 = p0.transportadoraNacional;
+  const t1 = p1.transportadoraNacional;
+  if (t1 === undefined) {
+    if (t0 !== undefined) patch.transportadoraNacional = null;
+  } else {
+    const parcial: Record<string, string | number | null> = {};
+    if (t0?.nome !== t1.nome) parcial.nome = t1.nome;
+    if (t0?.cotacao !== t1.cotacao) parcial.cotacao = t1.cotacao ?? null;
+    if (t0?.valor !== t1.valor) parcial.valor = t1.valor ?? null;
+    if (Object.keys(parcial).length) patch.transportadoraNacional = parcial;
+  }
+
+  if (Object.keys(patch).length === 0) return null;
+  patch.parcial = true;
   return patch as ProcessoFormPatchPayload;
 }
 

@@ -66,13 +66,15 @@ export async function createProcesso(input: NewProcessoDTO): Promise<Processo> {
 export async function patchProcesso(
   id: string,
   patch: ProcessoPatchDTO,
+  opcoes: { parcial?: boolean } = {},
 ): Promise<Processo | null> {
   const db = createSupabaseAdminClient();
 
-  // Um único UPDATE das colunas presentes no patch (+ updated_at). Atômico.
+  // Um único UPDATE das colunas presentes no patch (+ updated_at). Atômico. `parcial`: formato novo do
+  // formulário (datas e transportadora por chave) — ver colunasDeDTO.
   const { data, error } = await db
     .from(TABELA)
-    .update({ ...colunasDeDTO(patch), updated_at: new Date().toISOString() })
+    .update({ ...colunasDeDTO(patch, opcoes), updated_at: new Date().toISOString() })
     .eq("id", id)
     .select("*");
   if (error) throw erro("atualizar processo", error);

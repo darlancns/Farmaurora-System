@@ -351,8 +351,18 @@ test.describe.serial("Follow-Up de processos", () => {
     const detail = row.locator('[id^="processo-detail-"]');
     await detail.getByRole("button", { name: "Editar processo" }).click();
     await expect(page.locator("#pf-ordem")).toHaveValue("3");
+
+    // Sem alterar nada, a edição não grava (patch diferencial): avisa e fecha.
+    await page.locator("#btn-save-processo").click();
+    await expect(page.locator("#toast-notice")).toContainText("Nenhuma alteração para salvar");
+    await expect(page.locator("#processo-form")).toHaveCount(0);
+
+    // Alterando a ordem (input type=number), grava sem erro e o rótulo é atualizado.
+    await detail.getByRole("button", { name: "Editar processo" }).click();
+    await page.locator("#pf-ordem").fill("4");
     await page.locator("#btn-save-processo").click();
     await expect(page.locator("#toast-notice")).toContainText("Processo atualizado");
+    await expect(row).toContainText("Ordem 4");
   });
 
   test("14 · Courier Simples oculta Despachante e Transportadora, e preserva o valor ao trocar de volta", async ({ page }) => {

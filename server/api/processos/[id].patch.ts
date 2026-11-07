@@ -37,8 +37,8 @@ export default defineEventHandler(async (event): Promise<Processo> => {
     assertPodeResolverMandado(user, atual.responsavelOperacional);
   }
 
-  // `versao` não é coluna: sai do patch antes de gravar.
-  const { versao, ...patch } = body as ProcessoPatchDTO & { versao?: string };
+  // `versao` e `parcial` não são colunas: saem do patch antes de gravar.
+  const { versao, parcial, ...patch } = body as ProcessoPatchDTO & { versao?: string };
 
   // Com `atualizacoes`: grava só se o updated_at da linha ainda for a versão que o cliente viu.
   if (patchExigeVersao(body) && versao !== undefined) {
@@ -55,7 +55,8 @@ export default defineEventHandler(async (event): Promise<Processo> => {
     return resultado.processo;
   }
 
-  const updated = await patchProcesso(id, patch);
+  // Formato antigo (sem `parcial`): a chamada é exatamente a de sempre.
+  const updated = parcial === true ? await patchProcesso(id, patch, { parcial: true }) : await patchProcesso(id, patch);
 
   if (!updated) {
     throw createError({ statusCode: 404, statusMessage: "Processo não encontrado." });

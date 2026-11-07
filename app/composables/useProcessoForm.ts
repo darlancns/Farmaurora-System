@@ -4,14 +4,17 @@ import type {
   EmpresaProcesso,
   Medicamento,
   Processo,
+  ProcessoFormPatchPayload,
   StatusPagamentoProcesso,
   StatusProcesso,
 } from "#shared/types/processo";
 import { EMPRESAS_PROCESSO, FORNECEDORES_PROCESSO } from "#shared/constants/processos";
 import { maskDataDDMM, maskPastaCode, parseOrdemNumero } from "../utils/processoFormatters";
 import {
+  montarPatchDiferencial,
   precisaDespachanteTransportadora,
   validarProcessoForm,
+  type EstadoEdicao,
   type ValidarProcessoFormResult,
 } from "../utils/processoFormPayload";
 import { useOutroSentinel } from "./useOutroSentinel";
@@ -114,6 +117,12 @@ function emptyMedicamento(): Medicamento {
   return { nome: "", dosagem: "", quantidade: "" };
 }
 
+// Resultado de salvar uma EDIÇÃO: inválido (mensagem), ou válido com o patch diferencial — `null` quando
+// o usuário não alterou nada (não há o que gravar).
+export type ValidarEdicaoResult =
+  | { valido: true; patch: ProcessoFormPatchPayload | null }
+  | { valido: false; erro: string };
+
 export interface UseProcessoFormReturn {
   form: FormState;
   medicamentos: Medicamento[];
@@ -131,6 +140,7 @@ export interface UseProcessoFormReturn {
   onMedicamentoQuantidadeInput: (index: number, event: Event) => void;
   onDataFieldInput: (field: DataField, event: Event) => void;
   validar: () => ValidarProcessoFormResult;
+  validarEdicao: () => ValidarEdicaoResult;
 }
 
 export function useProcessoForm(editingProcesso: () => Processo | null | undefined): UseProcessoFormReturn {
@@ -138,6 +148,17 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
   const medicamentos = reactive<Medicamento[]>([emptyMedicamento()]);
   const pendencias = reactive<string[]>([]);
   const fornecedor = useOutroSentinel(FORNECEDORES_FIXOS);
+  // Estado do formulário logo depois de carregar o processo (só na edição): base do patch diferencial.
+  let inicial: EstadoEdicao | null = null;
+
+  function estadoAtual(): EstadoEdicao {
+    return {
+      form: { ...form },
+      medicamentos: medicamentos.map((m) => ({ ...m })),
+      pendencias: [...pendencias],
+      fornecedor: fornecedor.build(),
+    };
+  }
 
   // Air Cargo e Courier Formal exigem Despachante e Transportadora; Courier
   // Simples esconde os dois. Qualquer outro valor (vazio, ou o legado "Courier"
@@ -150,6 +171,7 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     medicamentos.splice(0, medicamentos.length, emptyMedicamento());
     pendencias.splice(0, pendencias.length);
     fornecedor.load(undefined);
+    inicial = null;
   }
 
   function loadProcessoIntoForm(processo: Processo): void {
@@ -187,6 +209,8 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     const medicamentosSource = processo.medicamentos.length ? processo.medicamentos : [emptyMedicamento()];
     medicamentos.splice(0, medicamentos.length, ...medicamentosSource.map((item) => ({ ...item })));
     pendencias.splice(0, pendencias.length, ...processo.pendencias);
+
+    inicial = estadoAtual();
   }
 
   watch(
@@ -256,6 +280,14 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     return validarProcessoForm(form, medicamentos, pendencias, fornecedor.build());
   }
 
+  // Edição: valida o formulário inteiro (as mesmas regras de sempre) e monta o patch só com o que mudou.
+  function validarEdicao(): ValidarEdicaoResult {
+    const resultado = validar();
+    if (!resultado.valido) return resultado;
+    if (!inicial) return { valido: true, patch: null };
+    return { valido: true, patch: montarPatchDiferencial(inicial, estadoAtual()) };
+  }
+
   return {
     form,
     medicamentos,
@@ -273,5 +305,6 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     onMedicamentoQuantidadeInput,
     onDataFieldInput,
     validar,
+    validarEdicao,
   };
 }

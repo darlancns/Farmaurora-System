@@ -175,6 +175,12 @@ function handleInvalid(message: string): void {
   showToast(message);
 }
 
+// Edição sem alteração: não chama o PATCH, só fecha o modal.
+function handleUnchanged(): void {
+  showToast("Nenhuma alteração para salvar");
+  closeForm();
+}
+
 async function handleSubmit(payload: NewProcessoDTO): Promise<void> {
   try {
     await addProcesso(payload);
@@ -362,6 +368,7 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
       @update="handleUpdate"
       @close="closeForm"
       @invalid="handleInvalid"
+      @unchanged="handleUnchanged"
     />
   </div>
 </template>

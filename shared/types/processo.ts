@@ -151,11 +151,32 @@ export type CampoProcessoLimpavel =
   | "numeroProcesso"
   | "statusPagamento";
 
+// Datas do PATCH: cada chave opcional; `null` limpa a coluna. Com `parcial: true` só as chaves PRESENTES
+// são tocadas; sem `parcial` (formato antigo) a chave ausente também limpa.
+export type ProcessoDatasPatch = { [K in keyof ProcessoDatas]?: string | null };
+
+// Transportadora do PATCH por chave (com `parcial: true`): só as chaves presentes são tocadas e `null`
+// limpa. `nome: null` limpa o bloco inteiro (sem nome não há transportadora). Sem `parcial`, é o objeto
+// completo de sempre (nome obrigatório), que substitui as três colunas.
+export interface TransportadoraNacionalPatch {
+  nome?: string | null;
+  cotacao?: string | null;
+  valor?: number | null;
+}
+
 // Corpo do PATCH: como Partial<NewProcessoDTO>, mas os campos opcionais acima também aceitam `null`.
-// Os obrigatórios (paciente, pasta, empresa, consultor, status), medicamentos, pendências, datas e
-// atualizações NÃO aceitam null.
-export type ProcessoPatchDTO = Omit<Partial<NewProcessoDTO>, CampoProcessoLimpavel> & {
-  [K in CampoProcessoLimpavel]?: NewProcessoDTO[K] | null;
+// Os obrigatórios (paciente, pasta, empresa, consultor, status), medicamentos, pendências e
+// atualizações NÃO aceitam null. `parcial: true` marca o formato novo do formulário (patch diferencial:
+// só o que mudou, datas e transportadora por chave); o servidor o remove antes de gravar.
+export type ProcessoPatchDTO = Omit<
+  Partial<NewProcessoDTO>,
+  CampoProcessoLimpavel | "datas"
+> & {
+  [K in Exclude<CampoProcessoLimpavel, "transportadoraNacional">]?: NewProcessoDTO[K] | null;
+} & {
+  transportadoraNacional?: TransportadoraNacionalPatch | null;
+  datas?: ProcessoDatasPatch;
+  parcial?: boolean;
 };
 
 // Payload do formulário de EDIÇÃO (nunca leva `atualizacoes`), já com os campos esvaziados como null.

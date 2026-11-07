@@ -5,10 +5,12 @@ import type {
   Medicamento,
   Processo,
   ProcessoDatas,
+  ProcessoDatasPatch,
   ProcessoPatchDTO,
   StatusPagamentoProcesso,
   StatusProcesso,
   TransportadoraNacional,
+  TransportadoraNacionalPatch,
 } from "../../shared/types/processo";
 import { num } from "./storeKit";
 
@@ -77,6 +79,19 @@ export function statusOutroDe(status: StatusProcesso | undefined, statusOutro: s
   return statusOutro?.trim() || null;
 }
 
+// As 9 datas do processo: chave do DTO → coluna (texto livre no banco).
+const COLUNA_DE_DATA: ReadonlyArray<readonly [keyof ProcessoDatas, string]> = [
+  ["dataCompraPO", "data_compra_po"],
+  ["dataEmbarque", "data_embarque"],
+  ["aberturaThread", "abertura_thread"],
+  ["dataChegadaBrasil", "data_chegada_brasil"],
+  ["registroRadar", "registro_radar"],
+  ["registroDuimp", "registro_duimp"],
+  ["registroLpco", "registro_lpco"],
+  ["previsaoEntrega", "previsao_entrega"],
+  ["supostaEstimativa", "suposta_estimativa"],
+];
+
 // Colunas do follow_up a partir das chaves do DTO PRESENTES em `src`. Só inclui
 // coluna cuja chave do DTO está em `src` (via `in`) — assim o patch é seletivo
 // e o create (que traz todas as chaves relevantes) grava tudo.
@@ -84,7 +99,12 @@ export function statusOutroDe(status: StatusProcesso | undefined, statusOutro: s
 // Esvaziar um campo opcional = a chave presente com `null` (ou `undefined`) → coluna NULL. Chave
 // AUSENTE nunca toca a coluna. Por isso o cliente manda `null` (ver CAMPOS_PROCESSO_LIMPAVEIS): o JSON
 // descarta `undefined`, e a chave sumiria.
-export function colunasDeDTO(src: ProcessoPatchDTO): Record<string, unknown> {
+//
+// `opcoes.parcial` (PATCH diferencial do formulário): `datas` e `transportadoraNacional` só tocam as
+// colunas das chaves PRESENTES (null limpa). Sem `parcial` (criação e o formato antigo do PATCH) esses
+// dois blocos substituem tudo: chave ausente = coluna NULL.
+export function colunasDeDTO(src: ProcessoPatchDTO, opcoes: { parcial?: boolean } = {}): Record<string, unknown> {
+  const parcial = opcoes.parcial === true;
   const col: Record<string, unknown> = {};
 
   if ("paciente" in src) col.paciente = src.paciente;
@@ -119,23 +139,31 @@ export function colunasDeDTO(src: ProcessoPatchDTO): Record<string, unknown> {
   if ("atualizacoes" in src) col.atualizacoes = src.atualizacoes ?? [];
 
   if ("datas" in src) {
-    const d: ProcessoDatas = src.datas ?? {};
-    col.data_compra_po = d.dataCompraPO ?? null;
-    col.data_embarque = d.dataEmbarque ?? null;
-    col.abertura_thread = d.aberturaThread ?? null;
-    col.data_chegada_brasil = d.dataChegadaBrasil ?? null;
-    col.registro_radar = d.registroRadar ?? null;
-    col.registro_duimp = d.registroDuimp ?? null;
-    col.registro_lpco = d.registroLpco ?? null;
-    col.previsao_entrega = d.previsaoEntrega ?? null;
-    col.suposta_estimativa = d.supostaEstimativa ?? null;
+    const d: ProcessoDatasPatch = src.datas ?? {};
+    for (const [chave, coluna] of COLUNA_DE_DATA) {
+      if (parcial && !(chave in d)) continue; // formato novo: chave ausente = não mexe
+      col[coluna] = d[chave] ?? null;
+    }
   }
 
   if ("transportadoraNacional" in src) {
-    const t: TransportadoraNacional | null | undefined = src.transportadoraNacional;
-    col.transportadora_nacional_nome = t?.nome ?? null;
-    col.transportadora_nacional_cotacao = t?.cotacao ?? null;
-    col.transportadora_nacional_valor = t?.valor ?? null;
+    const t: TransportadoraNacionalPatch | null | undefined = src.transportadoraNacional;
+    if (parcial && t) {
+      // Sem nome não há transportadora: nome null limpa as três colunas, como esvaziar o bloco todo.
+      if ("nome" in t && t.nome == null) {
+        col.transportadora_nacional_nome = null;
+        col.transportadora_nacional_cotacao = null;
+        col.transportadora_nacional_valor = null;
+      } else {
+        if ("nome" in t) col.transportadora_nacional_nome = t.nome ?? null;
+        if ("cotacao" in t) col.transportadora_nacional_cotacao = t.cotacao ?? null;
+        if ("valor" in t) col.transportadora_nacional_valor = t.valor ?? null;
+      }
+    } else {
+      col.transportadora_nacional_nome = t?.nome ?? null;
+      col.transportadora_nacional_cotacao = t?.cotacao ?? null;
+      col.transportadora_nacional_valor = t?.valor ?? null;
+    }
   }
 
   return col;

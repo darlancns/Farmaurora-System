@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { NewProcessoDTO, Processo, ProcessoFormPatchPayload } from "#shared/types/processo";
 import { useProcessoForm } from "../../composables/useProcessoForm";
-import { paraPatchDeEdicao } from "../../utils/processoFormPayload";
 import AppSelect from "../AppSelect.vue";
 import BaseModal from "../BaseModal.vue";
 import ProcessoFormDatas from "./ProcessoFormDatas.vue";
@@ -35,6 +34,8 @@ const emit = defineEmits<{
   update: [id: string, payload: ProcessoFormPatchPayload];
   close: [];
   invalid: [message: string];
+  // Edição sem nenhuma alteração: nada é enviado ao servidor.
+  unchanged: [];
 }>();
 
 // Todo o estado do form (FormState, medicamentos, pendências, fornecedor) e os
@@ -58,17 +59,28 @@ const {
   onMedicamentoQuantidadeInput,
   onDataFieldInput,
   validar,
+  validarEdicao,
 } = useProcessoForm(() => props.editingProcesso);
 
 function handleSubmit(): void {
-  const resultado = validar();
-  if (!resultado.valido) {
-    emit("invalid", resultado.erro);
+  if (props.editingProcesso) {
+    // Edição: só vai o que o usuário alterou (patch diferencial, ver montarPatchDiferencial).
+    const edicao = validarEdicao();
+    if (!edicao.valido) {
+      emit("invalid", edicao.erro);
+      return;
+    }
+    if (edicao.patch === null) {
+      emit("unchanged");
+      return;
+    }
+    emit("update", props.editingProcesso.id, edicao.patch);
     return;
   }
 
-  if (props.editingProcesso) {
-    emit("update", props.editingProcesso.id, paraPatchDeEdicao(resultado.payload));
+  const resultado = validar();
+  if (!resultado.valido) {
+    emit("invalid", resultado.erro);
     return;
   }
 

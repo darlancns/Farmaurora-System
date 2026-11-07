@@ -62,6 +62,23 @@ function isValidDatas(value: unknown): boolean {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
+// Transportadora do PATCH com `parcial: true`: todas as chaves opcionais; `null` limpa. `nome`, quando
+// presente, é texto não vazio ou null (nome vazio não existe: o cliente manda null).
+function isValidTransportadoraParcial(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  const nomeOk = v.nome === undefined || v.nome === null || isNonEmptyString(v.nome);
+  const cotacaoOk = v.cotacao === undefined || v.cotacao === null || typeof v.cotacao === "string";
+  const valorOk = v.valor === undefined || v.valor === null || (typeof v.valor === "number" && Number.isFinite(v.valor));
+  return nomeOk && cotacaoOk && valorOk;
+}
+
+// Datas do PATCH com `parcial: true`: cada valor é texto ou null (null limpa a coluna).
+function isValidDatasParcial(value: unknown): boolean {
+  if (!isValidDatas(value)) return false;
+  return Object.values(value as Record<string, unknown>).every((v) => v === null || typeof v === "string");
+}
+
 function isValidTransportadora(value: unknown): boolean {
   if (value === undefined) return true;
   if (!value || typeof value !== "object") return false;
@@ -121,12 +138,15 @@ export function isValidProcessoPatch(body: unknown): body is ProcessoPatchDTO {
   if (b.atualizacoes !== undefined && !isValidAtualizacoes(b.atualizacoes)) return false;
   if (b.atualizacoes !== undefined && !isVersaoValida(b.versao)) return false;
   if (b.versao !== undefined && !isVersaoValida(b.versao)) return false;
-  if (b.datas !== undefined && !isValidDatas(b.datas)) return false;
-  // `null` = esvaziar o bloco (limpa nome, cotação e valor). Só o PATCH aceita; o POST não.
+  if (b.parcial !== undefined && typeof b.parcial !== "boolean") return false;
+  const parcial = b.parcial === true;
+  if (b.datas !== undefined && !(parcial ? isValidDatasParcial(b.datas) : isValidDatas(b.datas))) return false;
+  // `null` = esvaziar o bloco (limpa nome, cotação e valor). Só o PATCH aceita; o POST não. Com
+  // `parcial`, o objeto pode trazer só as chaves alteradas; sem ele, é o formato completo de sempre.
   if (
     b.transportadoraNacional !== undefined &&
     b.transportadoraNacional !== null &&
-    !isValidTransportadora(b.transportadoraNacional)
+    !(parcial ? isValidTransportadoraParcial(b.transportadoraNacional) : isValidTransportadora(b.transportadoraNacional))
   ) {
     return false;
   }
