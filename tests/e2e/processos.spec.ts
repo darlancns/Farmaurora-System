@@ -306,7 +306,7 @@ test.describe.serial("Follow-Up de processos", () => {
     const detail = row.locator('[id^="processo-detail-"]');
     await detail.getByRole("button", { name: "Editar processo" }).click();
 
-    // Texto antigo aparece como está (o campo é um botão com a marca "antigo").
+    // Texto antigo aparece como está (o campo é um botão com um pontinho de atenção).
     await expect(page.locator("#pf-data-embarque")).toContainText(dataEmbarqueOriginal);
 
     await page.locator("#pf-local-entrega").fill("São Paulo - SP");

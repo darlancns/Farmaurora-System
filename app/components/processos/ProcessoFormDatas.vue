@@ -13,7 +13,7 @@ const emit = defineEmits<{
 
 // As 9 datas do processo, na ordem da tela. Cada uma é um AppDatePicker (calendário próprio, não digitável):
 // grava "DD/MM" (ano corrente) ou "DD/MM/AAAA" (outro ano). Texto antigo que já existe no banco ("09/10 - agd.
-// análise", "já tem"...) aparece como está, com a marca "antigo", e só é trocado depois de confirmar.
+// análise", "já tem"...) aparece como está, com um pontinho de atenção, e só é trocado depois de confirmar.
 const CAMPOS: ReadonlyArray<{ id: string; campo: DataField; rotulo: string; larguraTotal?: boolean }> = [
   { id: "pf-data-po", campo: "dataCompraPO", rotulo: "Compra (PO)" },
   { id: "pf-data-embarque", campo: "dataEmbarque", rotulo: "Embarque" },

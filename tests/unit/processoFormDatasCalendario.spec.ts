@@ -109,7 +109,7 @@ describe("ProcessoFormDatas com o calendário", () => {
     }
   });
 
-  it("o texto livre que já existe aparece como está (com a marca 'antigo'); a data limpa não tem marca", () => {
+  it("o texto livre que já existe aparece como está (com o pontinho de atenção); a data limpa não tem marca", () => {
     abrirFormulario();
     expect(campo("pf-suposta-estimativa").hasAttribute("data-texto-antigo")).toBe(true);
     expect(campo("pf-suposta-estimativa").textContent).toContain("fim de setembro");

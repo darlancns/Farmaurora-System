@@ -425,19 +425,26 @@ describe("mês e ano", () => {
 describe("texto antigo (valor que não é uma data limpa)", () => {
   const ANTIGO = "13/10; deferido 14/10";
 
-  it("o campo mostra o texto exatamente como está, com a marca 'antigo' e o texto completo no tooltip", () => {
+  it("o campo mostra o texto exatamente como está, com um pontinho de atenção e o texto completo no tooltip", () => {
     montar({ valor: ANTIGO });
-    expect(botao().textContent).toContain(ANTIGO);
+    expect(botao().textContent!.trim()).toBe(ANTIGO); // só o texto: nenhuma palavra de marca dentro do campo
     expect(botao().hasAttribute("data-texto-antigo")).toBe(true);
-    expect(botao().textContent).toContain("antigo");
     expect(botao().getAttribute("title")).toContain(ANTIGO);
     expect(botao().getAttribute("aria-label")).toContain("texto antigo");
+
+    const ponto = botao().querySelector("[data-marca-antigo]")!;
+    expect(ponto).not.toBeNull();
+    expect(ponto.getAttribute("role")).toBe("img");
+    expect(ponto.getAttribute("aria-label")).toBe("Texto antigo (não é uma data)");
+    expect(ponto.getAttribute("title")).toBe("Texto antigo (não é uma data)");
+    expect(ponto.textContent).toBe(""); // sem texto: não ocupa largura com palavras
   });
 
   it("uma data limpa NÃO leva a marca", () => {
     montar({ valor: "13/10" });
     expect(botao().hasAttribute("data-texto-antigo")).toBe(false);
     expect(botao().getAttribute("title")).toBeNull();
+    expect(botao().querySelector("[data-marca-antigo]")).toBeNull();
   });
 
   it("se o texto começa com DD/MM, o calendário abre nessa data, pré-selecionada", async () => {
@@ -597,7 +604,8 @@ describe("celular: bottom sheet", () => {
     expect(painel()!.dataset.modo).toBe("popover");
     expect(painel()!.className).toContain("absolute");
     expect(painel()!.style.top).not.toBe("");
-    expect(dia("2026-11-10")!.className).toContain("h-9");
+    expect(dia("2026-11-10")!.className).not.toContain("h-11"); // o alvo de 44px é só do bottom sheet
+    expect(acao("hoje")!.className).not.toContain("min-h-11");
     expect(document.body.style.overflow).toBe("");
   });
 
