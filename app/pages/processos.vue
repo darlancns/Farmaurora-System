@@ -5,7 +5,7 @@ import type {
   EmpresaProcesso,
   NewProcessoDTO,
   Processo,
-  ProcessoFormUpdatePayload,
+  ProcessoFormPatchPayload,
   StatusProcesso,
 } from "#shared/types/processo";
 import { useProcessos } from "../composables/useProcessos";
@@ -185,7 +185,7 @@ async function handleSubmit(payload: NewProcessoDTO): Promise<void> {
   }
 }
 
-async function handleUpdate(id: string, payload: ProcessoFormUpdatePayload): Promise<void> {
+async function handleUpdate(id: string, payload: ProcessoFormPatchPayload): Promise<void> {
   try {
     await patchProcesso(id, payload);
     showToast("Processo atualizado");

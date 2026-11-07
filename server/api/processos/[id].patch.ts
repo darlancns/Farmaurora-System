@@ -3,7 +3,7 @@ import { getProcesso, patchProcesso, patchProcessoVersionado } from "../../utils
 import { isValidProcessoPatch, isVersaoValida, patchExigeVersao } from "../../utils/processoValidation";
 import { assertPodeResolverMandado, patchTocaAlertaMandado } from "../../utils/processoMandadoAuth";
 import type { AuthUser } from "../../../shared/types/auth";
-import type { NewProcessoDTO, Processo } from "../../../shared/types/processo";
+import type { Processo, ProcessoPatchDTO } from "../../../shared/types/processo";
 
 export default defineEventHandler(async (event): Promise<Processo> => {
   const id = getRouterParam(event, "id");
@@ -38,7 +38,7 @@ export default defineEventHandler(async (event): Promise<Processo> => {
   }
 
   // `versao` não é coluna: sai do patch antes de gravar.
-  const { versao, ...patch } = body as Partial<NewProcessoDTO> & { versao?: string };
+  const { versao, ...patch } = body as ProcessoPatchDTO & { versao?: string };
 
   // Com `atualizacoes`: grava só se o updated_at da linha ainda for a versão que o cliente viu.
   if (patchExigeVersao(body) && versao !== undefined) {

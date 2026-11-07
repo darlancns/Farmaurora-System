@@ -1,4 +1,4 @@
-import type { NewProcessoDTO, Processo } from "../../shared/types/processo";
+import type { NewProcessoDTO, Processo, ProcessoPatchDTO } from "../../shared/types/processo";
 import { createSupabaseAdminClient } from "./supabaseServerClient";
 import { erro, randomId } from "./storeKit";
 import { colunasDeDTO, montarProcesso, statusOutroDe, type FollowUpRow } from "./processoMappers";
@@ -65,7 +65,7 @@ export async function createProcesso(input: NewProcessoDTO): Promise<Processo> {
 
 export async function patchProcesso(
   id: string,
-  patch: Partial<NewProcessoDTO>,
+  patch: ProcessoPatchDTO,
 ): Promise<Processo | null> {
   const db = createSupabaseAdminClient();
 
@@ -101,7 +101,7 @@ export function proximoUpdatedAt(versaoAnterior: string, agoraMs: number = Date.
 // posterior, só para escolher a resposta, desempata.
 export async function patchProcessoVersionado(
   id: string,
-  patch: Partial<NewProcessoDTO>,
+  patch: ProcessoPatchDTO,
   versao: string,
 ): Promise<ResultadoPatchVersionado> {
   const db = createSupabaseAdminClient();

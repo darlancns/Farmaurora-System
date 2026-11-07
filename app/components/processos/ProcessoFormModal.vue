@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import type { NewProcessoDTO, Processo, ProcessoFormUpdatePayload } from "#shared/types/processo";
+import type { NewProcessoDTO, Processo, ProcessoFormPatchPayload } from "#shared/types/processo";
 import { useProcessoForm } from "../../composables/useProcessoForm";
+import { paraPatchDeEdicao } from "../../utils/processoFormPayload";
 import AppSelect from "../AppSelect.vue";
 import BaseModal from "../BaseModal.vue";
 import ProcessoFormDatas from "./ProcessoFormDatas.vue";
@@ -31,7 +32,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   submit: [payload: NewProcessoDTO];
-  update: [id: string, payload: ProcessoFormUpdatePayload];
+  update: [id: string, payload: ProcessoFormPatchPayload];
   close: [];
   invalid: [message: string];
 }>();
@@ -67,7 +68,7 @@ function handleSubmit(): void {
   }
 
   if (props.editingProcesso) {
-    emit("update", props.editingProcesso.id, resultado.payload);
+    emit("update", props.editingProcesso.id, paraPatchDeEdicao(resultado.payload));
     return;
   }
 

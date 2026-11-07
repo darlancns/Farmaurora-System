@@ -12,6 +12,7 @@ import type {
   EmpresaProcesso,
   Medicamento,
   NewProcessoDTO,
+  ProcessoPatchDTO,
   StatusProcesso,
 } from "../../shared/types/processo";
 
@@ -98,7 +99,7 @@ export function isValidProcessoPayload(body: unknown): body is NewProcessoDTO {
   );
 }
 
-export function isValidProcessoPatch(body: unknown): body is Partial<NewProcessoDTO> {
+export function isValidProcessoPatch(body: unknown): body is ProcessoPatchDTO {
   if (!body || typeof body !== "object") return false;
   const b = body as Record<string, unknown>;
 
@@ -121,7 +122,14 @@ export function isValidProcessoPatch(body: unknown): body is Partial<NewProcesso
   if (b.atualizacoes !== undefined && !isVersaoValida(b.versao)) return false;
   if (b.versao !== undefined && !isVersaoValida(b.versao)) return false;
   if (b.datas !== undefined && !isValidDatas(b.datas)) return false;
-  if (b.transportadoraNacional !== undefined && !isValidTransportadora(b.transportadoraNacional)) return false;
+  // `null` = esvaziar o bloco (limpa nome, cotação e valor). Só o PATCH aceita; o POST não.
+  if (
+    b.transportadoraNacional !== undefined &&
+    b.transportadoraNacional !== null &&
+    !isValidTransportadora(b.transportadoraNacional)
+  ) {
+    return false;
+  }
   if (b.alertaMandadoResolvido !== undefined && typeof b.alertaMandadoResolvido !== "boolean") return false;
 
   return true;

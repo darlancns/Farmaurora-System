@@ -1,4 +1,5 @@
 import type {
+  CampoProcessoLimpavel,
   ConsultorProcesso,
   DespachanteProcesso,
   EmpresaProcesso,
@@ -81,3 +82,21 @@ export const STATUS_PROCESSO_LABELS: Record<StatusProcesso, string> = {
 export const LIMITE_ATUALIZACAO_TEXTO = 2000;
 export const LIMITE_ATUALIZACAO_DATA = 40;
 export const LIMITE_ATUALIZACOES_POR_PROCESSO = 200;
+
+// Campos opcionais do formulário de processo que podem ser ESVAZIADOS na edição (viram null no PATCH).
+// Fora desta lista ficam o que o formulário não controla ou que é obrigatório: atualizações, alertas
+// resolvidos, medicamentos, pendências, datas (objeto próprio) e paciente/pasta/empresa/consultor/status.
+export const CAMPOS_PROCESSO_LIMPAVEIS: readonly CampoProcessoLimpavel[] = [
+  "ordem",
+  "responsavelOperacional",
+  "despachante",
+  "fornecedor",
+  "transportadoraNacional",
+  "modalEnvio",
+  "companhiaAerea",
+  "numeroAwb",
+  "codigoRastreio",
+  "localEntrega",
+  "numeroProcesso",
+  "statusPagamento",
+];

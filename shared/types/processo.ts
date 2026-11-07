@@ -132,3 +132,31 @@ export type NewProcessoDTO = Omit<Processo, "id" | "createdAt" | "updatedAt">;
 // via ProcessoDetail (campo rápido de atualização), pra não sobrescrever entradas
 // já registradas quando o usuário só edita outros campos por este formulário.
 export type ProcessoFormUpdatePayload = Omit<NewProcessoDTO, "atualizacoes">;
+
+// Campos OPCIONAIS controlados pelo formulário de edição. No PATCH, `null` significa "o usuário
+// esvaziou o campo: limpe a coluna" (NULL no banco). Ausente (`undefined`) significa "não toque".
+// O JSON NÃO transporta `undefined` (a chave some), por isso o esvaziamento precisa ir como `null`.
+// A lista em runtime é CAMPOS_PROCESSO_LIMPAVEIS (shared/constants/processos.ts).
+export type CampoProcessoLimpavel =
+  | "ordem"
+  | "responsavelOperacional"
+  | "despachante"
+  | "fornecedor"
+  | "transportadoraNacional"
+  | "modalEnvio"
+  | "companhiaAerea"
+  | "numeroAwb"
+  | "codigoRastreio"
+  | "localEntrega"
+  | "numeroProcesso"
+  | "statusPagamento";
+
+// Corpo do PATCH: como Partial<NewProcessoDTO>, mas os campos opcionais acima também aceitam `null`.
+// Os obrigatórios (paciente, pasta, empresa, consultor, status), medicamentos, pendências, datas e
+// atualizações NÃO aceitam null.
+export type ProcessoPatchDTO = Omit<Partial<NewProcessoDTO>, CampoProcessoLimpavel> & {
+  [K in CampoProcessoLimpavel]?: NewProcessoDTO[K] | null;
+};
+
+// Payload do formulário de EDIÇÃO (nunca leva `atualizacoes`), já com os campos esvaziados como null.
+export type ProcessoFormPatchPayload = Omit<ProcessoPatchDTO, "atualizacoes">;

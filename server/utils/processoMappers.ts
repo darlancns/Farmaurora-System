@@ -3,9 +3,9 @@ import type {
   ConsultorProcesso,
   EmpresaProcesso,
   Medicamento,
-  NewProcessoDTO,
   Processo,
   ProcessoDatas,
+  ProcessoPatchDTO,
   StatusPagamentoProcesso,
   StatusProcesso,
   TransportadoraNacional,
@@ -80,7 +80,11 @@ export function statusOutroDe(status: StatusProcesso | undefined, statusOutro: s
 // Colunas do follow_up a partir das chaves do DTO PRESENTES em `src`. Só inclui
 // coluna cuja chave do DTO está em `src` (via `in`) — assim o patch é seletivo
 // e o create (que traz todas as chaves relevantes) grava tudo.
-export function colunasDeDTO(src: Partial<NewProcessoDTO>): Record<string, unknown> {
+//
+// Esvaziar um campo opcional = a chave presente com `null` (ou `undefined`) → coluna NULL. Chave
+// AUSENTE nunca toca a coluna. Por isso o cliente manda `null` (ver CAMPOS_PROCESSO_LIMPAVEIS): o JSON
+// descarta `undefined`, e a chave sumiria.
+export function colunasDeDTO(src: ProcessoPatchDTO): Record<string, unknown> {
   const col: Record<string, unknown> = {};
 
   if ("paciente" in src) col.paciente = src.paciente;
@@ -128,7 +132,7 @@ export function colunasDeDTO(src: Partial<NewProcessoDTO>): Record<string, unkno
   }
 
   if ("transportadoraNacional" in src) {
-    const t: TransportadoraNacional | undefined = src.transportadoraNacional;
+    const t: TransportadoraNacional | null | undefined = src.transportadoraNacional;
     col.transportadora_nacional_nome = t?.nome ?? null;
     col.transportadora_nacional_cotacao = t?.cotacao ?? null;
     col.transportadora_nacional_valor = t?.valor ?? null;

@@ -3,11 +3,13 @@ import type {
   EmpresaProcesso,
   Medicamento,
   ProcessoDatas,
+  ProcessoFormPatchPayload,
   ProcessoFormUpdatePayload,
   StatusPagamentoProcesso,
   StatusProcesso,
   TransportadoraNacional,
 } from "#shared/types/processo";
+import { CAMPOS_PROCESSO_LIMPAVEIS } from "#shared/constants/processos";
 import { formatOrdemLabel } from "./processoFormatters";
 
 // Funções puras extraídas de ProcessoFormModal.vue (Round 9) — caracterizadas
@@ -120,6 +122,22 @@ export function buildBasePayload(
     pendencias: pendencias.map((p) => p.trim()).filter((p) => p !== ""),
     statusPagamento: form.statusPagamento || undefined,
   };
+}
+
+// Payload de EDIÇÃO: o `payload` do formulário omite (undefined) os campos opcionais vazios, e o JSON
+// do PATCH descarta `undefined` — a chave sumiria e o servidor nunca limparia a coluna (o valor antigo
+// voltaria ao reabrir). Aqui cada campo opcional do formulário (CAMPOS_PROCESSO_LIMPAVEIS) vazio vira
+// `null` ("limpe a coluna"). Campos preenchidos, `datas`, medicamentos e pendências seguem como estão
+// (já vão sempre no corpo), e nada fora do formulário (atualizações, alertas) é incluído.
+//
+// Valores ocultos (Despachante/Transportadora em "Courier Simples") NÃO são tratados à parte: o form
+// os mantém no estado e o payload os reenvia como carregados — nada é apagado só por estar oculto.
+export function paraPatchDeEdicao(payload: ProcessoFormUpdatePayload): ProcessoFormPatchPayload {
+  const patch: Record<string, unknown> = { ...payload };
+  for (const campo of CAMPOS_PROCESSO_LIMPAVEIS) {
+    if (patch[campo] === undefined) patch[campo] = null;
+  }
+  return patch as ProcessoFormPatchPayload;
 }
 
 export type ValidarProcessoFormResult =

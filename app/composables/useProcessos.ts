@@ -5,7 +5,7 @@ import {
   criarGravadorAtualizacoes,
   type AlteracaoAtualizacoes,
 } from "../utils/gravadorAtualizacoes";
-import type { AtualizacaoProcesso, NewProcessoDTO, Processo } from "#shared/types/processo";
+import type { AtualizacaoProcesso, NewProcessoDTO, Processo, ProcessoPatchDTO } from "#shared/types/processo";
 
 // Módulo é singleton no bundle client — mesmo efeito de um useState, mas não
 // precisa ser serializado no payload SSR. Só é populado a partir de
@@ -66,7 +66,7 @@ export function useProcessos() {
     return created;
   }
 
-  async function patchProcesso(id: string, patch: Partial<NewProcessoDTO>): Promise<Processo> {
+  async function patchProcesso(id: string, patch: ProcessoPatchDTO): Promise<Processo> {
     const updated = await apiFetch<Processo>(
       `/api/processos/${id}`,
       {
