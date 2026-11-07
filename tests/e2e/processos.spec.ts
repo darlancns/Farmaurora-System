@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { assertSupabaseLocal } from "./_guards/supabaseLocal";
 import { lerEnv } from "./_guards/supabaseEnv";
+import { hojeBrasilia } from "../../shared/utils/dataBrasilia";
 
 // Follow-Up de processos — e2e contra o dev server real.
 // Portado de tests/e2e/_aposentados/processos.skip.ts.
@@ -257,15 +258,26 @@ test.describe.serial("Follow-Up de processos", () => {
     await expect(page.locator("#pf-medicamento-quantidade-0")).toHaveValue("6 CAIXAS");
   });
 
-  test("10 · campos de Datas mascaram DD/MM ao digitar só números, sem mexer em texto livre", async ({ page }) => {
+  test("10 · campos de Datas usam o calendário próprio: escolhem DD/MM (ano corrente) e limpam", async ({ page }) => {
     await page.goto("/processos", { waitUntil: "networkidle" });
     await page.locator("#btn-novo-processo").click();
 
-    await page.locator("#pf-data-po").fill("2708");
-    await expect(page.locator("#pf-data-po")).toHaveValue("27/08");
+    const hoje = hojeBrasilia(); // AAAA-MM-DD
+    const ddmm = `${hoje.slice(8, 10)}/${hoje.slice(5, 7)}`;
+    const campo = page.locator("#pf-data-po");
 
-    await page.locator("#pf-radar").fill("ASD");
-    await expect(page.locator("#pf-radar")).toHaveValue("ASD");
+    // Não é digitável: é um botão que mostra o placeholder até escolher.
+    await expect(campo).toHaveJSProperty("tagName", "BUTTON");
+    await expect(campo).toContainText("Escolher data");
+
+    await campo.click();
+    await page.locator(`#pf-data-po-calendario [data-iso="${hoje}"]`).click();
+    await expect(page.locator("#pf-data-po-calendario")).toHaveCount(0); // escolher fecha o painel
+    await expect(campo).toContainText(ddmm); // ano corrente: só DD/MM
+
+    await campo.click();
+    await page.locator('#pf-data-po-calendario [data-acao="limpar"]').click();
+    await expect(campo).toContainText("Escolher data");
   });
 
   test("11 · editar um processo com data em formato complexo não corrompe o valor existente", async ({ page }) => {
@@ -294,14 +306,15 @@ test.describe.serial("Follow-Up de processos", () => {
     const detail = row.locator('[id^="processo-detail-"]');
     await detail.getByRole("button", { name: "Editar processo" }).click();
 
-    await expect(page.locator("#pf-data-embarque")).toHaveValue(dataEmbarqueOriginal);
+    // Texto antigo aparece como está (o campo é um botão com a marca "antigo").
+    await expect(page.locator("#pf-data-embarque")).toContainText(dataEmbarqueOriginal);
 
     await page.locator("#pf-local-entrega").fill("São Paulo - SP");
     await page.locator("#btn-save-processo").click();
     await expect(page.locator("#toast-notice")).toContainText("Processo atualizado");
 
     await detail.getByRole("button", { name: "Editar processo" }).click();
-    await expect(page.locator("#pf-data-embarque")).toHaveValue(dataEmbarqueOriginal);
+    await expect(page.locator("#pf-data-embarque")).toContainText(dataEmbarqueOriginal);
   });
 
   test("12 · campo de nova atualização capitaliza a primeira letra da frase", async ({ page }) => {

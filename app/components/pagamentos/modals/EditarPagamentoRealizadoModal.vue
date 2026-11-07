@@ -2,6 +2,7 @@
 import { ref } from "vue";
 import { dataBrasiliaDe, ehDataFutura, hojeBrasilia } from "#shared/utils/dataBrasilia";
 import { useTitleCaseInput } from "../../../composables/useTitleCaseInput";
+import AppDatePicker from "../../AppDatePicker.vue";
 import AppSelect from "../../AppSelect.vue";
 import BaseModal from "../../BaseModal.vue";
 import type { AppSelectOption } from "../../../types/appSelect";
@@ -32,8 +33,8 @@ const onNomeInput = useTitleCaseInput((value) => {
 });
 
 // Datas em Brasília (não no fuso do navegador): a data pré-preenchida é o dia de Brasília do
-// instante `pagoEm`, e o máximo do input (`max` nativo) é o "hoje" de Brasília — o mesmo critério
-// que o servidor usa para recusar data futura.
+// instante `pagoEm`, e o máximo do calendário (`max`: dias depois de hoje ficam desabilitados) é o "hoje" de
+// Brasília — o mesmo critério que o servidor usa para recusar data futura.
 const maxData = hojeBrasilia();
 const dataStr = ref(dataBrasiliaDe(props.pagoEm));
 
@@ -76,13 +77,7 @@ function submit(): void {
 
         <label class="flex flex-col gap-1 text-[12px] font-semibold text-ink-soft">
           Data do pagamento
-          <input
-            id="epr-data"
-            v-model="dataStr"
-            type="date"
-            :max="maxData"
-            class="rounded-md border border-hairline bg-paper px-2.5 py-2 text-[13.5px] text-ink focus:bg-white focus:outline-2 focus:outline-accent-dark"
-          />
+          <AppDatePicker id="epr-data" v-model="dataStr" formato="iso" :max="maxData" label="Data do pagamento" />
         </label>
 
         <div class="mt-2 flex justify-end gap-2">

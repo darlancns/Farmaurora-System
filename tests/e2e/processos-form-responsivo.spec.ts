@@ -450,8 +450,8 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
             ["pf-medicamento-quantidade-0", "10 cx"],
             ["pf-local-entrega", "Rua das Flores 123, São Paulo"],
             ["pf-numero-processo", "25BR00001234567-8/2026"],
-            ["pf-data-po", "05/08"],
-            ["pf-suposta-estimativa", "Entre 28/08 e 02/09"],
+            // As 9 datas não são mais digitáveis (calendário próprio): não entram aqui. O texto antigo longo
+            // delas é cortado com reticências dentro do botão (truncate), sem estourar o campo.
           ];
           // Com modal "Courier Simples" selecionado acima, a transportadora some: reabre.
           await rolarParaCampo(page, "pf-modal");

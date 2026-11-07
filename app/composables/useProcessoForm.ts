@@ -9,7 +9,7 @@ import type {
   StatusProcesso,
 } from "#shared/types/processo";
 import { EMPRESAS_PROCESSO, FORNECEDORES_PROCESSO } from "#shared/constants/processos";
-import { maskDataDDMM, maskPastaCode, parseOrdemNumero } from "../utils/processoFormatters";
+import { maskPastaCode, parseOrdemNumero } from "../utils/processoFormatters";
 import {
   montarPatchDiferencial,
   precisaDespachanteTransportadora,
@@ -138,7 +138,7 @@ export interface UseProcessoFormReturn {
   onMedicamentoNomeInput: (index: number, event: Event) => void;
   onMedicamentoDosagemInput: (index: number, event: Event) => void;
   onMedicamentoQuantidadeInput: (index: number, event: Event) => void;
-  onDataFieldInput: (field: DataField, event: Event) => void;
+  onDataFieldChange: (field: DataField, value: string) => void;
   validar: () => ValidarProcessoFormResult;
   validarEdicao: () => ValidarEdicaoResult;
 }
@@ -271,9 +271,10 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     item.quantidade = target.value.toUpperCase();
   }
 
-  function onDataFieldInput(field: DataField, event: Event): void {
-    const target = event.target as HTMLInputElement;
-    form[field] = maskDataDDMM(target.value);
+  // As datas vêm do calendário (AppDatePicker): "DD/MM", "DD/MM/AAAA" ou "" (limpar). O campo não é
+  // digitável, então não há máscara; o texto antigo que já existe só muda depois de confirmado no painel.
+  function onDataFieldChange(field: DataField, value: string): void {
+    form[field] = value;
   }
 
   function validar(): ValidarProcessoFormResult {
@@ -305,7 +306,7 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     onMedicamentoNomeInput,
     onMedicamentoDosagemInput,
     onMedicamentoQuantidadeInput,
-    onDataFieldInput,
+    onDataFieldChange,
     validar,
     validarEdicao,
   };

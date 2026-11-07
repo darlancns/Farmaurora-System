@@ -31,20 +31,6 @@ export function formatOrdemLabel(numero: string): string | undefined {
   return trimmed ? `Ordem ${trimmed}` : undefined;
 }
 
-// Máscara progressiva "DD/MM" pros campos da caixinha de Datas. Só entra em
-// ação enquanto o valor inteiro do campo for só dígitos (0 a 4) — ou seja,
-// enquanto o usuário está digitando uma data do zero. No momento em que o
-// valor passa a ter uma "/" (a própria máscara já inseriu, ou o usuário
-// colou/digitou algo com barra) ou qualquer caractere não numérico, para de
-// mexer e devolve o valor como veio — esses campos continuam texto livre
-// (dados reais têm "07/01/2027", "05/09 (China adiantou o processo)", "ASD",
-// "já tem" etc., e não podemos arriscar truncar isso ao editar).
-export function maskDataDDMM(rawValue: string): string {
-  if (!/^\d{0,4}$/.test(rawValue)) return rawValue;
-  if (rawValue.length <= 2) return rawValue;
-  return `${rawValue.slice(0, 2)}/${rawValue.slice(2)}`;
-}
-
 // Capitaliza só a primeira letra da frase, sem tocar no resto do texto —
 // usado no campo de nova atualização do timeline (ProcessoDetail.vue).
 export function capitalizeFirstLetter(value: string): string {

@@ -57,7 +57,7 @@ const {
   onMedicamentoNomeInput,
   onMedicamentoDosagemInput,
   onMedicamentoQuantidadeInput,
-  onDataFieldInput,
+  onDataFieldChange,
   validar,
   validarEdicao,
 } = useProcessoForm(() => props.editingProcesso);
@@ -263,7 +263,7 @@ function handleSubmit(): void {
             @remove="removeMedicamento"
           />
 
-          <ProcessoFormDatas :values="form" @field-input="onDataFieldInput" />
+          <ProcessoFormDatas :values="form" @update:field="onDataFieldChange" />
 
           <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             <div>

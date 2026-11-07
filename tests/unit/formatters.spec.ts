@@ -90,8 +90,7 @@ describe("maskCurrencyDigits", () => {
 });
 
 describe("maskDateDdMm", () => {
-  // Round 1b: esta função (app/utils/formatters.ts) agora usa a MESMA
-  // proteção de app/utils/processoFormatters.ts's maskDataDDMM — só mexe no
+  // Round 1b: esta função (app/utils/formatters.ts) só mexe no
   // valor enquanto ele for puramente numérico (0 a 4 dígitos); qualquer outra
   // coisa (texto livre, ou o próprio "/" que a máscara já inseriu) volta
   // inalterada. O ano de fechamento (DD/MM/AAAA) também deixou de ser fixo —
@@ -115,7 +114,7 @@ describe("maskDateDdMm", () => {
   });
 
   it("FRONTEIRA: mais de 4 dígitos puros (ex: colar '270899') não bate no formato esperado — devolve cru, sem mascarar", () => {
-    // Mesma regra de maskDataDDMM: a proteção exige 0-4 dígitos EXATOS; um
+    // A proteção exige 0-4 dígitos EXATOS; um
     // valor com 5+ dígitos (colado de uma vez, não digitado progressivamente)
     // não é "puramente numérico até 4 dígitos" e passa direto, sem máscara.
     expect(maskDateDdMm("270899")).toBe("270899");
@@ -130,7 +129,7 @@ describe("maskDateDdMm", () => {
   });
 
   it("já tem uma barra (mascarada ou colada) -> não mexe mais, mesmo em formato DD/MM válido", () => {
-    // Consistente com maskDataDDMM: uma vez que o valor tem "/", a função para
+    // Uma vez que o valor tem "/", a função para
     // de agir e devolve como está — é o que permite o usuário digitar livre
     // depois que a barra já apareceu.
     expect(maskDateDdMm("27/08")).toBe("27/08");

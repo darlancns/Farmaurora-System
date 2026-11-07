@@ -9,8 +9,8 @@ export function padTwoDigits(value: number): string {
   return String(value).padStart(2, "0");
 }
 
-// Máscara progressiva "DD/MM/AAAA" pro campo `data` de Paciente. Mesma
-// proteção de app/utils/processoFormatters.ts's maskDataDDMM: só mexe no
+// Máscara progressiva "DD/MM/AAAA" pro campo `data` de Paciente. (A máscara
+// irmã das datas de Processo foi removida: elas agora vêm do calendário.) Só mexe no
 // valor enquanto ele for puramente numérico (0 a 4 dígitos) — ou seja, só
 // enquanto o usuário está digitando a data do zero. Assim que o valor tiver
 // uma "/" (a própria máscara já inseriu) ou qualquer caractere não numérico,

@@ -108,6 +108,24 @@ async function selectOption(page: Page, triggerId: string, optionText: string): 
 }
 
 // Vai pra /pagamentos (o CRM opera só com Farmaurora; não há seletor de empresa).
+// Escolhe uma data (AAAA-MM-DD) no calendário próprio (AppDatePicker): abre o campo, vai ao ano e ao mês pelo
+// título e clica no dia. Os botões do calendário têm data-acao / data-ano / data-mes / data-iso.
+async function escolherDataNoCalendario(page: Page, id: string, iso: string): Promise<void> {
+  const [ano, mes] = iso.split("-").map(Number) as [number, number];
+  await page.locator(`#${id}`).click();
+  const painel = page.locator(`#${id}-calendario`);
+  await painel.locator('[data-acao="ano"]').click();
+  const alvo = painel.locator(`[data-ano="${ano}"]`);
+  for (let i = 0; i < 10 && (await alvo.count()) === 0; i++) {
+    await painel.locator('[data-acao="anos-anteriores"]').click();
+  }
+  await alvo.click();
+  await painel.locator('[data-acao="mes"]').click();
+  await painel.locator(`[data-mes="${mes}"]`).click();
+  await painel.locator(`[data-iso="${iso}"]`).click();
+  await expect(painel).toHaveCount(0); // escolher fecha o painel
+}
+
 async function irPagamentos(page: Page, tab: "banco" | "cotacao" | "despachante" | "transportadora"): Promise<void> {
   await page.goto("/pagamentos", { waitUntil: "networkidle" });
   await page.locator(`#tab-${tab}`).click();
@@ -441,18 +459,17 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     await rowA.locator(`#btn-editar-realizado-${lancA!.id}`).click();
     await expect(page.locator("#editar-pagamento-realizado-overlay")).toContainText("Editar pagamento realizado");
 
-    // Data futura -> bloqueada pelo `max` nativo (hoje de Brasília): input inválido, o envio nem
-    // chega ao submit(), o modal continua aberto e nada é gravado.
+    // Data futura -> o calendário desabilita os dias depois de hoje (Brasília): não dá para escolher, o
+    // modal continua aberto e nada é gravado.
     const amanha = somarDiasISO(hojeBrasilia(), 1);
     await page.locator("#epr-nome").fill(CLIENTE_REAL_A_EDITADO);
-    await expect(page.locator("#epr-data")).toHaveAttribute("max", hojeBrasilia());
-    await page.locator("#epr-data").fill(amanha);
-    expect(
-      await page.locator("#epr-data").evaluate((el) => (el as HTMLInputElement).validity.rangeOverflow),
-      "input de data futura deve ficar inválido (rangeOverflow)",
-    ).toBe(true);
-    await page.locator("#btn-save-editar-pagamento-realizado").click();
+    await page.locator("#epr-data").click();
+    await expect(page.locator(`#epr-data-calendario [data-iso="${hojeBrasilia()}"]`)).toBeEnabled();
+    await expect(page.locator(`#epr-data-calendario [data-iso="${amanha}"]`)).toBeDisabled();
+    await page.keyboard.press("Escape"); // fecha só o calendário (o modal continua aberto)
+    await expect(page.locator("#epr-data-calendario")).toHaveCount(0);
     await expect(page.locator("#editar-pagamento-realizado-overlay")).toBeVisible();
+    await page.locator("#btn-save-editar-pagamento-realizado").click();
     await expect(page.locator("#toast-notice")).not.toContainText("Pagamento atualizado");
     // O SERVIDOR também recusa data futura (não confia só no cliente): 400 e nada muda.
     const recusa = await page.request.patch(`/api/pagamentos/banco/lancamento/${lancA!.id}/realizado`, {
@@ -462,8 +479,8 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     const inalterado = (await bancoPayload(page)).lancamentos.find((l) => l.id === lancA!.id);
     expect(inalterado?.cliente).toBe(CLIENTE_REAL_A);
 
-    // Data passada válida -> salva os dois campos juntos.
-    await page.locator("#epr-data").fill("2020-03-10");
+    // Data passada válida (escolhida no calendário) -> salva os dois campos juntos.
+    await escolherDataNoCalendario(page, "epr-data", "2020-03-10");
     await page.locator("#btn-save-editar-pagamento-realizado").click();
     await expect(page.locator("#toast-notice")).toContainText("Pagamento atualizado");
     await expect(page.locator("#editar-pagamento-realizado-overlay")).toHaveCount(0);
@@ -507,17 +524,15 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     await lista.locator(`#btn-editar-realizado-DESPACHANTE-${grupoId}-0`).click();
     await expect(page.locator("#editar-pagamento-realizado-overlay")).toContainText("Editar pagamento realizado");
 
-    // Data futura -> bloqueada pelo `max` nativo (hoje de Brasília); modal aberto, nada gravado.
+    // Data futura -> o calendário desabilita os dias depois de hoje (Brasília); modal aberto, nada gravado.
     const amanha = somarDiasISO(hojeBrasilia(), 1);
     await selectOption(page, "epr-nome", "Marcelo Lima");
-    await expect(page.locator("#epr-data")).toHaveAttribute("max", hojeBrasilia());
-    await page.locator("#epr-data").fill(amanha);
-    expect(
-      await page.locator("#epr-data").evaluate((el) => (el as HTMLInputElement).validity.rangeOverflow),
-      "input de data futura deve ficar inválido (rangeOverflow)",
-    ).toBe(true);
-    await page.locator("#btn-save-editar-pagamento-realizado").click();
+    await page.locator("#epr-data").click();
+    await expect(page.locator(`#epr-data-calendario [data-iso="${amanha}"]`)).toBeDisabled();
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#epr-data-calendario")).toHaveCount(0);
     await expect(page.locator("#editar-pagamento-realizado-overlay")).toBeVisible();
+    await page.locator("#btn-save-editar-pagamento-realizado").click();
     await expect(page.locator("#toast-notice")).not.toContainText("Pagamento atualizado");
     // O SERVIDOR também recusa data futura: 400 e o grupo continua com o nome antigo.
     const recusa = await page.request.patch(`/api/pagamentos/despachante/${grupoId}/realizado`, {
@@ -526,8 +541,8 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     expect(recusa.status()).toBe(400);
     expect((await despachanteGrupos(page)).find((g) => g.id === grupoId)?.nomeGrupo).toBe("Andreza Faconi");
 
-    // Data passada válida -> salva os dois campos (nomeGrupo + pagoEm) juntos.
-    await page.locator("#epr-data").fill("2020-04-05");
+    // Data passada válida (escolhida no calendário) -> salva os dois campos (nomeGrupo + pagoEm) juntos.
+    await escolherDataNoCalendario(page, "epr-data", "2020-04-05");
     await page.locator("#btn-save-editar-pagamento-realizado").click();
     await expect(page.locator("#toast-notice")).toContainText("Pagamento atualizado");
     await expect(page.locator("#editar-pagamento-realizado-overlay")).toHaveCount(0);
