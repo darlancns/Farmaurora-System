@@ -1,4 +1,5 @@
 import type { NewProcessoDTO, Processo, ProcessoPatchDTO } from "../../shared/types/processo";
+import { NUMERO_REMESSA_PADRAO, normalizarNumeroRemessa } from "../../shared/utils/numeroRemessa";
 import { createSupabaseAdminClient } from "./supabaseServerClient";
 import { erro, randomId } from "./storeKit";
 import { colunasDeDTO, montarProcesso, statusOutroDe, type FollowUpRow } from "./processoMappers";
@@ -59,9 +60,16 @@ export async function createProcesso(input: NewProcessoDTO): Promise<Processo> {
 
   // statusOutro só vale com status "outro" (mesma regra gravada em colunasDeDTO).
   // `codigoRastreio` (campo removido) pode chegar de uma aba antiga: nem grava (colunasDeDTO o ignora) nem volta no retorno.
-  const { statusOutro: _bruto, codigoRastreio: _rastreioLegado, ...resto } = input as NewProcessoDTO & { codigoRastreio?: unknown };
+  // `ordem` (campo antigo, coluna congelada) idem: nunca grava e não volta no retorno.
+  const {
+    statusOutro: _bruto,
+    codigoRastreio: _rastreioLegado,
+    ordem: _ordemLegada,
+    ...resto
+  } = input as NewProcessoDTO & { codigoRastreio?: unknown; ordem?: unknown };
   const statusOutro = statusOutroDe(input.status, input.statusOutro);
-  return { ...resto, ...(statusOutro ? { statusOutro } : {}), id, createdAt: now, updatedAt: now };
+  const numeroRemessa = normalizarNumeroRemessa(input.numeroRemessa) ?? NUMERO_REMESSA_PADRAO;
+  return { ...resto, numeroRemessa, ...(statusOutro ? { statusOutro } : {}), id, createdAt: now, updatedAt: now };
 }
 
 export async function patchProcesso(

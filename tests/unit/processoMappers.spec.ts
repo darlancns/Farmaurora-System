@@ -8,7 +8,7 @@ import { colunasDeDTO, montarProcesso, type FollowUpRow } from "../../server/uti
 function buildFullDTO(): NewProcessoDTO {
   return {
     paciente: "Maria Silva",
-    ordem: "Ordem 2",
+    numeroRemessa: 2,
     pasta: "2026 - 234",
     empresa: "FARMAURORA",
     consultor: "André Vitório",
@@ -41,7 +41,7 @@ describe("colunasDeDTO", () => {
       empresa: "FARMAURORA",
       consultor: "André Vitório",
       status: "em_transito",
-      ordem: "Ordem 2",
+      numero_remessa: 2,
       responsavel_operacional: "Bruno",
       despachante: "Andreza Faconi",
       fornecedor: "Poros - Turquia",
@@ -84,6 +84,28 @@ describe("colunasDeDTO", () => {
     expect(soRastreio).toEqual({});
   });
 
+  it("Nº Remessa: grava numero_remessa como inteiro; só entra quando a chave está presente (patch seletivo)", () => {
+    expect(colunasDeDTO({ numeroRemessa: 5 })).toEqual({ numero_remessa: 5 });
+    expect("numero_remessa" in colunasDeDTO({ paciente: "X" })).toBe(false);
+  });
+
+  it("Nº Remessa nulo, vazio ou 0 vira 1 (a coluna é NOT NULL e nunca recebe null)", () => {
+    for (const vazio of [null, "", 0, "0", "  "]) {
+      const col = colunasDeDTO({ numeroRemessa: vazio } as unknown as Parameters<typeof colunasDeDTO>[0]);
+      expect(col, String(vazio)).toEqual({ numero_remessa: 1 });
+    }
+  });
+
+  it("a coluna antiga `ordem` NUNCA é gravada: nem a chave `ordem` de aba antiga (nem null) gera coluna", () => {
+    const legado = { paciente: "X", ordem: "Ordem 7" } as unknown as Parameters<typeof colunasDeDTO>[0];
+    const col = colunasDeDTO(legado);
+    expect(col).toEqual({ paciente: "X" });
+    expect("ordem" in col).toBe(false);
+
+    expect(colunasDeDTO({ ordem: null } as unknown as Parameters<typeof colunasDeDTO>[0])).toEqual({});
+    expect("ordem" in colunasDeDTO({ ...buildFullDTO(), ordem: "Ordem 2" } as unknown as Parameters<typeof colunasDeDTO>[0])).toBe(false);
+  });
+
   it("campo ausente do DTO (patch parcial) não gera a chave correspondente — patch seletivo", () => {
     const col = colunasDeDTO({ paciente: "Novo Nome" });
 
@@ -109,7 +131,7 @@ describe("montarProcesso", () => {
     return {
       id: "proc_1",
       paciente: "Maria Silva",
-      ordem: "Ordem 2",
+      numero_remessa: 2,
       pasta: "2026 - 234",
       empresa: "FARMAURORA",
       consultor: "André Vitório",
@@ -151,7 +173,7 @@ describe("montarProcesso", () => {
     expect(processo).toEqual({
       id: "proc_1",
       paciente: "Maria Silva",
-      ordem: "Ordem 2",
+      numeroRemessa: 2,
       pasta: "2026 - 234",
       empresa: "FARMAURORA",
       consultor: "André Vitório",
@@ -207,17 +229,42 @@ describe("montarProcesso", () => {
 
   it("campos opcionais com coluna NULL viram chaves ausentes no objeto (não null)", () => {
     const row = buildFullRow();
-    row.ordem = null;
     row.responsavel_operacional = null;
     row.alerta_fornecedor_resolvido = false;
     row.alerta_mandado_resolvido = false;
 
     const processo = montarProcesso(row);
 
-    expect("ordem" in processo).toBe(false);
     expect("responsavelOperacional" in processo).toBe(false);
     expect("alertaFornecedorResolvido" in processo).toBe(false);
     expect("alertaMandadoResolvido" in processo).toBe(false);
+  });
+
+  it("Nº Remessa: lê numero_remessa da linha", () => {
+    const row = buildFullRow();
+    row.numero_remessa = 12;
+    expect(montarProcesso(row).numeroRemessa).toBe(12);
+  });
+
+  it("linha SEM a coluna numero_remessa (ou null) → numeroRemessa 1 (sempre presente)", () => {
+    const semColuna = buildFullRow();
+    delete semColuna.numero_remessa;
+    expect(montarProcesso(semColuna).numeroRemessa).toBe(1);
+
+    const nula = buildFullRow();
+    nula.numero_remessa = null;
+    expect(montarProcesso(nula).numeroRemessa).toBe(1);
+  });
+
+  it("a coluna antiga `ordem` nunca é lida: com ordem preenchida e SEM numero_remessa, vale 1; sem chave `ordem` no objeto", () => {
+    const row = { ...buildFullRow(), ordem: "Ordem 5" } as unknown as FollowUpRow;
+    delete row.numero_remessa;
+
+    const processo = montarProcesso(row) as unknown as Record<string, unknown>;
+
+    expect(processo.numeroRemessa).toBe(1); // não vira 5
+    expect("ordem" in processo).toBe(false);
+    expect(montarProcesso({ ...row, numero_remessa: 3 }).numeroRemessa).toBe(3);
   });
 
   it("medicamentos/pendencias/atualizacoes null viram array vazio (nunca null)", () => {

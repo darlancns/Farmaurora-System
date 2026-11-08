@@ -10,23 +10,10 @@ export function maskPastaCode(rawValue: string): string {
   return `${ano} - ${sequencia}`;
 }
 
-const ORDEM_LABEL_RE = /^Ordem\s*(\d+)$/i;
-
-// Processo.ordem guarda o rótulo completo ("Ordem 2"), mas o form edita só o
-// número via input type="number" (mesmo padrão do campo Remessas de paciente,
-// spinner nativo). Estas duas funções convertem entre as duas representações.
-export function parseOrdemNumero(ordem: string | undefined): string {
-  if (!ordem) return "";
-  const match = ordem.match(ORDEM_LABEL_RE);
-  return match ? match[1]! : "";
-}
-
+// LEGADO: monta o rótulo antigo "Ordem N". O app NÃO usa mais (o campo virou Nº Remessa, em
+// shared/utils/numeroRemessa.ts, e a coluna `ordem` está congelada). Fica só porque o script histórico de carga
+// (scripts/migration/followUpParser.mjs) importa esta função e não pode ser alterado.
 export function formatOrdemLabel(numero: string): string | undefined {
-  // O input é type="number" — o Vue 3.4+ converte o v-model pra number em
-  // runtime mesmo o campo sendo tipado como string aqui (mesmo bug já visto
-  // em PatientForm.vue pra remessas/qtd), então nunca confiamos no tipo
-  // declarado e coagimos explicitamente com String() antes de usar métodos
-  // de string.
   const trimmed = String(numero).trim();
   return trimmed ? `Ordem ${trimmed}` : undefined;
 }

@@ -3,6 +3,7 @@ import { computed, watch } from "vue";
 import type { ConsultorProcesso, Processo } from "#shared/types/processo";
 import { useAberturaPorBusca, type AberturaPorBusca } from "../../composables/useAberturaPorBusca";
 import { agruparProcessosPorConsultor, type ProcessoGroup } from "../../utils/agruparProcessosPorConsultor";
+import type { ContagemPorPasta } from "../../utils/remessaNaLinha";
 import ProcessoRow from "./ProcessoRow.vue";
 
 const props = withDefaults(
@@ -18,8 +19,11 @@ const props = withDefaults(
     // Estado de abertura (grupos e detalhes) controlado pela página — é ele que abre sozinho ao buscar.
     // Sem ele a lista cuida do próprio estado (tudo recolhido no começo), como sempre.
     abertura?: AberturaPorBusca;
+    // Pasta → quantos processos a têm, sobre TODOS os carregados (Andamento + Entregues), nunca só os filtrados pela
+    // busca. Decide se a linha mostra "Remessa N" (ver utils/remessaNaLinha.ts). Sem ele, só vale Nº Remessa > 1.
+    contagemPasta?: ContagemPorPasta;
   }>(),
-  { readonly: false, flat: false, focoId: "", abertura: undefined },
+  { readonly: false, flat: false, focoId: "", abertura: undefined, contagemPasta: () => new Map() },
 );
 
 const emit = defineEmits<{
@@ -76,6 +80,7 @@ const groups = computed<ProcessoGroup[]>(() => agruparProcessosPorConsultor(prop
         :processo="processo"
         :readonly="readonly"
         :destaque="processo.id === focoId"
+        :contagem-pasta="contagemPasta"
         :expandido="controle.detalhes.has(processo.id)"
         @update:expandido="controle.definirDetalhe(processo.id, $event)"
         @edit="emit('edit', $event)"
@@ -120,6 +125,7 @@ const groups = computed<ProcessoGroup[]>(() => agruparProcessosPorConsultor(prop
           :processo="processo"
           :readonly="readonly"
           :destaque="processo.id === focoId"
+          :contagem-pasta="contagemPasta"
           :expandido="controle.detalhes.has(processo.id)"
           @update:expandido="controle.definirDetalhe(processo.id, $event)"
           @edit="emit('edit', $event)"

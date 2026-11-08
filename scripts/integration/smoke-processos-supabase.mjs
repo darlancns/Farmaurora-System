@@ -47,12 +47,14 @@ function colunasDeDTO(src) {
   const S = ["paciente", "pasta", "empresa", "consultor", "status"];
   for (const k of S) if (k in src) col[k] = src[k];
   const M = {
-    ordem: "ordem", numeroPo: "numero_po", responsavelOperacional: "responsavel_operacional", despachante: "despachante",
+    numeroPo: "numero_po", responsavelOperacional: "responsavel_operacional", despachante: "despachante",
     fornecedor: "fornecedor", modalEnvio: "modal_envio", companhiaAerea: "companhia_aerea",
     numeroAwb: "numero_awb", localEntrega: "local_entrega",
     numeroProcesso: "numero_processo", statusPagamento: "status_pagamento",
   };
   for (const [k, c] of Object.entries(M)) if (k in src) col[c] = src[k] ?? null;
+  // Nº Remessa: inteiro >= 1, nunca null (a coluna é NOT NULL). A coluna antiga `ordem` está congelada: nunca é gravada.
+  if ("numeroRemessa" in src) col.numero_remessa = Number.isInteger(src.numeroRemessa) && src.numeroRemessa >= 1 ? src.numeroRemessa : 1;
   if ("alertaFornecedorResolvido" in src) col.alerta_fornecedor_resolvido = src.alertaFornecedorResolvido ?? false;
   if ("medicamentos" in src) col.medicamentos = src.medicamentos ?? [];
   if ("pendencias" in src) col.pendencias = src.pendencias ?? [];
@@ -87,7 +89,8 @@ function montarProcesso(row) {
   };
   for (const [c, k] of Object.entries(D)) if (row[c] != null) datas[k] = row[c];
   const p = {
-    id: row.id, paciente: row.paciente, pasta: row.pasta, empresa: row.empresa, consultor: row.consultor,
+    id: row.id, paciente: row.paciente, numeroRemessa: Number.isInteger(row.numero_remessa) && row.numero_remessa >= 1 ? row.numero_remessa : 1, // linha sem a coluna → 1
+    pasta: row.pasta, empresa: row.empresa, consultor: row.consultor,
     medicamentos: (row.medicamentos ?? []).map((m) => ({ ...m })),
     status: row.status, datas,
     pendencias: row.pendencias ?? [],
@@ -95,7 +98,7 @@ function montarProcesso(row) {
     createdAt: row.created_at, updatedAt: row.updated_at,
   };
   const O = {
-    ordem: "ordem", numero_po: "numeroPo", responsavel_operacional: "responsavelOperacional", despachante: "despachante",
+    numero_po: "numeroPo", responsavel_operacional: "responsavelOperacional", despachante: "despachante",
     fornecedor: "fornecedor", modal_envio: "modalEnvio", companhia_aerea: "companhiaAerea",
     numero_awb: "numeroAwb", local_entrega: "localEntrega",
     numero_processo: "numeroProcesso", status_pagamento: "statusPagamento",
@@ -131,7 +134,7 @@ const idC = `TESTE_${Date.now()}_C`;
 try {
   // ── A: completo (datas parciais, transportadora, 2 med, 2 atu, 1 pend) ───
   const dtoA = {
-    paciente: "TESTE Processo Completo", pasta: "2026 - T01",
+    paciente: "TESTE Processo Completo", pasta: "2026 - T01", numeroRemessa: 3,
     empresa: "FARMAURORA", consultor: "Mateus Morais", status: "em_transito",
     responsavelOperacional: "Bruno", despachante: "Bruno Lopes", fornecedor: "Pharyx",
     modalEnvio: "Courier", localEntrega: "SP",
@@ -157,12 +160,13 @@ try {
   check("A: transportadoraNacional completa", eq(pA.transportadoraNacional, { nome: "AJC", cotacao: "USD/BRL 5,10", valor: 1234.56 }));
   check("A: modalEnvio legado migra literal", pA.modalEnvio === "Courier");
   check("A: fornecedor legado migra literal", pA.fornecedor === "Pharyx");
+  check("A: numeroRemessa 3 gravado e lido", pA.numeroRemessa === 3);
   check("A: sem statusPagamento (chave omitida)", !("statusPagamento" in pA));
   check("A: sem alertaFornecedorResolvido (false → omitido)", !("alertaFornecedorResolvido" in pA));
 
   // ── editar (muda qtd de itens: 3 med, 1 atu, datas trocada) ─────────────
   const patchA = {
-    paciente: "TESTE Processo Completo", pasta: "2026 - T01",
+    paciente: "TESTE Processo Completo", pasta: "2026 - T01", numeroRemessa: 4,
     empresa: "FARMAURORA", consultor: "Mateus Morais", status: "desembaraco",
     responsavelOperacional: "Bruno", despachante: "Bruno Lopes", fornecedor: "Pharyx",
     modalEnvio: "Courier", localEntrega: "SP",
@@ -189,6 +193,7 @@ try {
   };
   check("reabrir A == versão editada (campo a campo)", eq(pA, esperadoA));
   check("patch A: status novo", pA.status === "desembaraco");
+  check("patch A: numeroRemessa 4", pA.numeroRemessa === 4);
   check("patch A: 3 medicamentos", pA.medicamentos.length === 3 && pA.medicamentos[2].nome === "MED C");
   check("patch A: datas substituída (só aberturaThread)", eq(pA.datas, { aberturaThread: "10/08/2026" }));
   check("patch A: pendencias vazia", eq(pA.pendencias, []));
@@ -220,6 +225,7 @@ try {
   check("B: datas volta como {} (não null, não com chaves)", eq(pB.datas, {}) && pB.datas && typeof pB.datas === "object");
   check("B: sem chave transportadoraNacional", !("transportadoraNacional" in pB));
   check("B: sem chave despachante/fornecedor/modalEnvio/ordem", !("despachante" in pB) && !("fornecedor" in pB) && !("modalEnvio" in pB) && !("ordem" in pB));
+  check("B: numeroRemessa vale 1 (default da coluna) e a coluna antiga `ordem` não foi gravada", pB.numeroRemessa === 1 && (await lerRow(idB)).ordem === null);
   check("B: sem statusPagamento", !("statusPagamento" in pB));
   check("B: medicamentos = [{nome:'MED Z'}]", eq(pB.medicamentos, [{ nome: "MED Z" }]));
   check("B: pendencias/atualizacoes = []", eq(pB.pendencias, []) && eq(pB.atualizacoes, []));

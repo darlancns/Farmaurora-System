@@ -6,6 +6,7 @@ import { useAberturaPorBusca, type AberturaPorBusca } from "../../composables/us
 import AppSelect from "../AppSelect.vue";
 import type { AppSelectOption } from "../../types/appSelect";
 import { ordenarPorPrevisaoEntrega } from "../../utils/ordenarPorPrevisao";
+import { remessaVisivelNaLinha, type ContagemPorPasta } from "../../utils/remessaNaLinha";
 import ConfirmDialog from "../ConfirmDialog.vue";
 import ProcessoDetail from "./ProcessoDetail.vue";
 
@@ -18,8 +19,11 @@ const props = withDefaults(
     // Estado de abertura dos detalhes, controlado pela página (abre sozinho ao buscar). Sem ele a lista
     // cuida do próprio estado, como sempre.
     abertura?: AberturaPorBusca;
+    // Pasta → quantos processos a têm (TODOS os carregados, não só os entregues nem os filtrados pela busca);
+    // decide se a linha mostra "Remessa N" (ver utils/remessaNaLinha.ts).
+    contagemPasta?: ContagemPorPasta;
   }>(),
-  { readonly: false, focoId: "", abertura: undefined },
+  { readonly: false, focoId: "", abertura: undefined, contagemPasta: () => new Map() },
 );
 
 const emit = defineEmits<{
@@ -102,6 +106,10 @@ function confirmDelete(): void {
             <span class="block truncate text-[13.5px] font-medium text-ink">{{ processo.paciente }}</span>
             <span class="block truncate text-[11.5px] text-ink-soft">
               {{ processo.empresa }}
+              <template v-if="remessaVisivelNaLinha(processo, contagemPasta)">
+                ·
+                <span :id="`entregue-remessa-${processo.id}`">Remessa {{ processo.numeroRemessa }}</span>
+              </template>
               <template v-if="processo.numeroPo">
                 ·
                 <span :id="`entregue-numero-po-${processo.id}`" class="font-mono" :title="processo.numeroPo">{{ processo.numeroPo }}</span>

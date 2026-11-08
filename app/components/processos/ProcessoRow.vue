@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import type { Processo } from "#shared/types/processo";
 import { STATUS_PROCESSO_META, rotuloStatusProcesso } from "../../utils/processoStatus";
+import { remessaVisivelNaLinha, type ContagemPorPasta } from "../../utils/remessaNaLinha";
 import ConfirmDialog from "../ConfirmDialog.vue";
 import ProcessoDetail from "./ProcessoDetail.vue";
 
@@ -11,8 +12,10 @@ const props = withDefaults(
     readonly?: boolean;
     // Realce temporário (chegou aqui por ?processo=<id>).
     destaque?: boolean;
+    // Pasta → quantos processos a têm (TODOS os carregados); ver utils/remessaNaLinha.ts.
+    contagemPasta?: ContagemPorPasta;
   }>(),
-  { readonly: false, destaque: false },
+  { readonly: false, destaque: false, contagemPasta: () => new Map() },
 );
 
 const emit = defineEmits<{
@@ -32,6 +35,8 @@ const statusMeta = computed(() => STATUS_PROCESSO_META[props.processo.status]);
 // Pro status "Outro" o badge mostra o texto digitado (truncado, com tooltip).
 const statusLabel = computed(() => rotuloStatusProcesso(props.processo));
 const hasPendencias = computed(() => props.processo.pendencias.length > 0);
+// "Remessa N" só quando N > 1 ou a pasta se repete entre TODOS os processos (a contagem vem da página).
+const mostrarRemessa = computed(() => remessaVisivelNaLinha(props.processo, props.contagemPasta));
 const medicamentoResumo = computed(() => {
   const [first, ...rest] = props.processo.medicamentos;
   if (!first) return "—";
@@ -118,7 +123,9 @@ function confirmDelete(): void {
         </div>
 
         <p :id="`mobile-ordem-pasta-${processo.id}`" class="pl-[22px] text-[12px] text-ink-soft">
-          <template v-if="processo.ordem">{{ processo.ordem }} · </template>Pasta
+          <template v-if="mostrarRemessa"
+            ><span :id="`mobile-remessa-${processo.id}`">Remessa {{ processo.numeroRemessa }}</span> · </template
+          >Pasta
           <span class="font-mono">{{ processo.pasta }}</span>
           <template v-if="processo.numeroPo">
             ·
@@ -189,7 +196,12 @@ function confirmDelete(): void {
           <div class="flex flex-col gap-0.5 @[700px]:flex-row @[700px]:items-baseline @[700px]:gap-2">
             <span class="truncate text-[13.5px] font-medium text-ink">{{ processo.paciente }}</span>
             <div class="flex items-center gap-2 @[700px]:contents">
-              <span v-if="processo.ordem" class="shrink-0 text-[11.5px] text-ink-soft">{{ processo.ordem }}</span>
+              <span
+                v-if="mostrarRemessa"
+                :id="`remessa-${processo.id}`"
+                class="shrink-0 text-[11.5px] text-ink-soft"
+                >Remessa {{ processo.numeroRemessa }}</span
+              >
               <span class="shrink-0 text-[11.5px] text-ink-soft/60">·</span>
               <span class="shrink-0 font-mono text-[11.5px] text-ink-soft">{{ processo.pasta }}</span>
               <template v-if="processo.numeroPo">

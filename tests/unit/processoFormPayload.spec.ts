@@ -17,7 +17,7 @@ import { isValidProcessoPatch, isValidProcessoPayload } from "../../server/utils
 function emptyForm(): ProcessoFormState {
   return {
     paciente: "",
-    ordem: "",
+    numeroRemessa: "1",
     pasta: "",
     empresa: "FARMAURORA",
     consultor: "",
@@ -153,7 +153,7 @@ describe("buildBasePayload", () => {
     const form: ProcessoFormState = {
       ...emptyForm(),
       paciente: "  Maria Silva  ",
-      ordem: "2",
+      numeroRemessa: "2",
       pasta: "2026 - 234",
       empresa: "FARMAURORA",
       consultor: "André Vitório",
@@ -175,7 +175,7 @@ describe("buildBasePayload", () => {
 
     expect(payload).toEqual({
       paciente: "Maria Silva",
-      ordem: "Ordem 2",
+      numeroRemessa: 2,
       pasta: "2026 - 234",
       empresa: "FARMAURORA",
       consultor: "André Vitório",
@@ -216,7 +216,7 @@ describe("buildBasePayload", () => {
     };
     const payload = buildBasePayload(form, [medicamento("")], [], "");
 
-    expect(payload.ordem).toBeUndefined();
+    expect(payload.numeroRemessa).toBe(1); // o campo sempre tem valor: novo processo começa em 1
     expect(payload.responsavelOperacional).toBeUndefined();
     expect(payload.despachante).toBeUndefined();
     expect(payload.fornecedor).toBeUndefined();

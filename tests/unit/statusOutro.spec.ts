@@ -7,7 +7,6 @@ import { rotuloStatusProcesso, STATUS_PROCESSO_META } from "../../app/utils/proc
 import { STATUS_FILTER_OPTIONS, STATUS_OPTIONS } from "../../app/utils/processoOptions";
 import { filtrarPorStatus, separarAbas } from "../../app/utils/processoListas";
 import { buildBasePayload, validarProcessoForm, type ProcessoFormState } from "../../app/utils/processoFormPayload";
-import { formatOrdemLabel, parseOrdemNumero } from "../../app/utils/processoFormatters";
 
 function payload(status: string, statusOutro?: unknown): Record<string, unknown> {
   return {
@@ -74,7 +73,7 @@ describe("status 'outro' — mappers", () => {
     return {
       id: "proc_1",
       paciente: "Fulano",
-      ordem: null,
+      numero_remessa: 1,
       pasta: "2026 - 1",
       empresa: "FARMAURORA",
       consultor: "André Vitório",
@@ -199,7 +198,7 @@ describe("status 'outro' — filtro e abas", () => {
 function formBase(over: Partial<ProcessoFormState> = {}): ProcessoFormState {
   return {
     paciente: "Fulano",
-    ordem: "",
+    numeroRemessa: "1",
     pasta: "2026 - 1",
     empresa: "FARMAURORA",
     consultor: "André Vitório",
@@ -245,20 +244,5 @@ describe("status 'outro' — formulário", () => {
   it("status que não é 'outro' nunca manda statusOutro (mesmo com texto sobrando no form)", () => {
     const p = buildBasePayload(formBase({ status: "em_transito", statusOutro: "sobra" }), [], [], "");
     expect(p.statusOutro).toBeUndefined();
-  });
-});
-
-describe("ordem — ida e volta importar → abrir no form → salvar", () => {
-  // O formulário LÊ com parseOrdemNumero (só aceita o rótulo "Ordem N") e GRAVA com
-  // formatOrdemLabel ("Ordem N"). Logo o formato gravado no banco tem que ser o rótulo.
-  it("rótulo 'Ordem 3' sobrevive ao ciclo sem perder o valor", () => {
-    const importado = "Ordem 3"; // formato que o parser de importação grava
-    const noForm = parseOrdemNumero(importado);
-    expect(noForm).toBe("3");
-    expect(formatOrdemLabel(noForm)).toBe(importado);
-  });
-
-  it("gravar só o número PERDERIA o valor ao abrir o form (por isso não se usa)", () => {
-    expect(parseOrdemNumero("3")).toBe("");
   });
 });

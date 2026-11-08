@@ -18,6 +18,7 @@ import type {
   StatusProcesso,
 } from "../../shared/types/processo";
 import { NUMERO_ORDEM_ERRO, normalizarNumeroOrdem, numeroOrdemValido } from "../../shared/utils/numeroOrdem";
+import { NUMERO_REMESSA_ERRO, normalizarNumeroRemessa, numeroRemessaValido } from "../../shared/utils/numeroRemessa";
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -185,6 +186,24 @@ export function erroNumeroPo(body: unknown): string | null {
 export function numeroPoCanonico(valor: unknown): string | null | undefined {
   if (valor === undefined) return undefined;
   return typeof valor === "string" ? normalizarNumeroOrdem(valor) : null;
+}
+
+// ── Nº Remessa ──────────────────────────────────────────────────────────────────────────────────
+// Inteiro >= 1 (até 2147483647). POST: ausente = 1. PATCH: ausente = não mexe. null ou "" = 1 nos dois. A regra
+// vive em shared/utils/numeroRemessa.ts (a mesma do formulário).
+
+// Mensagem de erro do Nº Remessa do corpo (POST ou PATCH), ou null se válido/ausente.
+export function erroNumeroRemessa(body: unknown): string | null {
+  if (!body || typeof body !== "object" || !("numeroRemessa" in body)) return null;
+  const valor = (body as Record<string, unknown>).numeroRemessa;
+  if (valor === undefined) return null;
+  return numeroRemessaValido(valor) ? null : NUMERO_REMESSA_ERRO;
+}
+
+// Valor para gravar: inteiro >= 1 (null/""/0 → 1); chave ausente (ou inválida, já barrada antes) → undefined.
+export function numeroRemessaCanonico(valor: unknown): number | undefined {
+  if (valor === undefined) return undefined;
+  return normalizarNumeroRemessa(valor);
 }
 
 export function isValidProcessoPayload(body: unknown): body is NewProcessoDTO {

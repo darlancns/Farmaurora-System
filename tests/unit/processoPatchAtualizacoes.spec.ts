@@ -34,7 +34,7 @@ function linha(extra: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     id: "proc_1",
     paciente: "Fulano",
-    ordem: null,
+    numero_remessa: 1,
     pasta: "2026 - 1",
     empresa: "FARMAURORA",
     consultor: "Dani",

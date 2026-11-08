@@ -4,9 +4,12 @@ import {
   ciaAereaCanonica,
   erroModalCiaNoPost,
   erroNumeroPo,
+  erroNumeroRemessa,
   isValidProcessoPayload,
   numeroPoCanonico,
+  numeroRemessaCanonico,
 } from "../../utils/processoValidation";
+import { NUMERO_REMESSA_PADRAO } from "../../../shared/utils/numeroRemessa";
 import type { Processo } from "../../../shared/types/processo";
 
 export default defineEventHandler(async (event): Promise<Processo> => {
@@ -31,10 +34,29 @@ export default defineEventHandler(async (event): Promise<Processo> => {
     throw createError({ statusCode: 400, statusMessage: erroPo });
   }
 
-  // Grava o valor canônico da cia (sem espaços nas pontas; vazia = sem cia) e do Nº Ordem (normalizado;
-  // vazio = sem Nº Ordem, a coluna nem entra no insert).
+  // Nº Remessa: inteiro >= 1; ausente, null ou vazio = 1.
+  const erroRemessa = erroNumeroRemessa(body);
+  if (erroRemessa) {
+    throw createError({ statusCode: 400, statusMessage: erroRemessa });
+  }
+
+  // Grava o valor canônico da cia (sem espaços nas pontas; vazia = sem cia), do Nº Ordem (normalizado;
+  // vazio = sem Nº Ordem, a coluna nem entra no insert) e do Nº Remessa (sempre presente). `ordem` (campo
+  // antigo, coluna congelada) pode chegar de uma aba antiga: é descartado sem erro e nunca gravado.
   const cia = ciaAereaCanonica(body.companhiaAerea);
   const po = numeroPoCanonico(body.numeroPo);
-  const { companhiaAerea: _bruta, numeroPo: _poBruto, ...resto } = body;
-  return await createProcesso({ ...resto, ...(cia ? { companhiaAerea: cia } : {}), ...(po ? { numeroPo: po } : {}) });
+  const numeroRemessa = numeroRemessaCanonico(body.numeroRemessa) ?? NUMERO_REMESSA_PADRAO;
+  const {
+    companhiaAerea: _bruta,
+    numeroPo: _poBruto,
+    numeroRemessa: _remessaBruta,
+    ordem: _ordemLegada,
+    ...resto
+  } = body as typeof body & { ordem?: unknown };
+  return await createProcesso({
+    ...resto,
+    numeroRemessa,
+    ...(cia ? { companhiaAerea: cia } : {}),
+    ...(po ? { numeroPo: po } : {}),
+  });
 });

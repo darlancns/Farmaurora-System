@@ -115,7 +115,6 @@ export const LIMITE_ATUALIZACOES_POR_PROCESSO = 200;
 // Fora desta lista ficam o que o formulário não controla ou que é obrigatório: atualizações, alertas
 // resolvidos, medicamentos, pendências, datas (objeto próprio) e paciente/pasta/empresa/consultor/status.
 export const CAMPOS_PROCESSO_LIMPAVEIS: readonly CampoProcessoLimpavel[] = [
-  "ordem",
   "numeroPo",
   "responsavelOperacional",
   "despachante",

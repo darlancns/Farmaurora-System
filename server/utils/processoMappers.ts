@@ -12,6 +12,7 @@ import type {
   TransportadoraNacional,
   TransportadoraNacionalPatch,
 } from "../../shared/types/processo";
+import { NUMERO_REMESSA_PADRAO, normalizarNumeroRemessa } from "../../shared/utils/numeroRemessa";
 import { num } from "./storeKit";
 
 // Mapeadores puros linha (Supabase, tabela `follow_up`) ↔ modelo Processo —
@@ -35,9 +36,10 @@ import { num } from "./storeKit";
 export interface FollowUpRow {
   id: string;
   paciente: string;
-  ordem: string | null;
-  // Opcional na linha: a coluna é aditiva (migração 20261108160000) e linhas de antes dela não a trazem.
+  // A coluna antiga `ordem` (text) está CONGELADA: continua no banco, mas nada daqui a lê ou grava (não consta nesta interface).
+  // Opcionais na linha: as colunas são aditivas (migrações 20261108160000 e 20261108170000) e linhas de antes não as trazem.
   numero_po?: string | null;
+  numero_remessa?: number | null;
   pasta: string;
   empresa: EmpresaProcesso;
   consultor: ConsultorProcesso;
@@ -117,7 +119,8 @@ export function colunasDeDTO(src: ProcessoPatchDTO, opcoes: { parcial?: boolean 
     col.status_outro = statusOutroDe(src.status, src.statusOutro);
   }
 
-  if ("ordem" in src) col.ordem = src.ordem ?? null;
+  // Nº Remessa: sempre um inteiro >= 1 (nulo/vazio/0 viram 1). Nunca grava a coluna antiga `ordem` (congelada).
+  if ("numeroRemessa" in src) col.numero_remessa = normalizarNumeroRemessa(src.numeroRemessa) ?? NUMERO_REMESSA_PADRAO;
   if ("numeroPo" in src) col.numero_po = src.numeroPo ?? null;
   if ("responsavelOperacional" in src) col.responsavel_operacional = src.responsavelOperacional ?? null;
   if ("despachante" in src) col.despachante = src.despachante ?? null;
@@ -186,6 +189,7 @@ export function montarProcesso(row: FollowUpRow): Processo {
   const processo: Processo = {
     id: row.id,
     paciente: row.paciente,
+    numeroRemessa: normalizarNumeroRemessa(row.numero_remessa) ?? NUMERO_REMESSA_PADRAO, // linha sem a coluna → 1
     pasta: row.pasta,
     empresa: row.empresa,
     consultor: row.consultor,
@@ -199,7 +203,6 @@ export function montarProcesso(row: FollowUpRow): Processo {
   };
 
   if (row.status === "outro" && row.status_outro != null) processo.statusOutro = row.status_outro;
-  if (row.ordem != null) processo.ordem = row.ordem;
   if (row.numero_po != null) processo.numeroPo = row.numero_po;
   if (row.responsavel_operacional != null) processo.responsavelOperacional = row.responsavel_operacional;
   if (row.despachante != null) processo.despachante = row.despachante;

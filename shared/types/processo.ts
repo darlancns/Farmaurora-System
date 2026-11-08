@@ -88,9 +88,11 @@ export interface ProcessoDatas {
 export interface Processo {
   id: string;
   paciente: string;
-  ordem?: string; // ex: "Ordem 2"
+  // Nº Remessa (rótulo da tela "Nº Remessa"): inteiro >= 1, SEMPRE presente (processo novo = 1). Substitui o antigo
+  // `ordem` ("Ordem 2"), cuja coluna ficou congelada no banco. Ver shared/utils/numeroRemessa.ts.
+  numeroRemessa: number;
   // Nº Ordem (PO), rótulo da tela "Nº Ordem". "PO-25-2652" ou "PO-25-2652/3" (incompleto, como "PO-25", também vale).
-  // Não confundir com `ordem` (remessa). Ver shared/utils/numeroOrdem.ts.
+  // Não confundir com o Nº Remessa. Ver shared/utils/numeroOrdem.ts.
   numeroPo?: string;
   pasta: string; // ex: "2026 - 234" (renomeado de "codigo")
   empresa: EmpresaProcesso;
@@ -128,7 +130,10 @@ export interface Processo {
   updatedAt: string;
 }
 
-export type NewProcessoDTO = Omit<Processo, "id" | "createdAt" | "updatedAt">;
+// `numeroRemessa` é opcional na criação: ausente = 1 (o servidor preenche).
+export type NewProcessoDTO = Omit<Processo, "id" | "createdAt" | "updatedAt" | "numeroRemessa"> & {
+  numeroRemessa?: number;
+};
 
 // Payload de edição não inclui `atualizacoes` — a timeline é gerenciada à parte,
 // via ProcessoDetail (campo rápido de atualização), pra não sobrescrever entradas
@@ -140,7 +145,6 @@ export type ProcessoFormUpdatePayload = Omit<NewProcessoDTO, "atualizacoes">;
 // O JSON NÃO transporta `undefined` (a chave some), por isso o esvaziamento precisa ir como `null`.
 // A lista em runtime é CAMPOS_PROCESSO_LIMPAVEIS (shared/constants/processos.ts).
 export type CampoProcessoLimpavel =
-  | "ordem"
   | "numeroPo"
   | "responsavelOperacional"
   | "despachante"

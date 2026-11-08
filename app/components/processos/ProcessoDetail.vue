@@ -41,6 +41,10 @@ function fields(processo: Processo): DetailField[] {
     { label: "Cia. aérea", value: processo.companhiaAerea },
     { label: "Nº AWB", value: processo.numeroAwb, mono: true },
     { label: "Nº Ordem", value: processo.numeroPo, mono: true },
+    // Sempre aparece (a linha do processo só o mostra quando N > 1 ou a pasta se repete). Fica DEPOIS do Nº Ordem: com
+    // os 8 campos de largura simples a grade fecha sem buraco em 2 colunas (<sm) e em 4 (lg: 2 linhas cheias); em
+    // 3 colunas (sm..lg) a última linha dos 8 tem 2 campos, antes dos campos de linha inteira.
+    { label: "Nº Remessa", value: String(processo.numeroRemessa), mono: true },
     { label: "Local de entrega", value: processo.localEntrega, wide: true },
     { label: "Nº do processo", value: processo.numeroProcesso, mono: true, wide: true, quebrar: true },
   ];

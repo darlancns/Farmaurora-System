@@ -11,7 +11,7 @@ import type {
 } from "#shared/types/processo";
 import { CAMPOS_PROCESSO_LIMPAVEIS } from "#shared/constants/processos";
 import { normalizarNumeroOrdem } from "#shared/utils/numeroOrdem";
-import { formatOrdemLabel } from "./processoFormatters";
+import { NUMERO_REMESSA_ERRO, NUMERO_REMESSA_PADRAO, normalizarNumeroRemessa } from "#shared/utils/numeroRemessa";
 
 // Funções puras extraídas de ProcessoFormModal.vue (Round 9) — caracterizadas
 // em tests/unit/processoFormPayload.spec.ts. Comportamento preservado
@@ -23,7 +23,7 @@ import { formatOrdemLabel } from "./processoFormatters";
 // reativo do componente já bate estruturalmente com esta interface.
 export interface ProcessoFormState {
   paciente: string;
-  ordem: string;
+  numeroRemessa: string; // só dígitos, sem zeros à esquerda; vazio vale 1 (o campo sempre tem valor ao salvar)
   numeroPo: string; // Nº Ordem (PO), como mascarado no campo: PO-00-0000[/números]; incompleto é permitido
   pasta: string;
   empresa: EmpresaProcesso;
@@ -96,7 +96,8 @@ export function buildBasePayload(
 ): ProcessoFormUpdatePayload {
   return {
     paciente: form.paciente.trim(),
-    ordem: formatOrdemLabel(form.ordem),
+    // Vazio (ou 0) vira 1. Texto inválido não chega aqui: validarProcessoForm barra antes; o `?? 1` é só rede de segurança.
+    numeroRemessa: normalizarNumeroRemessa(form.numeroRemessa) ?? NUMERO_REMESSA_PADRAO,
     numeroPo: normalizarNumeroOrdem(form.numeroPo) ?? undefined,
     pasta: form.pasta.trim(),
     empresa: form.empresa,
@@ -154,7 +155,7 @@ const CAMPOS_ESCALARES = [
   "pasta",
   "empresa",
   "consultor",
-  "ordem",
+  "numeroRemessa",
   "numeroPo",
   "responsavelOperacional",
   "despachante",
@@ -174,11 +175,11 @@ const LIMPAVEIS = new Set<string>(CAMPOS_PROCESSO_LIMPAVEIS);
 // Por quê: (1) o JSON do PATCH descarta `undefined`, então um campo esvaziado precisa ir como `null`
 // para o servidor limpar a coluna; (2) mas mandar TODOS os vazios como null (ou listas/blocos inteiros)
 // faria uma edição aberta há tempo apagar o que outra pessoa preencheu depois; (3) um valor do banco
-// que o formulário não representa (ordem fora do formato "Ordem N", fornecedor/despachante/modal fora
-// das listas) carrega "vazio" ou diferente e seria apagado por qualquer salvamento.
+// que o formulário não representa (fornecedor/despachante/modal fora das listas) carrega "vazio" ou
+// diferente e seria apagado por qualquer salvamento.
 //
 // Compara o payload normalizado do estado inicial com o do estado atual (a MESMA normalização usada
-// para salvar: trim, vazio → undefined, ordem → "Ordem N"). Campo que o usuário não tocou é idêntico
+// para salvar: trim, vazio → undefined, Nº Remessa → inteiro >= 1). Campo que o usuário não tocou é idêntico
 // nos dois e não vai, seja ou não representável. Retorna `null` quando nada mudou.
 //
 // - status + statusOutro viajam juntos (o servidor deriva status_outro do status).
@@ -295,6 +296,10 @@ export function validarProcessoForm(
   }
   if (form.status === "outro" && !form.statusOutro.trim()) {
     return { valido: false, erro: 'Informe qual é o status (opção "Outro").' };
+  }
+  // Nº Remessa: vazio vale 1; o campo só aceita dígitos, então só falha acima de 2147483647.
+  if (normalizarNumeroRemessa(form.numeroRemessa) === undefined) {
+    return { valido: false, erro: NUMERO_REMESSA_ERRO };
   }
   // Só o Despachante é obrigatório nesses modais; a Transportadora nacional é opcional (o bloco
   // continua visível, mas pode ficar em branco — buildTransportadoraNacional devolve undefined).

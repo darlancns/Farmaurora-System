@@ -107,7 +107,6 @@ describe("esvaziar na edição persiste como NULL no banco", () => {
     ["nº do processo", (e) => (e.form.numeroProcesso = ""), "numero_processo"],
     ["despachante", (e) => (e.form.despachante = ""), "despachante"],
     ["responsável", (e) => (e.form.responsavelOperacional = ""), "responsavel_operacional"],
-    ["ordem", (e) => (e.form.ordem = ""), "ordem"],
     ["status de pagamento", (e) => (e.form.statusPagamento = ""), "status_pagamento"],
     // Como no formulário: trocar o modal para vazio limpa a cia junto (cia sem modal seria 400 no servidor).
     ["modal de envio", (e) => Object.assign(e.form, { modalEnvio: "", companhiaAerea: "" }), "modal_envio"],
@@ -117,6 +116,13 @@ describe("esvaziar na edição persiste como NULL no banco", () => {
   it.each(CASOS)("%s", async (_nome, mudar, coluna) => {
     await editar(mudar);
     expect(row()[coluna]).toBeNull();
+  });
+
+  it("Nº Remessa esvaziado NÃO vira NULL (a coluna é NOT NULL): vira 1", async () => {
+    expect(row().numero_remessa).toBe(2);
+    await editar((e) => (e.form.numeroRemessa = ""));
+    expect(row().numero_remessa).toBe(1);
+    expect(CAMPOS_PROCESSO_LIMPAVEIS as readonly string[]).not.toContain("numeroRemessa");
   });
 
   it("uma data esvaziada vira NULL; as outras 8 ficam como estavam", async () => {
@@ -147,7 +153,6 @@ describe("esvaziar na edição persiste como NULL no banco", () => {
       estadoCompleto(),
       editado((e) => {
         Object.assign(e.form, {
-          ordem: "",
           numeroPo: "",
           responsavelOperacional: "",
           despachante: "",

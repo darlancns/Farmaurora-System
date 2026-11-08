@@ -15,6 +15,7 @@ import { useToast } from "../composables/useToast";
 import { getErrorMessage } from "../utils/errorMessages";
 import { filtrarPorBusca } from "../utils/processoBusca";
 import { filtrarPorStatus, separarAbas } from "../utils/processoListas";
+import { contarProcessosPorPasta } from "../utils/remessaNaLinha";
 import {
   DESTAQUE_PROCESSO_MS,
   planejarFocoProcesso,
@@ -78,6 +79,10 @@ const filteredProcessos = computed<Processo[]>(() => {
   // o Nº Ordem também ignora pontuação e maiúsculas ("po-25-0123", "PO250123" e "25-0123" acham "PO-25-0123/XYZ").
   return filtrarPorBusca(list, searchQuery.value);
 });
+
+// "Remessa N" na linha: N > 1 OU pasta repetida. A contagem por pasta usa TODOS os processos carregados (Andamento +
+// Entregues), nunca a lista filtrada pela busca/filtros — ver utils/remessaNaLinha.ts.
+const contagemPasta = computed(() => contarProcessosPorPasta(processos.value));
 
 const andamentoList = computed(() => separarAbas(filteredProcessos.value).andamento);
 const entregueList = computed(() => separarAbas(filteredProcessos.value).entregues);
@@ -351,6 +356,7 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
       :readonly="!canWriteProcessos"
       :flat="flatList"
       :foco-id="focoId"
+      :contagem-pasta="contagemPasta"
       :abertura="aberturaAndamento"
       @edit="openEditForm"
       @delete="handleDelete"
@@ -360,6 +366,7 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
       :processos="entregueList"
       :readonly="!canWriteProcessos"
       :foco-id="focoId"
+      :contagem-pasta="contagemPasta"
       :abertura="aberturaEntregues"
       @edit="openEditForm"
       @delete="handleDelete"

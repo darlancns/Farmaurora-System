@@ -10,7 +10,8 @@ import type {
 } from "#shared/types/processo";
 import { ciaAereaValidaParaModal, EMPRESAS_PROCESSO, FORNECEDORES_PROCESSO } from "#shared/constants/processos";
 import { mascararNumeroOrdem } from "#shared/utils/numeroOrdem";
-import { maskPastaCode, parseOrdemNumero } from "../utils/processoFormatters";
+import { mascararNumeroRemessa, NUMERO_REMESSA_PADRAO } from "#shared/utils/numeroRemessa";
+import { maskPastaCode } from "../utils/processoFormatters";
 import {
   montarPatchDiferencial,
   precisaDespachanteTransportadora,
@@ -31,7 +32,7 @@ import type { AppSelectOption } from "../types/appSelect";
 
 export interface FormState {
   paciente: string;
-  ordem: string; // só o número (ex.: "2") — o rótulo "Ordem 2" é montado no submit
+  numeroRemessa: string; // Nº Remessa: só dígitos (ex.: "2"); novo processo começa em "1"; vazio ao salvar vale 1
   numeroPo: string; // Nº Ordem (PO), já mascarado: PO-00-0000[/números]
   pasta: string;
   empresa: EmpresaProcesso;
@@ -85,7 +86,7 @@ const FORNECEDORES_FIXOS = FORNECEDORES_PROCESSO.filter((f) => f !== "Outro");
 function emptyForm(): FormState {
   return {
     paciente: "",
-    ordem: "",
+    numeroRemessa: String(NUMERO_REMESSA_PADRAO),
     numeroPo: "",
     pasta: "",
     empresa: EMPRESAS_PROCESSO[0] as EmpresaProcesso,
@@ -143,6 +144,7 @@ export interface UseProcessoFormReturn {
   onPacienteInput: (event: Event) => void;
   onPastaInput: (event: Event) => void;
   onNumeroPoInput: (event: Event) => void;
+  onNumeroRemessaInput: (event: Event) => void;
   onMedicamentoNomeInput: (index: number, event: Event) => void;
   onMedicamentoDosagemInput: (index: number, event: Event) => void;
   onMedicamentoQuantidadeInput: (index: number, event: Event) => void;
@@ -200,7 +202,7 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
 
   function loadProcessoIntoForm(processo: Processo): void {
     form.paciente = processo.paciente;
-    form.ordem = parseOrdemNumero(processo.ordem);
+    form.numeroRemessa = String(processo.numeroRemessa ?? NUMERO_REMESSA_PADRAO);
     form.numeroPo = processo.numeroPo ?? "";
     form.pasta = processo.pasta;
     form.empresa = processo.empresa;
@@ -272,6 +274,23 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
   function onPastaInput(event: Event): void {
     const target = event.target as HTMLInputElement;
     form.pasta = maskPastaCode(target.value);
+  }
+
+  // Nº Remessa: só dígitos, sem zeros à esquerda (a máscara é a de shared/utils/numeroRemessa.ts). Roda em todo "input",
+  // inclusive colar; o texto filtrado é escrito de volta no campo (type="text" + inputmode="numeric": sem setas do
+  // type="number" e sem aceitar "e", "+", "-" ou "."), com o cursor no lugar certo.
+  function onNumeroRemessaInput(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    const { valor, cursor } = mascararNumeroRemessa(target.value, target.selectionStart);
+    form.numeroRemessa = valor;
+    if (target.value !== valor) {
+      target.value = valor;
+      try {
+        target.setSelectionRange(cursor, cursor);
+      } catch {
+        // sem seleção (campo fora do DOM): nada a restaurar
+      }
+    }
   }
 
   // Nº Ordem: a máscara cuida do prefixo, dos números, da barra e das MAIÚSCULAS. Incompleto salva normalmente. O input leva
@@ -351,6 +370,7 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     onPacienteInput,
     onPastaInput,
     onNumeroPoInput,
+    onNumeroRemessaInput,
     onMedicamentoNomeInput,
     onMedicamentoDosagemInput,
     onMedicamentoQuantidadeInput,

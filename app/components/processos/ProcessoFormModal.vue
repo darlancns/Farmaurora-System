@@ -59,6 +59,7 @@ const {
   onPacienteInput,
   onPastaInput,
   onNumeroPoInput,
+  onNumeroRemessaInput,
   onMedicamentoNomeInput,
   onMedicamentoDosagemInput,
   onMedicamentoQuantidadeInput,
@@ -133,8 +134,8 @@ function handleSubmit(): void {
         @submit.prevent="handleSubmit"
       >
         <div class="flex flex-col gap-3.5 py-4 lg:contents" :class="MODAL_PAD_X_CLASS">
-          <!-- Paciente/Pasta e Ordem/Empresa/Consultor: dois grids de 3 colunas no
-               desktop; abaixo de lg viram uma grade só pra Pasta e Ordem ficarem
+          <!-- Paciente/Pasta e Nº Remessa/Empresa/Consultor: dois grids de 3 colunas no
+               desktop; abaixo de lg viram uma grade só pra Pasta e Nº Remessa ficarem
                lado a lado (contents nos dois grids internos). -->
           <div class="grid grid-cols-2 gap-x-2.5 gap-y-3.5 sm:grid-cols-3 lg:contents">
             <div class="contents lg:grid lg:grid-cols-3 lg:gap-2.5">
@@ -159,8 +160,21 @@ function handleSubmit(): void {
 
             <div class="contents lg:grid lg:grid-cols-3 lg:gap-2.5">
               <div>
-                <label for="pf-ordem" :class="LABEL_CLASS">Ordem</label>
-                <input id="pf-ordem" data-sem-maiuscula v-model="form.ordem" type="number" min="1" :class="INPUT_MONO_CLASS" />
+                <label for="pf-numero-remessa" :class="LABEL_CLASS">Nº Remessa</label>
+                <!-- Só dígitos (useProcessoForm.onNumeroRemessaInput), sem zeros à esquerda; vazio ao salvar vale 1.
+                     type="text" + inputmode="numeric": sem as setas do type="number" e sem "e", "+", "-" ou ".".
+                     data-sem-maiuscula: o plugin global já ignora inputmode numérico, o atributo é só a garantia. -->
+                <input
+                  id="pf-numero-remessa"
+                  data-sem-maiuscula
+                  :value="form.numeroRemessa"
+                  type="text"
+                  inputmode="numeric"
+                  maxlength="10"
+                  autocomplete="off"
+                  :class="INPUT_MONO_CLASS"
+                  @input="onNumeroRemessaInput"
+                />
               </div>
               <div class="col-span-2 sm:col-span-1" :class="SELECT_CAMPO_CLASS">
                 <label for="pf-empresa" :class="LABEL_CLASS">Empresa</label>

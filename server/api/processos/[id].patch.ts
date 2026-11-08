@@ -4,9 +4,11 @@ import {
   ciaAereaCanonica,
   erroModalCiaNoPatch,
   erroNumeroPo,
+  erroNumeroRemessa,
   isValidProcessoPatch,
   isVersaoValida,
   numeroPoCanonico,
+  numeroRemessaCanonico,
   patchExigeVersao,
   patchTocaModalOuCia,
 } from "../../utils/processoValidation";
@@ -62,6 +64,12 @@ export default defineEventHandler(async (event): Promise<Processo> => {
     }
   }
 
+  // Nº Remessa inválido (não inteiro, negativo, texto, acima de 2147483647) = 400. Ausente não confere; null/"" = 1.
+  const erroRemessa = erroNumeroRemessa(body);
+  if (erroRemessa) {
+    throw createError({ statusCode: 400, statusMessage: erroRemessa });
+  }
+
   if (patchTocaAlertaMandado(body as Record<string, unknown>)) {
     const atual = await linhaArmazenada();
     const user: AuthUser | null = event.context.user;
@@ -86,6 +94,16 @@ export default defineEventHandler(async (event): Promise<Processo> => {
 
   // Grava o Nº Ordem normalizado (maiúsculas, sem "/" final sem dígitos; vazio = null).
   if ("numeroPo" in patch) patch.numeroPo = numeroPoCanonico(patch.numeroPo);
+
+  // Nº Remessa: inteiro >= 1 (null ou "" = 1). Sem a chave, a coluna não é tocada.
+  if ("numeroRemessa" in patch) {
+    const remessa = numeroRemessaCanonico(patch.numeroRemessa);
+    if (remessa === undefined) delete patch.numeroRemessa;
+    else patch.numeroRemessa = remessa;
+  }
+
+  // `ordem` (campo antigo; a coluna está congelada) pode chegar de uma aba antiga: ignorado, sem erro e sem gravar.
+  delete (patch as Record<string, unknown>).ordem;
 
   // Com `atualizacoes`: grava só se o updated_at da linha ainda for a versão que o cliente viu.
   if (patchExigeVersao(body) && versao !== undefined) {
