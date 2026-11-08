@@ -2,9 +2,14 @@
 import type { Medicamento } from "#shared/types/processo";
 import { BOTAO_REMOVER_CLASS, INPUT_COMPACTO_CLASS, LABEL_CLASS } from "../../utils/processoFormClasses";
 
-defineProps<{
-  items: Medicamento[];
-}>();
+withDefaults(
+  defineProps<{
+    items: Medicamento[];
+    // Oculta o rótulo "Medicamentos" de cima (quando o bloco que envolve o componente já tem esse título na legenda).
+    semRotulo?: boolean;
+  }>(),
+  { semRotulo: false },
+);
 
 const emit = defineEmits<{
   "nome-input": [index: number, event: Event];
@@ -17,7 +22,7 @@ const emit = defineEmits<{
 
 <template>
   <div>
-    <p :class="LABEL_CLASS">Medicamentos</p>
+    <p v-if="!semRotulo" :class="LABEL_CLASS">Medicamentos</p>
     <div
       v-for="(item, index) in items"
       :key="index"

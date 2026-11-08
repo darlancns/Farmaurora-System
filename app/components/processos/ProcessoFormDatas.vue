@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { DataField, FormState } from "../../composables/useProcessoForm";
-import { INPUT_DATA_CLASS, LABEL_CLASS } from "../../utils/processoFormClasses";
+import { FIELDSET_CLASS, INPUT_DATA_CLASS, LABEL_CLASS, LEGEND_CLASS } from "../../utils/processoFormClasses";
 import AppDatePicker from "../AppDatePicker.vue";
 
 defineProps<{
@@ -28,8 +28,8 @@ const CAMPOS: ReadonlyArray<{ id: string; campo: DataField; rotulo: string; larg
 </script>
 
 <template>
-  <fieldset class="min-w-0 rounded-md border border-hairline p-3 lg:min-w-min">
-    <legend class="px-1 text-[11px] font-semibold text-ink-soft uppercase">Datas</legend>
+  <fieldset :class="FIELDSET_CLASS">
+    <legend :class="LEGEND_CLASS">Datas</legend>
     <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
       <div v-for="item in CAMPOS" :key="item.id" :class="item.larguraTotal ? 'col-span-2 sm:col-span-1' : ''">
         <label :for="item.id" :class="LABEL_CLASS">{{ item.rotulo }}</label>

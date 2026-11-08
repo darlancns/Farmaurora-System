@@ -98,43 +98,45 @@ const DATAS = [
   "pf-suposta-estimativa",
 ] as const;
 
-// Todos os campos do formulário (ids) — o conjunto exato de hoje, por modo.
+// Todos os campos do formulário (ids) — o conjunto exato de hoje, por modo, na ordem da tela (de cima para baixo).
 const CAMPOS_NOVO = [
   "pf-paciente",
   "pf-pasta",
+  "pf-numero-po",
   "pf-numero-remessa",
   "pf-numero-remessa-menos",
   "pf-numero-remessa-mais",
-  "pf-empresa",
-  "pf-consultor",
-  "pf-status",
-  "pf-responsavel",
-  "pf-status-pagamento",
-  "pf-despachante",
-  "pf-fornecedor",
-  "pf-modal",
-  "pf-transp-nome",
-  "pf-transp-cotacao",
-  "pf-transp-valor",
-  "pf-cia-aerea",
-  "pf-awb",
   "pf-medicamento-nome-0",
   "pf-medicamento-dosagem-0",
   "pf-medicamento-quantidade-0",
-  ...DATAS,
   "pf-local-entrega",
+  "pf-empresa",
+  "pf-responsavel",
+  "pf-consultor",
+  "pf-fornecedor",
   "pf-numero-processo",
+  "pf-status",
+  "pf-status-pagamento",
+  "pf-modal",
+  "pf-cia-aerea",
+  "pf-awb",
+  "pf-despachante",
+  "pf-transp-nome",
+  "pf-transp-cotacao",
+  "pf-transp-valor",
+  ...DATAS,
 ];
+// Editar: 2º medicamento (entra depois do 1º) e os dois condicionais (Qual fornecedor?, Qual status?).
 const CAMPOS_EDITAR = [
-  ...CAMPOS_NOVO.slice(0, 8),
-  "pf-status-outro",
-  ...CAMPOS_NOVO.slice(8, 13),
-  "pf-fornecedor-outro",
-  ...CAMPOS_NOVO.slice(13, 22),
+  ...CAMPOS_NOVO.slice(0, 9),
   "pf-medicamento-nome-1",
   "pf-medicamento-dosagem-1",
   "pf-medicamento-quantidade-1",
-  ...CAMPOS_NOVO.slice(22),
+  ...CAMPOS_NOVO.slice(9, 14),
+  "pf-fornecedor-outro",
+  ...CAMPOS_NOVO.slice(14, 17),
+  "pf-status-outro",
+  ...CAMPOS_NOVO.slice(17),
 ];
 
 let processoId: string | null = null;
@@ -471,7 +473,6 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
 
         test("grades: colunas por faixa, campos longos em largura total, condicionais abaixo do select", async ({ page }) => {
           const tablet = viewport.width >= 640; // sm
-          const larguraTablet = viewport.width >= 768; // md
           const b = async (id: string) => caixaNoCorpo(campo(page, id), id);
           const mesmaLinha = (a: Caixa, c: Caixa, nome: string) =>
             expect(Math.abs(a.y - c.y), `${nome} na mesma linha`).toBeLessThanOrEqual(1);
@@ -482,63 +483,123 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
             expect(Math.abs(a.width - c.width), `${nome} mesma largura`).toBeLessThanOrEqual(1);
           };
 
-          // Largura útil do corpo (o conteúdo é uma coluna de até 720px, centralizada).
+          // Largura útil do corpo (o conteúdo é uma coluna de até 720px, centralizada) e a de dentro de um fieldset
+          // (borda 1+1 e padding 12+12).
+          const util = Math.min(viewport.width, 720) - 2 * (viewport.width >= 720 ? 20 : 16);
+          const interno = util - 2 - 24;
+          const col2 = (util - 10) / 2;
+
+          // Linha 1 (abaixo de lg): Paciente em linha inteira; Pasta | Nº Remessa lado a lado, abaixo dele; Nº Ordem em linha
+          // própria, por último (no DOM ele vem antes do Nº Remessa; max-lg:order-last só inverte o visual).
+          // `remessa` é a caixa do CONTAINER do stepper (− campo +), que ocupa a coluna do grid; o input central é só o miolo.
           const paciente = await b("pf-paciente");
           const pasta = await b("pf-pasta");
-          const util = Math.min(viewport.width, 720) - 2 * (viewport.width >= 720 ? 20 : 16);
-          if (!tablet) {
-            expect(paciente.width, "paciente em largura total da coluna").toBeCloseTo(util, 0);
-          } else {
-            // Tablet: Paciente (2 colunas) + Pasta (1) preenchem a coluna de 720px, sem sobrar nem estourar.
-            expect(direita(pasta) - paciente.x, "Paciente + Pasta = largura da coluna").toBeCloseTo(util, 0);
-          }
-
-          // Pasta + Nº Remessa lado a lado (2 colunas), abaixo do paciente. `ordem` é a caixa do CONTAINER do stepper
-          // (− campo +), que ocupa a coluna do grid; o input central é só o miolo entre os botões.
-          const ordem = await caixaNoCorpo(campo(page, "pf-numero-remessa").locator("xpath=.."), "stepper do Nº Remessa");
-          if (!tablet) {
-            mesmaLinha(pasta, ordem, "Pasta | Nº Remessa");
-            expect(ordem.x).toBeGreaterThanOrEqual(direita(pasta));
-            abaixoDe(pasta, paciente, "Pasta");
-          } else {
-            // Tablet: 3 colunas — Paciente (2) + Pasta na 1ª linha, depois Nº Remessa | Empresa | Consultor.
-            mesmaLinha(paciente, pasta, "Paciente | Pasta");
-            const empresa = await b("pf-empresa");
-            const consultor = await b("pf-consultor");
-            mesmaLinha(ordem, empresa, "Nº Remessa | Empresa");
-            mesmaLinha(empresa, consultor, "Empresa | Consultor");
-          }
+          const ordemPo = await b("pf-numero-po");
+          const remessa = await caixaNoCorpo(campo(page, "pf-numero-remessa").locator("xpath=.."), "stepper do Nº Remessa");
+          expect(paciente.width, "Paciente em largura total da coluna").toBeCloseTo(util, 0);
+          mesmaLinha(pasta, remessa, "Pasta | Nº Remessa");
+          expect(remessa.x).toBeGreaterThanOrEqual(direita(pasta));
+          expect(pasta.width, "Pasta, meia coluna").toBeCloseTo(col2, 0);
+          expect(remessa.width, "Nº Remessa, meia coluna").toBeCloseTo(col2, 0);
+          abaixoDe(pasta, paciente, "Pasta");
+          expect(ordemPo.width, "Nº Ordem em linha inteira").toBeCloseTo(util, 0);
+          abaixoDe(ordemPo, pasta, "Nº Ordem (abaixo de Pasta)");
+          abaixoDe(ordemPo, remessa, "Nº Ordem (abaixo de Nº Remessa)");
 
           // Stepper do Nº Remessa: UM campo com o número à esquerda e as setas ▲/▼ empilhadas à direita, DENTRO da borda.
-          // Em coluna de ~159px (360px de tela): 32px de setas + ~125px para o número. Setas na largura da coluna
+          // Em meia coluna de ~159px (360px de tela): 32px de setas + ~125px para o número. Setas na largura da coluna
           // (>= 31px) e cada uma com metade da altura do campo (~20,5px); sem overflow; o número não fica sob as setas.
           const mais = await b("pf-numero-remessa-mais");
           const menos = await b("pf-numero-remessa-menos");
           const miolo = await b("pf-numero-remessa");
-          expect(miolo.x, "número dentro do campo").toBeGreaterThanOrEqual(ordem.x - 1);
+          expect(miolo.x, "número dentro do campo").toBeGreaterThanOrEqual(remessa.x - 1);
           expect(direita(miolo), "número termina antes das setas").toBeLessThanOrEqual(mais.x + 1);
-          expect(direita(mais), "setas dentro da borda").toBeLessThanOrEqual(direita(ordem) + 1);
-          expect(Math.abs(direita(mais) - direita(ordem)), "setas coladas à direita do campo").toBeLessThanOrEqual(2);
+          expect(direita(mais), "setas dentro da borda").toBeLessThanOrEqual(direita(remessa) + 1);
+          expect(Math.abs(direita(mais) - direita(remessa)), "setas coladas à direita do campo").toBeLessThanOrEqual(2);
           expect(Math.abs(mais.x - menos.x)).toBeLessThanOrEqual(1);
           expect(menos.y, "▼ abaixo de ▲").toBeGreaterThanOrEqual(embaixo(mais) - 1);
           expect(mais.width, "seta com a largura da coluna (>= 31px)").toBeGreaterThanOrEqual(31);
           expect(mais.height, "seta com metade da altura do campo (~20,5px)").toBeGreaterThanOrEqual(19.5);
           expect(menos.height).toBeGreaterThanOrEqual(19.5);
-          expect(ordem.height, "campo de 44px").toBeGreaterThanOrEqual(44);
+          expect(remessa.height, "campo de 44px").toBeGreaterThanOrEqual(44);
           expect(miolo.width, "espaço para vários dígitos").toBeGreaterThanOrEqual(100);
           expect(await campo(page, "pf-numero-remessa").evaluate((el) => el.scrollWidth > el.clientWidth + 1)).toBe(false);
 
-          // Status / Responsável / Pagamento.
-          const status = await b("pf-status");
+          // Medicamentos e local de entrega (fieldset em largura total): Nome em largura total do bloco; Dosagem | Quantidade;
+          // ações na linha de baixo; o Local de entrega fecha o bloco, também em largura total.
+          const fsMed = await caixaNoCorpo(page.locator("#pf-medicamento-nome-0").locator("xpath=ancestor::fieldset"), "fieldset Medicamentos");
+          expect(fsMed.width).toBeCloseTo(util, 0);
+          abaixoDe(fsMed, ordemPo, "Medicamentos e local de entrega");
+          const mNome = await b("pf-medicamento-nome-0");
+          const mDos = await b("pf-medicamento-dosagem-0");
+          const mQtd = await b("pf-medicamento-quantidade-0");
+          expect(mNome.width, "nome do medicamento em largura total do bloco").toBeCloseTo(interno, 0);
+          mesmaLinha(mDos, mQtd, "Dosagem | Quantidade");
+          abaixoDe(mDos, mNome, "Dosagem");
+          const adicionar = page.locator("#processo-form button[title='Adicionar medicamento']");
+          const mAdd = await caixaNoCorpo(adicionar, "adicionar medicamento");
+          abaixoDe(mAdd, modo === "editar" ? await b("pf-medicamento-dosagem-1") : mDos, "Adicionar");
+          expect(mAdd.width, "Adicionar medicamento em largura total do bloco (ou quase, ao lado do ✕)").toBeGreaterThanOrEqual(
+            modo === "editar" ? interno - 44 - 8 - 2 : interno - 2,
+          );
+          const local = await b("pf-local-entrega");
+          expect(local.width, "Local de entrega em largura total do bloco").toBeCloseTo(interno, 0);
+          abaixoDe(local, mAdd, "Local de entrega");
+          expect(embaixo(local), "Local de entrega dentro do bloco").toBeLessThanOrEqual(embaixo(fsMed) + 0.5);
+
+          // Grade 2x2: Empresa | Responsável // Consultor | Fornecedor. Celular (< sm): 1 coluna, cada select em largura total,
+          // empilhados na ordem de leitura. Tablet: 2 colunas iguais.
+          const empresa = await b("pf-empresa");
           const resp = await b("pf-responsavel");
+          const consultor = await b("pf-consultor");
+          const forn = await b("pf-fornecedor");
+          abaixoDe(empresa, fsMed, "Empresa (depois do bloco de medicamentos)");
+          if (!tablet) {
+            for (const [nome, c] of [["Empresa", empresa], ["Responsável", resp], ["Consultor", consultor], ["Fornecedor", forn]] as const) {
+              expect(c.width, `${nome} em largura total`).toBeCloseTo(util, 0);
+            }
+            mesmaColuna(empresa, resp, "Empresa/Responsável");
+            abaixoDe(resp, empresa, "Responsável");
+            abaixoDe(consultor, resp, "Consultor");
+            abaixoDe(forn, consultor, "Fornecedor");
+          } else {
+            mesmaLinha(empresa, resp, "Empresa | Responsável");
+            mesmaLinha(consultor, forn, "Consultor | Fornecedor");
+            expect(resp.x).toBeGreaterThan(direita(empresa));
+            expect(forn.x).toBeGreaterThan(direita(consultor));
+            abaixoDe(consultor, empresa, "Consultor");
+            for (const [nome, c] of [["Empresa", empresa], ["Responsável", resp], ["Consultor", consultor], ["Fornecedor", forn]] as const) {
+              expect(c.width, nome).toBeCloseTo(col2, 0);
+            }
+          }
+          if (modo === "editar") {
+            // "Qual fornecedor?": linha inteira logo abaixo da grade 2x2 (não dentro da célula do Fornecedor).
+            const outro = await b("pf-fornecedor-outro");
+            expect(outro.width, "Qual fornecedor? em largura total").toBeCloseTo(util, 0);
+            abaixoDe(outro, forn, "Qual fornecedor?");
+            expect(outro.x, "sem pular pro lado").toBeLessThanOrEqual(empresa.x + 1);
+            expect(outro.y - embaixo(forn), "Qual fornecedor? logo abaixo da grade").toBeLessThanOrEqual(24);
+          }
+
+          // Nº do processo: linha inteira, logo abaixo (da grade 2x2 e do "Qual fornecedor?", se houver).
+          const numero = await b("pf-numero-processo");
+          expect(numero.width, "Nº do processo em linha inteira").toBeCloseTo(util, 0);
+          abaixoDe(numero, forn, "Nº do processo");
+          if (modo === "editar") abaixoDe(numero, await b("pf-fornecedor-outro"), "Nº do processo (abaixo de Qual fornecedor?)");
+
+          // Status | Pagamento: celular, empilhados em largura total; tablet, 2 colunas iguais.
+          const status = await b("pf-status");
           const pag = await b("pf-status-pagamento");
-          mesmaLinha(resp, pag, "Responsável | Pagamento");
+          abaixoDe(status, numero, "Status");
           if (!tablet) {
             expect(status.width, "Status em largura total").toBeCloseTo(util, 0);
-            abaixoDe(resp, status, "Responsável");
+            expect(pag.width, "Pagamento em largura total").toBeCloseTo(util, 0);
+            abaixoDe(pag, status, "Pagamento");
           } else {
-            mesmaLinha(status, resp, "Status | Responsável (4 colunas, Status ocupa 2)");
-            expect(status.width, "Status ocupa 2 colunas").toBeGreaterThan(resp.width * 1.9);
+            mesmaLinha(status, pag, "Status | Pagamento");
+            expect(pag.x).toBeGreaterThan(direita(status));
+            expect(status.width).toBeCloseTo(col2, 0);
+            expect(pag.width).toBeCloseTo(col2, 0);
           }
           if (modo === "editar") {
             const outro = await b("pf-status-outro");
@@ -547,32 +608,41 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
             expect(outro.y - embaixo(pag), "Qual status? logo abaixo do select").toBeLessThanOrEqual(48);
           }
 
-          // Despachante / Fornecedor / Modal: 1 coluna até md, 3 colunas em md+.
-          const desp = await b("pf-despachante");
-          const forn = await b("pf-fornecedor");
+          // Envio internacional (fieldset): celular, Modal em linha inteira do bloco e Cia. aérea | Nº AWB lado a lado
+          // (2 colunas iguais, sem Rastreio e sem buraco); tablet, os três em 3 colunas iguais.
+          const fsEnvio = await caixaNoCorpo(page.locator("#pf-modal").locator("xpath=ancestor::fieldset"), "fieldset Envio internacional");
+          expect(fsEnvio.width).toBeCloseTo(util, 0);
+          abaixoDe(fsEnvio, status, "Envio internacional");
           const modal = await b("pf-modal");
-          if (!larguraTablet) {
-            mesmaColuna(desp, forn, "Despachante/Fornecedor");
-            mesmaColuna(forn, modal, "Fornecedor/Modal");
-            abaixoDe(forn, desp, "Fornecedor");
-            abaixoDe(modal, forn, "Modal");
-            expect(forn.width).toBeCloseTo(util, 0);
+          const cia = await b("pf-cia-aerea");
+          const awb = await b("pf-awb");
+          mesmaLinha(cia, awb, "Cia | AWB");
+          expect(cia.width, "Cia e AWB com a mesma largura").toBeCloseTo(awb.width, 0);
+          expect(direita(awb), "AWB vai até a borda direita do bloco").toBeCloseTo(fsEnvio.x + 1 + 12 + interno, 0);
+          if (!tablet) {
+            expect(modal.width, "Modal em largura total do bloco").toBeCloseTo(interno, 0);
+            expect(cia.width).toBeCloseTo((interno - 10) / 2, 0);
+            abaixoDe(cia, modal, "Cia. aérea");
           } else {
-            mesmaLinha(desp, forn, "Despachante | Fornecedor");
-            mesmaLinha(forn, modal, "Fornecedor | Modal");
+            mesmaLinha(modal, cia, "Modal | Cia. aérea (3 colunas)");
+            expect(cia.x).toBeGreaterThan(direita(modal));
+            expect(cia.width).toBeCloseTo((interno - 20) / 3, 0);
+            expect(modal.width).toBeCloseTo((interno - 20) / 3, 0);
           }
-          if (modo === "editar") {
-            const outro = await b("pf-fornecedor-outro");
-            expect(outro.width, "Qual fornecedor? em largura total").toBeCloseTo(util, 0);
-            abaixoDe(outro, modal, "Qual fornecedor?");
-            expect(outro.x, "sem pular pro lado").toBeLessThanOrEqual(forn.x + 1);
-          }
+          await expect(page.locator("#pf-rastreio")).toHaveCount(0);
+
+          // Despachante: FORA do bloco, linha inteira logo depois dele.
+          const desp = await b("pf-despachante");
+          expect(desp.width, "Despachante em linha inteira").toBeCloseTo(util, 0);
+          abaixoDe(desp, fsEnvio, "Despachante");
+          expect(await campo(page, "pf-despachante").evaluate((el) => el.closest("fieldset") === null)).toBe(true);
 
           // Transportadora nacional: Nome em largura total do fieldset; Cotação | Valor lado a lado.
           const fieldset = await caixaNoCorpo(page.locator("#pf-transp-nome").locator("xpath=ancestor::fieldset"), "fieldset");
           const nome = await b("pf-transp-nome");
           const cot = await b("pf-transp-cotacao");
           const valor = await b("pf-transp-valor");
+          abaixoDe(fieldset, desp, "Transportadora nacional (abaixo do Despachante)");
           mesmaLinha(cot, valor, "Cotação | Valor");
           for (const [id, c] of [["nome", nome], ["cotação", cot], ["valor", valor]] as const) {
             expect(c.x, `${id} dentro do fieldset (esq.)`).toBeGreaterThanOrEqual(fieldset.x);
@@ -585,31 +655,12 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
             mesmaLinha(nome, cot, "Nome | Cotação (3 colunas)");
           }
 
-          // Cia. aérea | Nº AWB: sempre 2 colunas iguais lado a lado (celular e tablet), sem Rastreio e sem buraco.
-          const cia = await b("pf-cia-aerea");
-          const awb = await b("pf-awb");
-          mesmaLinha(cia, awb, "Cia | AWB");
-          expect(cia.width, "Cia e AWB com a mesma largura").toBeCloseTo(awb.width, 0);
-          expect(direita(awb), "AWB vai até a borda direita útil").toBeCloseTo(cia.x + util, 0);
-          await expect(page.locator("#pf-rastreio")).toHaveCount(0);
-
-          // Medicamento (item 0): Nome em largura total; Dosagem | Quantidade; ações na linha de baixo.
-          const mNome = await b("pf-medicamento-nome-0");
-          const mDos = await b("pf-medicamento-dosagem-0");
-          const mQtd = await b("pf-medicamento-quantidade-0");
-          expect(mNome.width, "nome do medicamento em largura total").toBeCloseTo(util, 0);
-          mesmaLinha(mDos, mQtd, "Dosagem | Quantidade");
-          abaixoDe(mDos, mNome, "Dosagem");
-          const adicionar = page.locator("#processo-form button[title='Adicionar medicamento']");
-          const mAdd = await caixaNoCorpo(adicionar, "adicionar medicamento");
-          abaixoDe(mAdd, modo === "editar" ? await b("pf-medicamento-dosagem-1") : mDos, "Adicionar");
-          expect(mAdd.width, "Adicionar medicamento em largura total (ou quase, ao lado do ✕)").toBeGreaterThanOrEqual(modo === "editar" ? util - 44 - 8 - 2 : util - 2);
-
           // Datas: 2 colunas no celular (3 no tablet); "Suposta estimativa" (texto livre) em largura total no celular.
           const d1 = await b("pf-data-po");
           const d2 = await b("pf-data-embarque");
           const d3 = await b("pf-thread");
           const suposta = await b("pf-suposta-estimativa");
+          abaixoDe(d1, fieldset, "Datas (abaixo da Transportadora)");
           mesmaLinha(d1, d2, "Compra | Embarque");
           if (!tablet) {
             abaixoDe(d3, d1, "Abertura thread (2 colunas)");
@@ -620,15 +671,9 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
             mesmaLinha(d2, d3, "Embarque | Abertura thread (3 colunas)");
           }
 
-          // Local de entrega / Nº do processo: largura total no celular, 2 colunas no tablet.
-          const local = await b("pf-local-entrega");
-          const numero = await b("pf-numero-processo");
-          if (!tablet) {
-            expect(numero.width).toBeCloseTo(util, 0);
-            abaixoDe(numero, local, "Nº do processo");
-          } else {
-            mesmaLinha(local, numero, "Local | Nº do processo");
-          }
+          // Pendências por último, depois das Datas.
+          const pendencias = await caixaNoCorpo(page.locator("#btn-add-pendencia"), "+ Pendência");
+          abaixoDe(pendencias, suposta, "Pendências (depois das Datas)");
         });
 
         test("campo focado nunca fica atrás do rodapé fixo (scroll-padding do corpo)", async ({ page }) => {

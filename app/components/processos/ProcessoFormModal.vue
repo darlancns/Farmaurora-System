@@ -19,10 +19,12 @@ import {
 } from "../../utils/processoOptions";
 import {
   BOTAO_REMOVER_CLASS,
+  FIELDSET_CLASS,
   INPUT_CLASS,
   INPUT_COMPACTO_CLASS,
   INPUT_MONO_CLASS,
   LABEL_CLASS,
+  LEGEND_CLASS,
   MODAL_PAD_X_CLASS,
   SELECT_CAMPO_CLASS,
 } from "../../utils/processoFormClasses";
@@ -162,101 +164,38 @@ function handleSubmit(): void {
         class="flex min-h-0 flex-1 scroll-pb-[calc(5rem+env(safe-area-inset-bottom,0px))] flex-col overflow-y-auto overscroll-contain lg:flex-[0_1_auto] lg:scroll-pb-[auto] lg:gap-3.5 lg:overscroll-auto lg:p-5"
         @submit.prevent="handleSubmit"
       >
+        <!-- Ordem dos blocos (a ordem do DOM é a ordem de tabulação; nenhum tabindex positivo):
+             1) Paciente / Pasta / Nº Ordem / Nº Remessa  2) Medicamentos e local de entrega  3) Empresa / Responsável /
+             Consultor / Fornecedor  4) Nº do processo  5) Status / Pagamento  6) Envio internacional (Modal / Cia. aérea /
+             Nº AWB)  7) Despachante  8) Transportadora nacional  9) Datas  10) Pendências.
+             Cada linha e cada fieldset é filho DIRETO deste contêiner: em lg+ ele vira `contents` e os filhos passam a ser
+             itens do <form> (flex-col com gap-3.5). -->
         <div class="flex flex-col gap-3.5 py-4 lg:contents" :class="MODAL_PAD_X_CLASS">
-          <!-- Paciente/Pasta e Nº Remessa/Empresa/Consultor: dois grids de 3 colunas no
-               desktop; abaixo de lg viram uma grade só pra Pasta e Nº Remessa ficarem
-               lado a lado (contents nos dois grids internos). -->
-          <div class="grid grid-cols-2 gap-x-2.5 gap-y-3.5 sm:grid-cols-3 lg:contents">
-            <div class="contents lg:grid lg:grid-cols-3 lg:gap-2.5">
-              <div class="col-span-2">
-                <label for="pf-paciente" :class="LABEL_CLASS">Paciente</label>
-                <input id="pf-paciente" :value="form.paciente" type="text" :class="INPUT_CLASS" @input="onPacienteInput" />
-              </div>
-              <div>
-                <label for="pf-pasta" :class="LABEL_CLASS">Pasta</label>
-                <input
-                  id="pf-pasta"
-                  data-sem-maiuscula
-                  :value="form.pasta"
-                  type="text"
-                  inputmode="numeric"
-                  placeholder="2026 - 234"
-                  :class="INPUT_MONO_CLASS"
-                  @input="onPastaInput"
-                />
-              </div>
+          <!-- Linha 1. lg+: 4 colunas 3fr 1fr 1.5fr 1fr (Paciente largo; Pasta, Nº Ordem e Nº Remessa estreitos).
+               Abaixo de lg: Paciente em linha inteira, Pasta e Nº Remessa lado a lado e Nº Ordem em linha própria
+               (max-lg:order-last só na tela pequena: no DOM o Nº Ordem vem antes do Nº Remessa, como no desktop).
+               A Pasta usa px-1.5 em lg+ porque a coluna estreita (~99px) não comporta "2026 - 234" com px-2.5. -->
+          <div class="grid grid-cols-2 gap-x-2.5 gap-y-3.5 lg:grid-cols-[3fr_1fr_1.5fr_1fr]">
+            <div class="col-span-2 lg:col-span-1">
+              <label for="pf-paciente" :class="LABEL_CLASS">Paciente</label>
+              <input id="pf-paciente" :value="form.paciente" type="text" :class="INPUT_CLASS" @input="onPacienteInput" />
             </div>
-
-            <div class="contents lg:grid lg:grid-cols-3 lg:gap-2.5">
-              <div>
-                <label for="pf-numero-remessa" :class="LABEL_CLASS">Nº Remessa</label>
-                <!-- Input de quantidade (−, campo, +): ver ProcessoRemessaStepper.vue. Mínimo 1; vazio/0 vira 1. -->
-                <ProcessoRemessaStepper id="pf-numero-remessa" v-model="form.numeroRemessa" rotulo="Nº Remessa" />
-              </div>
-              <div class="col-span-2 sm:col-span-1" :class="SELECT_CAMPO_CLASS">
-                <label for="pf-empresa" :class="LABEL_CLASS">Empresa</label>
-                <AppSelect id="pf-empresa" v-model="form.empresa" :options="EMPRESA_OPTIONS" />
-              </div>
-              <div class="col-span-2 sm:col-span-1" :class="SELECT_CAMPO_CLASS">
-                <label for="pf-consultor" :class="LABEL_CLASS">Consultor</label>
-                <AppSelect id="pf-consultor" v-model="form.consultor" :options="CONSULTOR_OPTIONS" />
-              </div>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-3">
-            <div class="col-span-2 lg:col-span-1" :class="SELECT_CAMPO_CLASS">
-              <label for="pf-status" :class="LABEL_CLASS">Status</label>
-              <AppSelect id="pf-status" v-model="form.status" :options="STATUS_OPTIONS" />
-            </div>
-            <div :class="SELECT_CAMPO_CLASS">
-              <label for="pf-responsavel" :class="LABEL_CLASS">Responsável</label>
-              <AppSelect id="pf-responsavel" v-model="form.responsavelOperacional" :options="RESPONSAVEL_OPTIONS" />
-            </div>
-            <div :class="SELECT_CAMPO_CLASS">
-              <label for="pf-status-pagamento" :class="LABEL_CLASS">Pagamento</label>
-              <AppSelect id="pf-status-pagamento" v-model="form.statusPagamento" :options="STATUS_PAGAMENTO_OPTIONS" />
-            </div>
-          </div>
-
-          <div v-if="form.status === 'outro'">
-            <label for="pf-status-outro" :class="LABEL_CLASS">Qual status?</label>
-            <input id="pf-status-outro" v-model="form.statusOutro" type="text" :class="INPUT_CLASS" />
-          </div>
-
-          <div
-            class="grid grid-cols-1 gap-2.5"
-            :class="showDespachanteTransportadora ? 'md:grid-cols-3' : 'sm:grid-cols-2'"
-          >
-            <div v-if="showDespachanteTransportadora" :class="SELECT_CAMPO_CLASS">
-              <label for="pf-despachante" :class="LABEL_CLASS">Despachante</label>
-              <AppSelect id="pf-despachante" v-model="form.despachante" :options="DESPACHANTE_OPTIONS" />
-            </div>
-            <div :class="SELECT_CAMPO_CLASS">
-              <label for="pf-fornecedor" :class="LABEL_CLASS">Fornecedor</label>
-              <AppSelect id="pf-fornecedor" v-model="fornecedor.state.select" :options="FORNECEDOR_OPTIONS" />
-            </div>
-            <div :class="SELECT_CAMPO_CLASS">
-              <label for="pf-modal" :class="LABEL_CLASS">Modal</label>
-              <AppSelect
-                id="pf-modal"
-                :model-value="form.modalEnvio"
-                :options="MODAL_ENVIO_OPTIONS"
-                @update:model-value="onModalEnvioChange"
+            <div>
+              <label for="pf-pasta" :class="LABEL_CLASS">Pasta</label>
+              <input
+                id="pf-pasta"
+                data-sem-maiuscula
+                :value="form.pasta"
+                type="text"
+                inputmode="numeric"
+                placeholder="2026 - 234"
+                :class="[INPUT_MONO_CLASS, 'lg:px-1.5']"
+                @input="onPastaInput"
               />
             </div>
-          </div>
-
-          <div v-if="fornecedor.state.select === 'Outro'">
-            <label for="pf-fornecedor-outro" :class="LABEL_CLASS">Qual fornecedor?</label>
-            <input id="pf-fornecedor-outro" v-model="fornecedor.state.outroTexto" type="text" :class="INPUT_CLASS" />
-          </div>
-
-          <!-- Nº Ordem (PO): máscara PO-00-0000[/números] (useProcessoForm.onNumeroPoInput); incompleto salva.
-               data-sem-maiuscula: a máscara já cuida das maiúsculas; o plugin global não deve disputar o valor.
-               Mesma grade de 3 colunas da linha Despachante/Fornecedor/Modal (1 coluna no desktop). -->
-          <div class="grid grid-cols-1 gap-2.5 md:grid-cols-3">
-            <div>
+            <!-- Nº Ordem (PO): máscara PO-00-0000[/números] (useProcessoForm.onNumeroPoInput); incompleto salva.
+                 data-sem-maiuscula: a máscara já cuida das maiúsculas; o plugin global não deve disputar o valor. -->
+            <div class="col-span-2 max-lg:order-last lg:col-span-1">
               <label for="pf-numero-po" :class="LABEL_CLASS">Nº Ordem</label>
               <input
                 id="pf-numero-po"
@@ -271,13 +210,125 @@ function handleSubmit(): void {
                 @input="onNumeroPoInput"
               />
             </div>
+            <div>
+              <label for="pf-numero-remessa" :class="LABEL_CLASS">Nº Remessa</label>
+              <!-- Input de quantidade (−, campo, +): ver ProcessoRemessaStepper.vue. Mínimo 1; vazio/0 vira 1. -->
+              <ProcessoRemessaStepper id="pf-numero-remessa" v-model="form.numeroRemessa" rotulo="Nº Remessa" />
+            </div>
           </div>
 
-          <fieldset
-            v-if="showDespachanteTransportadora"
-            class="min-w-0 rounded-md border border-hairline p-3 lg:min-w-min"
-          >
-            <legend class="px-1 text-[11px] font-semibold text-ink-soft uppercase">Transportadora nacional</legend>
+          <!-- Medicamentos + local de entrega. O título "Medicamentos" vem da legenda (semRotulo esconde o do componente). -->
+          <fieldset :class="FIELDSET_CLASS">
+            <legend :class="LEGEND_CLASS">Medicamentos e local de entrega</legend>
+            <div class="flex flex-col gap-3.5">
+              <ProcessoFormMedicamentos
+                :items="medicamentos"
+                sem-rotulo
+                @nome-input="onMedicamentoNomeInput"
+                @dosagem-input="onMedicamentoDosagemInput"
+                @quantidade-input="onMedicamentoQuantidadeInput"
+                @add="addMedicamento"
+                @remove="removeMedicamento"
+              />
+              <div>
+                <label for="pf-local-entrega" :class="LABEL_CLASS">Local de entrega</label>
+                <input id="pf-local-entrega" v-model="form.localEntrega" type="text" :class="INPUT_CLASS" />
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- Grade 2x2 em ordem de leitura: Empresa / Responsável (operacional) // Consultor / Fornecedor. 1 coluna no
+               celular (os nomes longos dos selects não cabem em ~159px). -->
+          <div class="grid grid-cols-1 gap-x-2.5 gap-y-3.5 sm:grid-cols-2">
+            <div :class="SELECT_CAMPO_CLASS">
+              <label for="pf-empresa" :class="LABEL_CLASS">Empresa</label>
+              <AppSelect id="pf-empresa" v-model="form.empresa" :options="EMPRESA_OPTIONS" />
+            </div>
+            <div :class="SELECT_CAMPO_CLASS">
+              <label for="pf-responsavel" :class="LABEL_CLASS">Responsável</label>
+              <AppSelect id="pf-responsavel" v-model="form.responsavelOperacional" :options="RESPONSAVEL_OPTIONS" />
+            </div>
+            <div :class="SELECT_CAMPO_CLASS">
+              <label for="pf-consultor" :class="LABEL_CLASS">Consultor</label>
+              <AppSelect id="pf-consultor" v-model="form.consultor" :options="CONSULTOR_OPTIONS" />
+            </div>
+            <div :class="SELECT_CAMPO_CLASS">
+              <label for="pf-fornecedor" :class="LABEL_CLASS">Fornecedor</label>
+              <AppSelect id="pf-fornecedor" v-model="fornecedor.state.select" :options="FORNECEDOR_OPTIONS" />
+            </div>
+          </div>
+
+          <!-- "Qual fornecedor?" em linha inteira logo abaixo da grade (e não dentro da célula do Fornecedor: aquela célula
+               ficaria mais alta que a do Consultor e sobraria um buraco debaixo dela). Nenhuma célula da grade se move. -->
+          <div v-if="fornecedor.state.select === 'Outro'">
+            <label for="pf-fornecedor-outro" :class="LABEL_CLASS">Qual fornecedor?</label>
+            <input id="pf-fornecedor-outro" v-model="fornecedor.state.outroTexto" type="text" :class="INPUT_CLASS" />
+          </div>
+
+          <!-- Nº do processo: 1 coluna de 3 em lg+, linha inteira abaixo disso. -->
+          <div class="grid grid-cols-1 gap-2.5 lg:grid-cols-3">
+            <div>
+              <label for="pf-numero-processo" :class="LABEL_CLASS">Nº do processo</label>
+              <input id="pf-numero-processo" data-sem-maiuscula v-model="form.numeroProcesso" type="text" :class="INPUT_MONO_CLASS" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            <div :class="SELECT_CAMPO_CLASS">
+              <label for="pf-status" :class="LABEL_CLASS">Status</label>
+              <AppSelect id="pf-status" v-model="form.status" :options="STATUS_OPTIONS" />
+            </div>
+            <div :class="SELECT_CAMPO_CLASS">
+              <label for="pf-status-pagamento" :class="LABEL_CLASS">Pagamento</label>
+              <AppSelect id="pf-status-pagamento" v-model="form.statusPagamento" :options="STATUS_PAGAMENTO_OPTIONS" />
+            </div>
+          </div>
+
+          <div v-if="form.status === 'outro'">
+            <label for="pf-status-outro" :class="LABEL_CLASS">Qual status?</label>
+            <input id="pf-status-outro" v-model="form.statusOutro" type="text" :class="INPUT_CLASS" />
+          </div>
+
+          <!-- Envio internacional: Modal / Cia. aérea / Nº AWB. A Cia. depende do Modal (opções e desabilitada sem Modal). -->
+          <fieldset :class="FIELDSET_CLASS">
+            <legend :class="LEGEND_CLASS">Envio internacional</legend>
+            <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+              <div class="col-span-2 sm:col-span-1" :class="SELECT_CAMPO_CLASS">
+                <label for="pf-modal" :class="LABEL_CLASS">Modal</label>
+                <AppSelect
+                  id="pf-modal"
+                  :model-value="form.modalEnvio"
+                  :options="MODAL_ENVIO_OPTIONS"
+                  @update:model-value="onModalEnvioChange"
+                />
+              </div>
+              <div :class="SELECT_CAMPO_CLASS">
+                <label for="pf-cia-aerea" :class="LABEL_CLASS">Cia. aérea</label>
+                <AppSelect
+                  id="pf-cia-aerea"
+                  :model-value="form.companhiaAerea"
+                  :options="ciaAereaOptions"
+                  :disabled="ciaAereaDesabilitada"
+                  @update:model-value="onCiaAereaChange"
+                />
+              </div>
+              <div>
+                <label for="pf-awb" :class="LABEL_CLASS">Nº AWB</label>
+                <input id="pf-awb" data-sem-maiuscula v-model="form.numeroAwb" type="text" :class="INPUT_MONO_CLASS" />
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- Despachante: fora do bloco, logo depois dele; 1 coluna de 3 em lg+. Mesma condição de sempre (some no Courier Simples). -->
+          <div v-if="showDespachanteTransportadora" class="grid grid-cols-1 gap-2.5 lg:grid-cols-3">
+            <div :class="SELECT_CAMPO_CLASS">
+              <label for="pf-despachante" :class="LABEL_CLASS">Despachante</label>
+              <AppSelect id="pf-despachante" v-model="form.despachante" :options="DESPACHANTE_OPTIONS" />
+            </div>
+          </div>
+
+          <fieldset v-if="showDespachanteTransportadora" :class="FIELDSET_CLASS">
+            <legend :class="LEGEND_CLASS">Transportadora nacional</legend>
             <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
               <div class="col-span-2 sm:col-span-1">
                 <label for="pf-transp-nome" :class="LABEL_CLASS">Nome</label>
@@ -301,44 +352,7 @@ function handleSubmit(): void {
             </div>
           </fieldset>
 
-          <div class="grid grid-cols-2 gap-2.5">
-            <div :class="SELECT_CAMPO_CLASS">
-              <label for="pf-cia-aerea" :class="LABEL_CLASS">Cia. aérea</label>
-              <AppSelect
-                id="pf-cia-aerea"
-                :model-value="form.companhiaAerea"
-                :options="ciaAereaOptions"
-                :disabled="ciaAereaDesabilitada"
-                @update:model-value="onCiaAereaChange"
-              />
-            </div>
-            <div>
-              <label for="pf-awb" :class="LABEL_CLASS">Nº AWB</label>
-              <input id="pf-awb" data-sem-maiuscula v-model="form.numeroAwb" type="text" :class="INPUT_MONO_CLASS" />
-            </div>
-          </div>
-
-          <ProcessoFormMedicamentos
-            :items="medicamentos"
-            @nome-input="onMedicamentoNomeInput"
-            @dosagem-input="onMedicamentoDosagemInput"
-            @quantidade-input="onMedicamentoQuantidadeInput"
-            @add="addMedicamento"
-            @remove="removeMedicamento"
-          />
-
           <ProcessoFormDatas :values="form" @update:field="onDataFieldChange" />
-
-          <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-            <div>
-              <label for="pf-local-entrega" :class="LABEL_CLASS">Local de entrega</label>
-              <input id="pf-local-entrega" v-model="form.localEntrega" type="text" :class="INPUT_CLASS" />
-            </div>
-            <div>
-              <label for="pf-numero-processo" :class="LABEL_CLASS">Nº do processo</label>
-              <input id="pf-numero-processo" data-sem-maiuscula v-model="form.numeroProcesso" type="text" :class="INPUT_MONO_CLASS" />
-            </div>
-          </div>
 
           <div>
             <p :class="LABEL_CLASS">Pendências</p>

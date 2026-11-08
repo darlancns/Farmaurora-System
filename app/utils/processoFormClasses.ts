@@ -53,6 +53,12 @@ export const SELECT_CAMPO_CLASS = [
 export const BOTAO_REMOVER_CLASS =
   "flex min-h-11 min-w-11 items-center justify-center rounded-md px-4 py-2.5 text-ink-soft transition-colors hover:text-danger md:px-1.5 md:py-2 lg:block lg:min-h-auto lg:min-w-auto";
 
+// Blocos com moldura do formulário (Medicamentos e local de entrega, Envio internacional, Transportadora nacional e
+// Datas): o <fieldset> e a <legend>. A caixa alta da legenda vem do CSS (uppercase); no código ela fica em texto normal.
+// min-w-0 impede o fieldset de estourar a largura em 360px (o min-width padrão de um fieldset é o conteúdo).
+export const FIELDSET_CLASS = "min-w-0 rounded-md border border-hairline p-3 lg:min-w-min";
+export const LEGEND_CLASS = "px-1 text-[11px] font-semibold text-ink-soft uppercase";
+
 // Margem lateral do casco em tela cheia: 16px no celular e, no tablet, o
 // conteúdo fica numa coluna de no máximo 720px (a mesma largura do modal no
 // desktop) centralizada — senão os campos esticariam por 1000px.
