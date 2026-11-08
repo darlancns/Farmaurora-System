@@ -56,10 +56,17 @@ export function isVersaoValida(value: unknown): value is string {
   return isNonEmptyString(value);
 }
 
-// O PATCH traz `atualizacoes` → exige `versao` (conferência de versão). Sem `atualizacoes` a versão
-// não é exigida (pagamento, alertas, formulário seguem como estavam).
+// Mensagem do 400 quando o PATCH com listas chega sem `versao` (cliente antigo, sem a conferência).
+export const MENSAGEM_VERSAO_AUSENTE = "Atualize a página (Ctrl+Shift+R) e tente de novo.";
+
+// O PATCH traz uma das LISTAS (`atualizacoes`, `pendencias` ou `medicamentos`) → exige `versao`
+// (conferência de versão). Cada lista é gravada INTEIRA (substitui a da linha), então duas pessoas editando
+// a mesma lista ao mesmo tempo perderiam o que a outra fez. Sem nenhuma das três a versão não é exigida
+// (pagamento, alertas, campos simples do formulário seguem como estavam).
 export function patchExigeVersao(body: unknown): boolean {
-  return !!body && typeof body === "object" && (body as Record<string, unknown>).atualizacoes !== undefined;
+  if (!body || typeof body !== "object") return false;
+  const b = body as Record<string, unknown>;
+  return b.atualizacoes !== undefined || b.pendencias !== undefined || b.medicamentos !== undefined;
 }
 
 function isValidDatas(value: unknown): boolean {
@@ -246,7 +253,7 @@ export function isValidProcessoPatch(body: unknown): body is ProcessoPatchDTO {
     return false;
   }
   if (b.atualizacoes !== undefined && !isValidAtualizacoes(b.atualizacoes)) return false;
-  if (b.atualizacoes !== undefined && !isVersaoValida(b.versao)) return false;
+  if (patchExigeVersao(b) && !isVersaoValida(b.versao)) return false;
   if (b.versao !== undefined && !isVersaoValida(b.versao)) return false;
   if (b.parcial !== undefined && typeof b.parcial !== "boolean") return false;
   const parcial = b.parcial === true;

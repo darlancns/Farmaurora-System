@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { NewProcessoDTO, Processo, ProcessoFormPatchPayload } from "#shared/types/processo";
+import { MENSAGEM_CONFLITO_EDICAO } from "../../composables/useConflitoEdicaoProcesso";
 import { useProcessoForm } from "../../composables/useProcessoForm";
 import AppSelect from "../AppSelect.vue";
 import BaseModal from "../BaseModal.vue";
@@ -28,11 +29,16 @@ import {
 
 const props = defineProps<{
   editingProcesso?: Processo | null;
+  // Outra pessoa gravou o processo enquanto o formulário estava aberto (409): mostra o aviso e o botão de recarregar.
+  conflito?: boolean;
+  recarregando?: boolean;
 }>();
 
 const emit = defineEmits<{
   submit: [payload: NewProcessoDTO];
   update: [id: string, payload: ProcessoFormPatchPayload];
+  // "Recarregar dados atuais": descarta o que está sendo editado e abre a versão atual do servidor.
+  recarregar: [];
   close: [];
   invalid: [message: string];
   // Edição sem nenhuma alteração: nada é enviado ao servidor.
@@ -125,6 +131,29 @@ function handleSubmit(): void {
           @click="emit('close')"
         >
           ✕
+        </button>
+      </div>
+
+      <!-- Conflito de versão (409): fica FORA do corpo que rola, sempre visível. O formulário abaixo segue
+           intacto (o texto digitado não se perde). Não há "salvar mesmo assim". -->
+      <div
+        v-if="conflito && editingProcesso"
+        id="processo-conflito-aviso"
+        role="alert"
+        class="flex shrink-0 flex-col gap-2 border-b border-hairline bg-paper py-3 lg:px-5"
+        :class="MODAL_PAD_X_CLASS"
+      >
+        <p id="processo-conflito-texto" class="text-[13.5px] leading-snug text-danger">
+          {{ MENSAGEM_CONFLITO_EDICAO }}
+        </p>
+        <button
+          id="btn-recarregar-processo"
+          type="button"
+          :disabled="recarregando"
+          class="min-h-11 w-full rounded-md border border-hairline bg-paper-raised px-3 py-2 text-[14px] font-semibold text-accent-dark transition-colors hover:bg-white disabled:opacity-60 lg:min-h-auto lg:w-auto lg:self-start lg:text-[13px]"
+          @click="emit('recarregar')"
+        >
+          {{ recarregando ? "Recarregando..." : "Recarregar dados atuais" }}
         </button>
       </div>
 

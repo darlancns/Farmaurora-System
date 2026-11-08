@@ -302,7 +302,9 @@ describe("validarProcessoForm", () => {
     expect(resultado.valido).toBe(true);
     if (!resultado.valido) return;
     expect(isValidProcessoPayload({ ...resultado.payload, atualizacoes: [] })).toBe(true);
-    expect(isValidProcessoPatch(resultado.payload)).toBe(true);
+    // O payload completo traz as listas (pendências/medicamentos): o servidor as aceita COM a versão e as recusa sem ela.
+    expect(isValidProcessoPatch({ ...resultado.payload, versao: "2026-11-05T10:00:00.123456+00:00" })).toBe(true);
+    expect(isValidProcessoPatch(resultado.payload)).toBe(false);
   });
 
   it("Air Cargo sem despachante e sem transportadora: o erro é o do despachante", () => {

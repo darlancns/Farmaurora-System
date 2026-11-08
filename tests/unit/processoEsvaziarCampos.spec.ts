@@ -50,7 +50,7 @@ async function salvar(corpo: unknown) {
 
 // O que o formulário faz ao salvar uma edição: patch diferencial do estado inicial para o editado.
 async function editar(mudar: (e: EstadoEdicao) => void) {
-  const patch = montarPatchDiferencial(estadoCompleto(), editado(mudar));
+  const patch = montarPatchDiferencial(estadoCompleto(), editado(mudar), VERSAO); // versão de abertura, como o formulário
   if (!patch) throw new Error("esperava alguma alteração");
   return salvar(patch);
 }
@@ -70,7 +70,7 @@ describe("causa raiz — o payload cru perde o esvaziamento na rede", () => {
     expect("companhiaAerea" in naRede).toBe(false);
     expect("transportadoraNacional" in naRede).toBe(false);
 
-    await salvar(naRede);
+    await salvar({ ...naRede, versao: VERSAO }); // o payload cru leva as listas: o servidor exige a versão
     expect(row().companhia_aerea).toBe("Lufthansa");
     expect(row().transportadora_nacional_nome).toBe("AJC");
   });

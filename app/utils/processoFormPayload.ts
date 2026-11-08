@@ -190,7 +190,14 @@ const LIMPAVEIS = new Set<string>(CAMPOS_PROCESSO_LIMPAVEIS);
 // - Valores ocultos (Despachante/Transportadora em "Courier Simples") seguem o mesmo critério: o form
 //   os mantém no estado; se o usuário não os alterou, não vão (nada é apagado por estar oculto).
 // - `parcial: true` avisa o servidor de que `datas`/`transportadoraNacional` são por chave.
-export function montarPatchDiferencial(inicial: EstadoEdicao, atual: EstadoEdicao): ProcessoFormPatchPayload | null {
+// - `versaoAbertura` (o updatedAt do processo quando o formulário abriu) vai como `versao` SÓ se o patch
+//   traz pendências ou medicamentos: o servidor confere a versão para não apagar a lista que outra pessoa
+//   gravou no meio tempo. Patch só com campos simples não leva versão (continua sem conferência).
+export function montarPatchDiferencial(
+  inicial: EstadoEdicao,
+  atual: EstadoEdicao,
+  versaoAbertura?: string,
+): ProcessoFormPatchPayload | null {
   const p0 = buildBasePayload(inicial.form, inicial.medicamentos, inicial.pendencias, inicial.fornecedor);
   const p1 = buildBasePayload(atual.form, atual.medicamentos, atual.pendencias, atual.fornecedor);
   const patch: Record<string, unknown> = {};
@@ -230,6 +237,7 @@ export function montarPatchDiferencial(inicial: EstadoEdicao, atual: EstadoEdica
 
   if (Object.keys(patch).length === 0) return null;
   patch.parcial = true;
+  if (versaoAbertura && ("pendencias" in patch || "medicamentos" in patch)) patch.versao = versaoAbertura;
   return patch as ProcessoFormPatchPayload;
 }
 

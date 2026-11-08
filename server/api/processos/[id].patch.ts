@@ -7,6 +7,7 @@ import {
   erroNumeroRemessa,
   isValidProcessoPatch,
   isVersaoValida,
+  MENSAGEM_VERSAO_AUSENTE,
   numeroPoCanonico,
   numeroRemessaCanonico,
   patchExigeVersao,
@@ -28,13 +29,12 @@ export default defineEventHandler(async (event): Promise<Processo> => {
   const body = await readBody(event);
 
   if (!isValidProcessoPatch(body)) {
-    // Atualizações sem a versão: mensagem própria (o cliente sempre a envia; faltar = cliente antigo).
+    // Listas (atualizações, pendências, medicamentos) sem a versão: mensagem própria (o cliente sempre a envia;
+    // faltar = aba antiga, aberta antes desta conferência existir).
     const semVersao = patchExigeVersao(body) && !isVersaoValida((body as Record<string, unknown>).versao);
     throw createError({
       statusCode: 400,
-      statusMessage: semVersao
-        ? "Versão do processo não informada. Recarregue a página e tente de novo."
-        : "Dados do processo inválidos.",
+      statusMessage: semVersao ? MENSAGEM_VERSAO_AUSENTE : "Dados do processo inválidos.",
     });
   }
 
@@ -129,9 +129,10 @@ export default defineEventHandler(async (event): Promise<Processo> => {
     });
   }
 
-  // Com `atualizacoes`: grava só se o updated_at da linha ainda for a versão que o cliente viu.
+  // Com `atualizacoes`, `pendencias` ou `medicamentos`: grava só se o updated_at da linha ainda for a versão que
+  // o cliente viu. `parcial` segue junto (senão datas/transportadora ausentes virariam NULL).
   if (patchExigeVersao(body) && versao !== undefined) {
-    const resultado = await patchProcessoVersionado(id, patch, versao);
+    const resultado = await patchProcessoVersionado(id, patch, versao, { parcial: parcial === true });
     if (resultado.tipo === "nao_encontrado") {
       throw createError({ statusCode: 404, statusMessage: "Processo não encontrado." });
     }

@@ -244,6 +244,7 @@ describe("datas", () => {
       datas: { dataCompraPO: "02/09", previsaoEntrega: "22/09" },
       medicamentos: [],
       pendencias: [],
+      versao: VERSAO, // as listas só entram com a versão (conferência de conflito)
     };
     expect(isValidProcessoPatch(corpoAntigo)).toBe(true);
     await enviar(corpoAntigo);
@@ -401,6 +402,7 @@ describe("blocos e o que o formulário não controla", () => {
         e.form.localEntrega = "Outro lugar";
         e.pendencias = ["Nova"];
       }),
+      VERSAO, // com pendências no patch o servidor exige a versão
     );
     expect(patch).not.toHaveProperty("atualizacoes");
     expect(patch).not.toHaveProperty("alertaFornecedorResolvido");
@@ -424,8 +426,13 @@ describe("blocos e o que o formulário não controla", () => {
     const patch = montarPatchDiferencial(
       estadoCompleto(),
       editado((e) => (e.pendencias = ["Enviar laudo", "Ligar para a clínica"])),
+      VERSAO,
     );
-    expect(patch).toEqual({ pendencias: ["Enviar laudo", "Ligar para a clínica"], parcial: true });
+    expect(patch).toEqual({
+      pendencias: ["Enviar laudo", "Ligar para a clínica"],
+      parcial: true,
+      versao: VERSAO, // lista no patch → vai a versão de abertura
+    });
 
     await enviar(patch);
     expect(row().pendencias).toEqual(["Enviar laudo", "Ligar para a clínica"]);
@@ -484,6 +491,7 @@ describe("(i) edição concorrente no Supabase em memória", () => {
       datas: { dataChegadaBrasil: "15/09" },
       pendencias: ["Pendência de B"],
       transportadoraNacional: { nome: "Doctor", cotacao: "C-1", valor: 99 },
+      versao: VERSAO,
     });
     expect(row().numero_awb).toBe("AWB-DE-B");
 

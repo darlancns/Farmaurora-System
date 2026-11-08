@@ -141,7 +141,7 @@ afterEach(() => {
 
 describe("PATCH — pendências (formato parcial)", () => {
   it("adicionar uma pendência avisa a conta do consultor do processo, e só ela", async () => {
-    await chamar(patchHandler, admin, { pendencias: ["Laudo", "Receita vencida"], parcial: true });
+    await chamar(patchHandler, admin, { pendencias: ["Laudo", "Receita vencida"], parcial: true, versao: VERSAO });
 
     expect(linhasAvisos()).toHaveLength(1);
     expect(linhasAvisos()[0]).toMatchObject({
@@ -156,18 +156,18 @@ describe("PATCH — pendências (formato parcial)", () => {
   });
 
   it("editar o texto de uma pendência não avisa", async () => {
-    await chamar(patchHandler, admin, { pendencias: ["Laudo corrigido"], parcial: true });
+    await chamar(patchHandler, admin, { pendencias: ["Laudo corrigido"], parcial: true, versao: VERSAO });
     expect(h.inserts).toHaveLength(0);
   });
 
   it("apagar uma pendência não avisa", async () => {
     fake.tabelas[T] = [linha({ pendencias: ["Laudo", "Receita"] })];
-    await chamar(patchHandler, admin, { pendencias: ["Laudo"], parcial: true });
+    await chamar(patchHandler, admin, { pendencias: ["Laudo"], parcial: true, versao: VERSAO });
     expect(h.inserts).toHaveLength(0);
   });
 
   it("editar uma e adicionar outra → um aviso só, o da nova", async () => {
-    await chamar(patchHandler, admin, { pendencias: ["Laudo corrigido", "Nova"], parcial: true });
+    await chamar(patchHandler, admin, { pendencias: ["Laudo corrigido", "Nova"], parcial: true, versao: VERSAO });
     expect(mensagens()).toEqual(["Nova pendência · Fulano de Tal (2026 - 10): Nova"]);
   });
 
@@ -180,13 +180,14 @@ describe("PATCH — pendências (formato parcial)", () => {
 
 describe("PATCH — formato legado (sem `parcial`)", () => {
   it("adicionar avisa; editar e apagar não", async () => {
-    await chamar(patchHandler, admin, { pendencias: ["Laudo", "Nova"] });
+    await chamar(patchHandler, admin, { pendencias: ["Laudo", "Nova"], versao: VERSAO });
     expect(mensagens()).toEqual(["Nova pendência · Fulano de Tal (2026 - 10): Nova"]);
 
     h.inserts = [];
     fake.tabelas[T] = [linha({ pendencias: ["Laudo", "Receita"] })];
-    await chamar(patchHandler, admin, { pendencias: ["Laudo editado", "Receita"] });
-    await chamar(patchHandler, admin, { pendencias: ["Receita"] });
+    await chamar(patchHandler, admin, { pendencias: ["Laudo editado", "Receita"], versao: VERSAO });
+    fake.tabelas[T] = [linha({ pendencias: ["Laudo", "Receita"] })]; // o PATCH anterior já trocou o updated_at
+    await chamar(patchHandler, admin, { pendencias: ["Receita"], versao: VERSAO });
     expect(h.inserts).toHaveLength(0);
   });
 });
@@ -283,13 +284,13 @@ describe("POST /chegada", () => {
 
 describe("quem recebe e quem não recebe", () => {
   it("o próprio consultor do processo (ator) NÃO é avisado", async () => {
-    await chamar(patchHandler, daniLogada, { pendencias: ["Laudo", "Nova"], parcial: true });
+    await chamar(patchHandler, daniLogada, { pendencias: ["Laudo", "Nova"], parcial: true, versao: VERSAO });
     expect(h.inserts).toHaveLength(0);
     expect(gravadoNoBanco().pendencias).toEqual(["Laudo", "Nova"]);
   });
 
   it("outro consultor (de OUTRO processo) não recebe; só o dono", async () => {
-    await chamar(patchHandler, admin, { pendencias: ["Laudo", "Nova"], parcial: true });
+    await chamar(patchHandler, admin, { pendencias: ["Laudo", "Nova"], parcial: true, versao: VERSAO });
     const destinos = linhasAvisos().map((l) => l.destinatario_id);
     expect(destinos).toEqual(["cons-dani"]);
     expect(destinos).not.toContain("cons-flavia");
@@ -300,51 +301,51 @@ describe("quem recebe e quem não recebe", () => {
   it("quem grava num processo que não é dele (ator de outro consultor) não muda o destinatário: a Dani recebe", async () => {
     // Flávia grava no processo da Dani: quem recebe é a Dani.
     const flavia = usuario("cons-flavia", "consultor", "Flávia", "Flávia");
-    await chamar(patchHandler, flavia, { pendencias: ["Laudo", "Nova"], parcial: true });
+    await chamar(patchHandler, flavia, { pendencias: ["Laudo", "Nova"], parcial: true, versao: VERSAO });
     expect(linhasAvisos().map((l) => l.destinatario_id)).toEqual(["cons-dani"]);
   });
 
   it("consultor sem conta: não avisa, não grava nada e a gravação do processo segue", async () => {
     h.contas = [conta("cons-flavia", "consultor", "Flávia"), conta("adm-1", "administrador")];
-    await chamar(patchHandler, admin, { pendencias: ["Laudo", "Nova"], parcial: true });
+    await chamar(patchHandler, admin, { pendencias: ["Laudo", "Nova"], parcial: true, versao: VERSAO });
     expect(h.inserts).toHaveLength(0);
     expect(gravadoNoBanco().pendencias).toEqual(["Laudo", "Nova"]);
   });
 
   it("conta de consultor sem consultorNome válido nunca casa", async () => {
     h.contas = [conta("cons-x", "consultor"), conta("cons-y", "consultor", "Ninguém")];
-    await chamar(patchHandler, admin, { pendencias: ["Laudo", "Nova"], parcial: true });
+    await chamar(patchHandler, admin, { pendencias: ["Laudo", "Nova"], parcial: true, versao: VERSAO });
     expect(h.inserts).toHaveLength(0);
   });
 
   it("duas contas do mesmo consultor: ambas recebem (menos o ator), num único INSERT", async () => {
     h.contas = [conta("cons-dani", "consultor", "Dani"), conta("cons-dani-2", "consultor", "Dani")];
-    await chamar(patchHandler, admin, { pendencias: ["Laudo", "Nova"], parcial: true });
+    await chamar(patchHandler, admin, { pendencias: ["Laudo", "Nova"], parcial: true, versao: VERSAO });
     expect(h.inserts).toHaveLength(1);
     expect(linhasAvisos().map((l) => l.destinatario_id).sort()).toEqual(["cons-dani", "cons-dani-2"]);
 
     h.inserts = [];
     fake.tabelas[T] = [linha()];
-    await chamar(patchHandler, daniLogada, { pendencias: ["Laudo", "Nova"], parcial: true });
+    await chamar(patchHandler, daniLogada, { pendencias: ["Laudo", "Nova"], parcial: true, versao: VERSAO });
     expect(linhasAvisos().map((l) => l.destinatario_id)).toEqual(["cons-dani-2"]);
   });
 
   it("o aviso vai para o consultor do processo DEPOIS da gravação (troca de consultor no mesmo patch)", async () => {
     h.contas = [conta("cons-dani", "consultor", "Dani"), conta("cons-flavia", "consultor", "Flávia")];
-    await chamar(patchHandler, admin, { consultor: "Flávia", pendencias: ["Laudo", "Nova"], parcial: true });
+    await chamar(patchHandler, admin, { consultor: "Flávia", pendencias: ["Laudo", "Nova"], parcial: true, versao: VERSAO });
     expect(linhasAvisos().map((l) => l.destinatario_id)).toEqual(["cons-flavia"]);
   });
 });
 
 describe("limites e texto", () => {
   it("até 5 itens novos do mesmo tipo: um aviso por item", async () => {
-    await chamar(patchHandler, admin, { pendencias: ["Laudo", "a", "b", "c", "d", "e"], parcial: true });
+    await chamar(patchHandler, admin, { pendencias: ["Laudo", "a", "b", "c", "d", "e"], parcial: true, versao: VERSAO });
     expect(mensagens()).toHaveLength(5);
     expect(mensagens()[4]).toBe("Nova pendência · Fulano de Tal (2026 - 10): e");
   });
 
   it("mais de 5 pendências novas: UM aviso agrupado", async () => {
-    await chamar(patchHandler, admin, { pendencias: ["Laudo", "a", "b", "c", "d", "e", "f"], parcial: true });
+    await chamar(patchHandler, admin, { pendencias: ["Laudo", "a", "b", "c", "d", "e", "f"], parcial: true, versao: VERSAO });
     expect(mensagens()).toEqual(["6 novas pendências · Fulano de Tal (2026 - 10)"]);
   });
 
@@ -372,7 +373,7 @@ describe("limites e texto", () => {
   it("texto do item é cortado em 140 caracteres com reticências; até 140 fica inteiro", async () => {
     const longo = "x".repeat(200);
     const exato = "y".repeat(140);
-    await chamar(patchHandler, admin, { pendencias: ["Laudo", longo, exato], parcial: true });
+    await chamar(patchHandler, admin, { pendencias: ["Laudo", longo, exato], parcial: true, versao: VERSAO });
     expect(mensagens()).toEqual([
       `Nova pendência · Fulano de Tal (2026 - 10): ${"x".repeat(140)}…`,
       `Nova pendência · Fulano de Tal (2026 - 10): ${exato}`,
@@ -383,7 +384,7 @@ describe("limites e texto", () => {
 describe("falha do aviso NUNCA quebra nem desfaz a gravação", () => {
   it("INSERT do aviso falha (ex.: migração não aplicada): PATCH responde com sucesso e o processo fica gravado", async () => {
     h.falhaNoInsert = { message: 'invalid input value for enum tipo_notificacao: "pendencia_nova"' };
-    const res = (await chamar(patchHandler, admin, { pendencias: ["Laudo", "Nova"], parcial: true })) as {
+    const res = (await chamar(patchHandler, admin, { pendencias: ["Laudo", "Nova"], parcial: true, versao: VERSAO })) as {
       pendencias: string[];
     };
     expect(res.pendencias).toEqual(["Laudo", "Nova"]);
@@ -422,7 +423,7 @@ describe("falha do aviso NUNCA quebra nem desfaz a gravação", () => {
 
   it("a leitura prévia da linha falha: o PATCH grava normalmente, sem aviso", async () => {
     fake.falhar(T, "select", "leitura caiu");
-    const res = (await chamar(patchHandler, admin, { pendencias: ["Laudo", "Nova"], parcial: true })) as {
+    const res = (await chamar(patchHandler, admin, { pendencias: ["Laudo", "Nova"], parcial: true, versao: VERSAO })) as {
       pendencias: string[];
     };
     expect(res.pendencias).toEqual(["Laudo", "Nova"]);

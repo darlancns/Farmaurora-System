@@ -110,16 +110,20 @@ export function proximoUpdatedAt(versaoAnterior: string, agoraMs: number = Date.
 // opaca; não passa por Date, senão perderia os microssegundos da coluna timestamptz(6)). Nenhuma linha
 // gravada = ou o processo não existe (404) ou a versão está desatualizada (409): uma leitura
 // posterior, só para escolher a resposta, desempata.
+//
+// `opcoes.parcial` precisa chegar aqui igual a como chegaria em `patchProcesso`: sem ele, `datas` e
+// `transportadoraNacional` viram "substitui tudo" e as chaves ausentes gravam NULL (apaga datas e transportadora).
 export async function patchProcessoVersionado(
   id: string,
   patch: ProcessoPatchDTO,
   versao: string,
+  opcoes: { parcial?: boolean } = {},
 ): Promise<ResultadoPatchVersionado> {
   const db = createSupabaseAdminClient();
 
   const { data, error } = await db
     .from(TABELA)
-    .update({ ...colunasDeDTO(patch), updated_at: proximoUpdatedAt(versao) })
+    .update({ ...colunasDeDTO(patch, opcoes), updated_at: proximoUpdatedAt(versao) })
     .eq("id", id)
     .eq("updated_at", versao)
     .select("*");

@@ -44,7 +44,9 @@ describe("status 'outro' — validação no servidor", () => {
     expect(isValidProcessoPatch({ status: "outro", statusOutro: "INDEFERIDO" })).toBe(true);
     expect(isValidProcessoPatch({ statusOutro: "INDEFERIDO" })).toBe(false);
     expect(isValidProcessoPatch({ status: "entregue" })).toBe(true);
-    expect(isValidProcessoPatch({ pendencias: ["x"] })).toBe(true); // patches sem status seguem válidos
+    // patches sem status seguem válidos; as listas (aqui, pendências) só valem acompanhadas da versão
+    expect(isValidProcessoPatch({ pendencias: ["x"], versao: "v1" })).toBe(true);
+    expect(isValidProcessoPatch({ pendencias: ["x"] })).toBe(false);
   });
 });
 

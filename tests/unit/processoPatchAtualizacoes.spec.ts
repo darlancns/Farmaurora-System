@@ -140,7 +140,7 @@ describe("PATCH com atualizacoes — conferência de versão", () => {
     for (const body of [{ atualizacoes: NOVAS }, { atualizacoes: NOVAS, versao: "" }, { atualizacoes: NOVAS, versao: "  " }]) {
       const erro = await erroDe(chamar(body));
       expect(erro.status).toBe(400);
-      expect(erro.msg).toContain("Versão do processo não informada");
+      expect(erro.msg).toBe("Atualize a página (Ctrl+Shift+R) e tente de novo.");
     }
     expect(row().atualizacoes).toEqual([{ data: "01/09", texto: "Antiga" }]);
   });

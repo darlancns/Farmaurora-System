@@ -66,16 +66,24 @@ export function useProcessos() {
     return created;
   }
 
-  async function patchProcesso(id: string, patch: ProcessoPatchDTO): Promise<Processo> {
-    const updated = await apiFetch<Processo>(
-      `/api/processos/${id}`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patch),
-      },
-      "Erro ao atualizar processo."
-    );
+  // `patch.versao` presente (o formulário o manda quando altera pendências/medicamentos): o servidor responde 409
+  // se a linha mudou desde a abertura. Vira ConflitoVersaoError — nada foi gravado e quem chamou decide o aviso.
+  async function patchProcesso(id: string, patch: ProcessoPatchDTO & { versao?: string }): Promise<Processo> {
+    let updated: Processo;
+    try {
+      updated = await apiFetch<Processo>(
+        `/api/processos/${id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(patch),
+        },
+        "Erro ao atualizar processo."
+      );
+    } catch (e) {
+      if (patch.versao !== undefined && e instanceof ApiError && e.status === 409) throw new ConflitoVersaoError();
+      throw e;
+    }
     const index = processos.value.findIndex((p) => p.id === id);
     if (index !== -1) {
       processos.value[index] = updated;

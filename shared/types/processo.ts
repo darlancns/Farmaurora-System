@@ -186,4 +186,6 @@ export type ProcessoPatchDTO = Omit<
 };
 
 // Payload do formulário de EDIÇÃO (nunca leva `atualizacoes`), já com os campos esvaziados como null.
-export type ProcessoFormPatchPayload = Omit<ProcessoPatchDTO, "atualizacoes">;
+// `versao` = o updatedAt do processo no instante em que o formulário foi ABERTO (string opaca). Só vai quando
+// o patch traz `pendencias` ou `medicamentos` (o servidor a exige nesse caso e responde 409 se a linha mudou).
+export type ProcessoFormPatchPayload = Omit<ProcessoPatchDTO, "atualizacoes"> & { versao?: string };

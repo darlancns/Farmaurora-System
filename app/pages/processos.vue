@@ -9,6 +9,7 @@ import type {
   StatusProcesso,
 } from "#shared/types/processo";
 import { useAberturaPorBusca } from "../composables/useAberturaPorBusca";
+import { useConflitoEdicaoProcesso } from "../composables/useConflitoEdicaoProcesso";
 import { useProcessos } from "../composables/useProcessos";
 import { useAuth } from "../composables/useAuth";
 import { useToast } from "../composables/useToast";
@@ -171,14 +172,25 @@ onBeforeUnmount(() => {
 const showFormModal = ref(false);
 const editingProcesso = ref<Processo | null>(null);
 
+// Conflito de versão na edição (outra pessoa gravou o processo com o formulário aberto): ver o composable.
+const {
+  conflito: conflitoEdicao,
+  recarregando: recarregandoEdicao,
+  salvar: salvarEdicao,
+  recarregar: recarregarEdicao,
+  limpar: limparConflitoEdicao,
+} = useConflitoEdicaoProcesso(editingProcesso);
+
 function openCreateForm(): void {
   if (!canWriteProcessos.value) return;
+  limparConflitoEdicao();
   editingProcesso.value = null;
   showFormModal.value = true;
 }
 
 function openEditForm(processo: Processo): void {
   if (!canWriteProcessos.value) return;
+  limparConflitoEdicao();
   editingProcesso.value = processo;
   showFormModal.value = true;
 }
@@ -186,6 +198,7 @@ function openEditForm(processo: Processo): void {
 function closeForm(): void {
   showFormModal.value = false;
   editingProcesso.value = null;
+  limparConflitoEdicao();
 }
 
 function handleInvalid(message: string): void {
@@ -210,11 +223,27 @@ async function handleSubmit(payload: NewProcessoDTO): Promise<void> {
 
 async function handleUpdate(id: string, payload: ProcessoFormPatchPayload): Promise<void> {
   try {
-    await patchProcesso(id, payload);
+    const resultado = await salvarEdicao(id, payload);
+    // Conflito: o modal segue aberto com o aviso (nada foi gravado); a pessoa decide recarregar.
+    if (resultado.tipo === "conflito") return;
     showToast("Processo atualizado");
     closeForm();
   } catch (e) {
     showToast(getErrorMessage(e, "Erro ao atualizar processo"));
+  }
+}
+
+// "Recarregar dados atuais": busca a linha atual, o formulário recarrega por ela e as alterações em andamento
+// são descartadas. Falha (rede) mantém o aviso na tela; processo excluído nesse meio-tempo fecha o modal.
+async function handleRecarregarEdicao(): Promise<void> {
+  try {
+    const resultado = await recarregarEdicao();
+    if (resultado.tipo === "removido") {
+      showToast("Este processo não existe mais");
+      closeForm();
+    }
+  } catch (e) {
+    showToast(getErrorMessage(e, "Erro ao recarregar processo"));
   }
 }
 
@@ -385,8 +414,11 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
     <ProcessoFormModal
       v-if="showFormModal && canWriteProcessos"
       :editing-processo="editingProcesso"
+      :conflito="conflitoEdicao"
+      :recarregando="recarregandoEdicao"
       @submit="handleSubmit"
       @update="handleUpdate"
+      @recarregar="handleRecarregarEdicao"
       @close="closeForm"
       @invalid="handleInvalid"
       @unchanged="handleUnchanged"

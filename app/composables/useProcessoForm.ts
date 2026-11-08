@@ -159,6 +159,9 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
   const fornecedor = useOutroSentinel(FORNECEDORES_FIXOS);
   // Estado do formulário logo depois de carregar o processo (só na edição): base do patch diferencial.
   let inicial: EstadoEdicao | null = null;
+  // updatedAt do processo no instante em que o formulário o carregou (abertura, ou "Recarregar dados atuais").
+  // NUNCA o da lista de agora: é a versão que ESTA pessoa viu, contra a qual o servidor confere a gravação.
+  let versaoAbertura: string | undefined;
 
   function estadoAtual(): EstadoEdicao {
     return {
@@ -197,6 +200,7 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     pendencias.splice(0, pendencias.length);
     fornecedor.load(undefined);
     inicial = null;
+    versaoAbertura = undefined;
   }
 
   function loadProcessoIntoForm(processo: Processo): void {
@@ -236,6 +240,7 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     pendencias.splice(0, pendencias.length, ...processo.pendencias);
 
     inicial = estadoAtual();
+    versaoAbertura = processo.updatedAt;
   }
 
   watch(
@@ -332,7 +337,7 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     const resultado = validar();
     if (!resultado.valido) return resultado;
     if (!inicial) return { valido: true, patch: null };
-    return { valido: true, patch: montarPatchDiferencial(inicial, estadoAtual()) };
+    return { valido: true, patch: montarPatchDiferencial(inicial, estadoAtual(), versaoAbertura) };
   }
 
   return {
