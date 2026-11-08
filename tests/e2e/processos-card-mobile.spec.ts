@@ -38,7 +38,7 @@ const ROBUSTO = {
   fornecedor: "Beldimed - Bélgica",
   transportadoraNacional: { nome: "Jadlog Logística", valor: 1234.5 },
   modalEnvio: "Air Cargo",
-  companhiaAerea: "LATAM Cargo",
+  companhiaAerea: "Lufthansa",
   numeroAwb: "957-12345678",
   medicamentos: [
     { nome: "Pembrolizumabe", dosagem: "100mg", quantidade: "4 cx" },
@@ -79,7 +79,8 @@ const ADVERSARIAL = {
     valor: 98765.43,
   },
   modalEnvio: "Courier Formal",
-  companhiaAerea: "Companhia Aérea Internacional de Carga",
+  // Cia. aérea agora é seleção dependente do modal (o POST recusa texto livre): "FedEx" vale para Courier Formal.
+  companhiaAerea: "FedEx",
   numeroAwb: "157-98765432109",
   medicamentos: [
     { nome: "Pembrolizumabe com excipiente estendido para teste de truncamento", dosagem: "100mg/4mL", quantidade: "10 cx" },

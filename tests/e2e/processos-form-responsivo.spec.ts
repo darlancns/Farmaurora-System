@@ -37,7 +37,7 @@ const EDITAR = {
   fornecedor: "Fornecedor Teste Avulso Ltda",
   transportadoraNacional: { nome: "Jadlog Logística", cotacao: "COT-1", valor: 1234.5 },
   modalEnvio: "Air Cargo",
-  companhiaAerea: "LATAM Cargo",
+  companhiaAerea: "Lufthansa",
   numeroAwb: "957-12345678",
   medicamentos: [
     { nome: "Pembrolizumabe", dosagem: "100mg", quantidade: "4 cx" },
@@ -418,7 +418,7 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
           // "Courier Simples", "Andreza Faconi", "Marcelo Lima", "FARMAURORA"...).
           // O despachante/transportadora some com modal "Courier Simples" — por isso o
           // modal é o último a varrer, e volta pra uma opção que mantém despachante.
-          const nomes = ["pf-empresa", "pf-consultor", "pf-status", "pf-responsavel", "pf-status-pagamento", "pf-despachante", "pf-fornecedor", "pf-modal"];
+          const nomes = ["pf-empresa", "pf-consultor", "pf-status", "pf-responsavel", "pf-status-pagamento", "pf-despachante", "pf-fornecedor", "pf-cia-aerea", "pf-modal"];
           for (const id of nomes) {
             await rolarParaCampo(page, id);
             await campo(page, id).click();
@@ -440,7 +440,6 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
             ["pf-transp-nome", "Jadlog Logística"],
             ["pf-transp-cotacao", "COT-1"],
             ["pf-transp-valor", "1234.5"],
-            ["pf-cia-aerea", "LATAM Cargo"],
             ["pf-awb", "957-12345678"],
             ["pf-medicamento-nome-0", "Pembrolizumabe"],
             ["pf-medicamento-dosagem-0", "100mg/4mL"],

@@ -71,7 +71,7 @@ describe("causa raiz — o payload cru perde o esvaziamento na rede", () => {
     expect("transportadoraNacional" in naRede).toBe(false);
 
     await salvar(naRede);
-    expect(row().companhia_aerea).toBe("LATAM Cargo");
+    expect(row().companhia_aerea).toBe("Lufthansa");
     expect(row().transportadora_nacional_nome).toBe("AJC");
   });
 });
@@ -109,7 +109,8 @@ describe("esvaziar na edição persiste como NULL no banco", () => {
     ["responsável", (e) => (e.form.responsavelOperacional = ""), "responsavel_operacional"],
     ["ordem", (e) => (e.form.ordem = ""), "ordem"],
     ["status de pagamento", (e) => (e.form.statusPagamento = ""), "status_pagamento"],
-    ["modal de envio", (e) => (e.form.modalEnvio = ""), "modal_envio"],
+    // Como no formulário: trocar o modal para vazio limpa a cia junto (cia sem modal seria 400 no servidor).
+    ["modal de envio", (e) => Object.assign(e.form, { modalEnvio: "", companhiaAerea: "" }), "modal_envio"],
     ["fornecedor", (e) => (e.fornecedor = ""), "fornecedor"],
   ];
 
@@ -248,6 +249,7 @@ describe("Courier Simples — valores ocultos NÃO são apagados só por estarem
     await editar((e) => {
       e.form.transportadoraNome = "";
       e.form.modalEnvio = "Courier Simples";
+      e.form.companhiaAerea = ""; // o formulário limpa a Lufthansa, que não vale para Courier Simples
     });
     expect(row().transportadora_nacional_nome).toBeNull();
     expect(row().despachante).toBe("Marcelo Lima");
@@ -287,7 +289,7 @@ describe("contrato do PATCH (validação)", () => {
     await salvar({ atualizacoes: novas, versao: VERSAO });
 
     expect(row().atualizacoes).toEqual(novas);
-    expect(row().companhia_aerea).toBe("LATAM Cargo");
+    expect(row().companhia_aerea).toBe("Lufthansa");
     expect(row().transportadora_nacional_nome).toBe("AJC");
     expect(row().data_embarque).toBe("05/09");
   });

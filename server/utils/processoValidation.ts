@@ -1,4 +1,6 @@
 import {
+  ciaAereaValidaParaModal,
+  ciasAereasDoModal,
   CONSULTORES_PROCESSO,
   EMPRESAS_PROCESSO,
   LIMITE_ATUALIZACAO_DATA,
@@ -94,6 +96,74 @@ function isValidTransportadora(value: unknown): boolean {
 // status o campo é IGNORADO (o servidor grava NULL), então não é validado.
 function statusOutroValido(status: unknown, statusOutro: unknown): boolean {
   return status !== "outro" || isNonEmptyString(statusOutro);
+}
+
+// ── Cia. aérea × modal de envio ─────────────────────────────────────────────────────────────────
+// A cia é opcional, mas, se vier preenchida, precisa ser uma das cias do modal (shared/constants).
+
+function textoVazioSeNulo(valor: unknown): string {
+  return typeof valor === "string" ? valor.trim() : "";
+}
+
+// Mensagem de erro da combinação modal × cia, ou null se for válida. Cia vazia é sempre válida.
+function erroModalCia(modal: unknown, cia: unknown): string | null {
+  if (cia === undefined || cia === null) return null;
+  if (typeof cia !== "string") return "Cia. aérea inválida.";
+  if (cia.trim() === "") return null;
+
+  const modalTexto = typeof modal === "string" ? modal : "";
+  if (modalTexto.trim() === "") return "Escolha o modal antes da cia. aérea.";
+  if (ciaAereaValidaParaModal(modalTexto, cia)) return null;
+
+  const opcoes = ciasAereasDoModal(modalTexto);
+  return opcoes.length
+    ? `Cia. aérea inválida para o modal ${modalTexto}. Opções: ${opcoes.join(", ")}.`
+    : `Cia. aérea inválida para o modal ${modalTexto}.`;
+}
+
+// Valor canônico da cia para gravar: texto sem espaços nas pontas; vazio → null; ausente → ausente.
+export function ciaAereaCanonica(valor: unknown): string | null | undefined {
+  if (valor === undefined) return undefined;
+  const texto = textoVazioSeNulo(valor);
+  return texto === "" ? null : texto;
+}
+
+// POST: cia preenchida exige modal preenchido e compatível.
+export function erroModalCiaNoPost(body: unknown): string | null {
+  const b = (body ?? {}) as Record<string, unknown>;
+  return erroModalCia(b.modalEnvio, b.companhiaAerea);
+}
+
+// O PATCH mexe em modal ou cia? Só então a combinação é conferida (e a linha armazenada é lida).
+export function patchTocaModalOuCia(body: unknown): boolean {
+  if (!body || typeof body !== "object") return false;
+  return "modalEnvio" in body || "companhiaAerea" in body;
+}
+
+export interface ModalCiaArmazenados {
+  modalEnvio?: string | null;
+  companhiaAerea?: string | null;
+}
+
+// PATCH: combinação efetiva = valor do patch (se a chave está presente) senão o armazenado.
+// - `parcial: true` (formulário atual): basta o patch tocar modal OU cia; confere a combinação efetiva.
+// - Sem `parcial` (aba velha reenviando tudo): só confere se modal ou cia DIFEREM do armazenado — o que
+//   é igual ao armazenado não é conferido, para dado antigo inválido não travar a gravação.
+export function erroModalCiaNoPatch(body: unknown, armazenado: ModalCiaArmazenados): string | null {
+  if (!patchTocaModalOuCia(body)) return null;
+  const b = body as Record<string, unknown>;
+  const temModal = "modalEnvio" in b;
+  const temCia = "companhiaAerea" in b;
+
+  if (b.parcial !== true) {
+    const modalMudou = temModal && textoVazioSeNulo(b.modalEnvio) !== textoVazioSeNulo(armazenado.modalEnvio);
+    const ciaMudou = temCia && textoVazioSeNulo(b.companhiaAerea) !== textoVazioSeNulo(armazenado.companhiaAerea);
+    if (!modalMudou && !ciaMudou) return null;
+  }
+
+  const modal = temModal ? b.modalEnvio : armazenado.modalEnvio;
+  const cia = temCia ? b.companhiaAerea : armazenado.companhiaAerea;
+  return erroModalCia(modal, cia);
 }
 
 export function isValidProcessoPayload(body: unknown): body is NewProcessoDTO {

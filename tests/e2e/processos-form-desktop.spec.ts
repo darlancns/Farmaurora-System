@@ -31,7 +31,7 @@ const EDITAR = {
   fornecedor: "Fornecedor Teste Avulso Ltda",
   transportadoraNacional: { nome: "Jadlog Logística", cotacao: "COT-1", valor: 1234.5 },
   modalEnvio: "Air Cargo",
-  companhiaAerea: "LATAM Cargo",
+  companhiaAerea: "Lufthansa",
   numeroAwb: "957-12345678",
   medicamentos: [
     { nome: "Pembrolizumabe", dosagem: "100mg", quantidade: "4 cx" },

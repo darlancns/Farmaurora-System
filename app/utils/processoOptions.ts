@@ -1,4 +1,5 @@
 import {
+  ciasAereasDoModal,
   CONSULTORES_PROCESSO,
   DESPACHANTES_PROCESSO,
   EMPRESAS_PROCESSO,
@@ -39,6 +40,25 @@ export const MODAL_ENVIO_OPTIONS: AppSelectOption<ModalEnvio | "">[] = [
   { value: "", label: "Selecione" },
   ...MODAIS_ENVIO.map((modal) => ({ value: modal, label: modal })),
 ];
+
+export const CIA_AEREA_SEM_MODAL_LABEL = "Escolha o modal primeiro";
+
+// Opções do select "Cia. aérea", que depende do modal. Sem modal: só o texto-guia (o select fica
+// desabilitado). Com modal: "Selecione" + as cias dele. Valor atual fora da lista (dado antigo, ex.:
+// Courier Formal + Swiss, ou o legado "Turkish Cargo") entra como opção extra "<valor> (fora da lista)",
+// para continuar visível e selecionado enquanto o usuário não o trocar.
+export function montarCiaAereaOptions(modal: string, atual: string): AppSelectOption<string>[] {
+  const semModal = modal.trim() === "";
+  const cias = ciasAereasDoModal(modal);
+  const opcoes: AppSelectOption<string>[] = semModal
+    ? [{ value: "", label: CIA_AEREA_SEM_MODAL_LABEL }]
+    : [{ value: "", label: "Selecione" }, ...cias.map((cia) => ({ value: cia, label: cia }))];
+
+  if (atual.trim() !== "" && !cias.includes(atual)) {
+    opcoes.push({ value: atual, label: `${atual.trim()} (fora da lista)` });
+  }
+  return opcoes;
+}
 
 export const DESPACHANTE_OPTIONS: AppSelectOption<DespachanteProcesso | "">[] = [
   { value: "", label: "Selecione" },

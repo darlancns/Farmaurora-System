@@ -48,6 +48,11 @@ const {
   pendencias,
   fornecedor,
   showDespachanteTransportadora,
+  ciaAereaOptions,
+  ciaAereaDesabilitada,
+  ciaAereaAviso,
+  onModalEnvioChange,
+  onCiaAereaChange,
   addMedicamento,
   removeMedicamento,
   addPendencia,
@@ -202,7 +207,12 @@ function handleSubmit(): void {
             </div>
             <div :class="SELECT_CAMPO_CLASS">
               <label for="pf-modal" :class="LABEL_CLASS">Modal</label>
-              <AppSelect id="pf-modal" v-model="form.modalEnvio" :options="MODAL_ENVIO_OPTIONS" />
+              <AppSelect
+                id="pf-modal"
+                :model-value="form.modalEnvio"
+                :options="MODAL_ENVIO_OPTIONS"
+                @update:model-value="onModalEnvioChange"
+              />
             </div>
           </div>
 
@@ -240,9 +250,18 @@ function handleSubmit(): void {
           </fieldset>
 
           <div class="grid grid-cols-2 gap-2.5">
-            <div>
+            <div :class="SELECT_CAMPO_CLASS">
               <label for="pf-cia-aerea" :class="LABEL_CLASS">Cia. aérea</label>
-              <input id="pf-cia-aerea" v-model="form.companhiaAerea" type="text" :class="INPUT_CLASS" />
+              <AppSelect
+                id="pf-cia-aerea"
+                :model-value="form.companhiaAerea"
+                :options="ciaAereaOptions"
+                :disabled="ciaAereaDesabilitada"
+                @update:model-value="onCiaAereaChange"
+              />
+              <p v-if="ciaAereaAviso" id="pf-cia-aerea-aviso" role="status" class="mt-1 text-[11px] text-ink-soft">
+                {{ ciaAereaAviso }}
+              </p>
             </div>
             <div>
               <label for="pf-awb" :class="LABEL_CLASS">Nº AWB</label>

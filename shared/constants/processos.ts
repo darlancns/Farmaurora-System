@@ -34,7 +34,35 @@ export const CONSULTORES_PROCESSO: ConsultorProcesso[] = [
 export const EMPRESAS_PROCESSO: EmpresaProcesso[] = ["FARMAURORA", "MAINZFARMA"];
 
 // Ordem alfabética (regra geral de ordenação dos selects de entidade/nome).
-export const MODAIS_ENVIO: ModalEnvio[] = ["Air Cargo", "Courier Formal", "Courier Simples"];
+export const MODAL_AIR_CARGO = "Air Cargo" satisfies ModalEnvio;
+export const MODAL_COURIER_FORMAL = "Courier Formal" satisfies ModalEnvio;
+export const MODAL_COURIER_SIMPLES = "Courier Simples" satisfies ModalEnvio;
+export const MODAIS_ENVIO: ModalEnvio[] = [MODAL_AIR_CARGO, MODAL_COURIER_FORMAL, MODAL_COURIER_SIMPLES];
+
+const CIAS_COURIER: readonly string[] = ["FedEx", "DHL"];
+
+// Cia. aérea depende do modal de envio (a escolha vale na ordem listada). A cia continua OPCIONAL (pode
+// ficar vazia). O valor guardado em `companhia_aerea` é exatamente um destes textos.
+export const CIAS_AEREAS_POR_MODAL: Record<ModalEnvio, readonly string[]> = {
+  [MODAL_AIR_CARGO]: ["Lufthansa", "Emirates", "Turkish", "Qatar", "Swiss"],
+  [MODAL_COURIER_FORMAL]: CIAS_COURIER,
+  [MODAL_COURIER_SIMPLES]: CIAS_COURIER,
+};
+
+// Cias do modal; lista vazia se o modal for vazio ou desconhecido (inclui o legado "Courier"). O modal é
+// comparado exatamente como vem.
+export function ciasAereasDoModal(modal: string | null | undefined): readonly string[] {
+  if (typeof modal !== "string" || !Object.prototype.hasOwnProperty.call(CIAS_AEREAS_POR_MODAL, modal)) return [];
+  return CIAS_AEREAS_POR_MODAL[modal as ModalEnvio];
+}
+
+// A cia vale para o modal? Vazia (null, undefined, "" ou só espaços) é sempre válida. Preenchida: precisa
+// ser exatamente uma das cias do modal (compara após trim; sensível a maiúsculas e minúsculas).
+export function ciaAereaValidaParaModal(modal: string | null | undefined, cia: string | null | undefined): boolean {
+  const texto = typeof cia === "string" ? cia.trim() : "";
+  if (texto === "") return true;
+  return ciasAereasDoModal(modal).includes(texto);
+}
 
 // Ordem alfabética.
 export const DESPACHANTES_PROCESSO: DespachanteProcesso[] = ["Andreza Faconi", "Bruno Lopes", "Marcelo Lima"];
