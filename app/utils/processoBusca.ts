@@ -3,7 +3,7 @@ import { normalizeText } from "./search";
 
 // Busca da tela de Processos: o que casa com o termo e o que abrir sozinho (grupos e detalhes) quando há
 // busca. Funções puras, testadas em tests/unit/processoBusca.spec.ts; os componentes só aplicam o resultado.
-// A regra especial de pasta vale SÓ aqui: as buscas de Prestação, Pagamentos e DIR continuam com normalizeText.
+// As regras especiais de pasta e de Nº Ordem valem SÓ aqui: as buscas de Prestação, Pagamentos e DIR continuam com normalizeText.
 
 // ── O que casa ────────────────────────────────────────────────────────────────────────────────────
 
@@ -11,6 +11,12 @@ import { normalizeText } from "./search";
 // documento): "2026 - 375", "2026-375" e "2026 375" viram "2026375".
 export function normalizarPasta(valor: string): string {
   return normalizeText(valor).replace(/[\s\-‐-―]+/g, "");
+}
+
+// Nº Ordem sem acento/maiúscula e SÓ com letras e números: "po-25-0123", "PO250123" e "25 0123" viram
+// "po250123"/"250123", e "PO-25-0123/XYZ" vira "po250123xyz".
+export function normalizarOrdem(valor: string): string {
+  return normalizeText(valor).replace(/[^a-z0-9]+/g, "");
 }
 
 /** O termo (digitado de qualquer jeito) está contido na pasta? "375" acha "2026 - 375". */
@@ -23,27 +29,28 @@ export function pastaCombina(pasta: string, termo: string): boolean {
 export interface TermoBusca {
   texto: string; // normalizeText do que foi digitado
   pasta: string; // normalizarPasta do que foi digitado ("" se só havia espaços/hífens)
+  ordem: string; // normalizarOrdem do que foi digitado ("" se só havia pontuação/espaços)
 }
 
-// Um predicado por campo pesquisado. Para somar um campo (ex.: Nº Ordem, quando ele existir) basta
-// acrescentar uma linha aqui — o resto (filtro, abertura automática) já usa esta lista.
+// Um predicado por campo pesquisado. Para somar um campo basta acrescentar uma linha aqui — o resto (filtro, abertura automática) já usa esta lista.
 const CAMPOS_DE_BUSCA: ReadonlyArray<(processo: Processo, termo: TermoBusca) => boolean> = [
   (processo, termo) => normalizeText(processo.paciente).includes(termo.texto),
   (processo, termo) => termo.pasta !== "" && normalizarPasta(processo.pasta).includes(termo.pasta),
+  (processo, termo) => termo.ordem !== "" && normalizarOrdem(processo.numeroPo ?? "").includes(termo.ordem),
 ];
 
 /** null quando não há busca (vazio ou só espaços). */
 export function criarTermoBusca(termo: string): TermoBusca | null {
   const texto = normalizeText(termo);
   if (!texto) return null;
-  return { texto, pasta: normalizarPasta(termo) };
+  return { texto, pasta: normalizarPasta(termo), ordem: normalizarOrdem(termo) };
 }
 
 export function processoCombinaBusca(processo: Processo, termo: TermoBusca): boolean {
   return CAMPOS_DE_BUSCA.some((campo) => campo(processo, termo));
 }
 
-/** Processos que casam com o termo (paciente OU pasta). Sem termo, a lista inteira. */
+/** Processos que casam com o termo (paciente, pasta OU Nº Ordem). Sem termo, a lista inteira. */
 export function filtrarPorBusca(processos: Processo[], termo: string): Processo[] {
   const preparado = criarTermoBusca(termo);
   if (!preparado) return processos;

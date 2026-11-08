@@ -89,6 +89,9 @@ export interface Processo {
   id: string;
   paciente: string;
   ordem?: string; // ex: "Ordem 2"
+  // Nº Ordem (PO), rótulo da tela "Nº Ordem". Sempre em maiúsculas: "PO-25-0123" ou "PO-25-0123/TEXTO".
+  // Não confundir com `ordem` (remessa). Ver shared/utils/numeroOrdem.ts.
+  numeroPo?: string;
   pasta: string; // ex: "2026 - 234" (renomeado de "codigo")
   empresa: EmpresaProcesso;
   consultor: ConsultorProcesso;
@@ -138,6 +141,7 @@ export type ProcessoFormUpdatePayload = Omit<NewProcessoDTO, "atualizacoes">;
 // A lista em runtime é CAMPOS_PROCESSO_LIMPAVEIS (shared/constants/processos.ts).
 export type CampoProcessoLimpavel =
   | "ordem"
+  | "numeroPo"
   | "responsavelOperacional"
   | "despachante"
   | "fornecedor"

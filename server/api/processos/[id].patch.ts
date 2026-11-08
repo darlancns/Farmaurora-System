@@ -3,8 +3,10 @@ import { getProcesso, patchProcesso, patchProcessoVersionado } from "../../utils
 import {
   ciaAereaCanonica,
   erroModalCiaNoPatch,
+  erroNumeroPo,
   isValidProcessoPatch,
   isVersaoValida,
+  numeroPoCanonico,
   patchExigeVersao,
   patchTocaModalOuCia,
 } from "../../utils/processoValidation";
@@ -30,6 +32,13 @@ export default defineEventHandler(async (event): Promise<Processo> => {
         ? "Versão do processo não informada. Recarregue a página e tente de novo."
         : "Dados do processo inválidos.",
     });
+  }
+
+  // Nº Ordem no patch (preenchido) precisa estar no formato PO-00-0000 (+ /texto). Vazio/null limpa; sem a
+  // chave, nada é conferido.
+  const erroPo = erroNumeroPo(body);
+  if (erroPo) {
+    throw createError({ statusCode: 400, statusMessage: erroPo });
   }
 
   // Resolver o alerta de Mandado de Segurança só vale pro administrador e pro operacional
@@ -66,6 +75,9 @@ export default defineEventHandler(async (event): Promise<Processo> => {
 
   // Grava o valor canônico da cia (sem espaços nas pontas; vazia = null).
   if ("companhiaAerea" in patch) patch.companhiaAerea = ciaAereaCanonica(patch.companhiaAerea);
+
+  // Grava o Nº Ordem normalizado (maiúsculas, sem "/" final vazio; vazio = null).
+  if ("numeroPo" in patch) patch.numeroPo = numeroPoCanonico(patch.numeroPo);
 
   // Com `atualizacoes`: grava só se o updated_at da linha ainda for a versão que o cliente viu.
   if (patchExigeVersao(body) && versao !== undefined) {

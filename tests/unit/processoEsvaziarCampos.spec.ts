@@ -148,6 +148,7 @@ describe("esvaziar na edição persiste como NULL no banco", () => {
       editado((e) => {
         Object.assign(e.form, {
           ordem: "",
+          numeroPo: "",
           responsavelOperacional: "",
           despachante: "",
           transportadoraNome: "",

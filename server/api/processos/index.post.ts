@@ -1,6 +1,12 @@
 import { defineEventHandler, readBody, createError } from "h3";
 import { createProcesso } from "../../utils/processosStore";
-import { ciaAereaCanonica, erroModalCiaNoPost, isValidProcessoPayload } from "../../utils/processoValidation";
+import {
+  ciaAereaCanonica,
+  erroModalCiaNoPost,
+  erroNumeroPo,
+  isValidProcessoPayload,
+  numeroPoCanonico,
+} from "../../utils/processoValidation";
 import type { Processo } from "../../../shared/types/processo";
 
 export default defineEventHandler(async (event): Promise<Processo> => {
@@ -19,8 +25,16 @@ export default defineEventHandler(async (event): Promise<Processo> => {
     throw createError({ statusCode: 400, statusMessage: erroCia });
   }
 
-  // Grava o valor canônico da cia (sem espaços nas pontas; vazia = sem cia).
+  // Nº Ordem preenchido precisa estar no formato PO-00-0000 (+ /texto).
+  const erroPo = erroNumeroPo(body);
+  if (erroPo) {
+    throw createError({ statusCode: 400, statusMessage: erroPo });
+  }
+
+  // Grava o valor canônico da cia (sem espaços nas pontas; vazia = sem cia) e do Nº Ordem (normalizado;
+  // vazio = sem Nº Ordem, a coluna nem entra no insert).
   const cia = ciaAereaCanonica(body.companhiaAerea);
-  const { companhiaAerea: _bruta, ...resto } = body;
-  return await createProcesso(cia ? { ...resto, companhiaAerea: cia } : resto);
+  const po = numeroPoCanonico(body.numeroPo);
+  const { companhiaAerea: _bruta, numeroPo: _poBruto, ...resto } = body;
+  return await createProcesso({ ...resto, ...(cia ? { companhiaAerea: cia } : {}), ...(po ? { numeroPo: po } : {}) });
 });

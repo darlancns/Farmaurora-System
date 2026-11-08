@@ -116,6 +116,7 @@ export const LIMITE_ATUALIZACOES_POR_PROCESSO = 200;
 // resolvidos, medicamentos, pendências, datas (objeto próprio) e paciente/pasta/empresa/consultor/status.
 export const CAMPOS_PROCESSO_LIMPAVEIS: readonly CampoProcessoLimpavel[] = [
   "ordem",
+  "numeroPo",
   "responsavelOperacional",
   "despachante",
   "fornecedor",

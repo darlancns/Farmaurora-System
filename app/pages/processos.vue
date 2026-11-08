@@ -74,7 +74,8 @@ const filteredProcessos = computed<Processo[]>(() => {
   if (responsavelFilter.value) {
     list = list.filter((p) => p.responsavelOperacional === responsavelFilter.value);
   }
-  // Paciente OU pasta (a pasta ignora espaços e hífens: "2026-375", "2026 375" e "375" acham "2026 - 375").
+  // Paciente, pasta OU Nº Ordem. A pasta ignora espaços e hífens ("2026-375", "2026 375" e "375" acham "2026 - 375");
+  // o Nº Ordem também ignora pontuação e maiúsculas ("po-25-0123", "PO250123" e "25-0123" acham "PO-25-0123/XYZ").
   return filtrarPorBusca(list, searchQuery.value);
 });
 
@@ -252,7 +253,7 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
                 id="processo-search"
                 v-model="searchQuery"
                 type="text"
-                placeholder="Buscar por paciente ou pasta"
+                placeholder="Buscar por paciente, pasta ou ordem"
                 class="w-full rounded-md border border-hairline bg-paper px-3 py-[11px] pr-[68px] text-[13.5px] focus:bg-white focus:outline-2 focus:outline-accent-dark lg:py-2 lg:pr-8"
               />
               <button

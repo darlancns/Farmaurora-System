@@ -47,7 +47,7 @@ function colunasDeDTO(src) {
   const S = ["paciente", "pasta", "empresa", "consultor", "status"];
   for (const k of S) if (k in src) col[k] = src[k];
   const M = {
-    ordem: "ordem", responsavelOperacional: "responsavel_operacional", despachante: "despachante",
+    ordem: "ordem", numeroPo: "numero_po", responsavelOperacional: "responsavel_operacional", despachante: "despachante",
     fornecedor: "fornecedor", modalEnvio: "modal_envio", companhiaAerea: "companhia_aerea",
     numeroAwb: "numero_awb", localEntrega: "local_entrega",
     numeroProcesso: "numero_processo", statusPagamento: "status_pagamento",
@@ -95,7 +95,7 @@ function montarProcesso(row) {
     createdAt: row.created_at, updatedAt: row.updated_at,
   };
   const O = {
-    ordem: "ordem", responsavel_operacional: "responsavelOperacional", despachante: "despachante",
+    ordem: "ordem", numero_po: "numeroPo", responsavel_operacional: "responsavelOperacional", despachante: "despachante",
     fornecedor: "fornecedor", modal_envio: "modalEnvio", companhia_aerea: "companhiaAerea",
     numero_awb: "numeroAwb", local_entrega: "localEntrega",
     numero_processo: "numeroProcesso", status_pagamento: "statusPagamento",

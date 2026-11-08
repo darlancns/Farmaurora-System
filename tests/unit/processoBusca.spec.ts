@@ -111,10 +111,10 @@ describe("busca por paciente OU pasta", () => {
     expect(filtrarPorBusca(lote, "zzz")).toEqual([]);
   });
 
-  it("criarTermoBusca: null sem busca; guarda o texto e a pasta já normalizados", () => {
+  it("criarTermoBusca: null sem busca; guarda o texto, a pasta e a ordem já normalizados", () => {
     expect(criarTermoBusca("  ")).toBeNull();
-    expect(criarTermoBusca("2026 - 375")).toEqual({ texto: "2026 - 375", pasta: "2026375" });
-    expect(criarTermoBusca("-")).toEqual({ texto: "-", pasta: "" });
+    expect(criarTermoBusca("2026 - 375")).toEqual({ texto: "2026 - 375", pasta: "2026375", ordem: "2026375" });
+    expect(criarTermoBusca("-")).toEqual({ texto: "-", pasta: "", ordem: "" });
   });
 
   it("termo só de hífen não casa com pasta (mas pode casar com um nome com hífen)", () => {

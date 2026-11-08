@@ -17,6 +17,7 @@ import type {
   ProcessoPatchDTO,
   StatusProcesso,
 } from "../../shared/types/processo";
+import { NUMERO_ORDEM_ERRO, normalizarNumeroOrdem, numeroOrdemValido } from "../../shared/utils/numeroOrdem";
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -164,6 +165,25 @@ export function erroModalCiaNoPatch(body: unknown, armazenado: ModalCiaArmazenad
   const modal = temModal ? b.modalEnvio : armazenado.modalEnvio;
   const cia = temCia ? b.companhiaAerea : armazenado.companhiaAerea;
   return erroModalCia(modal, cia);
+}
+
+// ── Nº Ordem (PO) ───────────────────────────────────────────────────────────────────────────────
+// Opcional. Vazio/ausente/null é sempre válido; preenchido, é normalizado (maiúsculas, sem espaços nas
+// pontas, sem "/" final vazio) e precisa ser PO-00-0000 (+ "/texto"). A regra vive em shared/utils/numeroOrdem.ts.
+
+// Mensagem de erro do Nº Ordem do corpo (POST ou PATCH), ou null se válido/ausente. PATCH sem a chave não confere.
+export function erroNumeroPo(body: unknown): string | null {
+  if (!body || typeof body !== "object" || !("numeroPo" in body)) return null;
+  const valor = (body as Record<string, unknown>).numeroPo;
+  if (valor === undefined || valor === null) return null;
+  if (typeof valor !== "string") return NUMERO_ORDEM_ERRO;
+  return numeroOrdemValido(valor) ? null : NUMERO_ORDEM_ERRO;
+}
+
+// Valor para gravar: normalizado; vazio → null; chave ausente → undefined (não toca a coluna).
+export function numeroPoCanonico(valor: unknown): string | null | undefined {
+  if (valor === undefined) return undefined;
+  return typeof valor === "string" ? normalizarNumeroOrdem(valor) : null;
 }
 
 export function isValidProcessoPayload(body: unknown): body is NewProcessoDTO {

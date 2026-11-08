@@ -10,6 +10,7 @@ import type {
   TransportadoraNacional,
 } from "#shared/types/processo";
 import { CAMPOS_PROCESSO_LIMPAVEIS } from "#shared/constants/processos";
+import { NUMERO_ORDEM_ERRO, normalizarNumeroOrdem, numeroOrdemValido } from "#shared/utils/numeroOrdem";
 import { formatOrdemLabel } from "./processoFormatters";
 
 // Funções puras extraídas de ProcessoFormModal.vue (Round 9) — caracterizadas
@@ -23,6 +24,7 @@ import { formatOrdemLabel } from "./processoFormatters";
 export interface ProcessoFormState {
   paciente: string;
   ordem: string;
+  numeroPo: string; // Nº Ordem (PO), como mascarado no campo: PO-00-0000[/texto]
   pasta: string;
   empresa: EmpresaProcesso;
   consultor: ConsultorProcesso | "";
@@ -95,6 +97,7 @@ export function buildBasePayload(
   return {
     paciente: form.paciente.trim(),
     ordem: formatOrdemLabel(form.ordem),
+    numeroPo: normalizarNumeroOrdem(form.numeroPo) ?? undefined,
     pasta: form.pasta.trim(),
     empresa: form.empresa,
     consultor: form.consultor as ConsultorProcesso,
@@ -152,6 +155,7 @@ const CAMPOS_ESCALARES = [
   "empresa",
   "consultor",
   "ordem",
+  "numeroPo",
   "responsavelOperacional",
   "despachante",
   "fornecedor",
@@ -228,9 +232,10 @@ export function montarPatchDiferencial(inicial: EstadoEdicao, atual: EstadoEdica
   return patch as ProcessoFormPatchPayload;
 }
 
+// `campo` diz qual campo do formulário causou o erro, quando ele deve mostrar a mensagem junto ao campo.
 export type ValidarProcessoFormResult =
   | { valido: true; payload: ProcessoFormUpdatePayload }
-  | { valido: false; erro: string };
+  | { valido: false; erro: string; campo?: "numeroPo" };
 
 // Valor da transportadora como o formulário o representa: o input é type="number", e o Vue 3 entrega
 // string OU number em runtime (vazio = ""). "Preenchido" = número finito, e 0 CONTA (um 0 digitado é
@@ -265,7 +270,7 @@ function transportadoraSemNome(form: ProcessoFormState): boolean {
 // Validação de handleSubmit, reformulada como função pura: decide só
 // valido/inválido + payload ou mensagem de erro. O componente decide o que
 // fazer com o resultado (emitir "invalid", ou "update"/"submit" com o
-// payload). Ordem de checagem: paciente, pasta, consultor, status "outro",
+// payload). Ordem de checagem: paciente, pasta, Nº Ordem, consultor, status "outro",
 // despachante (condicionado ao modalEnvio) e, por último, a transportadora
 // (opcional, mas cotação/valor exigem o nome).
 //
@@ -285,6 +290,13 @@ export function validarProcessoForm(
   }
   if (!form.pasta.trim()) {
     return { valido: false, erro: "Informe a pasta do processo." };
+  }
+  // Nº Ordem: opcional, mas preenchido precisa estar completo (PO-00-0000[/texto]). Só confere se foi
+  // alterado desde que o formulário abriu (um valor antigo fora do formato não impede salvar outra coisa).
+  if (!inicial || inicial.numeroPo !== form.numeroPo) {
+    if (!numeroOrdemValido(form.numeroPo)) {
+      return { valido: false, erro: NUMERO_ORDEM_ERRO, campo: "numeroPo" };
+    }
   }
   if (form.consultor === "") {
     return { valido: false, erro: "Selecione o consultor responsável." };

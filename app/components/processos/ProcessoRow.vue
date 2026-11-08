@@ -120,6 +120,10 @@ function confirmDelete(): void {
         <p :id="`mobile-ordem-pasta-${processo.id}`" class="pl-[22px] text-[12px] text-ink-soft">
           <template v-if="processo.ordem">{{ processo.ordem }} · </template>Pasta
           <span class="font-mono">{{ processo.pasta }}</span>
+          <template v-if="processo.numeroPo">
+            ·
+            <span :id="`mobile-numero-po-${processo.id}`" class="font-mono break-all">{{ processo.numeroPo }}</span>
+          </template>
         </p>
 
         <p class="truncate pl-[22px] text-[12.5px] text-ink-soft">{{ medicamentoResumo }}</p>
@@ -188,6 +192,15 @@ function confirmDelete(): void {
               <span v-if="processo.ordem" class="shrink-0 text-[11.5px] text-ink-soft">{{ processo.ordem }}</span>
               <span class="shrink-0 text-[11.5px] text-ink-soft/60">·</span>
               <span class="shrink-0 font-mono text-[11.5px] text-ink-soft">{{ processo.pasta }}</span>
+              <template v-if="processo.numeroPo">
+                <span class="shrink-0 text-[11.5px] text-ink-soft/60">·</span>
+                <span
+                  :id="`numero-po-${processo.id}`"
+                  :title="processo.numeroPo"
+                  class="min-w-0 max-w-[11rem] truncate font-mono text-[11.5px] text-ink-soft"
+                  >{{ processo.numeroPo }}</span
+                >
+              </template>
             </div>
           </div>
           <span class="block truncate text-[12px] text-ink-soft">{{ medicamentoResumo }}</span>

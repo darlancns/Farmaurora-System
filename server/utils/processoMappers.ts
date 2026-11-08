@@ -36,6 +36,8 @@ export interface FollowUpRow {
   id: string;
   paciente: string;
   ordem: string | null;
+  // Opcional na linha: a coluna é aditiva (migração 20261108160000) e linhas de antes dela não a trazem.
+  numero_po?: string | null;
   pasta: string;
   empresa: EmpresaProcesso;
   consultor: ConsultorProcesso;
@@ -116,6 +118,7 @@ export function colunasDeDTO(src: ProcessoPatchDTO, opcoes: { parcial?: boolean 
   }
 
   if ("ordem" in src) col.ordem = src.ordem ?? null;
+  if ("numeroPo" in src) col.numero_po = src.numeroPo ?? null;
   if ("responsavelOperacional" in src) col.responsavel_operacional = src.responsavelOperacional ?? null;
   if ("despachante" in src) col.despachante = src.despachante ?? null;
   if ("fornecedor" in src) col.fornecedor = src.fornecedor ?? null;
@@ -197,6 +200,7 @@ export function montarProcesso(row: FollowUpRow): Processo {
 
   if (row.status === "outro" && row.status_outro != null) processo.statusOutro = row.status_outro;
   if (row.ordem != null) processo.ordem = row.ordem;
+  if (row.numero_po != null) processo.numeroPo = row.numero_po;
   if (row.responsavel_operacional != null) processo.responsavelOperacional = row.responsavel_operacional;
   if (row.despachante != null) processo.despachante = row.despachante;
   if (row.fornecedor != null) processo.fornecedor = row.fornecedor;

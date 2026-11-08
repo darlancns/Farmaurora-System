@@ -100,7 +100,13 @@ function confirmDelete(): void {
           </button>
           <div class="min-w-0 flex-1">
             <span class="block truncate text-[13.5px] font-medium text-ink">{{ processo.paciente }}</span>
-            <span class="block text-[11.5px] text-ink-soft">{{ processo.empresa }}</span>
+            <span class="block truncate text-[11.5px] text-ink-soft">
+              {{ processo.empresa }}
+              <template v-if="processo.numeroPo">
+                ·
+                <span :id="`entregue-numero-po-${processo.id}`" class="font-mono" :title="processo.numeroPo">{{ processo.numeroPo }}</span>
+              </template>
+            </span>
           </div>
         </div>
 
