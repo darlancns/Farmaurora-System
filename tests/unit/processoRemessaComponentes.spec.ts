@@ -179,7 +179,7 @@ describe("ProcessoDetail — Nº Remessa sempre aparece", () => {
       "Pasta",
       "Despachante",
       "Fornecedor",
-      "Modal de envio",
+      "Envio",
       "Cia. aérea",
       "Nº AWB",
       "Nº Ordem",

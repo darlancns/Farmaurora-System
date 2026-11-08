@@ -33,8 +33,8 @@ function recusado(statusMessage: string) {
   return { statusCode: 400, statusMessage };
 }
 
-const ERRO_SEM_MODAL = "Escolha o modal antes da cia. aérea.";
-const erroCia = (modal: string, opcoes: string) => `Cia. aérea inválida para o modal ${modal}. Opções: ${opcoes}.`;
+const ERRO_SEM_MODAL = "Escolha o envio antes da cia. aérea.";
+const erroCia = (modal: string, opcoes: string) => `Cia. aérea inválida para o envio ${modal}. Opções: ${opcoes}.`;
 const OPCOES_AIR = "Emirates, Lufthansa, Qatar, Swiss, Turkish";
 
 // Linha armazenada de um dado antigo inconsistente (existe em produção).
@@ -76,7 +76,7 @@ describe("POST", () => {
     expect(fake.linhas(T)[0]!.companhia_aerea).toBe("Turkish");
   });
 
-  it("cia preenchida sem modal: 400 'Escolha o modal antes da cia. aérea.'", async () => {
+  it("cia preenchida sem modal: 400 'Escolha o envio antes da cia. aérea.'", async () => {
     await expect(criar({ ...corpo("", "Lufthansa") })).rejects.toMatchObject(recusado(ERRO_SEM_MODAL));
     const semModal = { ...corpo("Air Cargo", "Lufthansa") };
     delete semModal.modalEnvio;
@@ -196,7 +196,7 @@ describe("PATCH com `parcial: true`", () => {
       expect(row().companhia_aerea).toBe("Swiss");
     });
 
-    it("modal armazenado vazio: 400 'Escolha o modal antes da cia. aérea.'", async () => {
+    it("modal armazenado vazio: 400 'Escolha o envio antes da cia. aérea.'", async () => {
       fake.tabelas[T] = [linhaCompleta({ modal_envio: null, companhia_aerea: null })];
       await expect(patch({ parcial: true, companhiaAerea: "Lufthansa" })).rejects.toMatchObject(recusado(ERRO_SEM_MODAL));
     });

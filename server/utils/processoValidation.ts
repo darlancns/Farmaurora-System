@@ -121,13 +121,13 @@ function erroModalCia(modal: unknown, cia: unknown): string | null {
   if (cia.trim() === "") return null;
 
   const modalTexto = typeof modal === "string" ? modal : "";
-  if (modalTexto.trim() === "") return "Escolha o modal antes da cia. aérea.";
+  if (modalTexto.trim() === "") return "Escolha o envio antes da cia. aérea.";
   if (ciaAereaValidaParaModal(modalTexto, cia)) return null;
 
   const opcoes = ciasAereasDoModal(modalTexto);
   return opcoes.length
-    ? `Cia. aérea inválida para o modal ${modalTexto}. Opções: ${opcoes.join(", ")}.`
-    : `Cia. aérea inválida para o modal ${modalTexto}.`;
+    ? `Cia. aérea inválida para o envio ${modalTexto}. Opções: ${opcoes.join(", ")}.`
+    : `Cia. aérea inválida para o envio ${modalTexto}.`;
 }
 
 // Valor canônico da cia para gravar: texto sem espaços nas pontas; vazio → null; ausente → ausente.

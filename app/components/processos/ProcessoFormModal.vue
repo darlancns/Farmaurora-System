@@ -166,7 +166,7 @@ function handleSubmit(): void {
       >
         <!-- Ordem dos blocos (a ordem do DOM é a ordem de tabulação; nenhum tabindex positivo):
              1) Paciente / Pasta / Nº Ordem / Nº Remessa  2) Medicamentos e local de entrega  3) Empresa / Responsável /
-             Consultor / Fornecedor  4) Nº do processo  5) Status / Pagamento  6) Envio internacional (Modal / Cia. aérea /
+             Consultor / Fornecedor  4) Nº do processo  5) Status / Pagamento  6) Envio internacional (Envio / Cia. aérea /
              Nº AWB)  7) Despachante  8) Transportadora nacional  9) Datas  10) Pendências.
              Cada linha e cada fieldset é filho DIRETO deste contêiner: em lg+ ele vira `contents` e os filhos passam a ser
              itens do <form> (flex-col com gap-3.5). -->
@@ -289,12 +289,12 @@ function handleSubmit(): void {
             <input id="pf-status-outro" v-model="form.statusOutro" type="text" :class="INPUT_CLASS" />
           </div>
 
-          <!-- Envio internacional: Modal / Cia. aérea / Nº AWB. A Cia. depende do Modal (opções e desabilitada sem Modal). -->
+          <!-- Envio internacional: Envio (campo pf-modal) / Cia. aérea / Nº AWB. A Cia. depende do Envio (opções e desabilitada sem Envio). -->
           <fieldset :class="FIELDSET_CLASS">
             <legend :class="LEGEND_CLASS">Envio internacional</legend>
             <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
               <div class="col-span-2 sm:col-span-1" :class="SELECT_CAMPO_CLASS">
-                <label for="pf-modal" :class="LABEL_CLASS">Modal</label>
+                <label for="pf-modal" :class="LABEL_CLASS">Envio</label>
                 <AppSelect
                   id="pf-modal"
                   :model-value="form.modalEnvio"

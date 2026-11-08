@@ -280,7 +280,7 @@ describe("validarProcessoForm", () => {
     const form = { ...formValido(), modalEnvio: "Air Cargo", despachante: "", transportadoraNome: "Transportes X" };
     expect(validarProcessoForm(form, [], [], "")).toEqual({
       valido: false,
-      erro: "Despachante é obrigatório para o modal de envio selecionado.",
+      erro: "Despachante é obrigatório para o envio selecionado.",
     });
   });
 
@@ -311,7 +311,7 @@ describe("validarProcessoForm", () => {
     const form = { ...formValido(), modalEnvio: "Air Cargo", despachante: "", transportadoraNome: "" };
     expect(validarProcessoForm(form, [], [], "")).toEqual({
       valido: false,
-      erro: "Despachante é obrigatório para o modal de envio selecionado.",
+      erro: "Despachante é obrigatório para o envio selecionado.",
     });
   });
 
@@ -339,7 +339,7 @@ describe("validarProcessoForm", () => {
     const form = { ...formValido(), modalEnvio: "Courier Formal", despachante: "", transportadoraNome: "Transportes X" };
     expect(validarProcessoForm(form, [], [], "")).toEqual({
       valido: false,
-      erro: "Despachante é obrigatório para o modal de envio selecionado.",
+      erro: "Despachante é obrigatório para o envio selecionado.",
     });
   });
 });

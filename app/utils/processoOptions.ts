@@ -41,7 +41,7 @@ export const MODAL_ENVIO_OPTIONS: AppSelectOption<ModalEnvio | "">[] = [
   ...MODAIS_ENVIO.map((modal) => ({ value: modal, label: modal })),
 ];
 
-export const CIA_AEREA_SEM_MODAL_LABEL = "Escolha o modal primeiro";
+export const CIA_AEREA_SEM_MODAL_LABEL = "Escolha o envio primeiro";
 
 // Opções do select "Cia. aérea", que depende do modal. Sem modal: só o texto-guia (o select fica
 // desabilitado). Com modal: "Selecione" + as cias dele. Valor atual fora da lista (dado antigo, ex.:

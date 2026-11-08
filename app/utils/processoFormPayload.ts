@@ -313,7 +313,7 @@ export function validarProcessoForm(
   // continua visível, mas pode ficar em branco — buildTransportadoraNacional devolve undefined).
   if (form.modalEnvio === "Air Cargo" || form.modalEnvio === "Courier Formal") {
     if (!form.despachante.trim()) {
-      return { valido: false, erro: "Despachante é obrigatório para o modal de envio selecionado." };
+      return { valido: false, erro: "Despachante é obrigatório para o envio selecionado." };
     }
   }
   if (

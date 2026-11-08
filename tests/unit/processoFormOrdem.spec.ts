@@ -10,7 +10,7 @@ import { linhaCompleta } from "./helpers/processoEdicaoFixtures";
 // Item 11 — ORDEM dos campos do formulário de processo. Componente real (ProcessoFormModal) no happy-dom. A ordem do DOM
 // é a ordem de tabulação e a ordem de leitura; os ids pf-... não mudam, só a posição e o agrupamento.
 
-const ROTULO_ENVIO = "Modal";
+const ROTULO_ENVIO = "Envio"; // o id continua pf-modal; só o rótulo na tela mudou
 
 const DATAS = [
   "pf-data-po",
@@ -135,10 +135,12 @@ describe("Formulário de processo — ordem dos campos no DOM", () => {
     expect(el.querySelector("#pf-transp-nome")).toBeNull();
   });
 
-  it("o campo do Envio tem o rótulo esperado e a Cia. aérea vem depois dele", async () => {
+  it("o campo pf-modal tem o rótulo 'Envio' (e não mais 'Modal'); nenhum rótulo do formulário diz 'Modal'", async () => {
     const el = abrir();
     await nextTick();
     expect(texto(el.querySelector("label[for='pf-modal']"))).toBe(ROTULO_ENVIO);
+    const rotulos = [...el.querySelectorAll("#processo-form label, #processo-form legend, #processo-form p")].map(texto);
+    expect(rotulos.filter((t) => /\bmodal\b/i.test(t))).toEqual([]);
   });
 
   it("blocos com moldura: 4 fieldsets, na ordem, com as legendas certas", async () => {

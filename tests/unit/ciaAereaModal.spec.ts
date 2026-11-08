@@ -12,7 +12,7 @@ import { campoRecebePrimeiraMaiuscula } from "../../app/utils/primeiraMaiuscula"
 import AppSelect from "../../app/components/AppSelect.vue";
 import plugin from "../../app/plugins/primeira-maiuscula.client";
 
-// Item 6 do lote Follow-Up — "Cia. aérea" depende do "Modal de envio". Helpers puros (shared) e as
+// Item 6 do lote Follow-Up — "Cia. aérea" depende do "Envio". Helpers puros (shared) e as
 // opções do select.
 
 describe("ciasAereasDoModal", () => {
@@ -104,9 +104,9 @@ describe("ciaAereaValidaParaModal", () => {
 describe("montarCiaAereaOptions", () => {
   const valores = (o: Array<{ value: string }>) => o.map((x) => x.value);
 
-  it("sem modal: só o texto-guia 'Escolha o modal primeiro'", () => {
+  it("sem modal: só o texto-guia 'Escolha o envio primeiro'", () => {
     expect(montarCiaAereaOptions("", "")).toEqual([{ value: "", label: CIA_AEREA_SEM_MODAL_LABEL }]);
-    expect(CIA_AEREA_SEM_MODAL_LABEL).toBe("Escolha o modal primeiro");
+    expect(CIA_AEREA_SEM_MODAL_LABEL).toBe("Escolha o envio primeiro");
   });
 
   it("com modal: 'Selecione' + as cias do modal", () => {
@@ -136,7 +136,7 @@ describe("montarCiaAereaOptions", () => {
 
   it("valor antigo sem modal: continua visível (fora da lista), junto do texto-guia", () => {
     expect(montarCiaAereaOptions("", "Swiss")).toEqual([
-      { value: "", label: "Escolha o modal primeiro" },
+      { value: "", label: "Escolha o envio primeiro" },
       { value: "Swiss", label: "Swiss (fora da lista)" },
     ]);
   });

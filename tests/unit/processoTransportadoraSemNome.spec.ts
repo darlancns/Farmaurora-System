@@ -226,7 +226,7 @@ describe("ordem das checagens e compatibilidade", () => {
     const atual = comBloco(base, { transportadoraCotacao: "COT-1", modalEnvio: "Air Cargo" });
     expect(validar(base, atual)).toEqual({
       valido: false,
-      erro: "Despachante é obrigatório para o modal de envio selecionado.",
+      erro: "Despachante é obrigatório para o envio selecionado.",
     });
   });
 

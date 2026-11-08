@@ -37,7 +37,7 @@ function fields(processo: Processo): DetailField[] {
     { label: "Pasta", value: processo.pasta },
     { label: "Despachante", value: processo.despachante },
     { label: "Fornecedor", value: processo.fornecedor },
-    { label: "Modal de envio", value: processo.modalEnvio },
+    { label: "Envio", value: processo.modalEnvio },
     { label: "Cia. aérea", value: processo.companhiaAerea },
     { label: "Nº AWB", value: processo.numeroAwb, mono: true },
     { label: "Nº Ordem", value: processo.numeroPo, mono: true },

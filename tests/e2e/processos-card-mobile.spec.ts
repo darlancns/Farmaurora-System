@@ -461,13 +461,13 @@ test.describe("/processos abaixo de lg — card e detalhe do processo", () => {
         if (viewport.colunas === 2) {
           // < 640px: duas colunas — Pasta|Despachante, Fornecedor|Modal, Cia|AWB; Local de entrega e Nº do processo em linha própria.
           await expectLadoALado(page, id, "Pasta", "Despachante");
-          await expectLadoALado(page, id, "Fornecedor", "Modal de envio");
+          await expectLadoALado(page, id, "Fornecedor", "Envio");
           await expectLadoALado(page, id, "Cia. aérea", "Nº AWB");
         } else {
           // sm..lg: três colunas — Pasta|Despachante|Fornecedor, Modal|Cia|AWB; Local de entrega e Nº do processo em linha própria.
           await expectLadoALado(page, id, "Pasta", "Despachante");
           await expectLadoALado(page, id, "Despachante", "Fornecedor");
-          await expectLadoALado(page, id, "Modal de envio", "Cia. aérea");
+          await expectLadoALado(page, id, "Envio", "Cia. aérea");
           await expectLadoALado(page, id, "Cia. aérea", "Nº AWB");
         }
         // Sem o Rastreio, Local de entrega ocupa a linha toda (sem buraco ao lado) e fica abaixo de Cia|AWB.
@@ -476,7 +476,7 @@ test.describe("/processos abaixo de lg — card e detalhe do processo", () => {
 
         // Ordem vertical dos pares.
         const ys = [];
-        for (const r of ["Pasta", "Modal de envio", "Local de entrega", "Nº do processo", "Transportadora"]) {
+        for (const r of ["Pasta", "Envio", "Local de entrega", "Nº do processo", "Transportadora"]) {
           ys.push((await boxCelula(page, id, r)).y);
         }
         for (let i = 1; i < ys.length; i++) expect(ys[i]!).toBeGreaterThan(ys[i - 1]!);
@@ -558,7 +558,7 @@ test.describe("/processos abaixo de lg — card e detalhe do processo", () => {
         const id = ids!.vazio;
         await abrirDetalhe(page, id);
         const rotulos = [
-          "Pasta", "Despachante", "Fornecedor", "Modal de envio", "Cia. aérea", "Nº AWB",
+          "Pasta", "Despachante", "Fornecedor", "Envio", "Cia. aérea", "Nº AWB",
           "Local de entrega", "Nº do processo", "Compra (PO)", "Embarque", "Abertura thread", "Chegada Brasil",
           "Registro Radar", "Registro Duimp", "Registro Lpco", "Previsão entrega", "Suposta estimativa",
         ];

@@ -5,7 +5,7 @@ import { useProcessoForm } from "../../app/composables/useProcessoForm";
 import { montarProcesso, type FollowUpRow } from "../../server/utils/processoMappers";
 import { linhaCompleta } from "./helpers/processoEdicaoFixtures";
 
-// Item 6 do lote Follow-Up — formulário: "Cia. aérea" depende do "Modal". Composable real (useProcessoForm),
+// Item 6 do lote Follow-Up — formulário: "Cia. aérea" depende do "Envio". Composable real (useProcessoForm),
 // com o mesmo patch diferencial usado ao salvar.
 
 const processoDe = (modal: string | null, cia: string | null, extra: Record<string, unknown> = {}): Processo =>
@@ -18,10 +18,10 @@ function patchDe(f: ReturnType<typeof useProcessoForm>) {
 }
 
 describe("select de cia aérea: estado e opções", () => {
-  it("sem modal escolhido: desabilitado, só com o texto 'Escolha o modal primeiro'", () => {
+  it("sem modal escolhido: desabilitado, só com o texto 'Escolha o envio primeiro'", () => {
     const f = useProcessoForm(() => null);
     expect(f.ciaAereaDesabilitada.value).toBe(true);
-    expect(f.ciaAereaOptions.value).toEqual([{ value: "", label: "Escolha o modal primeiro" }]);
+    expect(f.ciaAereaOptions.value).toEqual([{ value: "", label: "Escolha o envio primeiro" }]);
   });
 
   it("opções por modal: Air Cargo, Courier Formal e Courier Simples", () => {
