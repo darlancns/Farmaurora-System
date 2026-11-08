@@ -34,7 +34,6 @@ export interface ProcessoFormState {
   modalEnvio: string;
   companhiaAerea: string;
   numeroAwb: string;
-  codigoRastreio: string;
   status: StatusProcesso;
   statusOutro: string; // texto livre; só vale (e é obrigatório) com status "outro"
   dataCompraPO: string;
@@ -106,7 +105,6 @@ export function buildBasePayload(
     modalEnvio: form.modalEnvio || undefined,
     companhiaAerea: form.companhiaAerea.trim() || undefined,
     numeroAwb: form.numeroAwb.trim() || undefined,
-    codigoRastreio: form.codigoRastreio.trim() || undefined,
     medicamentos: medicamentos
       .filter((item) => item.nome.trim() !== "")
       .map((item) => ({
@@ -160,7 +158,6 @@ const CAMPOS_ESCALARES = [
   "modalEnvio",
   "companhiaAerea",
   "numeroAwb",
-  "codigoRastreio",
   "localEntrega",
   "numeroProcesso",
   "statusPagamento",

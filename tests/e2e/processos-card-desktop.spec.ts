@@ -34,7 +34,6 @@ const ROBUSTO = {
   modalEnvio: "Air Cargo",
   companhiaAerea: "LATAM Cargo",
   numeroAwb: "957-12345678",
-  codigoRastreio: "LA123456789BR",
   medicamentos: [{ nome: "Pembrolizumabe", dosagem: "100mg", quantidade: "4 cx" }],
   status: "em_transito",
   datas: { dataCompraPO: "05/08", dataEmbarque: "12/08", previsaoEntrega: "28/08", supostaEstimativa: "Entre 28/08 e 02/09" },
@@ -229,7 +228,7 @@ test.describe("/processos em lg+ — card e detalhe inalterados", () => {
         expect(tr.x).toBeGreaterThanOrEqual(direita(np) - 1);
 
         // Todos os valores em monoespaçado (inclusive os que no mobile são sans), "— R$" inline.
-        for (const rotulo of ["Pasta", "Despachante", "Fornecedor", "Cia. aérea", "Nº AWB", "Rastreio", "Compra (PO)", "Embarque"]) {
+        for (const rotulo of ["Pasta", "Despachante", "Fornecedor", "Cia. aérea", "Nº AWB", "Local de entrega", "Compra (PO)", "Embarque"]) {
           const valor = celula(page, id, rotulo).locator("span").nth(1);
           expect(await valor.evaluate((el) => getComputedStyle(el).fontFamily), rotulo).toMatch(/mono/i);
         }

@@ -58,7 +58,8 @@ export async function createProcesso(input: NewProcessoDTO): Promise<Processo> {
   if (error) throw erro("criar processo", error);
 
   // statusOutro só vale com status "outro" (mesma regra gravada em colunasDeDTO).
-  const { statusOutro: _bruto, ...resto } = input;
+  // `codigoRastreio` (campo removido) pode chegar de uma aba antiga: nem grava (colunasDeDTO o ignora) nem volta no retorno.
+  const { statusOutro: _bruto, codigoRastreio: _rastreioLegado, ...resto } = input as NewProcessoDTO & { codigoRastreio?: unknown };
   const statusOutro = statusOutroDe(input.status, input.statusOutro);
   return { ...resto, ...(statusOutro ? { statusOutro } : {}), id, createdAt: now, updatedAt: now };
 }

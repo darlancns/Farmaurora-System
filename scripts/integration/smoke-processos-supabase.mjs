@@ -49,7 +49,7 @@ function colunasDeDTO(src) {
   const M = {
     ordem: "ordem", responsavelOperacional: "responsavel_operacional", despachante: "despachante",
     fornecedor: "fornecedor", modalEnvio: "modal_envio", companhiaAerea: "companhia_aerea",
-    numeroAwb: "numero_awb", codigoRastreio: "codigo_rastreio", localEntrega: "local_entrega",
+    numeroAwb: "numero_awb", localEntrega: "local_entrega",
     numeroProcesso: "numero_processo", statusPagamento: "status_pagamento",
   };
   for (const [k, c] of Object.entries(M)) if (k in src) col[c] = src[k] ?? null;
@@ -97,7 +97,7 @@ function montarProcesso(row) {
   const O = {
     ordem: "ordem", responsavel_operacional: "responsavelOperacional", despachante: "despachante",
     fornecedor: "fornecedor", modal_envio: "modalEnvio", companhia_aerea: "companhiaAerea",
-    numero_awb: "numeroAwb", codigo_rastreio: "codigoRastreio", local_entrega: "localEntrega",
+    numero_awb: "numeroAwb", local_entrega: "localEntrega",
     numero_processo: "numeroProcesso", status_pagamento: "statusPagamento",
   };
   for (const [c, k] of Object.entries(O)) if (row[c] != null) p[k] = row[c];

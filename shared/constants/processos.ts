@@ -95,7 +95,6 @@ export const CAMPOS_PROCESSO_LIMPAVEIS: readonly CampoProcessoLimpavel[] = [
   "modalEnvio",
   "companhiaAerea",
   "numeroAwb",
-  "codigoRastreio",
   "localEntrega",
   "numeroProcesso",
   "statusPagamento",

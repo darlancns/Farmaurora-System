@@ -33,7 +33,6 @@ const EDITAR = {
   modalEnvio: "Air Cargo",
   companhiaAerea: "LATAM Cargo",
   numeroAwb: "957-12345678",
-  codigoRastreio: "LA123456789BR",
   medicamentos: [
     { nome: "Pembrolizumabe", dosagem: "100mg", quantidade: "4 cx" },
     { nome: "Nivolumabe", dosagem: "40mg", quantidade: "2 cx" },
@@ -250,7 +249,6 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
             ["pf-status", "pf-responsavel", "pf-status-pagamento"],
             ["pf-despachante", "pf-fornecedor", "pf-modal"],
             ["pf-transp-nome", "pf-transp-cotacao", "pf-transp-valor"],
-            ["pf-cia-aerea", "pf-awb", "pf-rastreio"],
           ];
           for (const ids of linhas3) {
             const caixas = await Promise.all(ids.map(b));
@@ -260,6 +258,14 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
             expect(caixas[2]!.x).toBeGreaterThan(direita(caixas[1]!));
             if (!ids[0]!.startsWith("pf-transp")) expect(caixas[0]!.width, ids[0]).toBeCloseTo(col3, 0);
           }
+          // Cia. aérea | Nº AWB: só dois campos na linha (sem Rastreio), em 2 colunas iguais, sem buraco.
+          const cia = await b("pf-cia-aerea");
+          const awb = await b("pf-awb");
+          mesmaLinha(cia, awb, "Cia. aérea | Nº AWB");
+          expect(awb.x).toBeGreaterThan(direita(cia));
+          expect(cia.width).toBeCloseTo((util - 10) / 2, 0);
+          expect(awb.width).toBeCloseTo((util - 10) / 2, 0);
+          await expect(page.locator("#pf-rastreio")).toHaveCount(0);
           // Pasta e Ordem NÃO ficam na mesma linha em lg (são grids diferentes, como antes).
           expect((await b("pf-ordem")).y).toBeGreaterThan(embaixo(pasta) - 1);
 

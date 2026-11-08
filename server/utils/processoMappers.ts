@@ -48,7 +48,6 @@ export interface FollowUpRow {
   modal_envio: string | null;
   companhia_aerea: string | null;
   numero_awb: string | null;
-  codigo_rastreio: string | null;
   medicamentos: Medicamento[] | null;
   status: StatusProcesso;
   status_outro: string | null;
@@ -123,7 +122,6 @@ export function colunasDeDTO(src: ProcessoPatchDTO, opcoes: { parcial?: boolean 
   if ("modalEnvio" in src) col.modal_envio = src.modalEnvio ?? null;
   if ("companhiaAerea" in src) col.companhia_aerea = src.companhiaAerea ?? null;
   if ("numeroAwb" in src) col.numero_awb = src.numeroAwb ?? null;
-  if ("codigoRastreio" in src) col.codigo_rastreio = src.codigoRastreio ?? null;
   if ("localEntrega" in src) col.local_entrega = src.localEntrega ?? null;
   if ("numeroProcesso" in src) col.numero_processo = src.numeroProcesso ?? null;
   if ("statusPagamento" in src) col.status_pagamento = src.statusPagamento ?? null;
@@ -205,7 +203,6 @@ export function montarProcesso(row: FollowUpRow): Processo {
   if (row.modal_envio != null) processo.modalEnvio = row.modal_envio;
   if (row.companhia_aerea != null) processo.companhiaAerea = row.companhia_aerea;
   if (row.numero_awb != null) processo.numeroAwb = row.numero_awb;
-  if (row.codigo_rastreio != null) processo.codigoRastreio = row.codigo_rastreio;
   if (row.local_entrega != null) processo.localEntrega = row.local_entrega;
   if (row.numero_processo != null) processo.numeroProcesso = row.numero_processo;
   if (row.status_pagamento != null) processo.statusPagamento = row.status_pagamento;

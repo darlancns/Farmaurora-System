@@ -103,7 +103,6 @@ export interface Processo {
   modalEnvio?: string;
   companhiaAerea?: string;
   numeroAwb?: string;
-  codigoRastreio?: string;
   medicamentos: Medicamento[];
   status: StatusProcesso;
   // Texto livre exibido no lugar do rótulo quando status === "outro". Só existe
@@ -146,7 +145,6 @@ export type CampoProcessoLimpavel =
   | "modalEnvio"
   | "companhiaAerea"
   | "numeroAwb"
-  | "codigoRastreio"
   | "localEntrega"
   | "numeroProcesso"
   | "statusPagamento";

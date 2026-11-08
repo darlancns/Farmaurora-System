@@ -239,7 +239,7 @@ function handleSubmit(): void {
             </div>
           </fieldset>
 
-          <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+          <div class="grid grid-cols-2 gap-2.5">
             <div>
               <label for="pf-cia-aerea" :class="LABEL_CLASS">Cia. aérea</label>
               <input id="pf-cia-aerea" v-model="form.companhiaAerea" type="text" :class="INPUT_CLASS" />
@@ -247,10 +247,6 @@ function handleSubmit(): void {
             <div>
               <label for="pf-awb" :class="LABEL_CLASS">Nº AWB</label>
               <input id="pf-awb" data-sem-maiuscula v-model="form.numeroAwb" type="text" :class="INPUT_MONO_CLASS" />
-            </div>
-            <div class="col-span-2 sm:col-span-1">
-              <label for="pf-rastreio" :class="LABEL_CLASS">Rastreio</label>
-              <input id="pf-rastreio" data-sem-maiuscula v-model="form.codigoRastreio" type="text" :class="INPUT_MONO_CLASS" />
             </div>
           </div>
 

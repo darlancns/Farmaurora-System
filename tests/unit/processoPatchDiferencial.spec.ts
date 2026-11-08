@@ -448,7 +448,6 @@ describe("(i) edição concorrente no Supabase em memória", () => {
   function linhaVaziaDeAwb() {
     return linhaCompleta({
       numero_awb: null,
-      codigo_rastreio: null,
       data_chegada_brasil: null,
       pendencias: [],
       transportadora_nacional_nome: null,
@@ -458,16 +457,15 @@ describe("(i) edição concorrente no Supabase em memória", () => {
     });
   }
 
-  it("A carrega; B grava AWB, rastreio, data, pendência, cia e transportadora; A edita só o local de entrega: tudo de B permanece", async () => {
+  it("A carrega; B grava AWB, data, pendência, cia e transportadora; A edita só o local de entrega: tudo de B permanece", async () => {
     fake.tabelas[T] = [linhaVaziaDeAwb()];
-    // A abre o formulário com o processo como estava (sem AWB, sem rastreio, ...).
+    // A abre o formulário com o processo como estava (sem AWB, ...).
     const pessoaA = useProcessoForm(() => montarProcesso(linhaVaziaDeAwb() as unknown as FollowUpRow));
 
     // B grava, pelo mesmo caminho de sempre (PATCH).
     await enviar({
       parcial: true,
       numeroAwb: "AWB-DE-B",
-      codigoRastreio: "RASTREIO-B",
       companhiaAerea: "Emirates",
       datas: { dataChegadaBrasil: "15/09" },
       pendencias: ["Pendência de B"],
@@ -484,7 +482,6 @@ describe("(i) edição concorrente no Supabase em memória", () => {
 
     expect(row().local_entrega).toBe("Clínica nova");
     expect(row().numero_awb).toBe("AWB-DE-B");
-    expect(row().codigo_rastreio).toBe("RASTREIO-B");
     expect(row().companhia_aerea).toBe("Emirates");
     expect(row().data_chegada_brasil).toBe("15/09");
     expect(row().pendencias).toEqual(["Pendência de B"]);

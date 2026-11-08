@@ -40,7 +40,6 @@ const ROBUSTO = {
   modalEnvio: "Air Cargo",
   companhiaAerea: "LATAM Cargo",
   numeroAwb: "957-12345678",
-  codigoRastreio: "LA123456789BR",
   medicamentos: [
     { nome: "Pembrolizumabe", dosagem: "100mg", quantidade: "4 cx" },
     { nome: "Nivolumabe", dosagem: "40mg", quantidade: "2 cx" },
@@ -82,7 +81,6 @@ const ADVERSARIAL = {
   modalEnvio: "Courier Formal",
   companhiaAerea: "Companhia Aérea Internacional de Carga",
   numeroAwb: "157-98765432109",
-  codigoRastreio: "BR123456789012345678901234567890",
   medicamentos: [
     { nome: "Pembrolizumabe com excipiente estendido para teste de truncamento", dosagem: "100mg/4mL", quantidade: "10 cx" },
     { nome: "Ipilimumabe", dosagem: "50mg", quantidade: "1 cx" },
@@ -460,23 +458,24 @@ test.describe("/processos abaixo de lg — card e detalhe do processo", () => {
         expect(colunas).toBe(viewport.colunas);
 
         if (viewport.colunas === 2) {
-          // < 640px: duas colunas — Pasta|Despachante, Fornecedor|Modal, Cia|AWB, Rastreio|Local.
+          // < 640px: duas colunas — Pasta|Despachante, Fornecedor|Modal, Cia|AWB; Local de entrega e Nº do processo em linha própria.
           await expectLadoALado(page, id, "Pasta", "Despachante");
           await expectLadoALado(page, id, "Fornecedor", "Modal de envio");
           await expectLadoALado(page, id, "Cia. aérea", "Nº AWB");
-          await expectLadoALado(page, id, "Rastreio", "Local de entrega");
         } else {
-          // sm..lg: três colunas — Pasta|Despachante|Fornecedor, Modal|Cia|AWB, Rastreio|Local.
+          // sm..lg: três colunas — Pasta|Despachante|Fornecedor, Modal|Cia|AWB; Local de entrega e Nº do processo em linha própria.
           await expectLadoALado(page, id, "Pasta", "Despachante");
           await expectLadoALado(page, id, "Despachante", "Fornecedor");
           await expectLadoALado(page, id, "Modal de envio", "Cia. aérea");
           await expectLadoALado(page, id, "Cia. aérea", "Nº AWB");
-          await expectLadoALado(page, id, "Rastreio", "Local de entrega");
         }
+        // Sem o Rastreio, Local de entrega ocupa a linha toda (sem buraco ao lado) e fica abaixo de Cia|AWB.
+        expect((await boxCelula(page, id, "Local de entrega")).y).toBeGreaterThan((await boxCelula(page, id, "Nº AWB")).y);
+        await expect(celula(page, id, "Rastreio")).toHaveCount(0);
 
         // Ordem vertical dos pares.
         const ys = [];
-        for (const r of ["Pasta", "Modal de envio", "Rastreio", "Nº do processo", "Transportadora"]) {
+        for (const r of ["Pasta", "Modal de envio", "Local de entrega", "Nº do processo", "Transportadora"]) {
           ys.push((await boxCelula(page, id, r)).y);
         }
         for (let i = 1; i < ys.length; i++) expect(ys[i]!).toBeGreaterThan(ys[i - 1]!);
@@ -558,7 +557,7 @@ test.describe("/processos abaixo de lg — card e detalhe do processo", () => {
         const id = ids!.vazio;
         await abrirDetalhe(page, id);
         const rotulos = [
-          "Pasta", "Despachante", "Fornecedor", "Modal de envio", "Cia. aérea", "Nº AWB", "Rastreio",
+          "Pasta", "Despachante", "Fornecedor", "Modal de envio", "Cia. aérea", "Nº AWB",
           "Local de entrega", "Nº do processo", "Compra (PO)", "Embarque", "Abertura thread", "Chegada Brasil",
           "Registro Radar", "Registro Duimp", "Registro Lpco", "Previsão entrega", "Suposta estimativa",
         ];

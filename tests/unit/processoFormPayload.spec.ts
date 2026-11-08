@@ -29,7 +29,6 @@ function emptyForm(): ProcessoFormState {
     modalEnvio: "",
     companhiaAerea: "",
     numeroAwb: "",
-    codigoRastreio: "",
     status: "elaboracao_fornecedores",
     statusOutro: "",
     dataCompraPO: "",
@@ -164,7 +163,6 @@ describe("buildBasePayload", () => {
       modalEnvio: "Air Cargo",
       companhiaAerea: "LATAM",
       numeroAwb: "AWB123",
-      codigoRastreio: "RASTR123",
       status: "em_transito",
       localEntrega: "Farmácia Central",
       numeroProcesso: "PROC-1",
@@ -188,7 +186,6 @@ describe("buildBasePayload", () => {
       modalEnvio: "Air Cargo",
       companhiaAerea: "LATAM",
       numeroAwb: "AWB123",
-      codigoRastreio: "RASTR123",
       medicamentos: [{ nome: "Dipirona", dosagem: "500mg", quantidade: "10" }],
       status: "em_transito",
       datas: {

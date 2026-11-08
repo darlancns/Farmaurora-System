@@ -19,7 +19,6 @@ function buildFullDTO(): NewProcessoDTO {
     modalEnvio: "Air Cargo",
     companhiaAerea: "LATAM",
     numeroAwb: "AWB-123",
-    codigoRastreio: "TRACK-456",
     medicamentos: [{ nome: "MED A", dosagem: "10mg", quantidade: "2" }],
     status: "em_transito",
     datas: { dataCompraPO: "2026-01-01", dataEmbarque: "2026-01-05" },
@@ -49,7 +48,6 @@ describe("colunasDeDTO", () => {
       modal_envio: "Air Cargo",
       companhia_aerea: "LATAM",
       numero_awb: "AWB-123",
-      codigo_rastreio: "TRACK-456",
       local_entrega: "SP",
       numero_processo: "PROC-1",
       status_pagamento: "pendente",
@@ -73,6 +71,17 @@ describe("colunasDeDTO", () => {
 
     expect("transportadora_nacional_valor" in col).toBe(true);
     expect(col.transportadora_nacional_valor).toBeNull();
+  });
+
+  it("codigoRastreio (campo removido, vindo de aba antiga) é ignorado: nenhuma coluna de rastreio é gerada", () => {
+    const legado = { paciente: "X", numeroAwb: "AWB-9", codigoRastreio: "LA123BR" } as unknown as Parameters<typeof colunasDeDTO>[0];
+
+    const col = colunasDeDTO(legado);
+    expect(col).toEqual({ paciente: "X", numero_awb: "AWB-9" });
+    expect("codigo_rastreio" in col).toBe(false);
+
+    const soRastreio = colunasDeDTO({ codigoRastreio: null } as unknown as Parameters<typeof colunasDeDTO>[0]);
+    expect(soRastreio).toEqual({});
   });
 
   it("campo ausente do DTO (patch parcial) não gera a chave correspondente — patch seletivo", () => {
@@ -113,7 +122,6 @@ describe("montarProcesso", () => {
       modal_envio: "Air Cargo",
       companhia_aerea: "LATAM",
       numero_awb: "AWB-123",
-      codigo_rastreio: "TRACK-456",
       medicamentos: [{ nome: "MED A", dosagem: "10mg", quantidade: "2" }],
       status: "em_transito",
       data_compra_po: "2026-01-01",
@@ -154,7 +162,6 @@ describe("montarProcesso", () => {
       modalEnvio: "Air Cargo",
       companhiaAerea: "LATAM",
       numeroAwb: "AWB-123",
-      codigoRastreio: "TRACK-456",
       medicamentos: [{ nome: "MED A", dosagem: "10mg", quantidade: "2" }],
       status: "em_transito",
       datas: { dataCompraPO: "2026-01-01", dataEmbarque: "2026-01-05" },
@@ -168,6 +175,15 @@ describe("montarProcesso", () => {
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-10T00:00:00.000Z",
     });
+  });
+
+  it("row que ainda traz codigo_rastreio (coluna a ser apagada) não vira codigoRastreio no objeto", () => {
+    const row = { ...buildFullRow(), codigo_rastreio: "LA123BR" } as unknown as FollowUpRow;
+
+    const processo = montarProcesso(row) as unknown as Record<string, unknown>;
+
+    expect("codigoRastreio" in processo).toBe(false);
+    expect(processo.numeroAwb).toBe("AWB-123");
   });
 
   it("transportadora_nacional_valor null → a chave 'valor' fica OMITIDA do objeto (não vira valor: null)", () => {

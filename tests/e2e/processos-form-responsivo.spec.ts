@@ -39,7 +39,6 @@ const EDITAR = {
   modalEnvio: "Air Cargo",
   companhiaAerea: "LATAM Cargo",
   numeroAwb: "957-12345678",
-  codigoRastreio: "LA123456789BR",
   medicamentos: [
     { nome: "Pembrolizumabe", dosagem: "100mg", quantidade: "4 cx" },
     { nome: "Nivolumabe", dosagem: "40mg/10mL", quantidade: "2 cx" },
@@ -117,7 +116,6 @@ const CAMPOS_NOVO = [
   "pf-transp-valor",
   "pf-cia-aerea",
   "pf-awb",
-  "pf-rastreio",
   "pf-medicamento-nome-0",
   "pf-medicamento-dosagem-0",
   "pf-medicamento-quantidade-0",
@@ -444,7 +442,6 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
             ["pf-transp-valor", "1234.5"],
             ["pf-cia-aerea", "LATAM Cargo"],
             ["pf-awb", "957-12345678"],
-            ["pf-rastreio", "LA123456789BR"],
             ["pf-medicamento-nome-0", "Pembrolizumabe"],
             ["pf-medicamento-dosagem-0", "100mg/4mL"],
             ["pf-medicamento-quantidade-0", "10 cx"],
@@ -561,17 +558,13 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
             mesmaLinha(nome, cot, "Nome | Cotação (3 colunas)");
           }
 
-          // Cia. aérea / AWB / Rastreio: Cia + AWB em 2 colunas, Rastreio em largura total (celular).
+          // Cia. aérea | Nº AWB: sempre 2 colunas iguais lado a lado (celular e tablet), sem Rastreio e sem buraco.
           const cia = await b("pf-cia-aerea");
           const awb = await b("pf-awb");
-          const rastreio = await b("pf-rastreio");
           mesmaLinha(cia, awb, "Cia | AWB");
-          if (!tablet) {
-            expect(rastreio.width, "Rastreio em largura total").toBeCloseTo(util, 0);
-            abaixoDe(rastreio, cia, "Rastreio");
-          } else {
-            mesmaLinha(awb, rastreio, "AWB | Rastreio (3 colunas)");
-          }
+          expect(cia.width, "Cia e AWB com a mesma largura").toBeCloseTo(awb.width, 0);
+          expect(direita(awb), "AWB vai até a borda direita útil").toBeCloseTo(cia.x + util, 0);
+          await expect(page.locator("#pf-rastreio")).toHaveCount(0);
 
           // Medicamento (item 0): Nome em largura total; Dosagem | Quantidade; ações na linha de baixo.
           const mNome = await b("pf-medicamento-nome-0");
@@ -614,7 +607,7 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
         test("campo focado nunca fica atrás do rodapé fixo (scroll-padding do corpo)", async ({ page }) => {
           // Com o teclado virtual aberto o navegador rola o campo focado pra dentro da área
           // visível; o scroll-padding-bottom do corpo desconta o rodapé sticky nessa conta.
-          const ids = ["pf-numero-processo", "pf-local-entrega", "pf-rastreio", "pf-data-po", "pf-suposta-estimativa"];
+          const ids = ["pf-numero-processo", "pf-local-entrega", "pf-awb", "pf-data-po", "pf-suposta-estimativa"];
           for (const id of ids) {
             await page.locator("#processo-form").evaluate((f) => { f.scrollTop = 0; });
             await campo(page, id).focus();
@@ -677,7 +670,7 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
             await campo(page, "pf-consultor").click();
             await page.locator("#pf-consultor-listbox li", { hasText: "Alessandra" }).click();
           } else {
-            await campo(page, "pf-rastreio").fill("ZZ999999999BR");
+            await campo(page, "pf-awb").fill("ZZ999999999BR");
           }
           await page.locator("#btn-save-processo").click();
           await expect(page.locator("#processo-form")).toHaveCount(0);
@@ -691,7 +684,7 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
           } else {
             expect(m.metodo).toBe("PATCH");
             expect(m.url).toBe(`/api/processos/${processoId}`);
-            expect(m.corpo).toMatchObject({ codigoRastreio: "ZZ999999999BR" });
+            expect(m.corpo).toMatchObject({ numeroAwb: "ZZ999999999BR" });
           }
         });
       });

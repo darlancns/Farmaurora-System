@@ -103,7 +103,6 @@ describe("esvaziar na edição persiste como NULL no banco", () => {
   const CASOS: Array<[string, (e: EstadoEdicao) => void, string]> = [
     ["cia aérea", (e) => (e.form.companhiaAerea = ""), "companhia_aerea"],
     ["AWB", (e) => (e.form.numeroAwb = ""), "numero_awb"],
-    ["rastreio", (e) => (e.form.codigoRastreio = ""), "codigo_rastreio"],
     ["local de entrega", (e) => (e.form.localEntrega = ""), "local_entrega"],
     ["nº do processo", (e) => (e.form.numeroProcesso = ""), "numero_processo"],
     ["despachante", (e) => (e.form.despachante = ""), "despachante"],
@@ -154,7 +153,6 @@ describe("esvaziar na edição persiste como NULL no banco", () => {
           modalEnvio: "",
           companhiaAerea: "",
           numeroAwb: "",
-          codigoRastreio: "",
           localEntrega: "",
           numeroProcesso: "",
           statusPagamento: "",
