@@ -16,18 +16,25 @@ import plugin from "../../app/plugins/primeira-maiuscula.client";
 // opções do select.
 
 describe("ciasAereasDoModal", () => {
-  it("Air Cargo: Lufthansa, Emirates, Turkish, Qatar, Swiss", () => {
-    expect(ciasAereasDoModal("Air Cargo")).toEqual(["Lufthansa", "Emirates", "Turkish", "Qatar", "Swiss"]);
+  it("Air Cargo: Emirates, Lufthansa, Qatar, Swiss, Turkish", () => {
+    expect(ciasAereasDoModal("Air Cargo")).toEqual(["Emirates", "Lufthansa", "Qatar", "Swiss", "Turkish"]);
   });
 
-  it("Courier Formal e Courier Simples: FedEx, DHL", () => {
-    expect(ciasAereasDoModal("Courier Formal")).toEqual(["FedEx", "DHL"]);
-    expect(ciasAereasDoModal("Courier Simples")).toEqual(["FedEx", "DHL"]);
+  it("Courier Formal e Courier Simples: DHL, FedEx", () => {
+    expect(ciasAereasDoModal("Courier Formal")).toEqual(["DHL", "FedEx"]);
+    expect(ciasAereasDoModal("Courier Simples")).toEqual(["DHL", "FedEx"]);
   });
 
   it("todo modal conhecido tem cias, e o mapa não tem modal fora de MODAIS_ENVIO", () => {
     for (const modal of MODAIS_ENVIO) expect(ciasAereasDoModal(modal).length, modal).toBeGreaterThan(0);
     expect(Object.keys(CIAS_AEREAS_POR_MODAL).sort()).toEqual([...MODAIS_ENVIO].sort());
+  });
+
+  it("cada lista está em ordem alfabética (pt-BR), para a ordem não se desfazer por engano", () => {
+    for (const modal of MODAIS_ENVIO) {
+      const cias = [...ciasAereasDoModal(modal)];
+      expect(cias, modal).toEqual([...cias].sort((a, b) => a.localeCompare(b, "pt-BR")));
+    }
   });
 
   it("modal vazio, nulo, desconhecido ou de outra caixa: lista vazia", () => {
@@ -105,10 +112,10 @@ describe("montarCiaAereaOptions", () => {
   it("com modal: 'Selecione' + as cias do modal", () => {
     expect(montarCiaAereaOptions("Air Cargo", "")).toEqual([
       { value: "", label: "Selecione" },
-      ...["Lufthansa", "Emirates", "Turkish", "Qatar", "Swiss"].map((c) => ({ value: c, label: c })),
+      ...["Emirates", "Lufthansa", "Qatar", "Swiss", "Turkish"].map((c) => ({ value: c, label: c })),
     ]);
-    expect(valores(montarCiaAereaOptions("Courier Formal", ""))).toEqual(["", "FedEx", "DHL"]);
-    expect(valores(montarCiaAereaOptions("Courier Simples", ""))).toEqual(["", "FedEx", "DHL"]);
+    expect(valores(montarCiaAereaOptions("Courier Formal", ""))).toEqual(["", "DHL", "FedEx"]);
+    expect(valores(montarCiaAereaOptions("Courier Simples", ""))).toEqual(["", "DHL", "FedEx"]);
   });
 
   it("valor atual dentro da lista: nenhuma opção extra", () => {
@@ -118,13 +125,13 @@ describe("montarCiaAereaOptions", () => {
   it("valor atual fora da lista entra como opção extra '<valor> (fora da lista)'", () => {
     const o = montarCiaAereaOptions("Courier Formal", "Swiss");
     expect(o.at(-1)).toEqual({ value: "Swiss", label: "Swiss (fora da lista)" });
-    expect(valores(o)).toEqual(["", "FedEx", "DHL", "Swiss"]);
+    expect(valores(o)).toEqual(["", "DHL", "FedEx", "Swiss"]);
   });
 
   it("'Turkish Cargo' (valor antigo) aparece como fora da lista, no Air Cargo", () => {
     const o = montarCiaAereaOptions("Air Cargo", "Turkish Cargo");
     expect(o.at(-1)).toEqual({ value: "Turkish Cargo", label: "Turkish Cargo (fora da lista)" });
-    expect(valores(o)).toEqual(["", "Lufthansa", "Emirates", "Turkish", "Qatar", "Swiss", "Turkish Cargo"]);
+    expect(valores(o)).toEqual(["", "Emirates", "Lufthansa", "Qatar", "Swiss", "Turkish", "Turkish Cargo"]);
   });
 
   it("valor antigo sem modal: continua visível (fora da lista), junto do texto-guia", () => {

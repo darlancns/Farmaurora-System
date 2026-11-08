@@ -31,14 +31,14 @@ describe("select de cia aérea: estado e opções", () => {
 
     f.onModalEnvioChange("Air Cargo");
     expect(f.ciaAereaDesabilitada.value).toBe(false);
-    expect(f.ciaAereaOptions.value.map((o) => o.value)).toEqual(["", "Lufthansa", "Emirates", "Turkish", "Qatar", "Swiss"]);
+    expect(f.ciaAereaOptions.value.map((o) => o.value)).toEqual(["", "Emirates", "Lufthansa", "Qatar", "Swiss", "Turkish"]);
     expect(f.ciaAereaOptions.value[0]!.label).toBe("Selecione");
 
     f.onModalEnvioChange("Courier Formal");
-    expect(f.ciaAereaOptions.value.map((o) => o.value)).toEqual(["", "FedEx", "DHL"]);
+    expect(f.ciaAereaOptions.value.map((o) => o.value)).toEqual(["", "DHL", "FedEx"]);
 
     f.onModalEnvioChange("Courier Simples");
-    expect(f.ciaAereaOptions.value.map((o) => o.value)).toEqual(["", "FedEx", "DHL"]);
+    expect(f.ciaAereaOptions.value.map((o) => o.value)).toEqual(["", "DHL", "FedEx"]);
   });
 
   it("limpar o modal volta a desabilitar o select", () => {

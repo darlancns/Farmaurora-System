@@ -35,7 +35,7 @@ function recusado(statusMessage: string) {
 
 const ERRO_SEM_MODAL = "Escolha o modal antes da cia. aérea.";
 const erroCia = (modal: string, opcoes: string) => `Cia. aérea inválida para o modal ${modal}. Opções: ${opcoes}.`;
-const OPCOES_AIR = "Lufthansa, Emirates, Turkish, Qatar, Swiss";
+const OPCOES_AIR = "Emirates, Lufthansa, Qatar, Swiss, Turkish";
 
 // Linha armazenada de um dado antigo inconsistente (existe em produção).
 const linhaAntiga = () => linhaCompleta({ modal_envio: "Courier Formal", companhia_aerea: "Swiss" });
@@ -65,7 +65,7 @@ describe("POST", () => {
   });
 
   it("cia inválida para o modal: 400 com a lista de opções, e nada é gravado", async () => {
-    await expect(criar(corpo("Courier Formal", "Swiss"))).rejects.toMatchObject(recusado(erroCia("Courier Formal", "FedEx, DHL")));
+    await expect(criar(corpo("Courier Formal", "Swiss"))).rejects.toMatchObject(recusado(erroCia("Courier Formal", "DHL, FedEx")));
     await expect(criar(corpo("Air Cargo", "FedEx"))).rejects.toMatchObject(recusado(erroCia("Air Cargo", OPCOES_AIR)));
     expect(fake.linhas(T)).toHaveLength(0);
   });
@@ -144,7 +144,7 @@ describe("PATCH com `parcial: true`", () => {
   describe("(2) patch só com modal: valida a cia ARMAZENADA contra o novo modal", () => {
     it("modal incompatível com a cia armazenada: 400 e nada muda", async () => {
       await expect(patch({ parcial: true, modalEnvio: "Courier Formal" })).rejects.toMatchObject(
-        recusado(erroCia("Courier Formal", "FedEx, DHL")),
+        recusado(erroCia("Courier Formal", "DHL, FedEx")),
       );
       expect(row().modal_envio).toBe("Air Cargo");
       expect(row().companhia_aerea).toBe("Lufthansa");
@@ -166,7 +166,7 @@ describe("PATCH com `parcial: true`", () => {
     it("dado antigo inválido: mexer só no modal obriga a conferir a cia (Swiss no Courier Simples: 400)", async () => {
       fake.tabelas[T] = [linhaAntiga()];
       await expect(patch({ parcial: true, modalEnvio: "Courier Simples" })).rejects.toMatchObject(
-        recusado(erroCia("Courier Simples", "FedEx, DHL")),
+        recusado(erroCia("Courier Simples", "DHL, FedEx")),
       );
     });
   });
@@ -242,7 +242,7 @@ describe("PATCH com `parcial: true`", () => {
 
     it("novo modal + cia que não é dele: 400", async () => {
       await expect(patch({ parcial: true, modalEnvio: "Courier Formal", companhiaAerea: "Qatar" })).rejects.toMatchObject(
-        recusado(erroCia("Courier Formal", "FedEx, DHL")),
+        recusado(erroCia("Courier Formal", "DHL, FedEx")),
       );
     });
 
@@ -309,7 +309,7 @@ describe("PATCH sem `parcial` (caminho antigo, abas velhas)", () => {
 
   it("modal DIFERENTE do armazenado, incompatível com a cia armazenada: 400", async () => {
     await expect(patch({ modalEnvio: "Courier Formal", companhiaAerea: "Lufthansa" })).rejects.toMatchObject(
-      recusado(erroCia("Courier Formal", "FedEx, DHL")),
+      recusado(erroCia("Courier Formal", "DHL, FedEx")),
     );
     expect(row().modal_envio).toBe("Air Cargo");
   });

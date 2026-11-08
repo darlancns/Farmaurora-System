@@ -39,12 +39,12 @@ export const MODAL_COURIER_FORMAL = "Courier Formal" satisfies ModalEnvio;
 export const MODAL_COURIER_SIMPLES = "Courier Simples" satisfies ModalEnvio;
 export const MODAIS_ENVIO: ModalEnvio[] = [MODAL_AIR_CARGO, MODAL_COURIER_FORMAL, MODAL_COURIER_SIMPLES];
 
-const CIAS_COURIER: readonly string[] = ["FedEx", "DHL"];
+const CIAS_COURIER: readonly string[] = ["DHL", "FedEx"];
 
-// Cia. aérea depende do modal de envio (a escolha vale na ordem listada). A cia continua OPCIONAL (pode
+// Cia. aérea depende do modal de envio (em ordem alfabética, como os demais selects). A cia continua OPCIONAL (pode
 // ficar vazia). O valor guardado em `companhia_aerea` é exatamente um destes textos.
 export const CIAS_AEREAS_POR_MODAL: Record<ModalEnvio, readonly string[]> = {
-  [MODAL_AIR_CARGO]: ["Lufthansa", "Emirates", "Turkish", "Qatar", "Swiss"],
+  [MODAL_AIR_CARGO]: ["Emirates", "Lufthansa", "Qatar", "Swiss", "Turkish"],
   [MODAL_COURIER_FORMAL]: CIAS_COURIER,
   [MODAL_COURIER_SIMPLES]: CIAS_COURIER,
 };
