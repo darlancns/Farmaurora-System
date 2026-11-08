@@ -23,7 +23,7 @@ const RUN = String(Date.now()).slice(-9);
 
 const ROBUSTO = {
   paciente: `Maria Aparecida dos Santos ${RUN}`,
-  ordem: "Ordem 2",
+  numeroRemessa: 2,
   pasta: "2026 - 234",
   empresa: "FARMAURORA",
   consultor: "Flávia",
@@ -143,7 +143,7 @@ test.describe("/processos em lg+ — card e detalhe inalterados", () => {
         await expect(page.locator("[id^='processo-detail-']")).toHaveCount(0);
       });
 
-      test("card fechado: linha única (nome, ordem·pasta, medicamento | badge, data, responsável | lixeira), sem o card mobile", async ({
+      test("card fechado: linha única (nome, Remessa N·pasta, medicamento | badge, data, responsável | lixeira), sem o card mobile", async ({
         page,
       }) => {
         const id = ids!.robusto;
@@ -177,6 +177,13 @@ test.describe("/processos em lg+ — card e detalhe inalterados", () => {
         expect(resp.x).toBeGreaterThanOrEqual(direita(data) - 1);
         expect(lixeira.x).toBeGreaterThanOrEqual(direita(resp) - 1);
         expect(direita(lixeira)).toBeLessThanOrEqual(direita(linhaBox) + 1);
+
+        // Nº Remessa 2 (> 1): a linha mostra "Remessa 2" discreto, antes da pasta, na mesma fileira do nome.
+        const remessa = await box(page, `#remessa-${id}`);
+        await expect(page.locator(`#remessa-${id}`)).toHaveText("Remessa 2");
+        expect(Math.abs(centerY(remessa) - centerY(nome))).toBeLessThanOrEqual(14);
+        expect(remessa.x).toBeGreaterThanOrEqual(direita(nome) - 1);
+        expect(remessa.x + remessa.width).toBeLessThanOrEqual(badge.x + 1);
 
         // Colunas fixas de lg+ (data 92px, responsável 110px) e lixeira compacta de 28px.
         expect(Math.round(data.width)).toBe(92);

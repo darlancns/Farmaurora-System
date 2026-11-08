@@ -342,15 +342,18 @@ test.describe.serial("Follow-Up de processos", () => {
     await expect(detail).toContainText("Fornecedor sinalizou atraso no despacho.");
   });
 
-  test("13 · salva um processo com Ordem preenchida sem erro (regressão do bug de type=number)", async ({ page }) => {
-    const PACIENTE_ORDEM = `Paciente ${RUN} Ordem Numerica`;
+  test("13 · salva um processo com Nº Remessa preenchido sem erro e o stepper (− / +) ajusta o valor", async ({ page }) => {
+    const PACIENTE_ORDEM = `Paciente ${RUN} Remessa Numerica`;
 
     await page.goto("/processos", { waitUntil: "networkidle" });
 
     await page.locator("#btn-novo-processo").click();
     await page.locator("#pf-paciente").fill(PACIENTE_ORDEM);
     await page.locator("#pf-pasta").fill("2026 - 997");
-    await page.locator("#pf-ordem").fill("3");
+    // Processo novo começa em 1, com "−" desabilitado (mínimo 1).
+    await expect(page.locator("#pf-numero-remessa")).toHaveValue("1");
+    await expect(page.locator("#pf-numero-remessa-menos")).toBeDisabled();
+    await page.locator("#pf-numero-remessa").fill("3");
     await selectOption(page, "pf-consultor", "Mateus Morais");
     await page.locator("#btn-save-processo").click();
 
@@ -358,24 +361,33 @@ test.describe.serial("Follow-Up de processos", () => {
 
     await expandGroup(page, "Mateus Morais");
     const row = page.locator('[id^="processo-row-"]').filter({ hasText: PACIENTE_ORDEM });
-    await expect(row).toContainText("Ordem 3");
+    await expect(row).toContainText("Remessa 3");
 
     await row.locator("button").first().click();
     const detail = row.locator('[id^="processo-detail-"]');
     await detail.getByRole("button", { name: "Editar processo" }).click();
-    await expect(page.locator("#pf-ordem")).toHaveValue("3");
+    await expect(page.locator("#pf-numero-remessa")).toHaveValue("3");
 
     // Sem alterar nada, a edição não grava (patch diferencial): avisa e fecha.
     await page.locator("#btn-save-processo").click();
     await expect(page.locator("#toast-notice")).toContainText("Nenhuma alteração para salvar");
     await expect(page.locator("#processo-form")).toHaveCount(0);
 
-    // Alterando a ordem (input type=number), grava sem erro e o rótulo é atualizado.
+    // Aumentando pelo botão "+", grava sem erro e o rótulo é atualizado.
     await detail.getByRole("button", { name: "Editar processo" }).click();
-    await page.locator("#pf-ordem").fill("4");
+    await page.locator("#pf-numero-remessa-mais").click();
+    await expect(page.locator("#pf-numero-remessa")).toHaveValue("4");
+    await expect(page.locator("#processo-form")).toBeVisible(); // o botão não envia o formulário
     await page.locator("#btn-save-processo").click();
     await expect(page.locator("#toast-notice")).toContainText("Processo atualizado");
-    await expect(row).toContainText("Ordem 4");
+    await expect(row).toContainText("Remessa 4");
+
+    // Campo esvaziado e fora do foco volta a 1 (e "−" fica desabilitado).
+    await detail.getByRole("button", { name: "Editar processo" }).click();
+    await page.locator("#pf-numero-remessa").fill("");
+    await page.locator("#pf-numero-remessa").blur();
+    await expect(page.locator("#pf-numero-remessa")).toHaveValue("1");
+    await expect(page.locator("#pf-numero-remessa-menos")).toBeDisabled();
   });
 
   test("14 · Courier Simples oculta Despachante e Transportadora, e preserva o valor ao trocar de volta", async ({ page }) => {

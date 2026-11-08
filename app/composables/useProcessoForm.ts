@@ -10,7 +10,7 @@ import type {
 } from "#shared/types/processo";
 import { ciaAereaValidaParaModal, EMPRESAS_PROCESSO, FORNECEDORES_PROCESSO } from "#shared/constants/processos";
 import { mascararNumeroOrdem } from "#shared/utils/numeroOrdem";
-import { mascararNumeroRemessa, NUMERO_REMESSA_PADRAO } from "#shared/utils/numeroRemessa";
+import { NUMERO_REMESSA_PADRAO } from "#shared/utils/numeroRemessa";
 import { maskPastaCode } from "../utils/processoFormatters";
 import {
   montarPatchDiferencial,
@@ -144,7 +144,6 @@ export interface UseProcessoFormReturn {
   onPacienteInput: (event: Event) => void;
   onPastaInput: (event: Event) => void;
   onNumeroPoInput: (event: Event) => void;
-  onNumeroRemessaInput: (event: Event) => void;
   onMedicamentoNomeInput: (index: number, event: Event) => void;
   onMedicamentoDosagemInput: (index: number, event: Event) => void;
   onMedicamentoQuantidadeInput: (index: number, event: Event) => void;
@@ -276,23 +275,6 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     form.pasta = maskPastaCode(target.value);
   }
 
-  // Nº Remessa: só dígitos, sem zeros à esquerda (a máscara é a de shared/utils/numeroRemessa.ts). Roda em todo "input",
-  // inclusive colar; o texto filtrado é escrito de volta no campo (type="text" + inputmode="numeric": sem setas do
-  // type="number" e sem aceitar "e", "+", "-" ou "."), com o cursor no lugar certo.
-  function onNumeroRemessaInput(event: Event): void {
-    const target = event.target as HTMLInputElement;
-    const { valor, cursor } = mascararNumeroRemessa(target.value, target.selectionStart);
-    form.numeroRemessa = valor;
-    if (target.value !== valor) {
-      target.value = valor;
-      try {
-        target.setSelectionRange(cursor, cursor);
-      } catch {
-        // sem seleção (campo fora do DOM): nada a restaurar
-      }
-    }
-  }
-
   // Nº Ordem: a máscara cuida do prefixo, dos números, da barra e das MAIÚSCULAS. Incompleto salva normalmente. O input leva
   // data-sem-maiuscula: o plugin global só capitaliza a 1ª letra e disputaria o valor). Roda em todo "input",
   // inclusive colar. O valor mascarado é escrito de volta no campo, com o cursor no lugar certo (nada de
@@ -370,7 +352,6 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     onPacienteInput,
     onPastaInput,
     onNumeroPoInput,
-    onNumeroRemessaInput,
     onMedicamentoNomeInput,
     onMedicamentoDosagemInput,
     onMedicamentoQuantidadeInput,

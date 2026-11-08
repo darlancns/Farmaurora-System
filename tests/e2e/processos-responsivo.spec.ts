@@ -83,7 +83,7 @@ test.describe("Responsividade de /processos", () => {
         const nome = row.locator(`#mobile-paciente-${id}`);
         expect(await nome.evaluate((el) => el.scrollWidth > el.clientWidth + 1)).toBe(false);
 
-        // Ordem · Pasta: texto corrido, sem overflow.
+        // Remessa · Pasta: texto corrido, sem overflow.
         const ordemPasta = row.locator(`#mobile-ordem-pasta-${id}`);
         expect(await ordemPasta.evaluate((el) => el.scrollWidth > el.clientWidth + 1)).toBe(false);
 

@@ -213,6 +213,26 @@ describe("Formulário — campo Nº Remessa (pf-numero-remessa)", () => {
     expect(el.querySelector("#pf-ordem")).toBeNull();
   });
 
+  it("tem os botões − e + (ids e aria-labels combinados); no modal, + e − mudam o campo e '−' fica desabilitado em 1", async () => {
+    const el = abrirModal(null);
+    await nextTick();
+    const menos = el.querySelector<HTMLButtonElement>("#pf-numero-remessa-menos")!;
+    const mais = el.querySelector<HTMLButtonElement>("#pf-numero-remessa-mais")!;
+    const campo = el.querySelector<HTMLInputElement>("#pf-numero-remessa")!;
+    expect(menos.getAttribute("aria-label")).toBe("Diminuir Nº Remessa");
+    expect(mais.getAttribute("aria-label")).toBe("Aumentar Nº Remessa");
+    expect(menos.disabled).toBe(true);
+
+    mais.click();
+    await nextTick();
+    expect(campo.value).toBe("2");
+    expect(menos.disabled).toBe(false);
+    menos.click();
+    await nextTick();
+    expect(campo.value).toBe("1");
+    expect(menos.disabled).toBe(true);
+  });
+
   it("aceita só dígitos: 'e', '+', '-', '.', letras e espaços são removidos; sem zeros à esquerda", async () => {
     const el = abrirModal(null);
     await nextTick();

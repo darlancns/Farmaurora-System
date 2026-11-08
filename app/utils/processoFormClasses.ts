@@ -11,6 +11,10 @@ const CAMPO_BASE =
 
 export const INPUT_CLASS = `${CAMPO_BASE} text-[16px] lg:text-[13.5px]`;
 export const INPUT_MONO_CLASS = `${CAMPO_BASE} font-mono text-[16px] lg:text-[13.5px]`;
+// Campo central do stepper do Nº Remessa (ProcessoRemessaStepper.vue): como o INPUT_MONO_CLASS, mas ocupa só o que
+// sobra entre os botões (flex-1, sem w-full), centralizado e com padding lateral menor (cabe em coluna de ~160px).
+export const INPUT_STEPPER_CLASS =
+  "min-w-0 flex-1 min-h-11 rounded-md border border-hairline bg-paper px-1 py-2 text-center font-mono text-[16px] focus:bg-white focus:outline-2 focus:outline-accent-dark lg:min-h-auto lg:text-[13.5px]";
 // Medicamentos e pendências (13px no desktop).
 export const INPUT_COMPACTO_CLASS = `${CAMPO_BASE} text-[16px] lg:text-[13px]`;
 // Datas DD/MM (mono 12.5px no desktop).

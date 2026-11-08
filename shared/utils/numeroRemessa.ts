@@ -63,3 +63,42 @@ export function mascararNumeroRemessa(texto: string, cursor: number | null = nul
   const valor = todos.replace(/^0+/, "").slice(0, MAXIMO_DE_DIGITOS);
   return { valor, cursor: Math.min(valor.length, Math.max(0, digitosAntes - zeros)) };
 }
+
+// ── Stepper do formulário (botões − e +, setas do teclado, blur) ───────────────────────────────────
+// Funções puras sobre o TEXTO do campo (o formulário guarda o Nº Remessa como string). Reaproveitam a normalização
+// acima: nenhuma regra repetida. Um texto acima do máximo (a máscara deixa digitar até 10 dígitos) conta como o
+// máximo: o "+" fica desabilitado e o "−" desce a partir do máximo.
+
+function valorDoCampo(texto: unknown): number {
+  return normalizarNumeroRemessa(texto) ?? NUMERO_REMESSA_MAXIMO;
+}
+
+/** Texto do campo após "+" / ArrowUp: valor + 1, parando no máximo. Vazio vale 1 (vira 2). */
+export function aumentarNumeroRemessa(texto: unknown): string {
+  return String(Math.min(NUMERO_REMESSA_MAXIMO, valorDoCampo(texto) + 1));
+}
+
+/** Texto do campo após "−" / ArrowDown: valor − 1, parando em 1. Vazio vale 1 (continua 1). */
+export function diminuirNumeroRemessa(texto: unknown): string {
+  return String(Math.max(1, valorDoCampo(texto) - 1));
+}
+
+/** "−" habilitado? Não em 1 (nem com o campo vazio ou 0, que valem 1). */
+export function podeDiminuirNumeroRemessa(texto: unknown): boolean {
+  return valorDoCampo(texto) > 1;
+}
+
+/** "+" habilitado? Não no máximo (2147483647) nem acima dele. */
+export function podeAumentarNumeroRemessa(texto: unknown): boolean {
+  const n = normalizarNumeroRemessa(texto);
+  return n !== undefined && n < NUMERO_REMESSA_MAXIMO;
+}
+
+/**
+ * Texto do campo ao SAIR dele (blur): vazio ou 0 viram "1" e zeros à esquerda somem. Um valor acima do máximo fica como está
+ * (a validação do formulário o recusa com a mensagem de sempre).
+ */
+export function finalizarNumeroRemessa(texto: string): string {
+  const n = normalizarNumeroRemessa(texto);
+  return n === undefined ? texto : String(n);
+}

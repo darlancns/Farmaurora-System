@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  aumentarNumeroRemessa,
+  diminuirNumeroRemessa,
+  finalizarNumeroRemessa,
+  podeAumentarNumeroRemessa,
+  podeDiminuirNumeroRemessa,
   NUMERO_REMESSA_ERRO,
   NUMERO_REMESSA_MAXIMO,
   mascararNumeroRemessa,
@@ -115,5 +120,72 @@ describe("mascararNumeroRemessa (campo do formulário)", () => {
     expect(mascararNumeroRemessa("07", 1)).toEqual({ valor: "7", cursor: 0 });
     // sem cursor informado, vai para o fim.
     expect(mascararNumeroRemessa("12x").cursor).toBe(2);
+  });
+});
+
+describe("stepper — aumentar e diminuir", () => {
+  it("aumentar soma 1 (texto ou número; vazio e 0 valem 1)", () => {
+    expect(aumentarNumeroRemessa("1")).toBe("2");
+    expect(aumentarNumeroRemessa("9")).toBe("10");
+    expect(aumentarNumeroRemessa(" 12 ")).toBe("13");
+    expect(aumentarNumeroRemessa("")).toBe("2");
+    expect(aumentarNumeroRemessa("0")).toBe("2");
+  });
+
+  it("aumentar para no máximo (2147483647) e não passa dele", () => {
+    expect(aumentarNumeroRemessa("2147483646")).toBe("2147483647");
+    expect(aumentarNumeroRemessa("2147483647")).toBe("2147483647");
+    expect(aumentarNumeroRemessa("9999999999")).toBe("2147483647"); // acima do máximo conta como o máximo
+  });
+
+  it("diminuir subtrai 1 e PARA em 1", () => {
+    expect(diminuirNumeroRemessa("5")).toBe("4");
+    expect(diminuirNumeroRemessa("2")).toBe("1");
+    expect(diminuirNumeroRemessa("1")).toBe("1");
+    expect(diminuirNumeroRemessa("")).toBe("1");
+    expect(diminuirNumeroRemessa("0")).toBe("1");
+    expect(diminuirNumeroRemessa("2147483647")).toBe("2147483646");
+  });
+
+  it("o resultado nunca sai de 1..2147483647, qualquer que seja a entrada", () => {
+    for (const v of ["", "0", "1", "2", "abc", "2147483647", "99999999999", "-3"]) {
+      for (const r of [aumentarNumeroRemessa(v), diminuirNumeroRemessa(v)]) {
+        const n = Number(r);
+        expect(Number.isInteger(n), `${v} → ${r}`).toBe(true);
+        expect(n).toBeGreaterThanOrEqual(1);
+        expect(n).toBeLessThanOrEqual(2147483647);
+      }
+    }
+  });
+});
+
+describe("stepper — botões habilitados", () => {
+  it("'−' fica desabilitado em 1, no campo vazio e em 0 (todos valem 1)", () => {
+    for (const v of ["1", "", "0", " "]) expect(podeDiminuirNumeroRemessa(v), JSON.stringify(v)).toBe(false);
+    expect(podeDiminuirNumeroRemessa("2")).toBe(true);
+    expect(podeDiminuirNumeroRemessa("2147483647")).toBe(true);
+  });
+
+  it("'+' fica desabilitado no máximo e acima dele", () => {
+    expect(podeAumentarNumeroRemessa("2147483646")).toBe(true);
+    expect(podeAumentarNumeroRemessa("1")).toBe(true);
+    expect(podeAumentarNumeroRemessa("")).toBe(true);
+    expect(podeAumentarNumeroRemessa("2147483647")).toBe(false);
+    expect(podeAumentarNumeroRemessa("9999999999")).toBe(false);
+  });
+});
+
+describe("stepper — sair do campo (blur)", () => {
+  it("vazio e 0 viram '1'; zeros à esquerda somem", () => {
+    expect(finalizarNumeroRemessa("")).toBe("1");
+    expect(finalizarNumeroRemessa("   ")).toBe("1");
+    expect(finalizarNumeroRemessa("0")).toBe("1");
+    expect(finalizarNumeroRemessa("007")).toBe("7");
+  });
+
+  it("valor válido fica igual; acima do máximo fica como está (a validação recusa ao salvar)", () => {
+    expect(finalizarNumeroRemessa("12")).toBe("12");
+    expect(finalizarNumeroRemessa("2147483647")).toBe("2147483647");
+    expect(finalizarNumeroRemessa("9999999999")).toBe("9999999999");
   });
 });

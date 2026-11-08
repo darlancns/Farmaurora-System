@@ -28,7 +28,7 @@ const RUN = String(Date.now()).slice(-9);
 // condicionais abertos), transportadora nacional, 2 medicamentos e 2 pendências.
 const EDITAR = {
   paciente: `Samuel Correia de Medeiros ${RUN}`,
-  ordem: "Ordem 2",
+  numeroRemessa: 2,
   pasta: "2026 - 234",
   empresa: "FARMAURORA",
   consultor: "Alessandra",
@@ -102,7 +102,9 @@ const DATAS = [
 const CAMPOS_NOVO = [
   "pf-paciente",
   "pf-pasta",
-  "pf-ordem",
+  "pf-numero-remessa",
+  "pf-numero-remessa-menos",
+  "pf-numero-remessa-mais",
   "pf-empresa",
   "pf-consultor",
   "pf-status",
@@ -124,15 +126,15 @@ const CAMPOS_NOVO = [
   "pf-numero-processo",
 ];
 const CAMPOS_EDITAR = [
-  ...CAMPOS_NOVO.slice(0, 6),
+  ...CAMPOS_NOVO.slice(0, 8),
   "pf-status-outro",
-  ...CAMPOS_NOVO.slice(6, 11),
+  ...CAMPOS_NOVO.slice(8, 13),
   "pf-fornecedor-outro",
-  ...CAMPOS_NOVO.slice(11, 20),
+  ...CAMPOS_NOVO.slice(13, 22),
   "pf-medicamento-nome-1",
   "pf-medicamento-dosagem-1",
   "pf-medicamento-quantidade-1",
-  ...CAMPOS_NOVO.slice(20),
+  ...CAMPOS_NOVO.slice(22),
 ];
 
 let processoId: string | null = null;
@@ -485,20 +487,37 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
             expect(direita(pasta) - paciente.x, "Paciente + Pasta = largura da coluna").toBeCloseTo(util, 0);
           }
 
-          // Pasta + Ordem lado a lado (2 colunas), abaixo do paciente.
-          const ordem = await b("pf-ordem");
+          // Pasta + Nº Remessa lado a lado (2 colunas), abaixo do paciente. `ordem` é a caixa do CONTAINER do stepper
+          // (− campo +), que ocupa a coluna do grid; o input central é só o miolo entre os botões.
+          const ordem = await caixaNoCorpo(campo(page, "pf-numero-remessa").locator("xpath=.."), "stepper do Nº Remessa");
           if (!tablet) {
-            mesmaLinha(pasta, ordem, "Pasta | Ordem");
+            mesmaLinha(pasta, ordem, "Pasta | Nº Remessa");
             expect(ordem.x).toBeGreaterThanOrEqual(direita(pasta));
             abaixoDe(pasta, paciente, "Pasta");
           } else {
-            // Tablet: 3 colunas — Paciente (2) + Pasta na 1ª linha, depois Ordem | Empresa | Consultor.
+            // Tablet: 3 colunas — Paciente (2) + Pasta na 1ª linha, depois Nº Remessa | Empresa | Consultor.
             mesmaLinha(paciente, pasta, "Paciente | Pasta");
             const empresa = await b("pf-empresa");
             const consultor = await b("pf-consultor");
-            mesmaLinha(ordem, empresa, "Ordem | Empresa");
+            mesmaLinha(ordem, empresa, "Nº Remessa | Empresa");
             mesmaLinha(empresa, consultor, "Empresa | Consultor");
           }
+
+          // Stepper do Nº Remessa (testado mentalmente a 360px: coluna de ~159px = 40 + 4 + miolo + 4 + 40): − | campo | +
+          // na mesma linha, dentro da coluna, botões >= 40px, campo com espaço para dígitos e sem overflow.
+          const menos = await b("pf-numero-remessa-menos");
+          const miolo = await b("pf-numero-remessa");
+          const mais = await b("pf-numero-remessa-mais");
+          mesmaLinha(menos, miolo, "− | campo");
+          mesmaLinha(miolo, mais, "campo | +");
+          expect(miolo.x).toBeGreaterThanOrEqual(direita(menos));
+          expect(mais.x).toBeGreaterThanOrEqual(direita(miolo));
+          expect(direita(mais), "+ dentro da coluna").toBeLessThanOrEqual(direita(ordem) + 1);
+          expect(menos.width, "− com alvo de toque >= 40px").toBeGreaterThanOrEqual(40);
+          expect(mais.width, "+ com alvo de toque >= 40px").toBeGreaterThanOrEqual(40);
+          expect(menos.height).toBeGreaterThanOrEqual(44);
+          expect(miolo.width, "campo com espaço para vários dígitos").toBeGreaterThanOrEqual(56);
+          expect(await campo(page, "pf-numero-remessa").evaluate((el) => el.scrollWidth > el.clientWidth + 1)).toBe(false);
 
           // Status / Responsável / Pagamento.
           const status = await b("pf-status");

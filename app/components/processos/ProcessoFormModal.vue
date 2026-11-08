@@ -5,6 +5,7 @@ import AppSelect from "../AppSelect.vue";
 import BaseModal from "../BaseModal.vue";
 import ProcessoFormDatas from "./ProcessoFormDatas.vue";
 import ProcessoFormMedicamentos from "./ProcessoFormMedicamentos.vue";
+import ProcessoRemessaStepper from "./ProcessoRemessaStepper.vue";
 import {
   CONSULTOR_OPTIONS,
   DESPACHANTE_OPTIONS,
@@ -59,7 +60,6 @@ const {
   onPacienteInput,
   onPastaInput,
   onNumeroPoInput,
-  onNumeroRemessaInput,
   onMedicamentoNomeInput,
   onMedicamentoDosagemInput,
   onMedicamentoQuantidadeInput,
@@ -161,20 +161,8 @@ function handleSubmit(): void {
             <div class="contents lg:grid lg:grid-cols-3 lg:gap-2.5">
               <div>
                 <label for="pf-numero-remessa" :class="LABEL_CLASS">Nº Remessa</label>
-                <!-- Só dígitos (useProcessoForm.onNumeroRemessaInput), sem zeros à esquerda; vazio ao salvar vale 1.
-                     type="text" + inputmode="numeric": sem as setas do type="number" e sem "e", "+", "-" ou ".".
-                     data-sem-maiuscula: o plugin global já ignora inputmode numérico, o atributo é só a garantia. -->
-                <input
-                  id="pf-numero-remessa"
-                  data-sem-maiuscula
-                  :value="form.numeroRemessa"
-                  type="text"
-                  inputmode="numeric"
-                  maxlength="10"
-                  autocomplete="off"
-                  :class="INPUT_MONO_CLASS"
-                  @input="onNumeroRemessaInput"
-                />
+                <!-- Input de quantidade (−, campo, +): ver ProcessoRemessaStepper.vue. Mínimo 1; vazio/0 vira 1. -->
+                <ProcessoRemessaStepper id="pf-numero-remessa" v-model="form.numeroRemessa" rotulo="Nº Remessa" />
               </div>
               <div class="col-span-2 sm:col-span-1" :class="SELECT_CAMPO_CLASS">
                 <label for="pf-empresa" :class="LABEL_CLASS">Empresa</label>

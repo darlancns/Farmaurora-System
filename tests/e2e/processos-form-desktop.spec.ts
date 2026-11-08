@@ -22,7 +22,7 @@ const RUN = String(Date.now()).slice(-9);
 
 const EDITAR = {
   paciente: `Samuel Correia de Medeiros ${RUN}`,
-  ordem: "Ordem 2",
+  numeroRemessa: 2,
   pasta: "2026 - 234",
   empresa: "FARMAURORA",
   consultor: "Alessandra",
@@ -232,20 +232,23 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
         });
 
         test("grades: colunas, larguras e tamanhos de fonte dos campos como antes", async ({ page }) => {
-          const b = (id: string) => caixa(page.locator(`#${id}`), id);
+          // `pf-numero-remessa` é o stepper (− campo +): a caixa medida é a do CONTAINER, que ocupa a coluna do grid
+          // (o input central é só o miolo entre os botões).
+          const b = (id: string) =>
+            caixa(page.locator(id === "pf-numero-remessa" ? "#pf-numero-remessa >> xpath=.." : `#${id}`), id);
           const mesmaLinha = (a: Caixa, c: Caixa, nome: string) =>
             expect(Math.abs(a.y - c.y), `${nome} na mesma linha`).toBeLessThanOrEqual(1);
           const util = 720 - 2 - 40; // largura do modal - bordas - padding do corpo
           const col3 = (util - 2 * 10) / 3;
 
-          // Paciente (2 colunas) | Pasta (1) e Ordem | Empresa | Consultor (3 grids de 3 colunas).
+          // Paciente (2 colunas) | Pasta (1) e Nº Remessa | Empresa | Consultor (3 grids de 3 colunas).
           const paciente = await b("pf-paciente");
           const pasta = await b("pf-pasta");
           mesmaLinha(paciente, pasta, "Paciente | Pasta");
           expect(paciente.width).toBeCloseTo(2 * col3 + 10, 0);
           expect(pasta.width).toBeCloseTo(col3, 0);
           const linhas3 = [
-            ["pf-ordem", "pf-empresa", "pf-consultor"],
+            ["pf-numero-remessa", "pf-empresa", "pf-consultor"],
             ["pf-status", "pf-responsavel", "pf-status-pagamento"],
             ["pf-despachante", "pf-fornecedor", "pf-modal"],
             ["pf-transp-nome", "pf-transp-cotacao", "pf-transp-valor"],
@@ -266,8 +269,25 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
           expect(cia.width).toBeCloseTo((util - 10) / 2, 0);
           expect(awb.width).toBeCloseTo((util - 10) / 2, 0);
           await expect(page.locator("#pf-rastreio")).toHaveCount(0);
-          // Pasta e Ordem NÃO ficam na mesma linha em lg (são grids diferentes, como antes).
-          expect((await b("pf-ordem")).y).toBeGreaterThan(embaixo(pasta) - 1);
+          // Pasta e Nº Remessa NÃO ficam na mesma linha em lg (são grids diferentes, como antes).
+          const remessa = await b("pf-numero-remessa");
+          expect(remessa.y).toBeGreaterThan(embaixo(pasta) - 1);
+
+          // Stepper do Nº Remessa em lg+: − | campo | + lado a lado, dentro da coluna, com a MESMA altura de um campo de
+          // texto (não aumenta a linha) e botões de 32px.
+          const menos = await caixa(page.locator("#pf-numero-remessa-menos"), "menos");
+          const campoRemessa = await caixa(page.locator("#pf-numero-remessa"), "campo");
+          const mais = await caixa(page.locator("#pf-numero-remessa-mais"), "mais");
+          mesmaLinha(menos, campoRemessa, "− | campo");
+          mesmaLinha(campoRemessa, mais, "campo | +");
+          expect(campoRemessa.x).toBeGreaterThanOrEqual(direita(menos));
+          expect(mais.x).toBeGreaterThanOrEqual(direita(campoRemessa));
+          expect(direita(mais)).toBeLessThanOrEqual(direita(remessa) + 1);
+          expect(menos.width).toBeCloseTo(32, 0);
+          expect(mais.width).toBeCloseTo(32, 0);
+          expect(Math.abs(remessa.height - paciente.height), "mesma altura de um campo de texto").toBeLessThanOrEqual(1);
+          expect(Math.abs(menos.height - remessa.height)).toBeLessThanOrEqual(1);
+          expect(Math.abs(mais.height - remessa.height)).toBeLessThanOrEqual(1);
 
           // Condicionais (só no modo Editar): largura total, abaixo da linha do select.
           if (modo === "editar") {
@@ -318,7 +338,6 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
           const fontes: Record<string, string> = {
             "pf-paciente": "13.5px",
             "pf-pasta": "13.5px",
-            "pf-ordem": "13.5px",
             "pf-empresa": "13.5px",
             "pf-awb": "13.5px",
             "pf-medicamento-nome-0": "13px",
@@ -330,6 +349,14 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
             const e = await estilo(page.locator(`#${id}`), ["font-size", "min-height", "padding-top", "padding-left"]);
             expect(e, id).toEqual({ "font-size": fonte, "min-height": expect.stringMatching(/^(auto|0px)$/), "padding-top": "8px", "padding-left": "10px" });
           }
+          // Campo central do stepper: mesma fonte e altura mínima dos demais; padding lateral menor (4px) para caber em coluna estreita.
+          expect(await estilo(page.locator("#pf-numero-remessa"), ["font-size", "min-height", "padding-top", "padding-left", "text-align"])).toEqual({
+            "font-size": "13.5px",
+            "min-height": expect.stringMatching(/^(auto|0px)$/),
+            "padding-top": "8px",
+            "padding-left": "4px",
+            "text-align": "center",
+          });
           expect(await estilo(page.locator("label[for='pf-paciente']"), ["font-size", "margin-bottom"])).toEqual({ "font-size": "10.5px", "margin-bottom": "6px" });
           // Altura de um campo de texto de antes: padding 8+8, borda 1+1 e a linha da fonte (sem piso de 44px).
           expect((await b("pf-paciente")).height).toBeLessThan(44);

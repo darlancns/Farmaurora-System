@@ -29,7 +29,7 @@ const PAPER_RGB = "rgb(238, 242, 241)"; // --color-paper
 
 const ROBUSTO = {
   paciente: `Maria Aparecida dos Santos ${RUN}`,
-  ordem: "Ordem 2",
+  numeroRemessa: 2,
   pasta: "2026 - 234",
   empresa: "FARMAURORA",
   consultor: "Flávia",
@@ -67,7 +67,7 @@ const ROBUSTO = {
 
 const ADVERSARIAL = {
   paciente: `Maria Aparecida Conceição de Albuquerque Montenegro Vasconcelos ${RUN}`,
-  ordem: "Ordem 12",
+  numeroRemessa: 12,
   pasta: "2026 - 1234",
   empresa: "MAINZFARMA",
   consultor: "Bolívar",
@@ -292,18 +292,18 @@ test.describe("/processos abaixo de lg — card e detalhe do processo", () => {
         expect(await seloComum.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
       });
 
-      test("card fechado: Ordem · Pasta, medicamento em 1 linha, data + responsável (só texto) na última linha", async ({ page }) => {
+      test("card fechado: Remessa · Pasta, medicamento em 1 linha, data + responsável (só texto) na última linha", async ({ page }) => {
         const id = ids!.robusto;
         const nome = await box(page, `#mobile-paciente-${id}`);
         const ordemPasta = await box(page, `#mobile-ordem-pasta-${id}`);
         expect(ordemPasta.y).toBeGreaterThanOrEqual(nome.y + nome.height - 1);
         const textoOrdem = (await page.locator(`#mobile-ordem-pasta-${id}`).innerText()).replace(/\s+/g, " ").trim();
-        expect(textoOrdem).toBe("Ordem 2 · Pasta 2026 - 234");
+        expect(textoOrdem).toBe("Remessa 2 · Pasta 2026 - 234");
         expect(await page.locator(`#mobile-ordem-pasta-${id}`).evaluate((el) => getComputedStyle(el).color)).toBe(
           INK_SOFT_RGB,
         );
 
-        // Sem "Ordem": só "Pasta XXXX".
+        // Nº Remessa 1 com pasta única: sem "Remessa", só "Pasta XXXX" (o texto aparece só se N > 1 ou a pasta se repete).
         const textoSemOrdem = (await page.locator(`#mobile-ordem-pasta-${ids!.vazio}`).innerText())
           .replace(/\s+/g, " ")
           .trim();
