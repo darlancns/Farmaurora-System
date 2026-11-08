@@ -89,7 +89,7 @@ export interface Processo {
   id: string;
   paciente: string;
   ordem?: string; // ex: "Ordem 2"
-  // Nº Ordem (PO), rótulo da tela "Nº Ordem". Sempre em maiúsculas: "PO-25-0123" ou "PO-25-0123/TEXTO".
+  // Nº Ordem (PO), rótulo da tela "Nº Ordem". "PO-25-2652" ou "PO-25-2652/3" (incompleto, como "PO-25", também vale).
   // Não confundir com `ordem` (remessa). Ver shared/utils/numeroOrdem.ts.
   numeroPo?: string;
   pasta: string; // ex: "2026 - 234" (renomeado de "codigo")

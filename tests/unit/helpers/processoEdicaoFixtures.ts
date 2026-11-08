@@ -13,7 +13,7 @@ export function linhaCompleta(extra: Record<string, unknown> = {}): Record<strin
     id: "proc_1",
     paciente: "Fulano",
     ordem: "Ordem 2",
-    numero_po: "PO-25-0123/ALFA",
+    numero_po: "PO-25-2652/3",
     pasta: "2026 - 1",
     empresa: "FARMAURORA",
     consultor: "Dani",
@@ -56,7 +56,7 @@ export function formCompleto(): ProcessoFormState {
   return {
     paciente: "Fulano",
     ordem: "2",
-    numeroPo: "PO-25-0123/ALFA",
+    numeroPo: "PO-25-2652/3",
     pasta: "2026 - 1",
     empresa: "FARMAURORA",
     consultor: "Dani",

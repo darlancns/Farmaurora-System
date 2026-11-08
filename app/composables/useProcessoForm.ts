@@ -1,4 +1,4 @@
-import { computed, reactive, ref, watch, type ComputedRef, type Ref } from "vue";
+import { computed, reactive, watch, type ComputedRef } from "vue";
 import type {
   ConsultorProcesso,
   EmpresaProcesso,
@@ -32,7 +32,7 @@ import type { AppSelectOption } from "../types/appSelect";
 export interface FormState {
   paciente: string;
   ordem: string; // só o número (ex.: "2") — o rótulo "Ordem 2" é montado no submit
-  numeroPo: string; // Nº Ordem (PO), já mascarado: PO-00-0000[/texto]
+  numeroPo: string; // Nº Ordem (PO), já mascarado: PO-00-0000[/números]
   pasta: string;
   empresa: EmpresaProcesso;
   consultor: ConsultorProcesso | "";
@@ -143,8 +143,6 @@ export interface UseProcessoFormReturn {
   onPacienteInput: (event: Event) => void;
   onPastaInput: (event: Event) => void;
   onNumeroPoInput: (event: Event) => void;
-  // Mensagem de erro do Nº Ordem (incompleto ao salvar); "" sem erro. Some ao digitar no campo.
-  erroNumeroPo: Ref<string>;
   onMedicamentoNomeInput: (index: number, event: Event) => void;
   onMedicamentoDosagemInput: (index: number, event: Event) => void;
   onMedicamentoQuantidadeInput: (index: number, event: Event) => void;
@@ -160,8 +158,6 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
   const fornecedor = useOutroSentinel(FORNECEDORES_FIXOS);
   // Estado do formulário logo depois de carregar o processo (só na edição): base do patch diferencial.
   let inicial: EstadoEdicao | null = null;
-  // Erro do Nº Ordem mostrado junto ao campo (ver onNumeroPoInput/validar).
-  const erroNumeroPo = ref("");
 
   function estadoAtual(): EstadoEdicao {
     return {
@@ -200,7 +196,6 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     pendencias.splice(0, pendencias.length);
     fornecedor.load(undefined);
     inicial = null;
-    erroNumeroPo.value = "";
   }
 
   function loadProcessoIntoForm(processo: Processo): void {
@@ -240,7 +235,6 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     pendencias.splice(0, pendencias.length, ...processo.pendencias);
 
     inicial = estadoAtual();
-    erroNumeroPo.value = "";
   }
 
   watch(
@@ -280,7 +274,7 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     form.pasta = maskPastaCode(target.value);
   }
 
-  // Nº Ordem: a máscara cuida do prefixo, dos números, da barra e das MAIÚSCULAS (por isso o input leva
+  // Nº Ordem: a máscara cuida do prefixo, dos números, da barra e das MAIÚSCULAS. Incompleto salva normalmente. O input leva
   // data-sem-maiuscula: o plugin global só capitaliza a 1ª letra e disputaria o valor). Roda em todo "input",
   // inclusive colar. O valor mascarado é escrito de volta no campo, com o cursor no lugar certo (nada de
   // pular para o fim ao digitar/apagar no meio).
@@ -291,7 +285,6 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
       cursor: target.selectionStart,
     });
     form.numeroPo = valor;
-    erroNumeroPo.value = "";
     if (target.value !== valor) target.value = valor;
     try {
       target.setSelectionRange(cursor, cursor);
@@ -330,9 +323,7 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
   function validar(): ValidarProcessoFormResult {
     // Edição: compara com o estado carregado. Criação: com o formulário vazio (tudo que o usuário
     // digitou conta como alterado).
-    const resultado = validarProcessoForm(form, medicamentos, pendencias, fornecedor.build(), inicial?.form ?? emptyForm());
-    erroNumeroPo.value = !resultado.valido && resultado.campo === "numeroPo" ? resultado.erro : "";
-    return resultado;
+    return validarProcessoForm(form, medicamentos, pendencias, fornecedor.build(), inicial?.form ?? emptyForm());
   }
 
   // Edição: valida o formulário inteiro (as mesmas regras de sempre) e monta o patch só com o que mudou.
@@ -360,7 +351,6 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     onPacienteInput,
     onPastaInput,
     onNumeroPoInput,
-    erroNumeroPo,
     onMedicamentoNomeInput,
     onMedicamentoDosagemInput,
     onMedicamentoQuantidadeInput,

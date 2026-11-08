@@ -59,7 +59,6 @@ const {
   onPacienteInput,
   onPastaInput,
   onNumeroPoInput,
-  erroNumeroPo,
   onMedicamentoNomeInput,
   onMedicamentoDosagemInput,
   onMedicamentoQuantidadeInput,
@@ -222,7 +221,7 @@ function handleSubmit(): void {
             <input id="pf-fornecedor-outro" v-model="fornecedor.state.outroTexto" type="text" :class="INPUT_CLASS" />
           </div>
 
-          <!-- Nº Ordem (PO): máscara PO-00-0000[/texto] em maiúsculas (useProcessoForm.onNumeroPoInput).
+          <!-- Nº Ordem (PO): máscara PO-00-0000[/números] (useProcessoForm.onNumeroPoInput); incompleto salva.
                data-sem-maiuscula: a máscara já cuida das maiúsculas; o plugin global não deve disputar o valor.
                Mesma grade de 3 colunas da linha Despachante/Fornecedor/Modal (1 coluna no desktop). -->
           <div class="grid grid-cols-1 gap-2.5 md:grid-cols-3">
@@ -233,19 +232,13 @@ function handleSubmit(): void {
                 data-sem-maiuscula
                 :value="form.numeroPo"
                 type="text"
-                maxlength="60"
                 autocapitalize="off"
                 autocomplete="off"
                 spellcheck="false"
                 placeholder="PO-00-0000"
-                :aria-invalid="erroNumeroPo ? 'true' : undefined"
-                :aria-describedby="erroNumeroPo ? 'pf-numero-po-erro' : undefined"
-                :class="[INPUT_MONO_CLASS, erroNumeroPo ? '!border-danger' : '']"
+                :class="INPUT_MONO_CLASS"
                 @input="onNumeroPoInput"
               />
-              <p v-if="erroNumeroPo" id="pf-numero-po-erro" role="alert" class="mt-1 text-[12px] text-danger">
-                {{ erroNumeroPo }}
-              </p>
             </div>
           </div>
 

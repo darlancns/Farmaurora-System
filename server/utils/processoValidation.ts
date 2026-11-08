@@ -169,7 +169,8 @@ export function erroModalCiaNoPatch(body: unknown, armazenado: ModalCiaArmazenad
 
 // ── Nº Ordem (PO) ───────────────────────────────────────────────────────────────────────────────
 // Opcional. Vazio/ausente/null é sempre válido; preenchido, é normalizado (maiúsculas, sem espaços nas
-// pontas, sem "/" final vazio) e precisa ser PO-00-0000 (+ "/texto"). A regra vive em shared/utils/numeroOrdem.ts.
+// pontas, sem "/" final sem dígitos, "PO"/"PO-" viram null) e precisa casar com PO-00-0000[/números], aceitando
+// também o incompleto (ex.: "PO-25", "PO-25-1"). A regra vive em shared/utils/numeroOrdem.ts.
 
 // Mensagem de erro do Nº Ordem do corpo (POST ou PATCH), ou null se válido/ausente. PATCH sem a chave não confere.
 export function erroNumeroPo(body: unknown): string | null {

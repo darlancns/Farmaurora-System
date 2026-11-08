@@ -25,7 +25,7 @@ export default defineEventHandler(async (event): Promise<Processo> => {
     throw createError({ statusCode: 400, statusMessage: erroCia });
   }
 
-  // Nº Ordem preenchido precisa estar no formato PO-00-0000 (+ /texto).
+  // Nº Ordem preenchido precisa estar no formato PO-00-0000 (+ / e números; incompleto vale).
   const erroPo = erroNumeroPo(body);
   if (erroPo) {
     throw createError({ statusCode: 400, statusMessage: erroPo });
