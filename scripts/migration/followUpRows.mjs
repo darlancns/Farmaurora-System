@@ -1,3 +1,7 @@
+// OBSOLETO desde 08/11/2026: a coluna public.follow_up.codigo_rastreio foi removida (rastreio
+// virou numero_awb). Este script depende dela e falharia se rodado de novo. Mantido só como
+// registro histórico da carga de 11/2026. Não rodar.
+
 // Registro do parser (modelo Processo) → LINHA da tabela follow_up, com TODAS as
 // colunas (a função carga_follow_up usa jsonb_populate_recordset, que NÃO aplica
 // defaults: coluna ausente viraria NULL e quebraria as NOT NULL).

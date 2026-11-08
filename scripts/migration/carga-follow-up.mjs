@@ -1,3 +1,7 @@
+// OBSOLETO desde 08/11/2026: a coluna public.follow_up.codigo_rastreio foi removida (rastreio
+// virou numero_awb). Este script depende dela e falharia se rodado de novo. Mantido só como
+// registro histórico da carga de 11/2026. Não rodar.
+
 // CARGA one-time do Follow-Up: chama a função carga_follow_up (apaga + insere numa
 // ÚNICA transação) com a service role. Script único — NÃO é importado por nenhuma
 // rota/botão da aplicação.
