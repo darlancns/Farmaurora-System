@@ -106,6 +106,7 @@ const CAMPOS_NOVO = [
   "pf-numero-remessa",
   "pf-numero-remessa-menos",
   "pf-numero-remessa-mais",
+  "pf-numero-processo",
   "pf-medicamento-nome-0",
   "pf-medicamento-dosagem-0",
   "pf-medicamento-quantidade-0",
@@ -114,7 +115,6 @@ const CAMPOS_NOVO = [
   "pf-responsavel",
   "pf-consultor",
   "pf-fornecedor",
-  "pf-numero-processo",
   "pf-status",
   "pf-status-pagamento",
   "pf-modal",
@@ -128,13 +128,13 @@ const CAMPOS_NOVO = [
 ];
 // Editar: 2º medicamento (entra depois do 1º) e os dois condicionais (Qual fornecedor?, Qual status?).
 const CAMPOS_EDITAR = [
-  ...CAMPOS_NOVO.slice(0, 9),
+  ...CAMPOS_NOVO.slice(0, 10),
   "pf-medicamento-nome-1",
   "pf-medicamento-dosagem-1",
   "pf-medicamento-quantidade-1",
-  ...CAMPOS_NOVO.slice(9, 14),
+  ...CAMPOS_NOVO.slice(10, 15),
   "pf-fornecedor-outro",
-  ...CAMPOS_NOVO.slice(14, 17),
+  ...CAMPOS_NOVO.slice(15, 17),
   "pf-status-outro",
   ...CAMPOS_NOVO.slice(17),
 ];
@@ -489,14 +489,16 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
           const interno = util - 2 - 24;
           const col2 = (util - 10) / 2;
 
-          // Linha 1 (abaixo de lg): Paciente em linha inteira; Pasta | Nº Ordem em 2 colunas, abaixo dele; Nº Remessa na coluna
-          // da ESQUERDA da linha seguinte (meia coluna, sem ocupar a linha toda). Ordem visual = ordem do DOM (sem order-*):
-          // Paciente → Pasta → Nº Ordem → Nº Remessa, e o Tab segue o mesmo caminho.
+          // Linha 1 (abaixo de lg): Paciente em linha inteira; Pasta | Nº Ordem em 2 colunas, abaixo dele.
+          // Linha 2: Nº Remessa (estreito, 5rem = 80px) na borda esquerda | Nº do processo (o resto da linha).
+          // Ordem visual = ordem do DOM (sem order-*): Paciente → Pasta → Nº Ordem → Nº Remessa → Nº do processo.
           // `remessa` é a caixa do CONTAINER do stepper (− campo +), que ocupa a coluna do grid; o input central é só o miolo.
+          const larguraRemessa = 80;
           const paciente = await b("pf-paciente");
           const pasta = await b("pf-pasta");
           const ordemPo = await b("pf-numero-po");
           const remessa = await caixaNoCorpo(campo(page, "pf-numero-remessa").locator("xpath=.."), "stepper do Nº Remessa");
+          const numero = await b("pf-numero-processo");
           expect(paciente.width, "Paciente em largura total da coluna").toBeCloseTo(util, 0);
           mesmaLinha(pasta, ordemPo, "Pasta | Nº Ordem");
           expect(ordemPo.x).toBeGreaterThanOrEqual(direita(pasta));
@@ -505,8 +507,16 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
           abaixoDe(pasta, paciente, "Pasta");
           abaixoDe(remessa, pasta, "Nº Remessa (abaixo de Pasta)");
           abaixoDe(remessa, ordemPo, "Nº Remessa (abaixo de Nº Ordem)");
-          expect(Math.abs(remessa.x - pasta.x), "Nº Remessa na coluna da esquerda").toBeLessThanOrEqual(1);
-          expect(remessa.width, "Nº Remessa, meia coluna").toBeCloseTo(col2, 0);
+          expect(Math.abs(remessa.x - pasta.x), "Nº Remessa na borda esquerda").toBeLessThanOrEqual(1);
+          expect(remessa.width, "Nº Remessa estreito").toBeCloseTo(larguraRemessa, 0);
+          mesmaLinha(remessa, numero, "Nº Remessa | Nº do processo");
+          expect(numero.x).toBeGreaterThan(direita(remessa));
+          expect(numero.width, "Nº do processo ocupa o resto da linha").toBeCloseTo(util - larguraRemessa - 10, 0);
+          expect(direita(numero), "Nº do processo vai até a borda útil").toBeCloseTo(paciente.x + util, 0);
+          // A Pasta comporta o MAIOR valor da máscara ("2026 - 234" = 10 caracteres, mono 16px = 96px) sem cortar.
+          await campo(page, "pf-pasta").fill("2026234");
+          expect(await campo(page, "pf-pasta").inputValue()).toBe("2026 - 234");
+          expect(await campo(page, "pf-pasta").evaluate((el) => el.scrollWidth > el.clientWidth + 0.5), "Pasta cortada").toBe(false);
           // Nº Ordem com 30 caracteres (o limite): o campo NÃO cresce nem estoura a coluna; o texto rola dentro dele.
           await campo(page, "pf-numero-po").fill("PO-25-2652/12345678901234567");
           expect((await campo(page, "pf-numero-po").inputValue()).length).toBeLessThanOrEqual(30);
@@ -515,7 +525,7 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
           expect(direita(ordemPoCheio), "Nº Ordem dentro da coluna útil").toBeLessThanOrEqual(paciente.x + util + 0.5);
 
           // Stepper do Nº Remessa: UM campo com o número à esquerda e as setas ▲/▼ empilhadas à direita, DENTRO da borda.
-          // Em meia coluna de ~159px (360px de tela): 32px de setas + ~125px para o número. Setas na largura da coluna
+          // Em 80px: 2px de borda + 32px de setas + 46px para o número (26px de texto: 2 dígitos). Setas na largura da coluna
           // (>= 31px) e cada uma com metade da altura do campo (~20,5px); sem overflow; o número não fica sob as setas.
           const mais = await b("pf-numero-remessa-mais");
           const menos = await b("pf-numero-remessa-menos");
@@ -530,8 +540,14 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
           expect(mais.height, "seta com metade da altura do campo (~20,5px)").toBeGreaterThanOrEqual(19.5);
           expect(menos.height).toBeGreaterThanOrEqual(19.5);
           expect(remessa.height, "campo de 44px").toBeGreaterThanOrEqual(44);
-          expect(miolo.width, "espaço para vários dígitos").toBeGreaterThanOrEqual(100);
+          expect(miolo.width, "espaço para o número").toBeGreaterThanOrEqual(44);
           expect(await campo(page, "pf-numero-remessa").evaluate((el) => el.scrollWidth > el.clientWidth + 1)).toBe(false);
+          // 2 dígitos cabem sem rolar (o texto vem do `fill`, que passa pelo filtro do campo).
+          await campo(page, "pf-numero-remessa").fill("12");
+          expect(
+            await campo(page, "pf-numero-remessa").evaluate((el) => el.scrollWidth > el.clientWidth + 0.5),
+            "Nº Remessa (2 dígitos) cortado",
+          ).toBe(false);
 
           // Medicamentos e local de entrega (fieldset em largura total): Nome em largura total do bloco; Dosagem | Quantidade;
           // ações na linha de baixo; o Local de entrega fecha o bloco, também em largura total.
@@ -589,16 +605,11 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
             expect(outro.y - embaixo(forn), "Qual fornecedor? logo abaixo da grade").toBeLessThanOrEqual(24);
           }
 
-          // Nº do processo: linha inteira, logo abaixo (da grade 2x2 e do "Qual fornecedor?", se houver).
-          const numero = await b("pf-numero-processo");
-          expect(numero.width, "Nº do processo em linha inteira").toBeCloseTo(util, 0);
-          abaixoDe(numero, forn, "Nº do processo");
-          if (modo === "editar") abaixoDe(numero, await b("pf-fornecedor-outro"), "Nº do processo (abaixo de Qual fornecedor?)");
-
           // Status | Pagamento: celular, empilhados em largura total; tablet, 2 colunas iguais.
           const status = await b("pf-status");
           const pag = await b("pf-status-pagamento");
-          abaixoDe(status, numero, "Status");
+          abaixoDe(status, forn, "Status");
+          if (modo === "editar") abaixoDe(status, await b("pf-fornecedor-outro"), "Status (abaixo de Qual fornecedor?)");
           if (!tablet) {
             expect(status.width, "Status em largura total").toBeCloseTo(util, 0);
             expect(pag.width, "Pagamento em largura total").toBeCloseTo(util, 0);
@@ -670,6 +681,10 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
           const suposta = await b("pf-suposta-estimativa");
           abaixoDe(d1, fieldset, "Datas (abaixo da Transportadora)");
           mesmaLinha(d1, d2, "Compra | Embarque");
+          if (modo === "novo") {
+            // Campo de data vazio: só "Escolher" (o texto-guia não leva mais a palavra "data").
+            for (const id of DATAS) await expect(campo(page, id), id).toHaveText("Escolher");
+          }
           if (!tablet) {
             abaixoDe(d3, d1, "Abertura thread (2 colunas)");
             const fs = await caixaNoCorpo(page.locator("#pf-data-po").locator("xpath=ancestor::fieldset"), "fieldset datas");

@@ -241,36 +241,48 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
           const util = 720 - 2 - 40; // largura do modal - bordas - padding do corpo
           const col2 = (util - 10) / 2;
           const col3 = (util - 2 * 10) / 3;
-          // Linha 1: 3fr 1fr 1.5fr 1fr com 3 espaços de 10px → 1fr = (678 − 30) / 6,5 ≈ 99,7px.
-          const fr = (util - 3 * 10) / 6.5;
+          // Linha 1: Paciente (flexível) | Pasta (7rem = 112px) | Nº Ordem (10,5rem = 168px) com 2 espaços de 10px.
+          const larguraPasta = 112;
+          const larguraPo = 168;
+          const larguraPaciente = util - larguraPasta - larguraPo - 2 * 10; // 378px
+          // Linha 2: Nº Remessa (5rem = 80px) | Nº do processo (o resto, no máximo 22rem = 352px).
+          const larguraRemessa = 80;
+          const larguraNumeroProcesso = Math.min(22 * 16, util - larguraRemessa - 10);
           // Dentro de um fieldset: borda 1+1 e padding 12+12.
           const interno = util - 2 - 24;
           const colEnvio = (interno - 2 * 10) / 3;
 
-          // Linha 1: Paciente (3fr) | Pasta (1fr) | Nº Ordem (1,5fr) | Nº Remessa (1fr), todos na mesma linha, nessa ordem.
+          // Linha 1: Paciente | Pasta | Nº Ordem, todos na mesma linha, nessa ordem.
           const paciente = await b("pf-paciente");
           const pasta = await b("pf-pasta");
           const ordemPo = await b("pf-numero-po");
-          const remessa = await b("pf-numero-remessa");
-          for (const [nome, c] of [["Pasta", pasta], ["Nº Ordem", ordemPo], ["Nº Remessa", remessa]] as const) {
-            mesmaLinha(paciente, c, `Paciente | ${nome}`);
-          }
+          for (const [nome, c] of [["Pasta", pasta], ["Nº Ordem", ordemPo]] as const) mesmaLinha(paciente, c, `Paciente | ${nome}`);
           expect(pasta.x).toBeGreaterThan(direita(paciente));
           expect(ordemPo.x).toBeGreaterThan(direita(pasta));
-          expect(remessa.x).toBeGreaterThan(direita(ordemPo));
-          expect(paciente.width, "Paciente 3fr").toBeCloseTo(3 * fr, 0);
-          expect(pasta.width, "Pasta 1fr").toBeCloseTo(fr, 0);
-          expect(ordemPo.width, "Nº Ordem 1,5fr").toBeCloseTo(1.5 * fr, 0);
-          expect(remessa.width, "Nº Remessa 1fr").toBeCloseTo(fr, 0);
-          // A coluna estreita comporta o valor mais longo da Pasta ("2026 - 234", mono 13,5px) e alguns dígitos do Nº Remessa
-          // sem cortar (o texto vem do `fill`, que passa pela máscara do campo).
+          expect(paciente.width, "Paciente").toBeCloseTo(larguraPaciente, 0);
+          expect(pasta.width, "Pasta").toBeCloseTo(larguraPasta, 0);
+          expect(ordemPo.width, "Nº Ordem").toBeCloseTo(larguraPo, 0);
+          expect(direita(ordemPo), "linha 1 ocupa a largura útil").toBeCloseTo(paciente.x + util, 0);
+          // A Pasta comporta o MAIOR valor da máscara ("2026 - 234" = 10 caracteres, mono 13,5px) com o padding de sempre
+          // (10px), sem cortar (o texto vem do `fill`, que passa pela máscara do campo).
           await page.locator("#pf-pasta").fill("2026234");
           expect(await page.locator("#pf-pasta").inputValue()).toBe("2026 - 234");
           expect(await page.locator("#pf-pasta").evaluate((el) => el.scrollWidth > el.clientWidth + 0.5), "Pasta cortada").toBe(false);
-          await page.locator("#pf-numero-remessa").fill("12345");
+
+          // Linha 2: Nº Remessa (estreito) | Nº do processo, abaixo da linha 1. O Nº Remessa sai da linha 1.
+          const remessa = await b("pf-numero-remessa");
+          const numeroProcesso = await b("pf-numero-processo");
+          mesmaLinha(remessa, numeroProcesso, "Nº Remessa | Nº do processo");
+          expect(remessa.y).toBeGreaterThan(embaixo(paciente) - 1);
+          expect(Math.abs(remessa.x - paciente.x), "Nº Remessa na borda esquerda").toBeLessThanOrEqual(1);
+          expect(remessa.width, "Nº Remessa estreito").toBeCloseTo(larguraRemessa, 0);
+          expect(numeroProcesso.x).toBeGreaterThan(direita(remessa));
+          expect(numeroProcesso.width, "Nº do processo: o resto da linha, com teto de 22rem").toBeCloseTo(larguraNumeroProcesso, 0);
+          // 2 dígitos cabem sem rolar (o texto vem do `fill`, que passa pelo filtro do campo).
+          await page.locator("#pf-numero-remessa").fill("12");
           expect(
             await page.locator("#pf-numero-remessa").evaluate((el) => el.scrollWidth > el.clientWidth + 0.5),
-            "Nº Remessa (5 dígitos) cortado",
+            "Nº Remessa (2 dígitos) cortado",
           ).toBe(false);
 
           // Grade 2x2: Empresa | Responsável // Consultor | Fornecedor, em 2 colunas iguais.
@@ -287,19 +299,14 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
             expect(c.width, nome).toBeCloseTo(col2, 0);
           }
 
-          // Nº do processo: 1 coluna de 3, logo abaixo da grade 2x2.
-          const numeroProcesso = await b("pf-numero-processo");
-          expect(numeroProcesso.width).toBeCloseTo(col3, 0);
-          expect(numeroProcesso.y).toBeGreaterThan(embaixo(forn) - 1);
-
-          // Status | Pagamento: 2 colunas iguais, abaixo do Nº do processo.
+          // Status | Pagamento: 2 colunas iguais, abaixo da grade 2x2 (e do "Qual fornecedor?", se houver).
           const status = await b("pf-status");
           const pag = await b("pf-status-pagamento");
           mesmaLinha(status, pag, "Status | Pagamento");
           expect(pag.x).toBeGreaterThan(direita(status));
           expect(status.width).toBeCloseTo(col2, 0);
           expect(pag.width).toBeCloseTo(col2, 0);
-          expect(status.y).toBeGreaterThan(embaixo(numeroProcesso) - 1);
+          expect(status.y).toBeGreaterThan(embaixo(forn) - 1);
 
           // Envio internacional (fieldset): Modal | Cia. aérea | Nº AWB em 3 colunas iguais (sem Rastreio, sem buraco).
           const fsEnvio = await caixa(page.locator("#pf-modal").locator("xpath=ancestor::fieldset"), "fieldset Envio internacional");
@@ -337,7 +344,7 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
           const mais = await caixa(page.locator("#pf-numero-remessa-mais"), "▲");
           const menos = await caixa(page.locator("#pf-numero-remessa-menos"), "▼");
           const campoRemessa = await caixa(page.locator("#pf-numero-remessa"), "campo");
-          expect(remessa.width, "o campo ocupa a coluna inteira (1fr da linha 1)").toBeCloseTo(fr, 0);
+          expect(remessa.width, "o campo ocupa a coluna inteira (5rem)").toBeCloseTo(larguraRemessa, 0);
           expect(Math.abs(remessa.height - paciente.height), "mesma altura de um campo de texto").toBeLessThanOrEqual(1);
           // Tudo dentro da borda do contêiner.
           for (const [nome, c] of [["▲", mais], ["▼", menos], ["número", campoRemessa]] as const) {
@@ -367,7 +374,7 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
           });
 
           // Condicionais (só no modo Editar): largura total, abaixo da linha do select. "Qual fornecedor?" fica logo abaixo da
-          // grade 2x2 (antes do Nº do processo) e "Qual status?" logo abaixo de Status | Pagamento (antes do Envio internacional).
+          // grade 2x2 (antes de Status | Pagamento) e "Qual status?" logo abaixo de Status | Pagamento (antes do Envio internacional).
           if (modo === "editar") {
             const statusOutro = await b("pf-status-outro");
             expect(statusOutro.width).toBeCloseTo(util, 0);
@@ -377,7 +384,7 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
             expect(fornOutro.width).toBeCloseTo(util, 0);
             expect(fornOutro.x, "sem pular pro lado").toBeLessThanOrEqual(empresa.x + 1);
             expect(fornOutro.y).toBeGreaterThan(embaixo(forn) - 1);
-            expect(fornOutro.y).toBeLessThan(numeroProcesso.y);
+            expect(fornOutro.y).toBeLessThan((await b("pf-status")).y);
             // Nenhuma célula da grade 2x2 se mexeu por causa do condicional (a posição vem do mesmo `b`, já com ele aberto).
             expect(forn.y).toBeCloseTo(consultor.y, 0);
           }
@@ -405,6 +412,12 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
           const datas = await Promise.all(
             ["pf-data-po", "pf-data-embarque", "pf-thread", "pf-chegada", "pf-radar", "pf-duimp", "pf-lpco", "pf-previsao", "pf-suposta-estimativa"].map(b),
           );
+          if (modo === "novo") {
+            // Campo de data vazio: só "Escolher" (o texto-guia não leva mais a palavra "data").
+            for (const id of ["pf-data-po", "pf-data-embarque", "pf-thread", "pf-chegada", "pf-radar", "pf-duimp", "pf-lpco", "pf-previsao", "pf-suposta-estimativa"]) {
+              await expect(page.locator(`#${id}`), id).toHaveText("Escolher");
+            }
+          }
           for (const i of [1, 2, 3]) mesmaLinha(datas[0]!, datas[i]!, `data ${i}`);
           for (const i of [5, 6, 7]) mesmaLinha(datas[4]!, datas[i]!, `data ${i}`);
           expect(datas[4]!.y).toBeGreaterThan(embaixo(datas[0]!) - 1);
@@ -439,9 +452,7 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
           };
           for (const [id, fonte] of Object.entries(fontes)) {
             const e = await estilo(page.locator(`#${id}`), ["font-size", "min-height", "padding-top", "padding-left"]);
-            // A Pasta usa px-1.5 (6px) em lg+: a coluna estreita da linha 1 (~99,7px) não comporta "2026 - 234" com 10px.
-            const paddingEsquerdo = id === "pf-pasta" ? "6px" : "10px";
-            expect(e, id).toEqual({ "font-size": fonte, "min-height": expect.stringMatching(/^(auto|0px)$/), "padding-top": "8px", "padding-left": paddingEsquerdo });
+            expect(e, id).toEqual({ "font-size": fonte, "min-height": expect.stringMatching(/^(auto|0px)$/), "padding-top": "8px", "padding-left": "10px" });
           }
           expect(await estilo(page.locator("label[for='pf-paciente']"), ["font-size", "margin-bottom"])).toEqual({ "font-size": "10.5px", "margin-bottom": "6px" });
           // Altura de um campo de texto de antes: padding 8+8, borda 1+1 e a linha da fonte (sem piso de 44px).

@@ -268,7 +268,7 @@ test.describe.serial("Follow-Up de processos", () => {
 
     // Não é digitável: é um botão que mostra o placeholder até escolher.
     await expect(campo).toHaveJSProperty("tagName", "BUTTON");
-    await expect(campo).toContainText("Escolher data");
+    await expect(campo).toContainText("Escolher");
 
     await campo.click();
     await page.locator(`#pf-data-po-calendario [data-iso="${hoje}"]`).click();
@@ -277,7 +277,7 @@ test.describe.serial("Follow-Up de processos", () => {
 
     await campo.click();
     await page.locator('#pf-data-po-calendario [data-acao="limpar"]').click();
-    await expect(campo).toContainText("Escolher data");
+    await expect(campo).toContainText("Escolher");
   });
 
   test("11 · editar um processo com data em formato complexo não corrompe o valor existente", async ({ page }) => {

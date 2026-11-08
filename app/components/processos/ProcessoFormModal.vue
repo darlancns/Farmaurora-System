@@ -165,17 +165,18 @@ function handleSubmit(): void {
         @submit.prevent="handleSubmit"
       >
         <!-- Ordem dos blocos (a ordem do DOM é a ordem de tabulação; nenhum tabindex positivo):
-             1) Paciente / Pasta / Nº Ordem / Nº Remessa  2) Medicamentos e local de entrega  3) Empresa / Responsável /
-             Consultor / Fornecedor  4) Nº do processo  5) Status / Pagamento  6) Envio internacional (Envio / Cia. aérea /
-             Nº AWB)  7) Despachante  8) Transportadora nacional  9) Datas  10) Pendências.
+             1) Paciente / Pasta / Nº Ordem  2) Nº Remessa / Nº do processo  3) Medicamentos e local de entrega
+             4) Empresa / Responsável / Consultor / Fornecedor  5) Status / Pagamento  6) Envio internacional (Envio /
+             Cia. aérea / Nº AWB)  7) Despachante  8) Transportadora nacional  9) Datas  10) Pendências.
              Cada linha e cada fieldset é filho DIRETO deste contêiner: em lg+ ele vira `contents` e os filhos passam a ser
              itens do <form> (flex-col com gap-3.5). -->
         <div class="flex flex-col gap-3.5 py-4 lg:contents" :class="MODAL_PAD_X_CLASS">
-          <!-- Linha 1. lg+: 4 colunas 3fr 1fr 1.5fr 1fr (Paciente largo; Pasta, Nº Ordem e Nº Remessa estreitos).
-               Abaixo de lg: Paciente em linha inteira, Pasta | Nº Ordem em 2 colunas e Nº Remessa na coluna da esquerda
-               da linha de baixo. A ordem visual é a do DOM (nenhuma classe order-*), então o Tab acompanha o que se vê.
-               A Pasta usa px-1.5 em lg+ porque a coluna estreita (~99px) não comporta "2026 - 234" com px-2.5. -->
-          <div class="grid grid-cols-2 gap-x-2.5 gap-y-3.5 lg:grid-cols-[3fr_1fr_1.5fr_1fr]">
+          <!-- Linha 1: Paciente / Pasta / Nº Ordem. lg+: Paciente flexível, Pasta 7rem (112px) e Nº Ordem 10,5rem (168px).
+               A Pasta comporta o MAIOR valor da máscara (maskPastaCode: 4 dígitos + " - " + 3 = 10 caracteres, 81px em JetBrains
+               Mono 13,5px) com o padding de sempre: 112 − 2 de borda − 20 de padding = 90px de conteúdo. Abaixo de lg:
+               Paciente em linha inteira e Pasta | Nº Ordem em 2 colunas (≥ 166px cada, 16px de fonte: 96px de texto + 22).
+               A ordem visual é a do DOM (nenhuma classe order-*), então o Tab acompanha o que se vê. -->
+          <div class="grid grid-cols-2 gap-x-2.5 gap-y-3.5 lg:grid-cols-[minmax(0,1fr)_7rem_10.5rem]">
             <div class="col-span-2 lg:col-span-1">
               <label for="pf-paciente" :class="LABEL_CLASS">Paciente</label>
               <input id="pf-paciente" :value="form.paciente" type="text" :class="INPUT_CLASS" @input="onPacienteInput" />
@@ -189,7 +190,7 @@ function handleSubmit(): void {
                 type="text"
                 inputmode="numeric"
                 placeholder="2026 - 234"
-                :class="[INPUT_MONO_CLASS, 'lg:px-1.5']"
+                :class="INPUT_MONO_CLASS"
                 @input="onPastaInput"
               />
             </div>
@@ -210,10 +211,19 @@ function handleSubmit(): void {
                 @input="onNumeroPoInput"
               />
             </div>
+          </div>
+
+          <!-- Linha 2: Nº Remessa (estreito: 5rem = 80px, cabem 2 dígitos + as setas dentro do campo; mais dígitos rolam dentro
+               do input) / Nº do processo (o resto da linha; no desktop no máximo 22rem). -->
+          <div class="grid grid-cols-[5rem_minmax(0,1fr)] gap-x-2.5 lg:grid-cols-[5rem_minmax(0,22rem)]">
             <div>
               <label for="pf-numero-remessa" :class="LABEL_CLASS">Nº Remessa</label>
               <!-- Input de quantidade (−, campo, +): ver ProcessoRemessaStepper.vue. Mínimo 1; vazio/0 vira 1. -->
               <ProcessoRemessaStepper id="pf-numero-remessa" v-model="form.numeroRemessa" rotulo="Nº Remessa" />
+            </div>
+            <div>
+              <label for="pf-numero-processo" :class="LABEL_CLASS">Nº do processo</label>
+              <input id="pf-numero-processo" data-sem-maiuscula v-model="form.numeroProcesso" type="text" :class="INPUT_MONO_CLASS" />
             </div>
           </div>
 
@@ -263,14 +273,6 @@ function handleSubmit(): void {
           <div v-if="fornecedor.state.select === 'Outro'">
             <label for="pf-fornecedor-outro" :class="LABEL_CLASS">Qual fornecedor?</label>
             <input id="pf-fornecedor-outro" v-model="fornecedor.state.outroTexto" type="text" :class="INPUT_CLASS" />
-          </div>
-
-          <!-- Nº do processo: 1 coluna de 3 em lg+, linha inteira abaixo disso. -->
-          <div class="grid grid-cols-1 gap-2.5 lg:grid-cols-3">
-            <div>
-              <label for="pf-numero-processo" :class="LABEL_CLASS">Nº do processo</label>
-              <input id="pf-numero-processo" data-sem-maiuscula v-model="form.numeroProcesso" type="text" :class="INPUT_MONO_CLASS" />
-            </div>
           </div>
 
           <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2">

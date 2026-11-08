@@ -37,6 +37,7 @@ const CAMPOS: ReadonlyArray<{ id: string; campo: DataField; rotulo: string; larg
           :id="item.id"
           :model-value="values[item.campo]"
           formato="dd/mm"
+          placeholder="Escolher"
           :label="item.rotulo"
           :classe-campo="INPUT_DATA_CLASS"
           @update:model-value="emit('update:field', item.campo, $event)"

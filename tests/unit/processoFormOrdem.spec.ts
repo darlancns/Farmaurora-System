@@ -30,6 +30,7 @@ const ORDEM_ESPERADA = [
   "pf-pasta",
   "pf-numero-po",
   "pf-numero-remessa",
+  "pf-numero-processo",
   "pf-medicamento-nome-0",
   "pf-medicamento-dosagem-0",
   "pf-medicamento-quantidade-0",
@@ -38,7 +39,6 @@ const ORDEM_ESPERADA = [
   "pf-responsavel",
   "pf-consultor",
   "pf-fornecedor",
-  "pf-numero-processo",
   "pf-status",
   "pf-status-pagamento",
   "pf-modal",
@@ -107,6 +107,25 @@ describe("Formulário de processo — ordem dos campos no DOM", () => {
     }
   });
 
+  it("linha 1 = Paciente / Pasta / Nº Ordem; linha 2 = Nº Remessa / Nº do processo; só depois vêm os Medicamentos", async () => {
+    const el = abrir();
+    await nextTick();
+    const linha = (id: string) => el.querySelector(`#${id}`)!.closest("#processo-form > div > div")!;
+    const linha1 = linha("pf-paciente");
+    expect(linha("pf-pasta")).toBe(linha1);
+    expect(linha("pf-numero-po")).toBe(linha1);
+    expect(linha1.querySelector("#pf-numero-remessa")).toBeNull(); // o Nº Remessa saiu da linha 1
+    const linha2 = linha("pf-numero-remessa");
+    expect(linha2).not.toBe(linha1);
+    expect(linha("pf-numero-processo")).toBe(linha2);
+    expect(linha1.compareDocumentPosition(linha2) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // O Nº do processo NÃO está mais no lugar antigo (grupo Empresa / Responsável / Consultor / Fornecedor e abaixo).
+    const grupoSelects = linha("pf-empresa");
+    expect(grupoSelects.querySelector("#pf-numero-processo")).toBeNull();
+    expect(linha2.compareDocumentPosition(grupoSelects) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(linha2.compareDocumentPosition(el.querySelector("#pf-medicamento-nome-0")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("o rótulo 'Pendências' vem logo antes do botão de adicionar, depois das datas, e o rodapé fecha o formulário", async () => {
     const el = abrir();
     await nextTick();
@@ -122,7 +141,7 @@ describe("Formulário de processo — ordem dos campos no DOM", () => {
   it("condicionais: 'Qual fornecedor?' logo depois do Fornecedor e 'Qual status?' logo depois do Pagamento", async () => {
     const el = abrir({ fornecedor: "Fornecedor Que Não Existe", status: "outro", status_outro: "Aguardando" });
     await nextTick();
-    const ids = ["pf-fornecedor", "pf-fornecedor-outro", "pf-numero-processo", "pf-status", "pf-status-pagamento", "pf-status-outro", "pf-modal"];
+    const ids = ["pf-fornecedor", "pf-fornecedor-outro", "pf-status", "pf-status-pagamento", "pf-status-outro", "pf-modal"];
     expect(idsNaOrdemDoDom(el, ids)).toEqual(ids);
   });
 
