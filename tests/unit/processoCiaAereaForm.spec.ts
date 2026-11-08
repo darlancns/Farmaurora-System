@@ -8,8 +8,6 @@ import { linhaCompleta } from "./helpers/processoEdicaoFixtures";
 // Item 6 do lote Follow-Up — formulário: "Cia. aérea" depende do "Modal". Composable real (useProcessoForm),
 // com o mesmo patch diferencial usado ao salvar.
 
-const AVISO = "Cia. aérea limpa: não pertence a este modal.";
-
 const processoDe = (modal: string | null, cia: string | null, extra: Record<string, unknown> = {}): Processo =>
   montarProcesso(linhaCompleta({ modal_envio: modal, companhia_aerea: cia, ...extra }) as unknown as FollowUpRow);
 
@@ -48,34 +46,31 @@ describe("select de cia aérea: estado e opções", () => {
     expect(f.ciaAereaDesabilitada.value).toBe(true);
   });
 
-  it("processo carregado com modal: select habilitado, cia atual selecionada, sem aviso", () => {
+  it("processo carregado com modal: select habilitado, cia atual selecionada", () => {
     const f = useProcessoForm(() => processoDe("Air Cargo", "Qatar"));
     expect(f.ciaAereaDesabilitada.value).toBe(false);
     expect(f.form.companhiaAerea).toBe("Qatar");
     expect(f.ciaAereaOptions.value.some((o) => o.label.includes("fora da lista"))).toBe(false);
-    expect(f.ciaAereaAviso.value).toBe("");
   });
 });
 
 describe("trocar o modal", () => {
-  it("cia incompatível é limpa (null no patch) e aparece o aviso", () => {
+  it("cia incompatível é limpa (null no patch)", () => {
     const f = useProcessoForm(() => processoDe("Air Cargo", "Lufthansa"));
 
     f.onModalEnvioChange("Courier Formal");
 
     expect(f.form.modalEnvio).toBe("Courier Formal");
     expect(f.form.companhiaAerea).toBe("");
-    expect(f.ciaAereaAviso.value).toBe(AVISO);
     expect(patchDe(f)).toEqual({ modalEnvio: "Courier Formal", companhiaAerea: null, parcial: true });
   });
 
-  it("cia compatível é mantida, sem aviso e sem entrar no patch", () => {
+  it("cia compatível é mantida e não entra no patch", () => {
     const f = useProcessoForm(() => processoDe("Courier Formal", "FedEx"));
 
     f.onModalEnvioChange("Courier Simples");
 
     expect(f.form.companhiaAerea).toBe("FedEx");
-    expect(f.ciaAereaAviso.value).toBe("");
     expect(patchDe(f)).toEqual({ modalEnvio: "Courier Simples", parcial: true });
   });
 
@@ -85,48 +80,45 @@ describe("trocar o modal", () => {
     f.onModalEnvioChange("");
 
     expect(f.form.companhiaAerea).toBe("");
-    expect(f.ciaAereaAviso.value).toBe(AVISO);
     expect(patchDe(f)).toEqual({ modalEnvio: null, companhiaAerea: null, parcial: true });
   });
 
-  it("sem cia nenhuma: trocar o modal não mostra aviso", () => {
+  it("sem cia nenhuma: trocar o modal só leva o modal no patch", () => {
     const f = useProcessoForm(() => processoDe("Air Cargo", null));
     f.onModalEnvioChange("Courier Formal");
-    expect(f.ciaAereaAviso.value).toBe("");
     expect(patchDe(f)).toEqual({ modalEnvio: "Courier Formal", parcial: true });
   });
 
-  it("o aviso some quando o usuário escolhe outra cia", () => {
+  it("depois da limpeza, escolher outra cia vai no patch junto com o modal", () => {
     const f = useProcessoForm(() => processoDe("Air Cargo", "Lufthansa"));
     f.onModalEnvioChange("Courier Formal");
-    expect(f.ciaAereaAviso.value).toBe(AVISO);
+    expect(f.form.companhiaAerea).toBe("");
 
     f.onCiaAereaChange("DHL");
 
-    expect(f.ciaAereaAviso.value).toBe("");
     expect(patchDe(f)).toEqual({ modalEnvio: "Courier Formal", companhiaAerea: "DHL", parcial: true });
   });
 
-  it("o aviso some ao carregar outro processo / fechar o formulário (reset)", async () => {
+  it("carregar outro processo / fechar o formulário (reset) reflete a cia do novo estado", async () => {
     const alvo = ref<Processo | null>(processoDe("Air Cargo", "Lufthansa"));
     const f = useProcessoForm(() => alvo.value);
     f.onModalEnvioChange("Courier Formal");
-    expect(f.ciaAereaAviso.value).toBe(AVISO);
+    expect(f.form.companhiaAerea).toBe("");
 
     alvo.value = processoDe("Air Cargo", "Qatar", { id: "proc_2" });
     await nextTick();
-    expect(f.ciaAereaAviso.value).toBe("");
+    expect(f.form.companhiaAerea).toBe("Qatar");
 
     f.onModalEnvioChange("Courier Formal");
-    expect(f.ciaAereaAviso.value).toBe(AVISO);
+    expect(f.form.companhiaAerea).toBe("");
     alvo.value = null;
     await nextTick();
-    expect(f.ciaAereaAviso.value).toBe("");
+    expect(f.form.companhiaAerea).toBe("");
+    expect(f.ciaAereaDesabilitada.value).toBe(true);
   });
 
-  it("carregar o processo não dispara o aviso (só a troca feita pelo usuário)", () => {
+  it("carregar o processo não limpa a cia (só a troca de modal feita pelo usuário limpa)", () => {
     const f = useProcessoForm(() => processoDe("Courier Formal", "Swiss"));
-    expect(f.ciaAereaAviso.value).toBe("");
     expect(f.form.companhiaAerea).toBe("Swiss");
   });
 });
@@ -155,19 +147,17 @@ describe("valor antigo fora da lista", () => {
     expect(patchDe(f)).toBeNull();
   });
 
-  it("trocar para um modal onde o valor antigo vale (Swiss → Air Cargo): é mantido, sem aviso", () => {
+  it("trocar para um modal onde o valor antigo vale (Swiss → Air Cargo): é mantido", () => {
     const f = useProcessoForm(() => processoDe("Courier Formal", "Swiss"));
     f.onModalEnvioChange("Air Cargo");
     expect(f.form.companhiaAerea).toBe("Swiss");
-    expect(f.ciaAereaAviso.value).toBe("");
     expect(patchDe(f)).toEqual({ modalEnvio: "Air Cargo", parcial: true });
   });
 
-  it("trocar para um modal onde o valor antigo não vale: é limpo, com aviso", () => {
+  it("trocar para um modal onde o valor antigo não vale: é limpo", () => {
     const f = useProcessoForm(() => processoDe("Courier Formal", "Swiss"));
     f.onModalEnvioChange("Courier Simples");
     expect(f.form.companhiaAerea).toBe("");
-    expect(f.ciaAereaAviso.value).toBe(AVISO);
     expect(patchDe(f)).toEqual({ modalEnvio: "Courier Simples", companhiaAerea: null, parcial: true });
   });
 
@@ -212,14 +202,13 @@ describe("criação de processo: mesma lógica", () => {
     expect(r.payload.companhiaAerea).toBe("Emirates");
   });
 
-  it("trocar o modal depois de escolher a cia: cia incompatível é limpa, com aviso, e não vai no payload", () => {
+  it("trocar o modal depois de escolher a cia: cia incompatível é limpa e não vai no payload", () => {
     const f = criacaoValida();
     f.onModalEnvioChange("Air Cargo");
     f.onCiaAereaChange("Emirates");
 
     f.onModalEnvioChange("Courier Formal");
 
-    expect(f.ciaAereaAviso.value).toBe(AVISO);
     const r = f.validar();
     if (!r.valido) throw new Error(r.erro);
     expect(r.payload.companhiaAerea).toBeUndefined();

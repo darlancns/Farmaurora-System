@@ -1,4 +1,4 @@
-import { computed, reactive, ref, watch, type ComputedRef, type Ref } from "vue";
+import { computed, reactive, watch, type ComputedRef } from "vue";
 import type {
   ConsultorProcesso,
   EmpresaProcesso,
@@ -128,10 +128,9 @@ export interface UseProcessoFormReturn {
   pendencias: string[];
   fornecedor: ReturnType<typeof useOutroSentinel>;
   showDespachanteTransportadora: ComputedRef<boolean>;
-  // Cia. aérea depende do modal: opções, desabilitado sem modal e aviso de "cia limpa" ao trocar o modal.
+  // Cia. aérea depende do modal: opções, desabilitado sem modal e limpeza automática ao trocar o modal.
   ciaAereaOptions: ComputedRef<AppSelectOption<string>[]>;
   ciaAereaDesabilitada: ComputedRef<boolean>;
-  ciaAereaAviso: Ref<string>;
   onModalEnvioChange: (modal: string) => void;
   onCiaAereaChange: (cia: string) => void;
   addMedicamento: () => void;
@@ -174,26 +173,20 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
   // Cia. aérea: opções do modal atual (+ valor antigo fora da lista, se for o caso). Sem modal, desabilitada.
   const ciaAereaOptions = computed(() => montarCiaAereaOptions(form.modalEnvio, form.companhiaAerea));
   const ciaAereaDesabilitada = computed(() => form.modalEnvio.trim() === "");
-  // Aviso discreto abaixo do campo: aparece quando trocar o modal limpou a cia; some ao escolher outra cia.
-  const ciaAereaAviso = ref("");
-  const AVISO_CIA_LIMPA = "Cia. aérea limpa: não pertence a este modal.";
 
-  // O USUÁRIO trocou o modal: se a cia atual não vale para o novo, ela é limpa (vira null no patch) e o aviso
-  // aparece; se continua válida, é mantida. Só o handler (não carregar/resetar o form) dispara isso.
+  // O USUÁRIO trocou o modal: se a cia atual não vale para o novo, ela é limpa (vira null no patch);
+  // se continua válida, é mantida. Só o handler (não carregar/resetar o form) dispara isso.
   function onModalEnvioChange(modal: string): void {
     form.modalEnvio = modal;
     if (ciaAereaValidaParaModal(modal, form.companhiaAerea)) return;
     form.companhiaAerea = "";
-    ciaAereaAviso.value = AVISO_CIA_LIMPA;
   }
 
   function onCiaAereaChange(cia: string): void {
     form.companhiaAerea = cia;
-    ciaAereaAviso.value = "";
   }
 
   function resetFormState(): void {
-    ciaAereaAviso.value = "";
     Object.assign(form, emptyForm());
     medicamentos.splice(0, medicamentos.length, emptyMedicamento());
     pendencias.splice(0, pendencias.length);
@@ -202,7 +195,6 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
   }
 
   function loadProcessoIntoForm(processo: Processo): void {
-    ciaAereaAviso.value = "";
     form.paciente = processo.paciente;
     form.ordem = parseOrdemNumero(processo.ordem);
     form.pasta = processo.pasta;
@@ -326,7 +318,6 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     showDespachanteTransportadora,
     ciaAereaOptions,
     ciaAereaDesabilitada,
-    ciaAereaAviso,
     onModalEnvioChange,
     onCiaAereaChange,
     addMedicamento,

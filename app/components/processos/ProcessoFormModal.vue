@@ -50,7 +50,6 @@ const {
   showDespachanteTransportadora,
   ciaAereaOptions,
   ciaAereaDesabilitada,
-  ciaAereaAviso,
   onModalEnvioChange,
   onCiaAereaChange,
   addMedicamento,
@@ -259,9 +258,6 @@ function handleSubmit(): void {
                 :disabled="ciaAereaDesabilitada"
                 @update:model-value="onCiaAereaChange"
               />
-              <p v-if="ciaAereaAviso" id="pf-cia-aerea-aviso" role="status" class="mt-1 text-[11px] text-ink-soft">
-                {{ ciaAereaAviso }}
-              </p>
             </div>
             <div>
               <label for="pf-awb" :class="LABEL_CLASS">Nº AWB</label>
