@@ -5,6 +5,7 @@ import { STATUS_PAGAMENTO_PROCESSO } from "#shared/constants/processos";
 import { useAberturaPorBusca, type AberturaPorBusca } from "../../composables/useAberturaPorBusca";
 import AppSelect from "../AppSelect.vue";
 import type { AppSelectOption } from "../../types/appSelect";
+import { ordenarPorPrevisaoEntrega } from "../../utils/ordenarPorPrevisao";
 import ConfirmDialog from "../ConfirmDialog.vue";
 import ProcessoDetail from "./ProcessoDetail.vue";
 
@@ -31,19 +32,9 @@ const statusPagamentoOptions: AppSelectOption<StatusPagamentoProcesso>[] = STATU
   (status) => ({ value: status, label: status === "pago" ? "Pago" : "Pendente" })
 );
 
-// Ordenação por "data de entrega" — campo é texto livre (aceita "20/08", "já tem",
-// "ASD" etc., ver shared/types/processo.ts), então este é um sort lexicográfico
-// simples, não um parse de data real. Processos sem previsão de entrega vão pro fim.
-const sortedProcessos = computed<Processo[]>(() =>
-  [...props.processos].sort((a, b) => {
-    const da = a.datas.previsaoEntrega ?? "";
-    const db = b.datas.previsaoEntrega ?? "";
-    if (!da && !db) return 0;
-    if (!da) return 1;
-    if (!db) return -1;
-    return da.localeCompare(db);
-  })
-);
+// Ordenação por "Previsão entrega" por data REAL, crescente (a mais próxima primeiro); sem data interpretável vai
+// para o fim, em ordem estável. O campo é texto livre — ver utils/ordenarPorPrevisao.ts.
+const sortedProcessos = computed<Processo[]>(() => ordenarPorPrevisaoEntrega(props.processos));
 
 function onStatusPagamentoChange(processo: Processo, statusPagamento: StatusPagamentoProcesso): void {
   emit("patch", processo.id, { statusPagamento });
