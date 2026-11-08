@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   STATUS_ALERTAVEIS_FORNECEDOR,
+  TOLERANCIA_COMPRA_FUTURA_DIAS,
   calcularNotificacoesFornecedor,
+  interpretarDataCompra,
   interpretarDataEmbarque,
   parseDataBR,
 } from "../../app/utils/prazoFornecedor";
@@ -316,10 +318,11 @@ describe("calcularNotificacoesFornecedor — dia de Brasília, independente do f
   it("dataCompraPO sem ano usa o ano de Brasília, inclusive às 22:00 BRT de 31/12 (UTC já é 01/01)", () => {
     // Em Brasília ainda é 31/12/2026: "29/12" é 29/12/2026 (+3 = 01/01/2027, ainda não venceu).
     expect(calcularNotificacoesFornecedor([poros("29/12")], brt("2026-12-31T22:00:00"))).toHaveLength(0);
-    // Em 01/01/2027 (BRT) o ano corrente passa a ser 2027: "29/12" vira 29/12/2027 (futuro, sem alerta),
-    // exatamente como já era para o navegador em BRT.
-    expect(calcularNotificacoesFornecedor([poros("29/12")], brt("2027-01-01T00:30:00"))).toHaveLength(0);
-    // Com o ano explícito o alerta aparece normalmente.
+    // Em 01/01/2027 (BRT) o ano corrente passa a ser 2027, mas "29/12/2027" seria uma compra 362 dias no
+    // futuro: a correção da virada de ano usa o ano anterior — 29/12/2026 (+3 = 01/01/2027) — e o alerta
+    // aparece, igual ao de quem digitou o ano.
+    const [sem] = calcularNotificacoesFornecedor([poros("29/12")], brt("2027-01-01T00:30:00"));
+    expect(sem?.diasDeAtraso).toBe(0);
     const [n] = calcularNotificacoesFornecedor([poros("29/12/2026")], brt("2027-01-01T00:30:00"));
     expect(n?.diasDeAtraso).toBe(0);
   });
@@ -328,6 +331,122 @@ describe("calcularNotificacoesFornecedor — dia de Brasília, independente do f
     // 31/12/2026 22:00 BRT = 01/01/2027 01:00 UTC
     expect(parseDataBR("15/03", brt("2026-12-31T22:00:00"))).toBe("2026-03-15");
     expect(parseDataBR("15/03", brt("2027-01-01T00:00:00"))).toBe("2027-03-15");
+  });
+});
+
+// ── Virada de ano na data de COMPRA ──────────────────────────────────────────────────────────────
+// Sem ano, DD/MM é do ano corrente de Brasília; se ficar MAIS de 60 dias no futuro, é do ano anterior (uma
+// compra não está no futuro distante). Com ano explícito, vale o ano do texto. A regra é só da compra:
+// embarque futuro é legítimo e o alerta de Mandado tem a sua correção.
+const em = (iso: string) => new Date(`${iso}T12:00:00-03:00`); // meio-dia em Brasília
+
+describe("interpretarDataCompra — virada de ano", () => {
+  it("compra de 28/12 lida em janeiro é de dezembro passado (hoje 2027-01-05)", () => {
+    expect(interpretarDataCompra("28/12", em("2027-01-05"))).toBe("2026-12-28");
+  });
+
+  it("data dentro do ano corrente e já passada não muda (hoje 2026-11-07, '29/10')", () => {
+    expect(interpretarDataCompra("29/10", em("2026-11-07"))).toBe("2026-10-29");
+  });
+
+  it("de 0 a 60 dias no futuro continua futura (erro de digitação de poucos dias): '05/12' a 28 dias", () => {
+    expect(interpretarDataCompra("05/12", em("2026-11-07"))).toBe("2026-12-05");
+  });
+
+  it("o limite é 60 dias: 60 fica como está, 61 vira o ano anterior", () => {
+    // hoje 2026-01-05 + 60 dias = 2026-03-06
+    expect(interpretarDataCompra("06/03", em("2026-01-05"))).toBe("2026-03-06");
+    expect(interpretarDataCompra("07/03", em("2026-01-05"))).toBe("2025-03-07");
+    expect(TOLERANCIA_COMPRA_FUTURA_DIAS).toBe(60);
+  });
+
+  it("futuro distante no meio do ano vira o ano anterior (hoje 2026-03-10, '20/12' = 285 dias à frente)", () => {
+    expect(interpretarDataCompra("20/12", em("2026-03-10"))).toBe("2025-12-20");
+  });
+
+  it("'20/01' com hoje 2026-11-07: janeiro deste ano já PASSOU (não é futuro), então a regra não mexe: 2026-01-20", () => {
+    // O código só olha para o futuro dentro do ano corrente. 20/01/2026 está 291 dias no PASSADO; o ano seguinte
+    // (2027, 74 dias à frente) nunca é considerado — uma compra não é planejada para o futuro.
+    expect(interpretarDataCompra("20/01", em("2026-11-07"))).toBe("2026-01-20");
+  });
+
+  it("com ano explícito, vale o ano do texto (mesmo no futuro)", () => {
+    expect(interpretarDataCompra("20/01/2027", em("2026-11-07"))).toBe("2027-01-20");
+    expect(interpretarDataCompra("28/12/2027", em("2027-01-05"))).toBe("2027-12-28");
+    expect(interpretarDataCompra("28/12/2026", em("2027-01-05"))).toBe("2026-12-28");
+    expect(interpretarDataCompra("1/2/2025", em("2026-11-07"))).toBe("2025-02-01");
+  });
+
+  it("o ano corrente é o de Brasília na virada (00:30 BRT de 01/01 = 03:30 UTC do mesmo dia; 22:00 BRT de 31/12 já é 01/01 UTC)", () => {
+    expect(interpretarDataCompra("29/12", brt("2027-01-01T00:30:00"))).toBe("2026-12-29");
+    expect(interpretarDataCompra("29/12", brt("2026-12-31T22:00:00"))).toBe("2026-12-29");
+  });
+
+  it("segue estrito: só o texto INTEIRO DD/MM ou DD/MM/AAAA; o resto devolve null sem lançar erro", () => {
+    for (const texto of ["28/12 (obs)", "ASD", "", "   ", "28-12", "28/12/26", "28/12/2026 x", "já tem"]) {
+      expect(interpretarDataCompra(texto, em("2027-01-05")), texto).toBeNull();
+    }
+    expect(interpretarDataCompra(undefined, em("2027-01-05"))).toBeNull();
+    expect(interpretarDataCompra(null, em("2027-01-05"))).toBeNull();
+  });
+
+  it("data inexistente continua inválida: 31/02 e 29/02 em ano não bissexto", () => {
+    expect(interpretarDataCompra("31/02", em("2026-11-07"))).toBeNull();
+    expect(interpretarDataCompra("29/02", em("2027-01-05"))).toBeNull(); // 2027 não é bissexto
+    expect(interpretarDataCompra("29/02/2027", em("2027-01-05"))).toBeNull();
+    expect(interpretarDataCompra("29/02", em("2028-03-10"))).toBe("2028-02-29"); // bissexto, no passado
+    expect(interpretarDataCompra("29/02/2028", em("2026-11-07"))).toBe("2028-02-29");
+  });
+
+  it("parseDataBR segue como era (sem a regra): é só a COMPRA que a usa", () => {
+    expect(parseDataBR("28/12", em("2027-01-05"))).toBe("2027-12-28");
+    expect(interpretarDataEmbarque("28/12", em("2027-01-05"))).toBe("2027-12-28");
+  });
+});
+
+describe("calcularNotificacoesFornecedor — compra atravessando a virada de ano", () => {
+  const com = (fornecedor: Processo["fornecedor"], compra: string) =>
+    buildProcesso({ fornecedor, datas: { dataCompraPO: compra } });
+
+  it("compra 30/12 (sem ano) e hoje 02/01: o prazo de cada fornecedor conta pela virada, em dias corridos", () => {
+    // Poros e Speciality: 3 dias → vence 02/01/2027 (0 dias de atraso hoje)
+    for (const f of ["Poros - Turquia", "Speciality - Índia"] as const) {
+      const [n] = calcularNotificacoesFornecedor([com(f, "30/12")], em("2027-01-02"));
+      expect(n?.diasDeAtraso, f).toBe(0);
+      expect(calcularNotificacoesFornecedor([com(f, "30/12")], em("2027-01-01")), `${f} antes do prazo`).toHaveLength(0);
+    }
+    // Beldimed: 7 dias → vence 06/01/2027
+    expect(calcularNotificacoesFornecedor([com("Beldimed - Bélgica", "30/12")], em("2027-01-05"))).toHaveLength(0);
+    expect(calcularNotificacoesFornecedor([com("Beldimed - Bélgica", "30/12")], em("2027-01-06"))[0]?.diasDeAtraso).toBe(0);
+    expect(calcularNotificacoesFornecedor([com("Beldimed - Bélgica", "30/12")], em("2027-01-08"))[0]?.diasDeAtraso).toBe(2);
+    // Pharyx: 10 dias → vence 09/01/2027
+    expect(calcularNotificacoesFornecedor([com("Pharyx - China", "30/12")], em("2027-01-08"))).toHaveLength(0);
+    expect(calcularNotificacoesFornecedor([com("Pharyx - China", "30/12")], em("2027-01-09"))[0]?.diasDeAtraso).toBe(0);
+  });
+
+  it("o MESMO resultado de quem digitou o ano (30/12/2026)", () => {
+    for (const f of ["Poros - Turquia", "Speciality - Índia", "Beldimed - Bélgica", "Pharyx - China"] as const) {
+      for (const dia of ["2027-01-02", "2027-01-06", "2027-01-09", "2027-01-15"]) {
+        expect(calcularNotificacoesFornecedor([com(f, "30/12")], em(dia))[0]?.diasDeAtraso, `${f} ${dia}`).toBe(
+          calcularNotificacoesFornecedor([com(f, "30/12/2026")], em(dia))[0]?.diasDeAtraso,
+        );
+      }
+    }
+  });
+
+  it("compra futura de poucos dias (erro de digitação) NÃO dispara alerta", () => {
+    expect(calcularNotificacoesFornecedor([com("Poros - Turquia", "05/12")], em("2026-11-07"))).toHaveLength(0);
+    expect(calcularNotificacoesFornecedor([com("Poros - Turquia", "05/12")], em("2026-12-20"))[0]?.diasDeAtraso).toBe(12);
+  });
+
+  it("a regra do embarque NÃO muda: embarque sem ano de dezembro, lido em janeiro, segue 'futuro' e suprime o alerta", () => {
+    const p = buildProcesso({
+      fornecedor: "Poros - Turquia",
+      datas: { dataCompraPO: "20/12", dataEmbarque: "28/12" },
+    });
+    expect(calcularNotificacoesFornecedor([p], em("2027-01-05"))).toHaveLength(0); // embarque lido como 28/12/2027
+    const semEmbarque = buildProcesso({ fornecedor: "Poros - Turquia", datas: { dataCompraPO: "20/12" } });
+    expect(calcularNotificacoesFornecedor([semEmbarque], em("2027-01-05"))[0]?.diasDeAtraso).toBe(13);
   });
 });
 
@@ -340,17 +459,24 @@ const TZ_DA_MAQUINA = Intl.DateTimeFormat().resolvedOptions().timeZone;
 function antigoComHoraZerada(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
+function antigoData(dia: number, mes: number, ano: number): Date | null {
+  if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return null;
+  const d = new Date(ano, mes - 1, dia);
+  if (d.getFullYear() !== ano || d.getMonth() !== mes - 1 || d.getDate() !== dia) return null;
+  return d;
+}
 function antigoParse(str: string | undefined, hoje: Date): Date | null {
   if (!str) return null;
   const m = str.trim().match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/);
   if (!m) return null;
   const dia = Number(m[1]);
   const mes = Number(m[2]);
-  const ano = m[3] ? Number(m[3]) : hoje.getFullYear();
-  if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return null;
-  const d = new Date(ano, mes - 1, dia);
-  if (d.getFullYear() !== ano || d.getMonth() !== mes - 1 || d.getDate() !== dia) return null;
-  return d;
+  const d = antigoData(dia, mes, m[3] ? Number(m[3]) : hoje.getFullYear());
+  if (!d || m[3]) return d;
+  // A única diferença da implementação nova (a correção da virada de ano, não existia na antiga): sem ano e
+  // mais de 60 dias no futuro, a compra é do ano anterior.
+  const limite = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + TOLERANCIA_COMPRA_FUTURA_DIAS);
+  return d.getTime() > limite.getTime() ? antigoData(dia, mes, d.getFullYear() - 1) : d;
 }
 const PRAZOS: Record<string, number> = {
   "Poros - Turquia": 3,

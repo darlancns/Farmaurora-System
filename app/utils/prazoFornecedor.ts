@@ -42,6 +42,29 @@ export function parseDataBR(str: string | undefined | null, hoje: Date = new Dat
   return parseDataISO(iso) ? iso : null;
 }
 
+// Quantos dias no FUTURO uma data de compra sem ano ainda é aceita como "deste ano" (erro de digitação de poucos
+// dias: continua futura, sem alerta). Além disso, uma compra não pode estar no futuro distante: é do ano anterior.
+export const TOLERANCIA_COMPRA_FUTURA_DIAS = 60;
+
+// Data de COMPRA interpretada ("YYYY-MM-DD") a partir de datas.dataCompraPO. Mesmo critério estrito de parseDataBR
+// (o texto inteiro é DD/MM ou DD/MM/AAAA; qualquer outro texto devolve null), com a correção da virada de ano:
+// - com ano explícito (DD/MM/AAAA): o ano do texto, como sempre;
+// - sem ano: o ano corrente de Brasília e, se a data ficar MAIS de 60 dias no futuro em relação a hoje, o ano
+//   ANTERIOR (uma compra de 28/12 lida em janeiro é de dezembro passado, não do dezembro que vem). De 0 a 60 dias
+//   no futuro fica como está (futura): um erro de digitação de poucos dias não dispara alerta.
+// A data de EMBARQUE não usa esta regra (embarque futuro é legítimo: planejado) e o alerta de Mandado tem a sua.
+export function interpretarDataCompra(str: string | undefined | null, hoje: Date = new Date()): string | null {
+  const iso = parseDataBR(str, hoje);
+  if (!iso) return null;
+
+  const partes = DATA_BR_RE.exec(str!.trim());
+  if (!partes || partes[3]) return iso; // ano explícito
+
+  if (diferencaEmDias(iso, hojeBrasilia(hoje)) <= TOLERANCIA_COMPRA_FUTURA_DIAS) return iso;
+  const anoAnterior = Number(iso.slice(0, 4)) - 1;
+  return parseDataBR(`${partes[1]}/${partes[2]}/${anoAnterior}`, hoje);
+}
+
 // Data de embarque interpretada ("YYYY-MM-DD") a partir do texto livre de datas.dataEmbarque, usando só a
 // primeira data do início do texto ("10/11 (previsto)" -> 10/11). Sem ano, ano corrente de Brasília.
 // Sem data válida (vazio, "ASD", "semana que vem", 31/02) devolve null — e quem chama não suprime.
@@ -89,7 +112,7 @@ export function calcularNotificacoesFornecedor(
     const prazoDias = PRAZO_DIAS_POR_FORNECEDOR[fornecedor as FornecedorProcesso];
     if (prazoDias === undefined) continue;
 
-    const dataCompra = parseDataBR(processo.datas.dataCompraPO, hoje);
+    const dataCompra = interpretarDataCompra(processo.datas.dataCompraPO, hoje);
     if (!dataCompra) continue;
 
     const prazoFinal = somarDiasISO(dataCompra, prazoDias);
