@@ -7,9 +7,15 @@ import {
   podeAumentarNumeroRemessa,
   podeDiminuirNumeroRemessa,
 } from "#shared/utils/numeroRemessa";
-import { INPUT_STEPPER_CLASS } from "../../utils/processoFormClasses";
+import {
+  STEPPER_CAMPO_CLASS,
+  STEPPER_COLUNA_CLASS,
+  STEPPER_INPUT_CLASS,
+  STEPPER_SETA_CLASS,
+} from "../../utils/processoFormClasses";
 
-// Input de QUANTIDADE do Nº Remessa: botão "−", campo numérico e botão "+". A regra (mínimo 1, máximo 2147483647, só
+// Input de QUANTIDADE do Nº Remessa: um campo só, com o número à esquerda e, à direita DENTRO da borda, duas setas empilhadas
+// (▲ aumenta, ▼ diminui), no estilo das setas de um campo numérico — mas nossas, iguais em todos os navegadores. A regra (mínimo 1, máximo 2147483647, só
 // dígitos, sem zeros à esquerda, vazio/0 → 1) vive em shared/utils/numeroRemessa.ts; aqui só liga a tela a ela.
 // O valor é o TEXTO do campo (o formulário guarda string). O rótulo (<label for=id>) fica com quem usa.
 const props = defineProps<{
@@ -68,23 +74,10 @@ function onKeydown(event: KeyboardEvent): void {
   }
 }
 
-// Botões de 40px (mínimo) abaixo de lg; em lg+ ficam do tamanho do campo (mesma altura, sem mexer na linha).
-const BOTAO_CLASS =
-  "flex min-h-11 w-10 shrink-0 items-center justify-center rounded-md border border-hairline bg-paper text-[18px] leading-none text-ink-soft transition-colors hover:border-accent-dark hover:text-accent-dark focus-visible:outline-2 focus-visible:outline-accent-dark disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-hairline disabled:hover:text-ink-soft lg:min-h-auto lg:w-8";
 </script>
 
 <template>
-  <div class="flex items-stretch gap-1">
-    <button
-      :id="`${id}-menos`"
-      type="button"
-      :class="BOTAO_CLASS"
-      :aria-label="`Diminuir ${rotulo}`"
-      :disabled="!podeDiminuir()"
-      @click="diminuir"
-    >
-      <span aria-hidden="true">−</span>
-    </button>
+  <div :class="STEPPER_CAMPO_CLASS">
     <input
       :id="id"
       data-sem-maiuscula
@@ -93,20 +86,42 @@ const BOTAO_CLASS =
       inputmode="numeric"
       maxlength="10"
       autocomplete="off"
-      :class="INPUT_STEPPER_CLASS"
+      :class="STEPPER_INPUT_CLASS"
       @input="onInput"
       @blur="onBlur"
       @keydown="onKeydown"
     />
-    <button
-      :id="`${id}-mais`"
-      type="button"
-      :class="BOTAO_CLASS"
-      :aria-label="`Aumentar ${rotulo}`"
-      :disabled="!podeAumentar()"
-      @click="aumentar"
-    >
-      <span aria-hidden="true">+</span>
-    </button>
+    <!-- As setas não entram no Tab (o teclado usa ArrowUp/ArrowDown no campo, como num campo numérico) e o mousedown
+         não tira o foco do campo. Cada uma ocupa a largura da coluna (32px) e metade da altura do campo. -->
+    <div :class="STEPPER_COLUNA_CLASS">
+      <button
+        :id="`${id}-mais`"
+        type="button"
+        tabindex="-1"
+        :class="STEPPER_SETA_CLASS"
+        :aria-label="`Aumentar ${rotulo}`"
+        :disabled="!podeAumentar()"
+        @mousedown.prevent
+        @click="aumentar"
+      >
+        <svg viewBox="0 0 20 20" class="h-2.5 w-2.5" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.5L10 7l5.5 5.5" />
+        </svg>
+      </button>
+      <button
+        :id="`${id}-menos`"
+        type="button"
+        tabindex="-1"
+        :class="STEPPER_SETA_CLASS"
+        :aria-label="`Diminuir ${rotulo}`"
+        :disabled="!podeDiminuir()"
+        @mousedown.prevent
+        @click="diminuir"
+      >
+        <svg viewBox="0 0 20 20" class="h-2.5 w-2.5" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 7.5L10 13l5.5-5.5" />
+        </svg>
+      </button>
+    </div>
   </div>
 </template>

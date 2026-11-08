@@ -213,7 +213,7 @@ describe("Formulário — campo Nº Remessa (pf-numero-remessa)", () => {
     expect(el.querySelector("#pf-ordem")).toBeNull();
   });
 
-  it("tem os botões − e + (ids e aria-labels combinados); no modal, + e − mudam o campo e '−' fica desabilitado em 1", async () => {
+  it("tem as setas ▲ e ▼ (ids e aria-labels combinados); no modal, ▲ e ▼ mudam o campo e ▼ fica desabilitado em 1", async () => {
     const el = abrirModal(null);
     await nextTick();
     const menos = el.querySelector<HTMLButtonElement>("#pf-numero-remessa-menos")!;

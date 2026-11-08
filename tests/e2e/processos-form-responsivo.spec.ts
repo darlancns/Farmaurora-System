@@ -382,7 +382,13 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
           const ids = modo === "editar" ? CAMPOS_EDITAR : CAMPOS_NOVO;
           for (const id of ids) {
             await rolarParaCampo(page, id);
-            const b = await boxCampo(page, id);
+            // Setas ▲/▼ do Nº Remessa: ícones dentro do campo (cada uma com metade da altura), sem texto — conferidas na
+            // grade abaixo; a altura de 44px é do CONTÊINER do campo (o input ocupa a altura toda dele, sem a borda).
+            if (id === "pf-numero-remessa-mais" || id === "pf-numero-remessa-menos") continue;
+            const b =
+              id === "pf-numero-remessa"
+                ? await box(campo(page, id).locator("xpath=.."), "contêiner do Nº Remessa")
+                : await boxCampo(page, id);
             expect(b.height, `altura de #${id}`).toBeGreaterThanOrEqual(44);
             const fonte = await campo(page, id).evaluate((el) => parseFloat(getComputedStyle(el.tagName === "BUTTON" ? el : el).fontSize));
             expect(fonte, `font-size de #${id}`).toBeGreaterThanOrEqual(16);
@@ -503,20 +509,23 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
             mesmaLinha(empresa, consultor, "Empresa | Consultor");
           }
 
-          // Stepper do Nº Remessa (testado mentalmente a 360px: coluna de ~159px = 40 + 4 + miolo + 4 + 40): − | campo | +
-          // na mesma linha, dentro da coluna, botões >= 40px, campo com espaço para dígitos e sem overflow.
+          // Stepper do Nº Remessa: UM campo com o número à esquerda e as setas ▲/▼ empilhadas à direita, DENTRO da borda.
+          // Em coluna de ~159px (360px de tela): 32px de setas + ~125px para o número. Setas na largura da coluna
+          // (>= 31px) e cada uma com metade da altura do campo (~20,5px); sem overflow; o número não fica sob as setas.
+          const mais = await b("pf-numero-remessa-mais");
           const menos = await b("pf-numero-remessa-menos");
           const miolo = await b("pf-numero-remessa");
-          const mais = await b("pf-numero-remessa-mais");
-          mesmaLinha(menos, miolo, "− | campo");
-          mesmaLinha(miolo, mais, "campo | +");
-          expect(miolo.x).toBeGreaterThanOrEqual(direita(menos));
-          expect(mais.x).toBeGreaterThanOrEqual(direita(miolo));
-          expect(direita(mais), "+ dentro da coluna").toBeLessThanOrEqual(direita(ordem) + 1);
-          expect(menos.width, "− com alvo de toque >= 40px").toBeGreaterThanOrEqual(40);
-          expect(mais.width, "+ com alvo de toque >= 40px").toBeGreaterThanOrEqual(40);
-          expect(menos.height).toBeGreaterThanOrEqual(44);
-          expect(miolo.width, "campo com espaço para vários dígitos").toBeGreaterThanOrEqual(56);
+          expect(miolo.x, "número dentro do campo").toBeGreaterThanOrEqual(ordem.x - 1);
+          expect(direita(miolo), "número termina antes das setas").toBeLessThanOrEqual(mais.x + 1);
+          expect(direita(mais), "setas dentro da borda").toBeLessThanOrEqual(direita(ordem) + 1);
+          expect(Math.abs(direita(mais) - direita(ordem)), "setas coladas à direita do campo").toBeLessThanOrEqual(2);
+          expect(Math.abs(mais.x - menos.x)).toBeLessThanOrEqual(1);
+          expect(menos.y, "▼ abaixo de ▲").toBeGreaterThanOrEqual(embaixo(mais) - 1);
+          expect(mais.width, "seta com a largura da coluna (>= 31px)").toBeGreaterThanOrEqual(31);
+          expect(mais.height, "seta com metade da altura do campo (~20,5px)").toBeGreaterThanOrEqual(19.5);
+          expect(menos.height).toBeGreaterThanOrEqual(19.5);
+          expect(ordem.height, "campo de 44px").toBeGreaterThanOrEqual(44);
+          expect(miolo.width, "espaço para vários dígitos").toBeGreaterThanOrEqual(100);
           expect(await campo(page, "pf-numero-remessa").evaluate((el) => el.scrollWidth > el.clientWidth + 1)).toBe(false);
 
           // Status / Responsável / Pagamento.

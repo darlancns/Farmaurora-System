@@ -11,10 +11,18 @@ const CAMPO_BASE =
 
 export const INPUT_CLASS = `${CAMPO_BASE} text-[16px] lg:text-[13.5px]`;
 export const INPUT_MONO_CLASS = `${CAMPO_BASE} font-mono text-[16px] lg:text-[13.5px]`;
-// Campo central do stepper do Nº Remessa (ProcessoRemessaStepper.vue): como o INPUT_MONO_CLASS, mas ocupa só o que
-// sobra entre os botões (flex-1, sem w-full), centralizado e com padding lateral menor (cabe em coluna de ~160px).
-export const INPUT_STEPPER_CLASS =
-  "min-w-0 flex-1 min-h-11 rounded-md border border-hairline bg-paper px-1 py-2 text-center font-mono text-[16px] focus:bg-white focus:outline-2 focus:outline-accent-dark lg:min-h-auto lg:text-[13.5px]";
+// Stepper do Nº Remessa (ProcessoRemessaStepper.vue): UM campo visual. O contêiner leva a borda, o fundo, o raio e o anel
+// de foco (focus-within, envolvendo o conjunto todo) dos outros campos; dentro dele, o número (input sem borda, mesmo
+// padding e fonte dos demais) e, à direita, a coluna das setas ▲/▼. Abaixo de lg o contêiner tem 44px; em lg+ a altura
+// vem do input (a mesma de um campo de texto).
+export const STEPPER_CAMPO_CLASS =
+  "flex w-full min-h-11 items-stretch overflow-hidden rounded-md border border-hairline bg-paper focus-within:bg-white focus-within:outline-2 focus-within:outline-accent-dark lg:min-h-auto";
+export const STEPPER_INPUT_CLASS =
+  "min-w-0 flex-1 bg-transparent px-2.5 py-2 font-mono text-[16px] outline-none lg:text-[13.5px]";
+// Coluna das setas: 32px de largura, divisor fino à esquerda e entre as duas; cada seta ocupa metade da altura.
+export const STEPPER_COLUNA_CLASS = "flex w-8 shrink-0 flex-col divide-y divide-hairline border-l border-hairline";
+export const STEPPER_SETA_CLASS =
+  "flex flex-1 items-center justify-center text-ink-soft/70 transition-colors hover:text-accent-dark focus-visible:text-accent-dark disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:text-ink-soft/70";
 // Medicamentos e pendências (13px no desktop).
 export const INPUT_COMPACTO_CLASS = `${CAMPO_BASE} text-[16px] lg:text-[13px]`;
 // Datas DD/MM (mono 12.5px no desktop).

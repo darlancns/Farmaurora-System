@@ -232,8 +232,8 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
         });
 
         test("grades: colunas, larguras e tamanhos de fonte dos campos como antes", async ({ page }) => {
-          // `pf-numero-remessa` é o stepper (− campo +): a caixa medida é a do CONTAINER, que ocupa a coluna do grid
-          // (o input central é só o miolo entre os botões).
+          // `pf-numero-remessa` é o stepper (número + setas ▲▼ DENTRO da mesma borda): a caixa medida é a do CONTÊINER
+          // com a borda, que ocupa a coluna do grid inteira (o input é só a parte do número, à esquerda das setas).
           const b = (id: string) =>
             caixa(page.locator(id === "pf-numero-remessa" ? "#pf-numero-remessa >> xpath=.." : `#${id}`), id);
           const mesmaLinha = (a: Caixa, c: Caixa, nome: string) =>
@@ -273,21 +273,40 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
           const remessa = await b("pf-numero-remessa");
           expect(remessa.y).toBeGreaterThan(embaixo(pasta) - 1);
 
-          // Stepper do Nº Remessa em lg+: − | campo | + lado a lado, dentro da coluna, com a MESMA altura de um campo de
-          // texto (não aumenta a linha) e botões de 32px.
-          const menos = await caixa(page.locator("#pf-numero-remessa-menos"), "menos");
+          // Stepper do Nº Remessa em lg+: UM campo (uma borda só) com o número à esquerda e, à direita DENTRO da borda, as
+          // setas ▲ (em cima) e ▼ (embaixo) empilhadas, cada uma com metade da altura. O contêiner ocupa a coluna inteira e
+          // tem a MESMA altura de um campo de texto (não aumenta a linha).
+          const mais = await caixa(page.locator("#pf-numero-remessa-mais"), "▲");
+          const menos = await caixa(page.locator("#pf-numero-remessa-menos"), "▼");
           const campoRemessa = await caixa(page.locator("#pf-numero-remessa"), "campo");
-          const mais = await caixa(page.locator("#pf-numero-remessa-mais"), "mais");
-          mesmaLinha(menos, campoRemessa, "− | campo");
-          mesmaLinha(campoRemessa, mais, "campo | +");
-          expect(campoRemessa.x).toBeGreaterThanOrEqual(direita(menos));
-          expect(mais.x).toBeGreaterThanOrEqual(direita(campoRemessa));
-          expect(direita(mais)).toBeLessThanOrEqual(direita(remessa) + 1);
-          expect(menos.width).toBeCloseTo(32, 0);
-          expect(mais.width).toBeCloseTo(32, 0);
+          expect(remessa.width, "o campo ocupa a coluna inteira").toBeCloseTo(col3, 0);
           expect(Math.abs(remessa.height - paciente.height), "mesma altura de um campo de texto").toBeLessThanOrEqual(1);
-          expect(Math.abs(menos.height - remessa.height)).toBeLessThanOrEqual(1);
-          expect(Math.abs(mais.height - remessa.height)).toBeLessThanOrEqual(1);
+          // Tudo dentro da borda do contêiner.
+          for (const [nome, c] of [["▲", mais], ["▼", menos], ["número", campoRemessa]] as const) {
+            expect(c.x, `${nome} dentro (esquerda)`).toBeGreaterThanOrEqual(remessa.x - 1);
+            expect(direita(c), `${nome} dentro (direita)`).toBeLessThanOrEqual(direita(remessa) + 1);
+            expect(c.y, `${nome} dentro (topo)`).toBeGreaterThanOrEqual(remessa.y - 1);
+            expect(embaixo(c), `${nome} dentro (base)`).toBeLessThanOrEqual(embaixo(remessa) + 1);
+          }
+          // Número à esquerda, setas à direita, sem o número ficar por baixo das setas.
+          expect(direita(campoRemessa)).toBeLessThanOrEqual(mais.x + 1);
+          // Setas empilhadas: mesma coluna (x e largura de 31–32px), ▲ acima de ▼, metade da altura cada.
+          expect(Math.abs(mais.x - menos.x)).toBeLessThanOrEqual(1);
+          expect(mais.width).toBeGreaterThanOrEqual(30);
+          expect(mais.width).toBeLessThanOrEqual(32);
+          expect(Math.abs(mais.width - menos.width)).toBeLessThanOrEqual(1);
+          expect(menos.y).toBeGreaterThanOrEqual(embaixo(mais) - 1);
+          expect(Math.abs(mais.height - menos.height)).toBeLessThanOrEqual(1.5);
+          expect(mais.height, "cada seta ≈ metade da altura do campo").toBeCloseTo((remessa.height - 2) / 2, 0);
+          // A borda é do contêiner: o input não tem borda própria.
+          expect(await estilo(page.locator("#pf-numero-remessa"), ["border-top-width", "border-left-width"])).toEqual({
+            "border-top-width": "0px",
+            "border-left-width": "0px",
+          });
+          expect(await estilo(page.locator("#pf-numero-remessa >> xpath=.."), ["border-top-width", "border-top-left-radius"])).toEqual({
+            "border-top-width": "1px",
+            "border-top-left-radius": "6px",
+          });
 
           // Condicionais (só no modo Editar): largura total, abaixo da linha do select.
           if (modo === "editar") {
@@ -338,6 +357,7 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
           const fontes: Record<string, string> = {
             "pf-paciente": "13.5px",
             "pf-pasta": "13.5px",
+            "pf-numero-remessa": "13.5px", // o número usa a mesma fonte e o mesmo padding dos demais campos
             "pf-empresa": "13.5px",
             "pf-awb": "13.5px",
             "pf-medicamento-nome-0": "13px",
@@ -349,14 +369,6 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
             const e = await estilo(page.locator(`#${id}`), ["font-size", "min-height", "padding-top", "padding-left"]);
             expect(e, id).toEqual({ "font-size": fonte, "min-height": expect.stringMatching(/^(auto|0px)$/), "padding-top": "8px", "padding-left": "10px" });
           }
-          // Campo central do stepper: mesma fonte e altura mínima dos demais; padding lateral menor (4px) para caber em coluna estreita.
-          expect(await estilo(page.locator("#pf-numero-remessa"), ["font-size", "min-height", "padding-top", "padding-left", "text-align"])).toEqual({
-            "font-size": "13.5px",
-            "min-height": expect.stringMatching(/^(auto|0px)$/),
-            "padding-top": "8px",
-            "padding-left": "4px",
-            "text-align": "center",
-          });
           expect(await estilo(page.locator("label[for='pf-paciente']"), ["font-size", "margin-bottom"])).toEqual({ "font-size": "10.5px", "margin-bottom": "6px" });
           // Altura de um campo de texto de antes: padding 8+8, borda 1+1 e a linha da fonte (sem piso de 44px).
           expect((await b("pf-paciente")).height).toBeLessThan(44);
