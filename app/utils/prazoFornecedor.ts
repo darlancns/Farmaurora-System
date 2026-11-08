@@ -1,5 +1,8 @@
 import type { FornecedorProcesso, Processo, StatusProcesso } from "#shared/types/processo";
-import { diferencaEmDias, hojeBrasilia, parseDataISO, somarDiasISO } from "#shared/utils/dataBrasilia";
+import { DATA_BR_RE, diferencaEmDias, hojeBrasilia, parseDataBR, somarDiasISO } from "#shared/utils/dataBrasilia";
+
+// parseDataBR mora em shared/utils/dataBrasilia.ts (o servidor também usa); continua exportado daqui.
+export { parseDataBR };
 
 // Prazo em dias CORRIDOS a partir de datas.dataCompraPO (dia da compra = dia 0)
 // pra cobrar o fornecedor caso não haja sinal de envio (abertura de thread).
@@ -20,27 +23,6 @@ export const STATUS_ALERTAVEIS_FORNECEDOR: readonly StatusProcesso[] = ["elabora
 // Primeira data NO INÍCIO do texto livre (DD/MM ou DD/MM/AAAA); o resto é ignorado. O lookahead recusa
 // continuações como "04/11/26" ou "04/112": melhor não suprimir o alerta do que assumir uma data errada.
 const PRIMEIRA_DATA_RE = /^\s*(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?(?![\d/])/;
-
-const DATA_BR_RE = /^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/;
-
-// Parse defensivo de "DD/MM" ou "DD/MM/AAAA" para uma data civil "YYYY-MM-DD" (ano assumido
-// como o ano corrente de Brasília quando omitido). Qualquer outro texto (ex.: "ASD", "já tem",
-// string vazia) ou data que não existe (31/02) retorna null — nunca lança erro, nunca inventa
-// uma data. Sem `Date` local: o resultado não depende do fuso da máquina.
-export function parseDataBR(str: string | undefined | null, hoje: Date = new Date()): string | null {
-  if (!str) return null;
-  const match = str.trim().match(DATA_BR_RE);
-  if (!match) return null;
-
-  const dia = Number(match[1]);
-  const mes = Number(match[2]);
-  const ano = match[3] ? Number(match[3]) : Number(hojeBrasilia(hoje).slice(0, 4));
-  if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return null;
-
-  const iso = `${String(ano).padStart(4, "0")}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
-  // parseDataISO rejeita datas inexistentes (ex.: 31/02), que um `new Date` normalizaria em silêncio.
-  return parseDataISO(iso) ? iso : null;
-}
 
 // Quantos dias no FUTURO uma data de compra sem ano ainda é aceita como "deste ano" (erro de digitação de poucos
 // dias: continua futura, sem alerta). Além disso, uma compra não pode estar no futuro distante: é do ano anterior.

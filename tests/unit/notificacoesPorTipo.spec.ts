@@ -71,12 +71,12 @@ describe("seções do sino por tipo", () => {
 });
 
 describe("badge do sino", () => {
-  it("soma Fornecedor + Mandado + Recados + Contas", () => {
-    expect(totalDoBadgeSino({ fornecedor: 2, mandado: 1, recados: 3, contas: 4 })).toBe(10);
+  it("soma Fornecedor + Mandado + Chegada + Recados + Contas", () => {
+    expect(totalDoBadgeSino({ fornecedor: 2, mandado: 1, chegada: 5, recados: 3, contas: 4 })).toBe(15);
   });
 
   it("sem notificação de conta o total é o mesmo de antes (Fornecedor + Mandado + Recados)", () => {
-    expect(totalDoBadgeSino({ fornecedor: 2, mandado: 1, recados: 3, contas: 0 })).toBe(6);
+    expect(totalDoBadgeSino({ fornecedor: 2, mandado: 1, chegada: 0, recados: 3, contas: 0 })).toBe(6);
   });
 
   it("com a lista real: 2 recados + 1 conta + 1 Fornecedor + 1 Mandado = 5", () => {
@@ -85,6 +85,7 @@ describe("badge do sino", () => {
       totalDoBadgeSino({
         fornecedor: 1,
         mandado: 1,
+        chegada: 0,
         recados: naoLidasDeRecados(lista).length,
         contas: naoLidasDeContas(lista).length,
       }),

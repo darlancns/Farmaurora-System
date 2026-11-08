@@ -131,6 +131,51 @@ export async function patchProcessoVersionado(
   return (await getProcesso(id)) ? { tipo: "versao_desatualizada" } : { tipo: "nao_encontrado" };
 }
 
+export type ResultadoChegada =
+  | { tipo: "ok"; processo: Processo }
+  | { tipo: "nao_encontrado" }
+  | { tipo: "status_mudou" } // já não está em_transito (alguém respondeu/alterou antes)
+  | { tipo: "conflito" }; // o processo mudou de outro jeito a cada tentativa (improvável)
+
+// Quantas vezes relê e tenta de novo quando só o updated_at mudou entre a leitura e a gravação.
+const TENTATIVAS_CHEGADA = 3;
+
+// Resposta ao aviso "chegou?": a mudança (status ou data) e a atualização da timeline vão num ÚNICO UPDATE
+// ... WHERE id = ? AND status = 'em_transito' AND updated_at = <versão lida> — sem janela de corrida:
+//  - `status = 'em_transito'` impede responder duas vezes (ou depois de alguém já ter atualizado o processo);
+//  - `updated_at` impede perder uma atualização da timeline gravada entre a leitura e esta escrita (a lista
+//    `atualizacoes` é reescrita inteira). Se só a versão mudou, relê e tenta de novo (até TENTATIVAS_CHEGADA).
+// `montar` recebe o processo recém-lido (ainda em_transito) e devolve o patch a gravar.
+export async function gravarChegadaProcesso(
+  id: string,
+  montar: (atual: Processo) => ProcessoPatchDTO,
+): Promise<ResultadoChegada> {
+  const db = createSupabaseAdminClient();
+
+  for (let tentativa = 0; tentativa < TENTATIVAS_CHEGADA; tentativa++) {
+    const atual = await getProcesso(id);
+    if (!atual) return { tipo: "nao_encontrado" };
+    if (atual.status !== "em_transito") return { tipo: "status_mudou" };
+
+    const { data, error } = await db
+      .from(TABELA)
+      .update({
+        ...colunasDeDTO(montar(atual), { parcial: true }),
+        updated_at: proximoUpdatedAt(atual.updatedAt),
+      })
+      .eq("id", id)
+      .eq("status", "em_transito")
+      .eq("updated_at", atual.updatedAt)
+      .select("*");
+    if (error) throw erro("registrar resposta de chegada", error);
+
+    const row = (data ?? [])[0] as FollowUpRow | undefined;
+    if (row) return { tipo: "ok", processo: montarProcesso(row) };
+  }
+
+  return { tipo: "conflito" };
+}
+
 export async function deleteProcesso(id: string): Promise<boolean> {
   const db = createSupabaseAdminClient();
 

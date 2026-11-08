@@ -1,12 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Cliente Supabase falso, em memória, só com o que bancoStore usa: select / insert /
-// update / delete encadeados com eq, is, order, limit e maybeSingle. Cada tabela é
+// update / upsert / delete encadeados com eq, is, order, limit e maybeSingle. Cada tabela é
 // um array de linhas; `falhar` injeta um erro numa operação (tabela + op) para
 // simular falha no meio de uma gravação.
 
 type Row = Record<string, unknown>;
-type Op = "select" | "insert" | "update" | "delete";
+type Op = "select" | "insert" | "update" | "upsert" | "delete";
 interface Resultado {
   data: Row[] | Row | null;
   error: { message: string } | null;
@@ -52,6 +52,7 @@ class Consulta implements PromiseLike<Resultado> {
   private max: number | null = null;
   private unica = false;
   private retorna = false;
+  private opcoesUpsert: { onConflict?: string; ignoreDuplicates?: boolean } = {};
 
   constructor(
     private readonly db: FakeSupabase,
@@ -72,6 +73,13 @@ class Consulta implements PromiseLike<Resultado> {
   update(patch: Row): this {
     this.op = "update";
     this.payload = patch;
+    return this;
+  }
+  // upsert por `onConflict` (colunas separadas por vírgula = a chave): `ignoreDuplicates` não mexe na linha que já existe.
+  upsert(row: Row, opcoes: { onConflict?: string; ignoreDuplicates?: boolean } = {}): this {
+    this.op = "upsert";
+    this.payload = row;
+    this.opcoesUpsert = opcoes;
     return this;
   }
   delete(): this {
@@ -118,6 +126,13 @@ class Consulta implements PromiseLike<Resultado> {
       const nova = { ...this.payload };
       todas.push(nova);
       return { data: this.retorna ? [{ ...nova }] : null, error: null };
+    }
+    if (this.op === "upsert") {
+      const chave = (this.opcoesUpsert.onConflict ?? "id").split(",").map((c) => c.trim());
+      const existente = todas.find((r) => chave.every((c) => r[c] === this.payload[c]));
+      if (!existente) todas.push({ ...this.payload });
+      else if (!this.opcoesUpsert.ignoreDuplicates) Object.assign(existente, this.payload);
+      return { data: this.retorna ? [{ ...(existente ?? this.payload) }] : null, error: null };
     }
     if (this.op === "update") {
       const afetadas: Row[] = [];

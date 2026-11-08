@@ -15,6 +15,13 @@ const DIA_BRASILIA = new Intl.DateTimeFormat("en-CA", {
   day: "2-digit",
 });
 
+// Hora cheia (0-23) em Brasília. `hourCycle: "h23"` evita o "24" da meia-noite que `hour12: false` produz.
+const HORA_BRASILIA = new Intl.DateTimeFormat("en-GB", {
+  timeZone: FUSO_BRASILIA,
+  hour: "2-digit",
+  hourCycle: "h23",
+});
+
 const MESES_PT = [
   "janeiro",
   "fevereiro",
@@ -61,6 +68,12 @@ export function hojeBrasilia(agora: Date = new Date()): string {
   return dataBrasiliaDe(agora);
 }
 
+// Hora (0-23) em Brasília de um instante, independente do fuso da máquina. Instante inválido devolve NaN.
+export function horaBrasilia(agora: Date = new Date()): number {
+  if (Number.isNaN(agora.getTime())) return Number.NaN;
+  return Number(HORA_BRASILIA.format(agora));
+}
+
 // "YYYY-MM-DD" -> componentes, só para datas que existem no calendário (31/02 é null).
 export function parseDataISO(iso: string): DataCivil | null {
   const m = DATA_ISO_RE.exec(iso);
@@ -78,6 +91,22 @@ export function parseDataISO(iso: string): DataCivil | null {
 export function formatarDataBR(iso: string): string {
   const d = parseDataISO(iso);
   return d ? `${doisDigitos(d.dia)}/${doisDigitos(d.mes)}/${String(d.ano).padStart(4, "0")}` : "";
+}
+
+// "YYYY-MM-DD" -> "DD/MM". Inválida devolve "".
+export function formatarDiaMes(iso: string): string {
+  const d = parseDataISO(iso);
+  return d ? `${doisDigitos(d.dia)}/${doisDigitos(d.mes)}` : "";
+}
+
+// "YYYY-MM-DD" -> "DD/MM" se o ano é o de `hojeIso`; de OUTRO ano, "DD/MM/AAAA" (mesmo formato que o calendário
+// grava nas datas do Processo). Só texto, sem Date. Inválida devolve "".
+export function formatarDataCurta(iso: string, hojeIso: string): string {
+  const d = parseDataISO(iso);
+  if (!d) return "";
+  const hoje = parseDataISO(hojeIso);
+  const ano = hoje && hoje.ano === d.ano ? "" : `/${String(d.ano).padStart(4, "0")}`;
+  return `${doisDigitos(d.dia)}/${doisDigitos(d.mes)}${ano}`;
 }
 
 // "YYYY-MM-DD" -> "20 de outubro de 2026" (título do lote). Inválida devolve "".
@@ -109,4 +138,26 @@ export function diferencaEmDias(a: string, b: string): number {
   const db = parseDataISO(b);
   if (!da || !db) return Number.NaN;
   return diaJuliano(da) - diaJuliano(db);
+}
+
+// Texto inteiro "DD/MM" ou "DD/MM/AAAA" (com 4 dígitos no ano).
+export const DATA_BR_RE = /^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/;
+
+// Parse defensivo de "DD/MM" ou "DD/MM/AAAA" para uma data civil "YYYY-MM-DD" (ano assumido
+// como o ano corrente de Brasília quando omitido). Qualquer outro texto (ex.: "ASD", "já tem",
+// string vazia) ou data que não existe (31/02) retorna null — nunca lança erro, nunca inventa
+// uma data. Sem `Date` local: o resultado não depende do fuso da máquina.
+export function parseDataBR(str: string | undefined | null, hoje: Date = new Date()): string | null {
+  if (!str) return null;
+  const match = str.trim().match(DATA_BR_RE);
+  if (!match) return null;
+
+  const dia = Number(match[1]);
+  const mes = Number(match[2]);
+  const ano = match[3] ? Number(match[3]) : Number(hojeBrasilia(hoje).slice(0, 4));
+  if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return null;
+
+  const iso = paraISO(ano, mes, dia);
+  // parseDataISO rejeita datas inexistentes (ex.: 31/02), que um `new Date` normalizaria em silêncio.
+  return parseDataISO(iso) ? iso : null;
 }

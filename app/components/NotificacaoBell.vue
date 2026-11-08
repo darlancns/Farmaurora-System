@@ -5,17 +5,21 @@ import type { Notificacao } from "#shared/types/notificacao";
 import { podeResolverAlertaMandado } from "#shared/utils/mandadoPermissao";
 import { calcularNotificacoesFornecedor, type NotificacaoFornecedor } from "../utils/prazoFornecedor";
 import { calcularNotificacoesMandadoDoUsuario, type NotificacaoMandado } from "../utils/prazoMandado";
+import { calcularAvisosChegada, type AvisoChegadaSino } from "../utils/avisosChegada";
 import { totalDoBadgeSino } from "../utils/notificacoesPorTipo";
 import { criarAcoesSino } from "../utils/acoesSino";
 import { useAuth } from "../composables/useAuth";
 import { useProcessos } from "../composables/useProcessos";
 import { useNotificacoes } from "../composables/useNotificacoes";
+import { useChegadaAvisos } from "../composables/useChegadaAvisos";
+import { useRelogioMinuto } from "../composables/useRelogioMinuto";
+import AvisoChegadaItem from "./AvisoChegadaItem.vue";
 import { useToast } from "../composables/useToast";
 import { getErrorMessage } from "../utils/errorMessages";
 
 /**
  * Sino global (Fase C2) — renderizado direto pelo GlobalHeader em toda
- * página, não mais um slot de Processos. Agrega 3 fontes que continuam
+ * página, não mais um slot de Processos. Agrega as fontes abaixo, que continuam
  * isoladas por baixo do capô (ver docs/recados-spec.md seção 7):
  *  - Fornecedor: alertas de SLA calculados on-the-fly a partir de
  *    Processo[] (calcularNotificacoesFornecedor, inalterada) — só aparece
@@ -24,6 +28,10 @@ import { getErrorMessage } from "../utils/errorMessages";
  *    de Processo[] (calcularNotificacoesMandadoDoUsuario). Administrador vê
  *    todos; operacional só os seus (vínculo pelo primeiro nome); consultor e
  *    sócio não veem.
+ *  - Chegada ("chegou?"): alerta derivado de Processo[] (calcularAvisosChegada) — status em_transito e data
+ *    prevista de hoje (a partir das 13:00 de Brasília) ou vencida. Operacional responsável vê a pergunta com
+ *    [Sim, chegou] [Ainda não]; administrador vê o texto + olhinho (dispensa gravada por usuário); sócio,
+ *    consultor e demais cargos não veem. O relógio reavalia a cada minuto (useRelogioMinuto).
  *  - Recados: tabela `notificacoes` (tipos recado_novo e recado_concluido), aparece pra qualquer conta.
  *  - Contas: tabela `notificacoes` (tipo conta_editada — alguém alterou a própria senha, nome ou
  *    e-mail), só chega aos administradores. Seção própria; nunca cai em "Recados".
@@ -40,6 +48,10 @@ const canWriteProcessos = computed<boolean>(() => canWrite("processos"));
 const { processos, patchProcesso, fetchProcessos } = useProcessos();
 const { fetchNotificacoes, marcarComoLida, recadosNaoLidos, contasNaoLidas } = useNotificacoes();
 const { showToast } = useToast();
+const { vistos: chegadaVistos, vistosCarregados: chegadaVistosCarregados, fetchVistos: fetchChegadaVistos } =
+  useChegadaAvisos();
+// Instante de referência do aviso "chegou?": avança a cada minuto, então o aviso aparece sozinho às 13:00.
+const agora = useRelogioMinuto();
 
 onMounted(() => {
   // Busca a lista completa de processos só quando a seção Fornecedor pode
@@ -47,7 +59,17 @@ onMounted(() => {
   // essa seção. Dedup de in-flight fica dentro de fetchProcessos().
   if (canWriteProcessos.value) fetchProcessos();
   fetchNotificacoes();
+  // As dispensas ("olhinho") são só do administrador.
+  if (user.value?.role === "administrador") void fetchChegadaVistos();
 });
+
+// Cargo que chega depois do carregamento inicial (a conta é resolvida de forma assíncrona).
+watch(
+  () => user.value?.role,
+  (role) => {
+    if (role === "administrador" && !chegadaVistosCarregados.value) void fetchChegadaVistos();
+  },
+);
 
 const open = ref(false);
 const rootRef = ref<HTMLDivElement | null>(null);
@@ -79,6 +101,22 @@ const notificacoesMandadoVisiveis = computed(() =>
   notificacoesMandado.value.filter((n) => !dismissedMandadoIds.has(n.processoId)),
 );
 
+// Chegada ("chegou?"): derivado de Processo[] + usuário + relógio. Fica de fora quem não escreve em Processos
+// (os processos nem são carregados) e, para o administrador, até as dispensas dele chegarem (senão avisos já
+// dispensados piscariam na tela). Quem resolve é o operacional (muda o processo) ou o administrador (olhinho):
+// em ambos o item some porque o aviso deixa de valer — sem estado otimista aqui.
+const avisosChegada = computed<AvisoChegadaSino[]>(() => {
+  if (!canWriteProcessos.value) return [];
+  const role = user.value?.role;
+  if (role === "administrador" && !chegadaVistosCarregados.value) return [];
+  return calcularAvisosChegada(
+    processos.value,
+    { role, nome: user.value?.nome },
+    agora.value,
+    new Set(chegadaVistos.value),
+  );
+});
+
 // Recados: só as não lidas aparecem no sino — mesmo espírito de "some da
 // lista ao resolver" do lado Fornecedor, aplicado a "marcar como lida". Só os tipos recado_novo e
 // recado_concluido (useNotificacoes().recadosNaoLidos); conta_editada vai pra seção "Contas".
@@ -89,6 +127,7 @@ const badgeCount = computed(() =>
   totalDoBadgeSino({
     fornecedor: notificacoesFornecedorVisiveis.value.length,
     mandado: notificacoesMandadoVisiveis.value.length,
+    chegada: avisosChegada.value.length,
     recados: notificacoesRecadosVisiveis.value.length,
     contas: notificacoesContasVisiveis.value.length,
   }),
@@ -164,10 +203,16 @@ function podeResolverMandado(notificacao: NotificacaoMandado): boolean {
   return podeResolverAlertaMandado({ role: user.value?.role, nome: user.value?.nome }, notificacao.responsavel);
 }
 
+// O calendário do "Ainda não" (AppDatePicker) vive num Teleport no <body>, fora do sino: clicar nele não é
+// "clicar fora" (senão o painel fecharia no meio da escolha da data). Os ids do calendário começam com chegada-data-.
+function dentroDoCalendarioDeChegada(alvo: EventTarget | null): boolean {
+  return alvo instanceof Element && alvo.closest('[id^="chegada-data-"]') !== null;
+}
+
 function onClickOutside(event: MouseEvent): void {
-  if (!rootRef.value?.contains(event.target as Node)) {
-    closePanel();
-  }
+  if (rootRef.value?.contains(event.target as Node)) return;
+  if (dentroDoCalendarioDeChegada(event.target)) return;
+  closePanel();
 }
 
 function onKeydown(event: KeyboardEvent): void {
@@ -221,7 +266,7 @@ onBeforeUnmount(() => {
     <div
       v-if="open"
       id="painel-notificacoes-fornecedor"
-      class="absolute right-0 z-50 mt-2 w-[360px] max-h-[420px] overflow-y-auto rounded-lg border border-hairline bg-paper-raised shadow-lg"
+      class="absolute right-0 z-50 mt-2 w-[360px] max-w-[calc(100vw-1rem)] max-h-[420px] overflow-y-auto rounded-lg border border-hairline bg-paper-raised shadow-lg"
     >
       <template v-if="notificacoesFornecedorVisiveis.length">
         <p class="border-b border-hairline px-3.5 py-2.5 text-[11px] font-semibold tracking-wide text-ink-soft uppercase">
@@ -301,6 +346,21 @@ onBeforeUnmount(() => {
         </div>
       </template>
 
+      <template v-if="avisosChegada.length">
+        <p
+          id="secao-notificacoes-chegada"
+          class="border-b border-hairline px-3.5 py-2.5 text-[11px] font-semibold tracking-wide text-ink-soft uppercase"
+        >
+          Chegada
+        </p>
+        <AvisoChegadaItem
+          v-for="aviso in avisosChegada"
+          :key="aviso.chave"
+          :aviso="aviso"
+          @abrir="abrirProcessoDoAlerta(aviso)"
+        />
+      </template>
+
       <template v-if="notificacoesRecadosVisiveis.length">
         <p class="border-b border-hairline px-3.5 py-2.5 text-[11px] font-semibold tracking-wide text-ink-soft uppercase">
           Recados
@@ -350,6 +410,7 @@ onBeforeUnmount(() => {
         v-if="
           !notificacoesFornecedorVisiveis.length &&
           !notificacoesMandadoVisiveis.length &&
+          !avisosChegada.length &&
           !notificacoesRecadosVisiveis.length &&
           !notificacoesContasVisiveis.length
         "

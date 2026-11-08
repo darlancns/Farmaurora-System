@@ -23,11 +23,13 @@ export function naoLidasDeContas(notificacoes: readonly Notificacao[]): Notifica
 export interface ContagensDoSino {
   fornecedor: number;
   mandado: number;
+  // Aviso "chegou?" (derivado de Processo[], como Fornecedor e Mandado). Operacional: a pergunta; administrador: o olhinho.
+  chegada: number;
   recados: number;
   contas: number;
 }
 
-/** Badge do sino: soma das 4 seções, cada item contado uma única vez. */
+/** Badge do sino: soma das 5 seções, cada item contado uma única vez. */
 export function totalDoBadgeSino(c: ContagensDoSino): number {
-  return c.fornecedor + c.mandado + c.recados + c.contas;
+  return c.fornecedor + c.mandado + c.chegada + c.recados + c.contas;
 }

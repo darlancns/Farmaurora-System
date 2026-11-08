@@ -1,4 +1,4 @@
-import { formatarDataBR, parseDataISO, somarDiasISO } from "#shared/utils/dataBrasilia";
+import { formatarDataBR, formatarDataCurta, parseDataISO, somarDiasISO } from "#shared/utils/dataBrasilia";
 
 // Lógica pura do calendário próprio (app/components/AppDatePicker.vue): grade do mês, navegação, limites,
 // formatos de gravação e a leitura do valor que já existe no campo. Datas civis circulam como "YYYY-MM-DD"
@@ -123,9 +123,7 @@ export function formatarEscolha(iso: string, formato: FormatoData, hojeIso: stri
   const d = parseDataISO(iso);
   if (!d) return "";
   if (formato === "iso") return iso;
-  const hoje = parseDataISO(hojeIso);
-  const ano = hoje && hoje.ano === d.ano ? "" : `/${String(d.ano).padStart(4, "0")}`;
-  return `${doisDigitos(d.dia)}/${doisDigitos(d.mes)}${ano}`;
+  return formatarDataCurta(iso, hojeIso);
 }
 
 // ── Leitura do valor que já está no campo ───────────────────────────────────────────────────────────

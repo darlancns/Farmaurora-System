@@ -1,6 +1,6 @@
 // OBSOLETO desde 08/11/2026: a coluna public.follow_up.codigo_rastreio foi removida (rastreio
-// virou numero_awb). Este script depende dela e falharia se rodado de novo. Mantido só como
-// registro histórico da carga de 11/2026. Não rodar.
+// virou numero_awb). Este script depende dela e também da coluna "ordem", removida em 08/11/2026,
+// e falharia se rodado de novo. Mantido só como registro histórico da carga de 11/2026. Não rodar.
 
 // Plano da recarga definitiva do Follow-Up (2026-11-05): fonte nova + backup do banco → o que
 // permanece / é novo / é apagado, flags de alerta e linhas prontas para a carga.

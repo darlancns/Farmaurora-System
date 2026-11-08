@@ -90,6 +90,8 @@ export function sectionForApiPath(path: string): Section | null {
   if (p === "/api/recados" || p.startsWith("/api/recados/")) return "recados";
   if (p === "/api/contas" || p.startsWith("/api/contas/")) return "recados";
   if (p === "/api/notificacoes" || p.startsWith("/api/notificacoes/")) return "recados";
+  // Dispensas do aviso "chegou?" do sino: aberto a todos os cargos aqui; o handler restringe ao administrador.
+  if (p === "/api/chegada-avisos" || p.startsWith("/api/chegada-avisos/")) return "recados";
   if (p === "/api/lembretes" || p.startsWith("/api/lembretes/")) return "recados";
   return null;
 }
