@@ -489,22 +489,30 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
           const interno = util - 2 - 24;
           const col2 = (util - 10) / 2;
 
-          // Linha 1 (abaixo de lg): Paciente em linha inteira; Pasta | Nº Remessa lado a lado, abaixo dele; Nº Ordem em linha
-          // própria, por último (no DOM ele vem antes do Nº Remessa; max-lg:order-last só inverte o visual).
+          // Linha 1 (abaixo de lg): Paciente em linha inteira; Pasta | Nº Ordem em 2 colunas, abaixo dele; Nº Remessa na coluna
+          // da ESQUERDA da linha seguinte (meia coluna, sem ocupar a linha toda). Ordem visual = ordem do DOM (sem order-*):
+          // Paciente → Pasta → Nº Ordem → Nº Remessa, e o Tab segue o mesmo caminho.
           // `remessa` é a caixa do CONTAINER do stepper (− campo +), que ocupa a coluna do grid; o input central é só o miolo.
           const paciente = await b("pf-paciente");
           const pasta = await b("pf-pasta");
           const ordemPo = await b("pf-numero-po");
           const remessa = await caixaNoCorpo(campo(page, "pf-numero-remessa").locator("xpath=.."), "stepper do Nº Remessa");
           expect(paciente.width, "Paciente em largura total da coluna").toBeCloseTo(util, 0);
-          mesmaLinha(pasta, remessa, "Pasta | Nº Remessa");
-          expect(remessa.x).toBeGreaterThanOrEqual(direita(pasta));
+          mesmaLinha(pasta, ordemPo, "Pasta | Nº Ordem");
+          expect(ordemPo.x).toBeGreaterThanOrEqual(direita(pasta));
           expect(pasta.width, "Pasta, meia coluna").toBeCloseTo(col2, 0);
-          expect(remessa.width, "Nº Remessa, meia coluna").toBeCloseTo(col2, 0);
+          expect(ordemPo.width, "Nº Ordem, meia coluna").toBeCloseTo(col2, 0);
           abaixoDe(pasta, paciente, "Pasta");
-          expect(ordemPo.width, "Nº Ordem em linha inteira").toBeCloseTo(util, 0);
-          abaixoDe(ordemPo, pasta, "Nº Ordem (abaixo de Pasta)");
-          abaixoDe(ordemPo, remessa, "Nº Ordem (abaixo de Nº Remessa)");
+          abaixoDe(remessa, pasta, "Nº Remessa (abaixo de Pasta)");
+          abaixoDe(remessa, ordemPo, "Nº Remessa (abaixo de Nº Ordem)");
+          expect(Math.abs(remessa.x - pasta.x), "Nº Remessa na coluna da esquerda").toBeLessThanOrEqual(1);
+          expect(remessa.width, "Nº Remessa, meia coluna").toBeCloseTo(col2, 0);
+          // Nº Ordem com 30 caracteres (o limite): o campo NÃO cresce nem estoura a coluna; o texto rola dentro dele.
+          await campo(page, "pf-numero-po").fill("PO-25-2652/12345678901234567");
+          expect((await campo(page, "pf-numero-po").inputValue()).length).toBeLessThanOrEqual(30);
+          const ordemPoCheio = await b("pf-numero-po");
+          expect(ordemPoCheio.width, "Nº Ordem mantém a largura da coluna").toBeCloseTo(col2, 0);
+          expect(direita(ordemPoCheio), "Nº Ordem dentro da coluna útil").toBeLessThanOrEqual(paciente.x + util + 0.5);
 
           // Stepper do Nº Remessa: UM campo com o número à esquerda e as setas ▲/▼ empilhadas à direita, DENTRO da borda.
           // Em meia coluna de ~159px (360px de tela): 32px de setas + ~125px para o número. Setas na largura da coluna
@@ -529,7 +537,7 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
           // ações na linha de baixo; o Local de entrega fecha o bloco, também em largura total.
           const fsMed = await caixaNoCorpo(page.locator("#pf-medicamento-nome-0").locator("xpath=ancestor::fieldset"), "fieldset Medicamentos");
           expect(fsMed.width).toBeCloseTo(util, 0);
-          abaixoDe(fsMed, ordemPo, "Medicamentos e local de entrega");
+          abaixoDe(fsMed, remessa, "Medicamentos e local de entrega");
           const mNome = await b("pf-medicamento-nome-0");
           const mDos = await b("pf-medicamento-dosagem-0");
           const mQtd = await b("pf-medicamento-quantidade-0");

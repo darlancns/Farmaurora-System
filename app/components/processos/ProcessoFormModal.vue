@@ -172,8 +172,8 @@ function handleSubmit(): void {
              itens do <form> (flex-col com gap-3.5). -->
         <div class="flex flex-col gap-3.5 py-4 lg:contents" :class="MODAL_PAD_X_CLASS">
           <!-- Linha 1. lg+: 4 colunas 3fr 1fr 1.5fr 1fr (Paciente largo; Pasta, Nº Ordem e Nº Remessa estreitos).
-               Abaixo de lg: Paciente em linha inteira, Pasta e Nº Remessa lado a lado e Nº Ordem em linha própria
-               (max-lg:order-last só na tela pequena: no DOM o Nº Ordem vem antes do Nº Remessa, como no desktop).
+               Abaixo de lg: Paciente em linha inteira, Pasta | Nº Ordem em 2 colunas e Nº Remessa na coluna da esquerda
+               da linha de baixo. A ordem visual é a do DOM (nenhuma classe order-*), então o Tab acompanha o que se vê.
                A Pasta usa px-1.5 em lg+ porque a coluna estreita (~99px) não comporta "2026 - 234" com px-2.5. -->
           <div class="grid grid-cols-2 gap-x-2.5 gap-y-3.5 lg:grid-cols-[3fr_1fr_1.5fr_1fr]">
             <div class="col-span-2 lg:col-span-1">
@@ -195,7 +195,7 @@ function handleSubmit(): void {
             </div>
             <!-- Nº Ordem (PO): máscara PO-00-0000[/números] (useProcessoForm.onNumeroPoInput); incompleto salva.
                  data-sem-maiuscula: a máscara já cuida das maiúsculas; o plugin global não deve disputar o valor. -->
-            <div class="col-span-2 max-lg:order-last lg:col-span-1">
+            <div>
               <label for="pf-numero-po" :class="LABEL_CLASS">Nº Ordem</label>
               <input
                 id="pf-numero-po"

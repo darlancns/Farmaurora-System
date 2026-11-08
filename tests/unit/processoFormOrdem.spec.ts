@@ -195,20 +195,22 @@ describe("Formulário de processo — ordem dos campos no DOM", () => {
     expect([...el.querySelectorAll("#processo-form legend")].filter((l) => /medicamentos/i.test(texto(l)))).toHaveLength(1);
   });
 
-  it("sem tabindex positivo e sem order-* fora do Nº Ordem (que só inverte a ordem visual abaixo de lg)", async () => {
-    const el = abrir();
-    await nextTick();
-    for (const n of el.querySelectorAll<HTMLElement>("#processo-form [tabindex]")) {
-      expect(Number(n.getAttribute("tabindex")), n.id).toBeLessThanOrEqual(0);
+  // Guarda de Tab: a ordem visual é a ordem do DOM em todas as larguras. Reordenar só no CSS (order-*) faria o Tab pular
+  // para onde não se espera. Vale para qualquer variante (order-1, lg:order-last, max-lg:order-last, !order-2...).
+  it("nenhum elemento do formulário tem classe order-* (nem tabindex positivo): o Tab acompanha o visual", async () => {
+    for (const extra of [{}, { modal_envio: "Courier Simples" }, { fornecedor: "Outro Fornecedor", status: "outro", status_outro: "x" }]) {
+      const el = abrir(extra);
+      await nextTick();
+      for (const n of el.querySelectorAll<HTMLElement>("#processo-form [tabindex]")) {
+        expect(Number(n.getAttribute("tabindex")), n.id).toBeLessThanOrEqual(0);
+      }
+      // Só as classes de `order` do Tailwind, não "border-*". getAttribute (e não className): SVG não tem className string.
+      const ehOrder = (token: string) => /(^|[:!])-?order-/.test(token);
+      const comOrder = [...el.querySelectorAll<HTMLElement>("#processo-form [class], #processo-form *")]
+        .filter((n) => (n.getAttribute("class") ?? "").split(/\s+/).some(ehOrder))
+        .map((n) => `${n.tagName.toLowerCase()}${n.id ? `#${n.id}` : ""}.${n.getAttribute("class")}`);
+      expect(comOrder).toEqual([]);
     }
-    // Só as classes de `order` do Tailwind (order-1, lg:order-last, max-lg:order-last...), não "border-*".
-    const ehOrder = (token: string) => /(^|:)-?order-/.test(token);
-    const comOrder = [...el.querySelectorAll<HTMLElement>("#processo-form [class]")].filter((n) =>
-      n.className.toString().split(/\s+/).some(ehOrder),
-    );
-    expect(comOrder).toHaveLength(1);
-    expect(comOrder[0]!.querySelector("#pf-numero-po")).not.toBeNull();
-    expect(comOrder[0]!.className).toContain("max-lg:order-last");
   });
 });
 
