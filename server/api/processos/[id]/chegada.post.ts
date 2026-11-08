@@ -1,6 +1,7 @@
 import { defineEventHandler, readBody, getRouterParam, createError } from "h3";
 import { getProcesso, gravarChegadaProcesso } from "../../../utils/processosStore";
 import { lerPedidoChegada } from "../../../utils/chegadaValidation";
+import { avisarConsultorDeItensNovos } from "../../../utils/notificacoesProcesso";
 import { LIMITE_ATUALIZACOES_POR_PROCESSO } from "../../../../shared/constants/processos";
 import {
   dataDaAtualizacaoChegada,
@@ -50,7 +51,10 @@ export default defineEventHandler(async (event): Promise<Processo> => {
   const agora = new Date();
   const pedido = lerPedidoChegada(await readBody(event), agora);
 
+  // Lista de atualizações como estava na leitura da tentativa que gravou (a última chamada de `montar`).
+  let atualizacoesAntes: AtualizacaoProcesso[] = atual.atualizacoes;
   const resultado = await gravarChegadaProcesso(id, (lido): ProcessoPatchDTO => {
+    atualizacoesAntes = lido.atualizacoes;
     if (lido.atualizacoes.length >= LIMITE_ATUALIZACOES_POR_PROCESSO) {
       throw createError({
         statusCode: 409,
@@ -83,5 +87,13 @@ export default defineEventHandler(async (event): Promise<Processo> => {
       statusMessage: "Este processo foi alterado por outra pessoa. Tente de novo.",
     });
   }
+
+  // "Chegada confirmada…" / "Chegada adiada…" é uma atualização nova: avisa o consultor do processo. Falha do
+  // aviso não desfaz a resposta já gravada.
+  await avisarConsultorDeItensNovos({
+    processo: resultado.processo,
+    atualizacoesAntes,
+    atorId: user.id,
+  });
   return resultado.processo;
 });

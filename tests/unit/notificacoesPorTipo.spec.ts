@@ -16,8 +16,10 @@ vi.mock("#app", () => ({
 
 import {
   TIPOS_DE_CONTA,
+  TIPOS_DE_PROCESSO,
   TIPOS_DE_RECADO,
   naoLidasDeContas,
+  naoLidasDeProcessos,
   naoLidasDeRecados,
   totalDoBadgeSino,
 } from "../../app/utils/notificacoesPorTipo";
@@ -57,30 +59,56 @@ describe("seções do sino por tipo", () => {
 
   it("os conjuntos de tipos são disjuntos (cada tipo em UMA seção) e cobrem todos os tipos conhecidos", () => {
     expect(TIPOS_DE_RECADO.filter((t) => TIPOS_DE_CONTA.includes(t))).toEqual([]);
-    expect([...TIPOS_DE_RECADO, ...TIPOS_DE_CONTA].sort()).toEqual(
-      ["conta_editada", "recado_concluido", "recado_novo"].sort(),
+    const todos = [...TIPOS_DE_RECADO, ...TIPOS_DE_CONTA, ...TIPOS_DE_PROCESSO];
+    expect(new Set(todos).size).toBe(todos.length);
+    expect(todos.sort()).toEqual(
+      ["atualizacao_nova", "conta_editada", "pendencia_nova", "recado_concluido", "recado_novo"].sort(),
     );
   });
 
   it("nenhuma notificação cai em duas seções ao mesmo tempo", () => {
-    const lista = [notif("recado_novo"), notif("recado_concluido"), notif("conta_editada")];
-    const ids = [...naoLidasDeRecados(lista), ...naoLidasDeContas(lista)].map((n) => n.id);
+    const lista = [
+      notif("recado_novo"),
+      notif("recado_concluido"),
+      notif("conta_editada"),
+      notif("pendencia_nova"),
+      notif("atualizacao_nova"),
+    ];
+    const ids = [...naoLidasDeRecados(lista), ...naoLidasDeContas(lista), ...naoLidasDeProcessos(lista)].map((n) => n.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids).toHaveLength(lista.length);
+  });
+
+  it("pendencia_nova e atualizacao_nova (não lidas) só vão pra Processos — nunca pra Recados nem Contas", () => {
+    const lista = [
+      notif("pendencia_nova"),
+      notif("atualizacao_nova"),
+      notif("pendencia_nova", { lida: true }),
+      notif("recado_novo"),
+    ];
+    expect(naoLidasDeProcessos(lista).map((n) => n.tipo)).toEqual(["pendencia_nova", "atualizacao_nova"]);
+    expect(naoLidasDeRecados(lista).map((n) => n.tipo)).toEqual(["recado_novo"]);
+    expect(naoLidasDeContas(lista)).toEqual([]);
   });
 });
 
 describe("badge do sino", () => {
-  it("soma Fornecedor + Mandado + Chegada + Recados + Contas", () => {
-    expect(totalDoBadgeSino({ fornecedor: 2, mandado: 1, chegada: 5, recados: 3, contas: 4 })).toBe(15);
+  it("soma Fornecedor + Mandado + Chegada + Recados + Contas + Processos", () => {
+    expect(totalDoBadgeSino({ fornecedor: 2, mandado: 1, chegada: 5, recados: 3, contas: 4, processos: 6 })).toBe(21);
   });
 
   it("sem notificação de conta o total é o mesmo de antes (Fornecedor + Mandado + Recados)", () => {
-    expect(totalDoBadgeSino({ fornecedor: 2, mandado: 1, chegada: 0, recados: 3, contas: 0 })).toBe(6);
+    expect(totalDoBadgeSino({ fornecedor: 2, mandado: 1, chegada: 0, recados: 3, contas: 0, processos: 0 })).toBe(6);
   });
 
-  it("com a lista real: 2 recados + 1 conta + 1 Fornecedor + 1 Mandado = 5", () => {
-    const lista = [notif("recado_novo"), notif("recado_concluido"), notif("conta_editada")];
+  it("com a lista real: 2 recados + 1 conta + 2 de processo + 1 Fornecedor + 1 Mandado = 7", () => {
+    const lista = [
+      notif("recado_novo"),
+      notif("recado_concluido"),
+      notif("conta_editada"),
+      notif("pendencia_nova"),
+      notif("atualizacao_nova"),
+    ];
     expect(
       totalDoBadgeSino({
         fornecedor: 1,
@@ -88,8 +116,9 @@ describe("badge do sino", () => {
         chegada: 0,
         recados: naoLidasDeRecados(lista).length,
         contas: naoLidasDeContas(lista).length,
+        processos: naoLidasDeProcessos(lista).length,
       }),
-    ).toBe(5);
+    ).toBe(7);
   });
 });
 
@@ -110,6 +139,19 @@ describe("useNotificacoes — getters por tipo", () => {
     expect(recadosNaoLidos.value).toHaveLength(1);
     expect(contasNaoLidas.value).toHaveLength(1);
     expect(naoLidas.value).toBe(2); // comportamento anterior: todas as não lidas, de qualquer tipo
+  });
+
+  it("processosNaoLidos conta pendencia_nova e atualizacao_nova não lidas, e marcar como lida tira o item", () => {
+    const { notificacoes, processosNaoLidos, recadosNaoLidos, naoLidas } = useNotificacoes();
+    const pendencia = notif("pendencia_nova", { processoId: "proc_1" });
+    notificacoes.value = [pendencia, notif("atualizacao_nova", { processoId: "proc_1" }), notif("recado_novo")];
+
+    expect(processosNaoLidos.value).toHaveLength(2);
+    expect(recadosNaoLidos.value).toHaveLength(1);
+    expect(naoLidas.value).toBe(3);
+
+    notificacoes.value = notificacoes.value.map((n) => (n.id === pendencia.id ? { ...n, lida: true } : n));
+    expect(processosNaoLidos.value.map((n) => n.tipo)).toEqual(["atualizacao_nova"]);
   });
 
   it("marcar uma conta como lida tira só ela da seção Contas", () => {

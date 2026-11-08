@@ -35,6 +35,9 @@ import { getErrorMessage } from "../utils/errorMessages";
  *  - Recados: tabela `notificacoes` (tipos recado_novo e recado_concluido), aparece pra qualquer conta.
  *  - Contas: tabela `notificacoes` (tipo conta_editada — alguém alterou a própria senha, nome ou
  *    e-mail), só chega aos administradores. Seção própria; nunca cai em "Recados".
+ *  - Processos: tabela `notificacoes` (tipos pendencia_nova e atualizacao_nova — entrou uma pendência ou
+ *    atualização num processo do consultor), só chega à conta do consultor dono. Seção própria; o clique abre
+ *    /processos?processo=<id> e marca como lida.
  * IDs preservados de NotificacaoFornecedorBell.vue (ver
  * tests/e2e/notificacao-fornecedor.spec.ts): btn/badge/painel
  * "-notificacoes-fornecedor", item/botão "-notificacao-fornecedor-{id}" —
@@ -46,7 +49,7 @@ const { canWrite, user } = useAuth();
 const canWriteProcessos = computed<boolean>(() => canWrite("processos"));
 
 const { processos, patchProcesso, fetchProcessos } = useProcessos();
-const { fetchNotificacoes, marcarComoLida, recadosNaoLidos, contasNaoLidas } = useNotificacoes();
+const { fetchNotificacoes, marcarComoLida, recadosNaoLidos, contasNaoLidas, processosNaoLidos } = useNotificacoes();
 const { showToast } = useToast();
 const { vistos: chegadaVistos, vistosCarregados: chegadaVistosCarregados, fetchVistos: fetchChegadaVistos } =
   useChegadaAvisos();
@@ -122,6 +125,8 @@ const avisosChegada = computed<AvisoChegadaSino[]>(() => {
 // recado_concluido (useNotificacoes().recadosNaoLidos); conta_editada vai pra seção "Contas".
 const notificacoesRecadosVisiveis = recadosNaoLidos;
 const notificacoesContasVisiveis = contasNaoLidas;
+// Processos: nova pendência / nova atualização num processo do consultor (pendencia_nova, atualizacao_nova).
+const notificacoesProcessosVisiveis = processosNaoLidos;
 
 const badgeCount = computed(() =>
   totalDoBadgeSino({
@@ -130,6 +135,7 @@ const badgeCount = computed(() =>
     chegada: avisosChegada.value.length,
     recados: notificacoesRecadosVisiveis.value.length,
     contas: notificacoesContasVisiveis.value.length,
+    processos: notificacoesProcessosVisiveis.value.length,
   }),
 );
 
@@ -174,6 +180,8 @@ async function marcarNotificacaoRecadoComoLida(notificacao: Notificacao): Promis
 
 // Conta editada: mesma ação de marcar como lida (a navegação já aconteceu antes — ver acoesSino.ts).
 const marcarNotificacaoContaComoLida = marcarNotificacaoRecadoComoLida;
+// Nova pendência/atualização: idem.
+const marcarNotificacaoProcessoComoLida = marcarNotificacaoRecadoComoLida;
 
 // Os 4 tipos de item (Fornecedor, Mandado, Recados, Contas) usam o MESMO ponto de navegação e o mesmo
 // padrão visual: linha com hover, elemento clicável = <button> real (foco, Enter) com o mesmo
@@ -188,6 +196,7 @@ const {
   abrirProcesso: abrirProcessoDoAlerta,
   abrirRecado,
   abrirConta,
+  abrirProcessoDaNotificacao,
   resolverFornecedor: resolverAlertaFornecedor,
   resolverMandado: resolverAlertaMandado,
 } = criarAcoesSino({
@@ -197,6 +206,7 @@ const {
   resolverMandado: resolverNotificacaoMandado,
   marcarRecadoLido: marcarNotificacaoRecadoComoLida,
   marcarContaLida: marcarNotificacaoContaComoLida,
+  marcarProcessoLido: marcarNotificacaoProcessoComoLida,
 });
 
 function podeResolverMandado(notificacao: NotificacaoMandado): boolean {
@@ -406,13 +416,38 @@ onBeforeUnmount(() => {
         </div>
       </template>
 
+      <template v-if="notificacoesProcessosVisiveis.length">
+        <p
+          id="secao-notificacoes-processo"
+          class="border-b border-hairline px-3.5 py-2.5 text-[11px] font-semibold tracking-wide text-ink-soft uppercase"
+        >
+          Processos
+        </p>
+        <div
+          v-for="notificacao in notificacoesProcessosVisiveis"
+          :key="notificacao.id"
+          :class="[CLASSE_LINHA_ITEM, 'max-lg:min-h-11']"
+        >
+          <button
+            :id="`notificacao-processo-${notificacao.id}`"
+            type="button"
+            title="Ir para o processo"
+            :class="[CLASSE_ITEM_ABRIR, 'text-[13px] text-ink']"
+            @click="abrirProcessoDaNotificacao(notificacao)"
+          >
+            {{ notificacao.mensagem }}
+          </button>
+        </div>
+      </template>
+
       <p
         v-if="
           !notificacoesFornecedorVisiveis.length &&
           !notificacoesMandadoVisiveis.length &&
           !avisosChegada.length &&
           !notificacoesRecadosVisiveis.length &&
-          !notificacoesContasVisiveis.length
+          !notificacoesContasVisiveis.length &&
+          !notificacoesProcessosVisiveis.length
         "
         class="px-3.5 py-6 text-center text-[12.5px] text-ink-soft"
       >

@@ -14,6 +14,8 @@ export interface DependenciasSino {
   marcarRecadoLido: (notificacao: Notificacao) => Promise<void>;
   // Idem para a notificação de conta editada (seção "Contas").
   marcarContaLida: (notificacao: Notificacao) => Promise<void>;
+  // Idem para o aviso de nova pendência / nova atualização (seção "Processos").
+  marcarProcessoLido: (notificacao: Notificacao) => Promise<void>;
 }
 
 // Ações dos itens do sino (Fornecedor, Mandado e Recados), sem DOM nem router — pra testar o
@@ -23,6 +25,7 @@ export interface DependenciasSino {
 // - Item de recado -> /recados?recado=<recado_id> (sem query se o recado foi apagado) e marca lido;
 //   a navegação acontece ANTES, então uma falha ao marcar lido nunca impede de abrir a página.
 // - Item de conta editada -> /configuracoes?aba=contas e marca lido (mesma ordem: navega ANTES).
+// - Item de nova pendência/atualização -> /processos?processo=<processo_id> e marca lido (idem).
 // - Check de resolver (Fornecedor/Mandado): só resolve — nunca navega nem fecha o sino, e corta a
 //   propagação do clique, por garantia.
 export function criarAcoesSino(deps: DependenciasSino) {
@@ -45,6 +48,14 @@ export function criarAcoesSino(deps: DependenciasSino) {
     return deps.marcarContaLida(notificacao);
   }
 
+  // Aviso de nova pendência/atualização -> /processos?processo=<processo_id> (a mesma abertura dos alertas de
+  // Fornecedor/Mandado) e marca lido. Sem processoId (não deveria ocorrer: a FK apaga o aviso junto com o
+  // processo) abre /processos sem query. Navega ANTES de marcar lido.
+  function abrirProcessoDaNotificacao(notificacao: Notificacao): Promise<void> {
+    irPara(notificacao.processoId ? rotaParaProcesso(notificacao.processoId) : { path: "/processos", query: {} });
+    return deps.marcarProcessoLido(notificacao);
+  }
+
   function resolverSemNavegar<T>(
     resolver: (alerta: T) => Promise<void>,
     alerta: T,
@@ -58,6 +69,7 @@ export function criarAcoesSino(deps: DependenciasSino) {
     abrirProcesso,
     abrirRecado,
     abrirConta,
+    abrirProcessoDaNotificacao,
     resolverFornecedor: (alerta: NotificacaoFornecedor, evento?: { stopPropagation: () => void }) =>
       resolverSemNavegar(deps.resolverFornecedor, alerta, evento),
     resolverMandado: (alerta: NotificacaoMandado, evento?: { stopPropagation: () => void }) =>

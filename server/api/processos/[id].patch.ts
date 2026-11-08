@@ -14,6 +14,7 @@ import {
 } from "../../utils/processoValidation";
 import { normalizarNumeroOrdem } from "../../../shared/utils/numeroOrdem";
 import { assertPodeResolverMandado, patchTocaAlertaMandado } from "../../utils/processoMandadoAuth";
+import { avisarConsultorDeItensNovos } from "../../utils/notificacoesProcesso";
 import type { AuthUser } from "../../../shared/types/auth";
 import type { Processo, ProcessoPatchDTO } from "../../../shared/types/processo";
 
@@ -105,6 +106,29 @@ export default defineEventHandler(async (event): Promise<Processo> => {
   // `ordem` (campo antigo; a coluna está congelada) pode chegar de uma aba antiga: ignorado, sem erro e sem gravar.
   delete (patch as Record<string, unknown>).ordem;
 
+  // Aviso ao consultor: só quando o patch mexe em pendências/atualizações. Lê a linha ANTES de gravar (a de
+  // depois vem da gravação) para saber o que é novo. Se essa leitura falhar, a gravação segue sem aviso.
+  const mexeEmItens = patch.pendencias !== undefined || patch.atualizacoes !== undefined;
+  let antes: Processo | null = null;
+  if (mexeEmItens) {
+    try {
+      if (armazenado === undefined) armazenado = await getProcesso(id);
+      antes = armazenado;
+    } catch (e) {
+      console.error(`[notificacoes] não foi possível ler o processo ${id} antes de gravar:`, e);
+    }
+  }
+  const user: AuthUser | null | undefined = event.context?.user;
+  async function avisarConsultor(depois: Processo): Promise<void> {
+    if (!antes) return;
+    await avisarConsultorDeItensNovos({
+      processo: depois,
+      pendenciasAntes: patch.pendencias !== undefined ? antes.pendencias : undefined,
+      atualizacoesAntes: patch.atualizacoes !== undefined ? antes.atualizacoes : undefined,
+      atorId: user?.id ?? null,
+    });
+  }
+
   // Com `atualizacoes`: grava só se o updated_at da linha ainda for a versão que o cliente viu.
   if (patchExigeVersao(body) && versao !== undefined) {
     const resultado = await patchProcessoVersionado(id, patch, versao);
@@ -117,6 +141,7 @@ export default defineEventHandler(async (event): Promise<Processo> => {
         statusMessage: "Este processo foi alterado por outra pessoa. Recarregue e tente de novo.",
       });
     }
+    await avisarConsultor(resultado.processo);
     return resultado.processo;
   }
 
@@ -127,5 +152,6 @@ export default defineEventHandler(async (event): Promise<Processo> => {
     throw createError({ statusCode: 404, statusMessage: "Processo não encontrado." });
   }
 
+  await avisarConsultor(updated);
   return updated;
 });

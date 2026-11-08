@@ -90,9 +90,12 @@ describe("PATCH com atualizacoes — conferência de versão", () => {
     expect(Date.parse(res.updatedAt)).toBeGreaterThan(Date.parse(VERSAO));
   });
 
-  it("é UM UPDATE com filtro de versão — nenhuma leitura antes de gravar", async () => {
+  it("a gravação é UM UPDATE com filtro de versão (atômico, sem ler-e-gravar)", async () => {
     await chamar({ atualizacoes: NOVAS, versao: VERSAO });
-    expect(fake.chamadas.map((c) => c.op)).toEqual(["update"]);
+    // A única ESCRITA é o UPDATE condicional. Há uma leitura ANTES só para o aviso ao consultor (saber o que é
+    // novo; ver notificacaoProcessoServidor.spec.ts) — ela não decide nada na gravação, que segue conferindo a versão.
+    expect(fake.chamadas.filter((c) => c.op !== "select").map((c) => c.op)).toEqual(["update"]);
+    expect(fake.chamadas.map((c) => c.op)).toEqual(["select", "update"]);
   });
 
   it("`versao` não vira coluna", async () => {

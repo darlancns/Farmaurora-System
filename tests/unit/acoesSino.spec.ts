@@ -40,6 +40,7 @@ function montar() {
   const resolverMandado = vi.fn().mockResolvedValue(undefined);
   const marcarRecadoLido = vi.fn().mockResolvedValue(undefined);
   const marcarContaLida = vi.fn().mockResolvedValue(undefined);
+  const marcarProcessoLido = vi.fn().mockResolvedValue(undefined);
   const acoes = criarAcoesSino({
     navegar,
     fecharPainel,
@@ -47,8 +48,18 @@ function montar() {
     resolverMandado,
     marcarRecadoLido,
     marcarContaLida,
+    marcarProcessoLido,
   });
-  return { acoes, navegar, fecharPainel, resolverFornecedor, resolverMandado, marcarRecadoLido, marcarContaLida };
+  return {
+    acoes,
+    navegar,
+    fecharPainel,
+    resolverFornecedor,
+    resolverMandado,
+    marcarRecadoLido,
+    marcarContaLida,
+    marcarProcessoLido,
+  };
 }
 
 describe("clique no TEXTO do alerta de Fornecedor", () => {
@@ -194,5 +205,55 @@ describe("clique na notificação de CONTA EDITADA", () => {
 
     expect(fecharPainel).toHaveBeenCalledTimes(1);
     expect(navegar).toHaveBeenCalledTimes(1);
+  });
+});
+
+const avisoProcesso = (over: Partial<Notificacao> = {}): Notificacao => ({
+  id: "notif_proc_1",
+  destinatarioId: "u1",
+  tipo: "pendencia_nova",
+  processoId: "proc_77",
+  mensagem: "Nova pendência · Fulano (2026 - 10): Falta laudo",
+  lida: false,
+  createdAt: "2026-11-08T12:00:00.000Z",
+  ...over,
+});
+
+describe("clique no aviso de NOVA PENDÊNCIA / NOVA ATUALIZAÇÃO (seção Processos)", () => {
+  it("navega para /processos?processo=<processo_id>, marca como lida e fecha o sino", async () => {
+    const { acoes, navegar, fecharPainel, marcarProcessoLido } = montar();
+    const n = avisoProcesso();
+
+    await acoes.abrirProcessoDaNotificacao(n);
+
+    expect(navegar).toHaveBeenCalledTimes(1);
+    expect(navegar).toHaveBeenCalledWith({ path: "/processos", query: { processo: "proc_77" } });
+    expect(fecharPainel).toHaveBeenCalledTimes(1);
+    expect(marcarProcessoLido).toHaveBeenCalledWith(n);
+  });
+
+  it("vale para atualizacao_nova também", async () => {
+    const { acoes, navegar } = montar();
+    await acoes.abrirProcessoDaNotificacao(avisoProcesso({ tipo: "atualizacao_nova", processoId: "proc_88" }));
+    expect(navegar).toHaveBeenCalledWith({ path: "/processos", query: { processo: "proc_88" } });
+  });
+
+  it("sem processoId abre /processos sem query e ainda marca como lida", async () => {
+    const { acoes, navegar, marcarProcessoLido } = montar();
+    const n = avisoProcesso({ processoId: undefined });
+    await acoes.abrirProcessoDaNotificacao(n);
+    expect(navegar).toHaveBeenCalledWith({ path: "/processos", query: {} });
+    expect(marcarProcessoLido).toHaveBeenCalledWith(n);
+  });
+
+  it("não aciona as ações de recado e de conta; navega ANTES de marcar como lida", async () => {
+    const { acoes, navegar, marcarRecadoLido, marcarContaLida, marcarProcessoLido } = montar();
+    marcarProcessoLido.mockRejectedValue(new Error("falhou"));
+
+    await expect(acoes.abrirProcessoDaNotificacao(avisoProcesso())).rejects.toThrow("falhou");
+
+    expect(navegar).toHaveBeenCalledTimes(1);
+    expect(marcarRecadoLido).not.toHaveBeenCalled();
+    expect(marcarContaLida).not.toHaveBeenCalled();
   });
 });

@@ -21,6 +21,9 @@ vi.mock("../../server/utils/processosStore", () => ({
   patchProcesso: h.patchProcesso,
 }));
 
+// O aviso ao consultor (nova pendência/atualização) tem spec próprio; aqui o patch não mexe nesses campos.
+vi.mock("../../server/utils/notificacoesProcesso", () => ({ avisarConsultorDeItensNovos: vi.fn() }));
+
 import handler from "../../server/api/processos/[id].patch";
 
 function processo(responsavelOperacional?: string): Processo {

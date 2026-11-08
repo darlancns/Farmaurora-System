@@ -20,6 +20,8 @@ interface NotificacaoRow {
   destinatario_id: string;
   tipo: TipoNotificacao;
   recado_id: string | null;
+  /** Coluna nova (migração 20261108190000); ausente enquanto ela não foi aplicada. */
+  processo_id?: string | null;
   mensagem: string;
   lida: boolean;
   created_at: string;
@@ -35,19 +37,22 @@ function montarNotificacao(row: NotificacaoRow): Notificacao {
     createdAt: row.created_at,
   };
   if (row.recado_id != null) notificacao.recadoId = row.recado_id;
+  if (row.processo_id != null) notificacao.processoId = row.processo_id;
   return notificacao;
 }
 
-interface NovaNotificacao {
+export interface NovaNotificacao {
   destinatarioId: string;
   tipo: TipoNotificacao;
   recadoId: string | null;
+  /** Só pendencia_nova / atualizacao_nova. */
+  processoId?: string | null;
   mensagem: string;
 }
 
 // Um único INSERT multi-linha pro fan-out (cargo/público podem gerar dezenas
 // de linhas) — evita N round-trips separados.
-async function inserirNotificacoes(rows: NovaNotificacao[]): Promise<void> {
+export async function inserirNotificacoes(rows: NovaNotificacao[]): Promise<void> {
   if (!rows.length) return;
   const db = createSupabaseAdminClient();
   const now = new Date().toISOString();
@@ -58,6 +63,9 @@ async function inserirNotificacoes(rows: NovaNotificacao[]): Promise<void> {
       destinatario_id: r.destinatarioId,
       tipo: r.tipo,
       recado_id: r.recadoId,
+      // A chave `processo_id` só entra quando há processo: recados e contas continuam gravando exatamente
+      // as mesmas colunas de antes, mesmo se a migração da coluna ainda não tiver sido aplicada.
+      ...(r.processoId ? { processo_id: r.processoId } : {}),
       mensagem: r.mensagem,
       lida: false,
       created_at: now,

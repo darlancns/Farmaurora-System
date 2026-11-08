@@ -5,6 +5,7 @@ import type { Notificacao, TipoNotificacao } from "#shared/types/notificacao";
 // (Fornecedor e Mandado não vêm daqui — são calculados a partir de Processo[].)
 export const TIPOS_DE_RECADO: readonly TipoNotificacao[] = ["recado_novo", "recado_concluido"];
 export const TIPOS_DE_CONTA: readonly TipoNotificacao[] = ["conta_editada"];
+export const TIPOS_DE_PROCESSO: readonly TipoNotificacao[] = ["pendencia_nova", "atualizacao_nova"];
 
 function naoLidasDoTipo(notificacoes: readonly Notificacao[], tipos: readonly TipoNotificacao[]): Notificacao[] {
   return notificacoes.filter((n) => !n.lida && tipos.includes(n.tipo));
@@ -20,6 +21,11 @@ export function naoLidasDeContas(notificacoes: readonly Notificacao[]): Notifica
   return naoLidasDoTipo(notificacoes, TIPOS_DE_CONTA);
 }
 
+/** Seção "Processos": pendencia_nova e atualizacao_nova (avisos ao consultor), não lidas. */
+export function naoLidasDeProcessos(notificacoes: readonly Notificacao[]): Notificacao[] {
+  return naoLidasDoTipo(notificacoes, TIPOS_DE_PROCESSO);
+}
+
 export interface ContagensDoSino {
   fornecedor: number;
   mandado: number;
@@ -27,9 +33,11 @@ export interface ContagensDoSino {
   chegada: number;
   recados: number;
   contas: number;
+  // Nova pendência / nova atualização num processo do consultor (tabela `notificacoes`).
+  processos: number;
 }
 
-/** Badge do sino: soma das 5 seções, cada item contado uma única vez. */
+/** Badge do sino: soma das 6 seções, cada item contado uma única vez. */
 export function totalDoBadgeSino(c: ContagensDoSino): number {
-  return c.fornecedor + c.mandado + c.chegada + c.recados + c.contas;
+  return c.fornecedor + c.mandado + c.chegada + c.recados + c.contas + c.processos;
 }

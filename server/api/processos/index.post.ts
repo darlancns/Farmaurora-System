@@ -9,7 +9,9 @@ import {
   numeroPoCanonico,
   numeroRemessaCanonico,
 } from "../../utils/processoValidation";
+import { avisarConsultorDeItensNovos } from "../../utils/notificacoesProcesso";
 import { NUMERO_REMESSA_PADRAO } from "../../../shared/utils/numeroRemessa";
+import type { AuthUser } from "../../../shared/types/auth";
 import type { Processo } from "../../../shared/types/processo";
 
 export default defineEventHandler(async (event): Promise<Processo> => {
@@ -53,10 +55,22 @@ export default defineEventHandler(async (event): Promise<Processo> => {
     ordem: _ordemLegada,
     ...resto
   } = body as typeof body & { ordem?: unknown };
-  return await createProcesso({
+  const criado = await createProcesso({
     ...resto,
     numeroRemessa,
     ...(cia ? { companhiaAerea: cia } : {}),
     ...(po ? { numeroPo: po } : {}),
   });
+
+  // Pendências e atualizações iniciais são todas novas (lista de antes vazia): avisa o consultor do processo,
+  // exceto se foi ele mesmo quem criou. Falha do aviso não desfaz o processo criado.
+  const user: AuthUser | null | undefined = event.context?.user;
+  await avisarConsultorDeItensNovos({
+    processo: criado,
+    pendenciasAntes: [],
+    atualizacoesAntes: [],
+    atorId: user?.id ?? null,
+  });
+
+  return criado;
 });
