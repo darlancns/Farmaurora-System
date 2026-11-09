@@ -125,6 +125,25 @@ describe("Formulário de processo — ordem dos campos no DOM", () => {
     expect(linha2.compareDocumentPosition(el.querySelector("#pf-medicamento-nome-0")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it("linha 1 em lg+: Paciente flexível, Pasta 7rem e Nº Ordem 8,125rem (cabe \"PO-NN-NNNN/NN\"); abaixo de lg, 2 colunas iguais", async () => {
+    const el = abrir();
+    await nextTick();
+    const linha1 = el.querySelector("#pf-paciente")!.closest("#processo-form > div > div")!;
+    const classes = (linha1.getAttribute("class") ?? "").split(/\s+/);
+    expect(classes).toContain("grid-cols-2"); // abaixo de lg: Pasta | Nº Ordem iguais (o Paciente ocupa as 2)
+    expect(classes).toContain("lg:grid-cols-[minmax(0,1fr)_7rem_8.125rem]");
+    expect(classes.filter((c) => c.startsWith("lg:grid-cols-"))).toHaveLength(1);
+    // Largura mínima do Nº Ordem: 13 caracteres em JetBrains Mono 13,5px (0,6em) + padding 2×10px + borda 2×1px, com folga.
+    const larguraNecessaria = 13 * 0.6 * 13.5 + 2 * 10 + 2 * 1; // 127,3px
+    const colunasLg = classes.find((c) => c.startsWith("lg:grid-cols-"))!; // lida do elemento montado, não de uma cópia do texto
+    const rem = Number(/_(\d+(?:\.\d+)?)rem\]$/.exec(colunasLg)![1]);
+    expect(rem * 16 - larguraNecessaria).toBeGreaterThanOrEqual(2);
+    expect(rem * 16 - larguraNecessaria).toBeLessThan(4);
+    // Nº Ordem não leva largura própria no campo.
+    const po = linha1.querySelector("#pf-numero-po")!;
+    expect((po.getAttribute("class") ?? "").split(/\s+/).filter((c) => /(^|:)(max-w|w)-/.test(c) && c !== "w-full")).toEqual([]);
+  });
+
   it("linha 2: Nº Remessa com 5rem e Nº do processo com TODO o resto da linha (sem teto de largura em nenhuma faixa)", async () => {
     const el = abrir();
     await nextTick();

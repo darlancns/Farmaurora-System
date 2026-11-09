@@ -170,12 +170,12 @@ function handleSubmit(): void {
              Cada linha e cada fieldset é filho DIRETO deste contêiner: em lg+ ele vira `contents` e os filhos passam a ser
              itens do <form> (flex-col com gap-3.5). -->
         <div class="flex flex-col gap-3.5 py-4 lg:contents" :class="MODAL_PAD_X_CLASS">
-          <!-- Linha 1: Paciente / Pasta / Nº Ordem. lg+: Paciente flexível, Pasta 7rem (112px) e Nº Ordem 10,5rem (168px).
+          <!-- Linha 1: Paciente / Pasta / Nº Ordem. lg+: Paciente flexível, Pasta 7rem (112px) e Nº Ordem 8,125rem (130px).
                A Pasta comporta o MAIOR valor da máscara (maskPastaCode: 4 dígitos + " - " + 3 = 10 caracteres, 81px em JetBrains
                Mono 13,5px) com o padding de sempre: 112 − 2 de borda − 20 de padding = 90px de conteúdo. Abaixo de lg:
                Paciente em linha inteira e Pasta | Nº Ordem em 2 colunas (≥ 166px cada, 16px de fonte: 96px de texto + 22).
                A ordem visual é a do DOM (nenhuma classe order-*), então o Tab acompanha o que se vê. -->
-          <div class="grid grid-cols-2 gap-x-2.5 gap-y-3.5 lg:grid-cols-[minmax(0,1fr)_7rem_10.5rem]">
+          <div class="grid grid-cols-2 gap-x-2.5 gap-y-3.5 lg:grid-cols-[minmax(0,1fr)_7rem_8.125rem]">
             <div class="col-span-2 lg:col-span-1">
               <label for="pf-paciente" :class="LABEL_CLASS">Paciente</label>
               <input id="pf-paciente" :value="form.paciente" type="text" :class="INPUT_CLASS" @input="onPacienteInput" />
