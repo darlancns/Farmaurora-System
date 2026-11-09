@@ -1,18 +1,17 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from "vitest";
-import { createApp, defineComponent, h, nextTick, ref } from "vue";
-import type { Cadastro, Despachante, Fornecedor, ListaCadastro, Temperatura } from "../../shared/types/Cadastro";
+import { createApp, defineComponent, h, nextTick } from "vue";
+import type { Cadastro, Despachante, Fornecedor, ListaCadastro, CiaAerea } from "../../shared/types/Cadastro";
 import CadastroFormModal from "../../app/components/configuracoes/CadastroFormModal.vue";
 import CadastroLista from "../../app/components/configuracoes/CadastroLista.vue";
-import SegmentedControl from "../../app/components/SegmentedControl.vue";
 
 // Componentes reais no happy-dom: modal de criar/editar (nome só leitura ao editar, alerta sem padrão, duplicado e
-// "Reativar") e a lista (tabela + cards, "(inativo)", ações só para quem edita) e o SegmentedControl de 3 opções.
+// "Reativar") e a lista (tabela + cards, "(inativo)", ações só para quem edita).
 
 const BASE = { id: "x", ativo: true, atualizadoPor: "", createdAt: "", updatedAt: "" };
 const forn = (e: Partial<Fornecedor> = {}): Fornecedor => ({ ...BASE, nome: "Poros", pais: "Turquia", prazoAlertaDias: 3, semAlerta: false, ...e });
 const desp = (e: Partial<Despachante> = {}): Despachante => ({ ...BASE, nome: "STAR CUSTOMS", contatoNome: "", telefone: "", email: "", ...e });
-const temp = (e: Partial<Temperatura> = {}): Temperatura => ({ ...BASE, nome: "Ambiente", ...e });
+const cia = (e: Partial<CiaAerea> = {}): CiaAerea => ({ ...BASE, nome: "Ambiente", ...e });
 
 const montados: Array<{ unmount: () => void; el: HTMLElement }> = [];
 function montar(componente: ReturnType<typeof defineComponent>): HTMLElement {
@@ -137,7 +136,7 @@ describe("CadastroFormModal — criar fornecedor", () => {
 
 describe("CadastroFormModal — nome repetido e reservado", () => {
   it("duplicado ATIVO: aviso e botão de criar desabilitado", async () => {
-    const ev = abrirModal({ lista: "temperaturas", existentes: [temp({ id: "a", nome: "Ambiente" })] });
+    const ev = abrirModal({ lista: "cias-aereas", existentes: [cia({ id: "a", nome: "Ambiente" })] });
     await digitar("#cadastro-form-nome", "  ambiente ");
     expect(texto(q("#cadastro-form-aviso-duplicado"))).toMatch(/Já existe "Ambiente"/);
     expect(q("#btn-cadastro-reativar-duplicado")).toBeNull();
@@ -147,8 +146,8 @@ describe("CadastroFormModal — nome repetido e reservado", () => {
   });
 
   it("duplicado INATIVO: oferece 'Reativar' (que emite reativar com o item) e não deixa criar outro", async () => {
-    const inativo = temp({ id: "b", nome: "Congelado", ativo: false });
-    const ev = abrirModal({ lista: "temperaturas", existentes: [inativo] });
+    const inativo = cia({ id: "b", nome: "Congelado", ativo: false });
+    const ev = abrirModal({ lista: "cias-aereas", existentes: [inativo] });
     await digitar("#cadastro-form-nome", "CONGELADO");
     expect(texto(q("#cadastro-form-aviso-duplicado"))).toMatch(/\(inativo\).*Reative/);
     expect(q<HTMLButtonElement>("#btn-cadastro-salvar")!.disabled).toBe(true);
@@ -158,7 +157,7 @@ describe("CadastroFormModal — nome repetido e reservado", () => {
   });
 
   it('"Outro" é nome reservado: aviso e criar desabilitado', async () => {
-    abrirModal({ lista: "temperaturas" });
+    abrirModal({ lista: "cias-aereas" });
     await digitar("#cadastro-form-nome", "outro");
     expect(q("#cadastro-form-aviso-reservado")).not.toBeNull();
     expect(q<HTMLButtonElement>("#btn-cadastro-salvar")!.disabled).toBe(true);
@@ -204,15 +203,15 @@ describe("CadastroFormModal — editar (o nome é só leitura)", () => {
     expect(ev.atualizar).toEqual([["d1", { contatoNome: "", telefone: "11 3333-4444", email: "" }]]);
   });
 
-  it("temperatura não tem campos além do nome", () => {
-    abrirModal({ lista: "temperaturas" });
+  it("cia aérea não tem campos além do nome", () => {
+    abrirModal({ lista: "cias-aereas" });
     expect(q("#cadastro-form-pais")).toBeNull();
     expect(q("#cadastro-form-contato")).toBeNull();
     expect(q("#cadastro-form-alerta")).toBeNull();
   });
 
   it("Cancelar fecha", () => {
-    const ev = abrirModal({ lista: "temperaturas" });
+    const ev = abrirModal({ lista: "cias-aereas" });
     q<HTMLButtonElement>("#btn-cadastro-cancelar")!.click();
     expect(ev.close).toBe(1);
   });
@@ -254,74 +253,22 @@ describe("CadastroLista", () => {
   });
 
   it("quem não edita não vê o menu de ações (leitura)", () => {
-    lista("temperaturas", [temp({ id: "t1" })], { podeEditar: false });
-    expect(q("#btn-acoes-cadastro-temperaturas-t1")).toBeNull();
-    expect(q("#btn-acoes-cadastro-card-temperaturas-t1")).toBeNull();
+    lista("cias-aereas", [cia({ id: "t1" })], { podeEditar: false });
+    expect(q("#btn-acoes-cadastro-cias-aereas-t1")).toBeNull();
+    expect(q("#btn-acoes-cadastro-card-cias-aereas-t1")).toBeNull();
   });
 
   it("quem edita vê o menu de ações na tabela e no card", () => {
-    lista("temperaturas", [temp({ id: "t1" })], { podeEditar: true });
-    expect(q("#btn-acoes-cadastro-temperaturas-t1")).not.toBeNull();
-    expect(q("#btn-acoes-cadastro-card-temperaturas-t1")).not.toBeNull();
+    lista("cias-aereas", [cia({ id: "t1" })], { podeEditar: true });
+    expect(q("#btn-acoes-cadastro-cias-aereas-t1")).not.toBeNull();
+    expect(q("#btn-acoes-cadastro-card-cias-aereas-t1")).not.toBeNull();
   });
 
   it("vazio e carregando", () => {
-    lista("temperaturas", []);
-    expect(texto(q("#cadastro-lista-temperaturas"))).toContain("Nenhum item cadastrado.");
+    lista("cias-aereas", []);
+    expect(texto(q("#cadastro-lista-cias-aereas"))).toContain("Nenhum item cadastrado.");
     document.body.innerHTML = "";
-    lista("temperaturas", [], { carregando: true });
-    expect(texto(q("#cadastro-lista-temperaturas"))).toContain("Carregando…");
-  });
-});
-
-describe("SegmentedControl com 3 opções (Cadastros)", () => {
-  const opcoes = [
-    { value: "a", label: "Fornecedores" },
-    { value: "b", label: "Despachantes" },
-    { value: "c", label: "Temperaturas" },
-  ];
-
-  function controle(compacto: boolean, valor: string) {
-    const atual = ref(valor);
-    montar(
-      defineComponent({
-        render: () =>
-          h(SegmentedControl, {
-            id: "seg",
-            modelValue: atual.value,
-            options: opcoes,
-            label: "Lista",
-            compacto,
-            "onUpdate:modelValue": (v: string) => (atual.value = v),
-          }),
-      }),
-    );
-    return atual;
-  }
-
-  it("3 colunas (e continua em 2 colunas com 2 opções)", () => {
-    controle(true, "a");
-    expect(q("#seg")!.className).toContain("grid-cols-3");
-    expect(q("#seg")!.className).not.toContain("grid-cols-2");
-  });
-
-  it("compacto: texto 14px e pouca folga lateral; sem compacto mantém o visual de sempre", () => {
-    controle(true, "a");
-    const botao = q<HTMLButtonElement>("#seg-a")!;
-    expect(botao.className).toContain("text-[14px]");
-    expect(botao.className).toContain("px-1");
-    document.body.innerHTML = "";
-    controle(false, "a");
-    const normal = q<HTMLButtonElement>("#seg-a")!;
-    expect(normal.className).toContain("text-[16px]");
-    expect(normal.className).toContain("px-3");
-  });
-
-  it("clicar troca a opção marcada", async () => {
-    const atual = controle(true, "a");
-    q<HTMLButtonElement>("#seg-b")!.click();
-    await nextTick();
-    expect(atual.value).toBe("b");
-    expect(q("#seg-b")!.getAttribute("aria-checked")).toBe("true");
+    lista("cias-aereas", [], { carregando: true });
+    expect(texto(q("#cadastro-lista-cias-aereas"))).toContain("Carregando…");
   });
 });

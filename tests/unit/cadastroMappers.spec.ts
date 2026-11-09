@@ -5,7 +5,7 @@ import {
   montarCadastro,
   type DespachanteRow,
   type FornecedorRow,
-  type TemperaturaRow,
+  type CiaAereaRow,
 } from "../../server/utils/cadastroMappers";
 
 // Mapeadores puros linha ↔ modelo dos Cadastros: vazio ↔ NULL, nome_chave, prazo/sem alerta.
@@ -45,11 +45,11 @@ describe("montarCadastro", () => {
     expect(f.pais).toBe("China");
   });
 
-  it("despachante e temperatura", () => {
+  it("despachante e cia aérea", () => {
     const d: DespachanteRow = { ...BASE, id: "desp_1", contato_nome: null, telefone: "1133334444", email: null };
     expect(montarCadastro("despachantes", d)).toMatchObject({ contatoNome: "", telefone: "1133334444", email: "" });
-    const t: TemperaturaRow = { ...BASE, id: "temp_1", ativo: false };
-    expect(montarCadastro("temperaturas", t)).toMatchObject({ id: "temp_1", ativo: false });
+    const t: CiaAereaRow = { ...BASE, id: "cia_1", ativo: false };
+    expect(montarCadastro("cias-aereas", t)).toMatchObject({ id: "cia_1", ativo: false });
   });
 });
 
@@ -72,7 +72,7 @@ describe("colunasNovoCadastro", () => {
     expect(c).toMatchObject({ sem_alerta: true, prazo_alerta_dias: null });
   });
 
-  it("despachante e temperatura", () => {
+  it("despachante e cia aérea", () => {
     expect(colunasNovoCadastro("despachantes", { nome: "STAR CUSTOMS", contatoNome: "Fulano", telefone: "", email: "" })).toEqual({
       nome: "STAR CUSTOMS",
       nome_chave: "star customs",
@@ -81,15 +81,15 @@ describe("colunasNovoCadastro", () => {
       telefone: null,
       email: null,
     });
-    expect(colunasNovoCadastro("temperaturas", { nome: "Ambiente" })).toEqual({ nome: "Ambiente", nome_chave: "ambiente", ativo: true });
+    expect(colunasNovoCadastro("cias-aereas", { nome: "Ambiente" })).toEqual({ nome: "Ambiente", nome_chave: "ambiente", ativo: true });
   });
 });
 
 describe("colunasPatchCadastro", () => {
   it("só as chaves presentes; NUNCA nome nem nome_chave", () => {
     expect(colunasPatchCadastro("fornecedores", { nome: "Outro nome", pais: "Índia" })).toEqual({ pais: "Índia" });
-    expect(colunasPatchCadastro("temperaturas", { nome: "X" })).toEqual({});
-    expect(colunasPatchCadastro("temperaturas", { ativo: false })).toEqual({ ativo: false });
+    expect(colunasPatchCadastro("cias-aereas", { nome: "X" })).toEqual({});
+    expect(colunasPatchCadastro("cias-aereas", { ativo: false })).toEqual({ ativo: false });
   });
 
   it("fornecedor: alerta vai junto e respeita o CHECK (sem alerta zera o prazo)", () => {

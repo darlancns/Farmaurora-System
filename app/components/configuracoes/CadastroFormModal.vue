@@ -2,7 +2,7 @@
 import { computed, reactive } from "vue";
 import {
   CONTATO_CADASTRO_MAX,
-  LISTA_CADASTRO_ITEM,
+  LISTA_CADASTRO_TEXTOS,
   NOME_CADASTRO_MAX,
   NOME_RESERVADO_CADASTRO,
   PAIS_CADASTRO_MAX,
@@ -52,7 +52,7 @@ const emit = defineEmits<{
 }>();
 
 const isEdit = computed(() => props.editando !== null);
-const nomeDoItem = computed(() => LISTA_CADASTRO_ITEM[props.lista]);
+const textos = computed(() => LISTA_CADASTRO_TEXTOS[props.lista]);
 
 const form = reactive<FormCadastro>(props.editando ? formDeItem(props.lista, props.editando) : formVazio());
 
@@ -95,7 +95,7 @@ const CLASSE_OPCAO =
       class="max-h-[calc(100dvh-3rem)] w-full max-w-[440px] overflow-y-auto rounded-[10px] border border-hairline bg-paper-raised p-5"
     >
       <h2 id="cadastro-form-titulo" class="mb-4 font-display text-[16px] font-semibold text-ink">
-        {{ isEdit ? `Editar ${nomeDoItem}` : `Novo ${nomeDoItem}` }}
+        {{ isEdit ? textos.tituloEditar : textos.tituloNovo }}
       </h2>
 
       <form id="cadastro-form" class="flex flex-col gap-3.5" novalidate @submit.prevent="handleSubmit">

@@ -68,12 +68,17 @@ describe("migration dos Cadastros", () => {
     expect(check).toMatch(/not sem_alerta and prazo_alerta_dias is not null and prazo_alerta_dias between 1 and 365/);
   });
 
-  it("colunas do fornecedor, do despachante e da temperatura", () => {
+  it("colunas do fornecedor, do despachante e da cia aérea", () => {
     const bloco = (t: string) => sql.slice(sql.indexOf(`create table if not exists public.${t}`), sql.indexOf(");", sql.indexOf(`public.${t}`)));
     expect(bloco("cadastro_fornecedores")).toMatch(/pais text,.*prazo_alerta_dias integer,.*sem_alerta boolean not null default false/);
     expect(bloco("cadastro_despachantes")).toMatch(/contato_nome text,.*telefone text,.*email text/);
     for (const t of TABELAS) expect(bloco(t)).toMatch(/ativo boolean not null default true/);
-    expect(bloco("cadastro_temperaturas")).not.toMatch(/pais|telefone|prazo/);
+    expect(bloco("cadastro_cias_aereas")).not.toMatch(/pais|telefone|prazo/);
+  });
+
+  it("as listas são fornecedores, despachantes e cias aéreas (sem temperatura)", () => {
+    expect(TABELAS.sort()).toEqual(["cadastro_cias_aereas", "cadastro_despachantes", "cadastro_fornecedores"]);
+    expect(sql).not.toContain("temperatura");
   });
 
   it("RLS ligado em todas e SEM policies", () => {

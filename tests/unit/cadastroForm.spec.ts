@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Despachante, Fornecedor, Temperatura } from "../../shared/types/Cadastro";
+import type { Despachante, Fornecedor, CiaAerea } from "../../shared/types/Cadastro";
 import { colunasDaLista, textoAlerta } from "../../app/utils/cadastroColunas";
 import {
   formDeItem,
@@ -15,7 +15,7 @@ import {
 const BASE = { id: "x", ativo: true, atualizadoPor: "", createdAt: "", updatedAt: "" };
 const forn = (e: Partial<Fornecedor> = {}): Fornecedor => ({ ...BASE, nome: "Poros", pais: "Turquia", prazoAlertaDias: 3, semAlerta: false, ...e });
 const desp = (e: Partial<Despachante> = {}): Despachante => ({ ...BASE, nome: "STAR CUSTOMS", contatoNome: "", telefone: "", email: "", ...e });
-const temp = (e: Partial<Temperatura> = {}): Temperatura => ({ ...BASE, nome: "Ambiente", ...e });
+const cia = (e: Partial<CiaAerea> = {}): CiaAerea => ({ ...BASE, nome: "Ambiente", ...e });
 
 describe("formulário do fornecedor — o alerta nasce SEM escolha", () => {
   it("formVazio não pré-seleciona 'Número de dias' nem 'Sem alerta'", () => {
@@ -52,7 +52,7 @@ describe("formulário do fornecedor — o alerta nasce SEM escolha", () => {
   });
 
   it("o nome 'Outro' é recusado", () => {
-    const r = montarNovo("temperaturas", { ...formVazio(), nome: "OUTRO" });
+    const r = montarNovo("cias-aereas", { ...formVazio(), nome: "OUTRO" });
     expect(r.ok).toBe(false);
   });
 });
@@ -84,16 +84,16 @@ describe("edição: o nome não vai no corpo", () => {
     expect(montarAlteracao("despachantes", { ...f, telefone: "", email: "" }).ok).toBe(true);
   });
 
-  it("temperatura não tem campo editável: só desativar/reativar", () => {
-    expect(listaTemEdicao("temperaturas")).toBe(false);
+  it("cia aérea não tem campo editável: só desativar/reativar", () => {
+    expect(listaTemEdicao("cias-aereas")).toBe(false);
     expect(listaTemEdicao("fornecedores")).toBe(true);
     expect(listaTemEdicao("despachantes")).toBe(true);
-    expect(montarAlteracao("temperaturas", formDeItem("temperaturas", temp())).ok).toBe(false);
+    expect(montarAlteracao("cias-aereas", formDeItem("cias-aereas", cia())).ok).toBe(false);
   });
 });
 
 describe("itemComMesmoNome (aviso de duplicado e 'Reativar')", () => {
-  const itens = [temp({ id: "a", nome: "Ambiente" }), temp({ id: "b", nome: "2°C a 8°C", ativo: false })];
+  const itens = [cia({ id: "a", nome: "Ambiente" }), cia({ id: "b", nome: "2°C a 8°C", ativo: false })];
 
   it("acha pelo nome normalizado (caixa, acento, espaços), ativo ou inativo", () => {
     expect(itemComMesmoNome(itens, "  AMBIENTE ")?.id).toBe("a");
@@ -109,10 +109,10 @@ describe("itemComMesmoNome (aviso de duplicado e 'Reativar')", () => {
 });
 
 describe("colunas da tela", () => {
-  it("fornecedor: País e Alerta; despachante: Contato, Telefone e E-mail; temperatura: nenhuma extra", () => {
+  it("fornecedor: País e Alerta; despachante: Contato, Telefone e E-mail; cia aérea: nenhuma extra", () => {
     expect(colunasDaLista("fornecedores").map((c) => c.titulo)).toEqual(["País", "Alerta de prazo"]);
     expect(colunasDaLista("despachantes").map((c) => c.titulo)).toEqual(["Contato", "Telefone", "E-mail"]);
-    expect(colunasDaLista("temperaturas")).toEqual([]);
+    expect(colunasDaLista("cias-aereas")).toEqual([]);
   });
 
   it("textos: vazio vira travessão; alerta é 'Sem alerta' ou 'N dias' (singular em 1)", () => {

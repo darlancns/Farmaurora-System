@@ -82,9 +82,9 @@ export function montarAlteracao(lista: ListaCadastro, form: FormCadastro): Resul
   return { ok: false, erro: "Esta lista não tem campos editáveis além do nome." };
 }
 
-/** A lista tem algum campo editável depois de criada? (Temperatura só tem o nome: só se desativa/reativa.) */
+/** A lista tem algum campo editável depois de criada? (Cia aérea só tem o nome: só se desativa/reativa.) */
 export function listaTemEdicao(lista: ListaCadastro): boolean {
-  return lista !== "temperaturas";
+  return lista !== "cias-aereas";
 }
 
 /** Item que já usa este nome (mesma chave: sem acento, caixa e espaços repetidos), inativo ou não. */

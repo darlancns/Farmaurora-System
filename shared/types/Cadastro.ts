@@ -1,9 +1,10 @@
-// Cadastros v1 (Configurações → Cadastros): três listas editáveis só pelo administrador.
+// Cadastros v1 (Configurações → Cadastros): três listas editáveis só pelo administrador (fornecedores, despachantes e
+// cias aéreas).
 //
 // Convenção (a mesma da DIR): no modelo, texto vazio é "" (nunca undefined); no banco é NULL.
 // "Remover" é desativar (`ativo: false`) — não existe exclusão. O NOME não muda depois de criado.
 
-export type ListaCadastro = "fornecedores" | "despachantes" | "temperaturas";
+export type ListaCadastro = "fornecedores" | "despachantes" | "cias-aereas";
 
 interface CadastroBase {
   id: string;
@@ -31,12 +32,13 @@ export interface Despachante extends CadastroBase {
   email: string;
 }
 
-export type Temperatura = CadastroBase;
+/** Cia aérea: só nome e ativo. */
+export type CiaAerea = CadastroBase;
 
 export interface CadastroPorLista {
   fornecedores: Fornecedor;
   despachantes: Despachante;
-  temperaturas: Temperatura;
+  "cias-aereas": CiaAerea;
 }
 
 export type Cadastro = CadastroPorLista[ListaCadastro];
@@ -58,14 +60,14 @@ export interface NovoDespachanteDTO {
   email?: string;
 }
 
-export interface NovaTemperaturaDTO {
+export interface NovaCiaAereaDTO {
   nome: string;
 }
 
 export interface NovoPorLista {
   fornecedores: NovoFornecedorDTO;
   despachantes: NovoDespachanteDTO;
-  temperaturas: NovaTemperaturaDTO;
+  "cias-aereas": NovaCiaAereaDTO;
 }
 
 /**
@@ -88,7 +90,7 @@ export interface DespachantePatchDTO {
   ativo?: boolean;
 }
 
-export interface TemperaturaPatchDTO {
+export interface CiaAereaPatchDTO {
   nome?: string;
   ativo?: boolean;
 }
@@ -96,5 +98,5 @@ export interface TemperaturaPatchDTO {
 export interface PatchPorLista {
   fornecedores: FornecedorPatchDTO;
   despachantes: DespachantePatchDTO;
-  temperaturas: TemperaturaPatchDTO;
+  "cias-aereas": CiaAereaPatchDTO;
 }

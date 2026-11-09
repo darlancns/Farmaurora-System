@@ -1,6 +1,6 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
 
-// Configurações → Cadastros (Fornecedores, Despachantes, Temperaturas): só o administrador vê a aba e edita; todos os
+// Configurações → Cadastros (Fornecedores, Despachantes, Cias aéreas): só o administrador vê a aba e edita; todos os
 // cargos leem a API. Remover = desativar (não existe exclusão); o nome não muda depois de criado.
 //
 // Credenciais por env (mesmos nomes de rbac.spec.ts); cada teste é pulado sem elas:
@@ -46,10 +46,7 @@ async function irParaCadastros(page: Page): Promise<void> {
   await expect(page.locator("#cadastros-tab")).toBeVisible();
 }
 
-async function escolherLista(page: Page, lista: "fornecedores" | "despachantes" | "temperaturas"): Promise<void> {
-  await page.locator(`#cadastro-lista-escolha-${lista}`).click();
-  await expect(page.locator(`#cadastro-lista-${lista}`)).toBeVisible();
-}
+const LISTAS = ["fornecedores", "despachantes", "cias-aereas"] as const;
 
 async function abrirMenu(page: Page, lista: string, id: string): Promise<void> {
   await page.locator(`#btn-acoes-cadastro-${lista}-${id}`).click();
@@ -59,7 +56,7 @@ test.describe("Configurações → Cadastros (administrador)", () => {
   test.describe.configure({ retries: 2 });
   test.skip(!tem(admin), "defina E2E_ADMIN_EMAIL / E2E_ADMIN_PASSWORD");
 
-  test("1. a aba Cadastros aparece depois de Contas, com as 3 listas", async ({ page }) => {
+  test("1. a aba Cadastros aparece depois de Contas, com 3 blocos empilhados (sem abas internas)", async ({ page }) => {
     await login(page, admin.email, admin.password);
     await page.goto("/configuracoes", { waitUntil: "networkidle" });
     const abas = page.locator("[id^='tab-']");
@@ -68,10 +65,14 @@ test.describe("Configurações → Cadastros (administrador)", () => {
     await page.locator("#tab-cadastros").click();
     await expect(page).toHaveURL(/\/configuracoes\?aba=cadastros$/);
     await expect(page.locator("#cadastros-tab")).toBeVisible();
-    for (const lista of ["fornecedores", "despachantes", "temperaturas"] as const) {
-      await expect(page.locator(`#cadastro-lista-escolha-${lista}`)).toBeVisible();
+    const blocos = page.locator("#cadastros-tab > section");
+    await expect(blocos).toHaveCount(3);
+    await expect(blocos.locator("h2")).toHaveText(["Fornecedores", "Despachantes", "Cias aéreas"]);
+    for (const lista of LISTAS) {
+      await expect(page.locator(`#btn-novo-cadastro-${lista}`)).toBeVisible();
+      await expect(page.locator(`#cadastro-lista-${lista}`)).toBeVisible();
     }
-    await expect(page.locator("#cadastro-lista-fornecedores")).toBeVisible();
+    await expect(page.locator("#cadastro-lista-escolha")).toHaveCount(0);
   });
 
   test("2. fornecedor: não salva sem decidir o alerta; cria com número de dias; edita (nome só leitura); desativa e reativa", async ({ page }) => {
@@ -79,7 +80,7 @@ test.describe("Configurações → Cadastros (administrador)", () => {
     await irParaCadastros(page);
     const nome = nomeUnico("Fornecedor");
 
-    await page.locator("#btn-novo-cadastro").click();
+    await page.locator("#btn-novo-cadastro-fornecedores").click();
     await page.locator("#cadastro-form-nome").fill(nome);
     // Nada pré-selecionado: tenta salvar sem decidir.
     await expect(page.locator("#cadastro-form-alerta-dias")).not.toBeChecked();
@@ -121,7 +122,7 @@ test.describe("Configurações → Cadastros (administrador)", () => {
     await expect(linha).toContainText("Inativo");
 
     // Criar de novo o mesmo nome: avisa e oferece Reativar (não cria outro).
-    await page.locator("#btn-novo-cadastro").click();
+    await page.locator("#btn-novo-cadastro-fornecedores").click();
     await page.locator("#cadastro-form-nome").fill(nome.toLowerCase());
     await expect(page.locator("#cadastro-form-aviso-duplicado")).toContainText("Reative-o");
     await expect(page.locator("#btn-cadastro-salvar")).toBeDisabled();
@@ -131,13 +132,12 @@ test.describe("Configurações → Cadastros (administrador)", () => {
     await expect(linha).not.toContainText("(inativo)");
   });
 
-  test("3. despachante (empresa com contato) e temperatura (só desativar/reativar, sem Editar)", async ({ page }) => {
+  test("3. despachante (empresa com contato) e cia aérea (só desativar/reativar, sem Editar)", async ({ page }) => {
     await login(page, admin.email, admin.password);
     await irParaCadastros(page);
 
-    await escolherLista(page, "despachantes");
     const empresa = nomeUnico("Despachante");
-    await page.locator("#btn-novo-cadastro").click();
+    await page.locator("#btn-novo-cadastro-despachantes").click();
     await page.locator("#cadastro-form-nome").fill(empresa);
     await page.locator("#cadastro-form-email").fill("sem-arroba");
     await page.locator("#btn-cadastro-salvar").click();
@@ -151,55 +151,54 @@ test.describe("Configurações → Cadastros (administrador)", () => {
     await expect(linhaDesp).toContainText("Fulano de Teste");
     await expect(linhaDesp).toContainText("contato@teste.com");
 
-    await escolherLista(page, "temperaturas");
-    const temperatura = nomeUnico("Temperatura");
-    await page.locator("#btn-novo-cadastro").click();
-    await page.locator("#cadastro-form-nome").fill(temperatura);
+    const cia = nomeUnico("Cia");
+    await page.locator("#btn-novo-cadastro-cias-aereas").click();
+    await expect(page.locator("#cadastro-form-titulo")).toHaveText("Nova cia aérea");
+    await page.locator("#cadastro-form-nome").fill(cia);
     await page.locator("#btn-cadastro-salvar").click();
     await expect(page.locator("#cadastro-form-overlay")).toBeHidden();
-    const linhaTemp = page.locator("#cadastro-lista-temperaturas tr", { hasText: temperatura });
-    await expect(linhaTemp).toBeVisible();
-    const id = (await linhaTemp.getAttribute("id"))!.replace("cadastro-row-temperaturas-", "");
-    await abrirMenu(page, "temperaturas", id);
-    await expect(page.locator(`#btn-editar-cadastro-temperaturas-${id}`)).toHaveCount(0);
-    await expect(page.locator(`#btn-desativar-cadastro-temperaturas-${id}`)).toBeVisible();
+    const linhaCia = page.locator("#cadastro-lista-cias-aereas tr", { hasText: cia });
+    await expect(linhaCia).toBeVisible();
+    const id = (await linhaCia.getAttribute("id"))!.replace("cadastro-row-cias-aereas-", "");
+    await abrirMenu(page, "cias-aereas", id);
+    await expect(page.locator(`#btn-editar-cadastro-cias-aereas-${id}`)).toHaveCount(0);
+    await expect(page.locator(`#btn-desativar-cadastro-cias-aereas-${id}`)).toBeVisible();
   });
 
   test('4. nome "Outro" é recusado na tela e na API; duplicado vira 409; nome não muda (422); não existe DELETE', async ({ page }) => {
     await login(page, admin.email, admin.password);
     await irParaCadastros(page);
-    await escolherLista(page, "temperaturas");
-    await page.locator("#btn-novo-cadastro").click();
+    await page.locator("#btn-novo-cadastro-cias-aereas").click();
     await page.locator("#cadastro-form-nome").fill("outro");
     await expect(page.locator("#cadastro-form-aviso-reservado")).toBeVisible();
     await expect(page.locator("#btn-cadastro-salvar")).toBeDisabled();
 
     const req = page.request;
-    expect((await apiCriar(req, "temperaturas", { nome: "OUTRO" })).status).toBe(400);
+    expect((await apiCriar(req, "cias-aereas", { nome: "OUTRO" })).status).toBe(400);
 
     const nome = nomeUnico("Api");
-    const criado = await apiCriar(req, "temperaturas", { nome });
+    const criado = await apiCriar(req, "cias-aereas", { nome });
     expect(criado.status).toBe(200);
     const id = String(criado.json.id);
-    expect((await apiCriar(req, "temperaturas", { nome: nome.toLowerCase() })).status).toBe(409);
+    expect((await apiCriar(req, "cias-aereas", { nome: nome.toLowerCase() })).status).toBe(409);
 
-    const trocaNome = await req.patch(`/api/cadastros/temperaturas/${id}`, { data: { nome: `${nome} X` } });
+    const trocaNome = await req.patch(`/api/cadastros/cias-aereas/${id}`, { data: { nome: `${nome} X` } });
     expect(trocaNome.status()).toBe(422);
     expect(((await trocaNome.json()) as { statusMessage?: string; message?: string }).statusMessage ?? "").toMatch(/nome não pode/i);
 
-    const semDelete = await req.delete(`/api/cadastros/temperaturas/${id}`);
+    const semDelete = await req.delete(`/api/cadastros/cias-aereas/${id}`);
     expect(semDelete.status()).toBeGreaterThanOrEqual(400);
-    const lista = (await (await req.get("/api/cadastros/temperaturas")).json()) as Array<{ id: string; nome: string }>;
+    const lista = (await (await req.get("/api/cadastros/cias-aereas")).json()) as Array<{ id: string; nome: string }>;
     expect(lista.find((i) => i.id === id)?.nome).toBe(nome);
   });
 
   test("5. a API ordena ativos primeiro e inativos depois, e devolve `ativo`", async ({ page }) => {
     await login(page, admin.email, admin.password);
     const req = page.request;
-    const a = await apiCriar(req, "temperaturas", { nome: nomeUnico("Ordem A") });
-    await req.patch(`/api/cadastros/temperaturas/${String(a.json.id)}`, { data: { ativo: false } });
-    await apiCriar(req, "temperaturas", { nome: nomeUnico("Ordem B") });
-    const lista = (await (await req.get("/api/cadastros/temperaturas")).json()) as Array<{ ativo: boolean }>;
+    const a = await apiCriar(req, "cias-aereas", { nome: nomeUnico("Ordem A") });
+    await req.patch(`/api/cadastros/cias-aereas/${String(a.json.id)}`, { data: { ativo: false } });
+    await apiCriar(req, "cias-aereas", { nome: nomeUnico("Ordem B") });
+    const lista = (await (await req.get("/api/cadastros/cias-aereas")).json()) as Array<{ ativo: boolean }>;
     const primeiroInativo = lista.findIndex((i) => !i.ativo);
     expect(primeiroInativo).toBeGreaterThan(-1);
     expect(lista.slice(primeiroInativo).every((i) => !i.ativo)).toBe(true);
@@ -227,13 +226,13 @@ for (const [rotulo, conta] of [
     test(`o ${rotulo} lê as 3 listas (200) e leva 403 ao criar e ao alterar`, async ({ page }) => {
       await login(page, conta.email, conta.password);
       const req = page.request;
-      for (const lista of ["fornecedores", "despachantes", "temperaturas"]) {
+      for (const lista of LISTAS) {
         const res = await req.get(`/api/cadastros/${lista}`);
         expect(res.status(), `GET ${lista}`).toBe(200);
         expect(Array.isArray(await res.json())).toBe(true);
       }
-      expect((await apiCriar(req, "temperaturas", { nome: nomeUnico("Proibido") })).status).toBe(403);
-      expect((await req.patch("/api/cadastros/temperaturas/qualquer", { data: { ativo: false } })).status()).toBe(403);
+      expect((await apiCriar(req, "cias-aereas", { nome: nomeUnico("Proibido") })).status).toBe(403);
+      expect((await req.patch("/api/cadastros/cias-aereas/qualquer", { data: { ativo: false } })).status()).toBe(403);
     });
   });
 }

@@ -102,7 +102,7 @@ export function sectionForApiPath(path: string): Section | null {
   // Dispensas do aviso "chegou?" do sino: aberto a todos os cargos aqui; o handler restringe ao administrador.
   if (p === "/api/chegada-avisos" || p.startsWith("/api/chegada-avisos/")) return "recados";
   if (p === "/api/lembretes" || p.startsWith("/api/lembretes/")) return "recados";
-  // Cadastros (fornecedores, despachantes, temperaturas): seção "config" — todos os cargos leem (GET), só o
+  // Cadastros (fornecedores, despachantes, cias aéreas): seção "config" — todos os cargos leem (GET), só o
   // administrador escreve; os handlers de POST e PATCH conferem o administrador de novo.
   if (p === "/api/cadastros" || p.startsWith("/api/cadastros/")) return "config";
   return null;

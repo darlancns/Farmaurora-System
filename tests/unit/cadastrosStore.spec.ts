@@ -13,7 +13,7 @@ vi.mock("../../server/utils/supabaseServerClient", () => ({
 const { listarCadastro, criarCadastro, alterarCadastro, CadastroRegraError } = await import("../../server/utils/cadastrosStore");
 
 const AGORA = new Date("2026-11-09T15:00:00.000Z");
-const T = { fornecedores: "cadastro_fornecedores", despachantes: "cadastro_despachantes", temperaturas: "cadastro_temperaturas" };
+const T = { fornecedores: "cadastro_fornecedores", despachantes: "cadastro_despachantes", "cias-aereas": "cadastro_cias_aereas" };
 
 function semearFornecedor(id: string, nome: string, extra: Record<string, unknown> = {}): void {
   fake.semear(T.fornecedores, [
@@ -64,7 +64,7 @@ describe("listarCadastro", () => {
   });
 
   it("lista vazia", async () => {
-    expect(await listarCadastro("temperaturas")).toEqual([]);
+    expect(await listarCadastro("cias-aereas")).toEqual([]);
   });
 });
 
@@ -88,21 +88,21 @@ describe("criarCadastro", () => {
     expect(fake.linhas(T.fornecedores)[0]).toMatchObject({ sem_alerta: true, prazo_alerta_dias: null });
   });
 
-  it("despachante e temperatura usam o prefixo e a tabela certos", async () => {
+  it("despachante e cia aérea usam o prefixo e a tabela certos", async () => {
     const d = await criarCadastro("despachantes", { nome: "STAR CUSTOMS", telefone: "11 3333-4444" }, "Cris");
-    const t = await criarCadastro("temperaturas", { nome: "Ambiente" }, "Cris");
+    const t = await criarCadastro("cias-aereas", { nome: "Ambiente" }, "Cris");
     expect(d.id).toMatch(/^desp_/);
-    expect(t.id).toMatch(/^temp_/);
+    expect(t.id).toMatch(/^cia_/);
     expect(fake.linhas(T.despachantes)[0]).toMatchObject({ telefone: "11 3333-4444", contato_nome: null, email: null });
-    expect(fake.linhas(T.temperaturas)).toHaveLength(1);
+    expect(fake.linhas(T["cias-aereas"])).toHaveLength(1);
   });
 
   it("nome repetido (mesma nome_chave: outra caixa/acento/espaços) é 409 e nada é gravado", async () => {
-    await criarCadastro("temperaturas", { nome: "Ambiente" }, "Cris");
-    expect(await statusDe(criarCadastro("temperaturas", { nome: "  AMBIENTE " }, "Cris"))).toBe(409);
+    await criarCadastro("cias-aereas", { nome: "Ambiente" }, "Cris");
+    expect(await statusDe(criarCadastro("cias-aereas", { nome: "  AMBIENTE " }, "Cris"))).toBe(409);
     await criarCadastro("fornecedores", { nome: "Beldimed Bélgica", prazoAlertaDias: 7, semAlerta: false }, "Cris");
     expect(await statusDe(criarCadastro("fornecedores", { nome: "beldimed   belgica", prazoAlertaDias: 7, semAlerta: false }, "Cris"))).toBe(409);
-    expect(fake.linhas(T.temperaturas)).toHaveLength(1);
+    expect(fake.linhas(T["cias-aereas"])).toHaveLength(1);
     expect(fake.linhas(T.fornecedores)).toHaveLength(1);
   });
 
@@ -119,7 +119,7 @@ describe("criarCadastro", () => {
   });
 
   it("o mesmo nome em listas DIFERENTES não conflita (cada tabela tem a sua unicidade)", async () => {
-    await criarCadastro("temperaturas", { nome: "Ambiente" }, "Cris");
+    await criarCadastro("cias-aereas", { nome: "Ambiente" }, "Cris");
     await expect(criarCadastro("despachantes", { nome: "Ambiente" }, "Cris")).resolves.toMatchObject({ nome: "Ambiente" });
   });
 
@@ -131,15 +131,15 @@ describe("criarCadastro", () => {
         insert: () => Promise.resolve({ data: null, error: { message: "duplicate key", code: "23505" } }),
       })) as unknown as typeof fake.from);
     try {
-      expect(await statusDe(criarCadastro("temperaturas", { nome: "Ambiente" }, "Cris"))).toBe(409);
+      expect(await statusDe(criarCadastro("cias-aereas", { nome: "Ambiente" }, "Cris"))).toBe(409);
     } finally {
       spy.mockRestore();
     }
   });
 
   it("erro do banco que não é duplicado sobe como erro comum (500)", async () => {
-    fake.falhar(T.temperaturas, "insert", "falha injetada");
-    await expect(criarCadastro("temperaturas", { nome: "Ambiente" }, "Cris")).rejects.toThrow(/falha injetada/);
+    fake.falhar(T["cias-aereas"], "insert", "falha injetada");
+    await expect(criarCadastro("cias-aereas", { nome: "Ambiente" }, "Cris")).rejects.toThrow(/falha injetada/);
   });
 });
 
@@ -180,15 +180,15 @@ describe("alterarCadastro", () => {
   });
 
   it("desativar e reativar: é só um update de `ativo`, o item continua na tabela", async () => {
-    fake.semear(T.temperaturas, [
+    fake.semear(T["cias-aereas"], [
       { id: "t1", nome: "Ambiente", nome_chave: "ambiente", ativo: true, atualizado_por: null, created_at: "x", updated_at: "x" },
     ]);
-    const off = await alterarCadastro("temperaturas", "t1", { ativo: false }, "Cris");
+    const off = await alterarCadastro("cias-aereas", "t1", { ativo: false }, "Cris");
     expect(off).toMatchObject({ ativo: false, atualizadoPor: "Cris" });
-    expect(fake.linhas(T.temperaturas)).toHaveLength(1);
-    const on = await alterarCadastro("temperaturas", "t1", { ativo: true }, "Cris");
+    expect(fake.linhas(T["cias-aereas"])).toHaveLength(1);
+    const on = await alterarCadastro("cias-aereas", "t1", { ativo: true }, "Cris");
     expect(on).toMatchObject({ ativo: true });
-    expect(fake.linhas(T.temperaturas)).toHaveLength(1);
+    expect(fake.linhas(T["cias-aereas"])).toHaveLength(1);
   });
 
   it("item inexistente devolve null (404 no handler)", async () => {

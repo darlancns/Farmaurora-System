@@ -17,7 +17,7 @@ import { QUERY_ABA } from "../utils/contaFoco";
 // A página abre pra TODOS os cargos (seção "config" em shared/utils/rbac.ts); o que muda é QUAIS abas
 // cada um vê (app/utils/abasConfiguracoes.ts): sócio e administrador, "Minha conta" + "Contas";
 // consultor e operacional, só "Minha conta". "Minha conta" é a primeira aba e a padrão de todos. "Cadastros" (listas
-// de Fornecedor, Despachante e Temperatura) é só do administrador. A autorização real das ações de gestão continua no
+// de Fornecedor, Despachante e Cia aérea) é só do administrador. A autorização real das ações de gestão continua no
 // servidor (/api/admin/**, /api/cadastros/**) e dentro das abas — esconder a aba aqui é só a parte visível disso.
 //
 // O cargo só existe no client (via /api/auth/me), então o conteúdo dependente dele só é montado
@@ -48,7 +48,7 @@ function selecionarAba(aba: AbaConfiguracoes): void {
 // em Cadastros; em "Minha conta" — e antes de o cargo carregar, quando a aba padrão é essa — vale o da conta própria.
 const SUBTITULO_POR_ABA: Record<AbaConfiguracoes, string> = {
   contas: "Gestão de contas e acessos da equipe.",
-  cadastros: "Listas de fornecedores, despachantes e temperaturas.",
+  cadastros: "Listas de fornecedores, despachantes e cias aéreas.",
   "minha-conta": "Seus dados de acesso.",
 };
 const subtitle = computed<string>(() =>

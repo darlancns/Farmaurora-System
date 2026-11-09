@@ -13,11 +13,11 @@ type EstadoCadastros = { [L in ListaCadastro]: CadastroPorLista[L][] };
 const ROTULO_FALHA: Record<ListaCadastro, string> = {
   fornecedores: "Falha ao carregar os fornecedores.",
   despachantes: "Falha ao carregar os despachantes.",
-  temperaturas: "Falha ao carregar as temperaturas.",
+  "cias-aereas": "Falha ao carregar as cias aéreas.",
 };
 
 export function useCadastros() {
-  const itens = useState<EstadoCadastros>("cadastros", () => ({ fornecedores: [], despachantes: [], temperaturas: [] }));
+  const itens = useState<EstadoCadastros>("cadastros", () => ({ fornecedores: [], despachantes: [], "cias-aereas": [] }));
   const loading = useState<boolean>("cadastros-loading", () => false);
   const error = useState<string | null>("cadastros-error", () => null);
 

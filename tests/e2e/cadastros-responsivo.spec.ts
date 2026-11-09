@@ -1,8 +1,9 @@
 import { test, expect, type Page } from "@playwright/test";
 
 // Responsividade de Configurações → Cadastros (só administrador): 360px (celular), 768px (tablet) e 1280px (desktop).
-// Sem rolagem horizontal; abaixo do breakpoint do PAINEL (700px: só no celular) a lista vira cards e a tabela some; o seletor das 3
-// listas cabe em 360px (texto sem cortar); o modal cabe na tela e os alvos de toque têm >= 44px abaixo de lg.
+// Tela única com 3 blocos (cards) empilhados: sem rolagem horizontal; abaixo do breakpoint do PAINEL (700px: só no
+// celular) a lista vira cards e a tabela some; o botão "+ Novo …" de cada bloco cabe e tem >= 44px abaixo de lg; o modal
+// cabe na tela e os alvos de toque têm >= 44px abaixo de lg.
 //
 //   E2E_ADMIN_EMAIL / E2E_ADMIN_PASSWORD
 //
@@ -54,12 +55,23 @@ test.describe("Responsividade de Configurações → Cadastros", () => {
         await expect(page.locator("#cadastros-tab")).toBeVisible();
       });
 
-      test("sem rolagem horizontal nas 3 listas", async ({ page }) => {
-        for (const lista of ["fornecedores", "despachantes", "temperaturas"]) {
-          await page.locator(`#cadastro-lista-escolha-${lista}`).click();
-          await expect(page.locator(`#cadastro-lista-${lista}`)).toBeVisible();
-          expect(await semOverflowHorizontal(page), lista).toBe(true);
-        }
+      test("os 3 blocos aparecem empilhados, com a mesma largura, e sem rolagem horizontal", async ({ page }) => {
+        const blocos = page.locator("#cadastros-tab > section");
+        await expect(blocos).toHaveCount(3);
+        const caixas = await blocos.evaluateAll((els) =>
+          els.map((e) => {
+            const r = e.getBoundingClientRect();
+            return { x: Math.round(r.x), width: Math.round(r.width), top: r.top, bottom: r.bottom };
+          }),
+        );
+        expect(new Set(caixas.map((c) => c.x)).size, "mesmo x").toBe(1);
+        expect(new Set(caixas.map((c) => c.width)).size, "mesma largura").toBe(1);
+        expect(caixas[0]!.x).toBeGreaterThanOrEqual(0);
+        expect(caixas[0]!.x + caixas[0]!.width).toBeLessThanOrEqual(vp.width + 0.5);
+        // Empilhados: cada bloco começa depois do fim do anterior.
+        expect(caixas[1]!.top).toBeGreaterThanOrEqual(caixas[0]!.bottom - 0.5);
+        expect(caixas[2]!.top).toBeGreaterThanOrEqual(caixas[1]!.bottom - 0.5);
+        expect(await semOverflowHorizontal(page)).toBe(true);
       });
 
       test(`${vp.cards ? "cards visíveis e tabela oculta" : "tabela visível e cards ocultos"}`, async ({ page }) => {
@@ -76,22 +88,22 @@ test.describe("Responsividade de Configurações → Cadastros", () => {
         }
       });
 
-      test("o seletor das 3 listas cabe: texto sem cortar e alvo >= 44px abaixo de lg", async ({ page }) => {
-        const botoes = page.locator("#cadastro-lista-escolha button");
-        await expect(botoes).toHaveCount(3);
-        for (let i = 0; i < 3; i++) {
-          const b = botoes.nth(i);
-          const medidas = await b.evaluate((el) => ({ cabe: el.scrollWidth <= el.clientWidth + 1, altura: el.getBoundingClientRect().height }));
-          expect(medidas.cabe, `texto do botão ${i} cortado`).toBe(true);
-          if (vp.abaixoDeLg) expect(medidas.altura).toBeGreaterThanOrEqual(43.99);
+      test("o botão '+ Novo …' de cada bloco cabe (texto sem cortar) e tem >= 44px abaixo de lg", async ({ page }) => {
+        for (const lista of ["fornecedores", "despachantes", "cias-aereas"]) {
+          const botao = page.locator(`#btn-novo-cadastro-${lista}`);
+          await expect(botao).toBeVisible();
+          const medidas = await botao.evaluate((el) => {
+            const r = el.getBoundingClientRect();
+            return { cabe: el.scrollWidth <= el.clientWidth + 1, altura: r.height, direita: r.right };
+          });
+          expect(medidas.cabe, `${lista}: texto cortado`).toBe(true);
+          expect(medidas.direita, `${lista}: botão fora da tela`).toBeLessThanOrEqual(vp.width + 0.5);
+          if (vp.abaixoDeLg) expect(medidas.altura, lista).toBeGreaterThanOrEqual(43.99);
         }
-        // As 3 numa linha só (grade de 3 colunas).
-        const topos = await botoes.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
-        expect(new Set(topos).size).toBe(1);
       });
 
       test("o modal 'Novo fornecedor' cabe na tela, sem overflow, e os campos têm alvo >= 44px abaixo de lg", async ({ page }) => {
-        await page.locator("#btn-novo-cadastro").click();
+        await page.locator("#btn-novo-cadastro-fornecedores").click();
         const modal = page.locator("#cadastro-form-overlay > div");
         await expect(modal).toBeVisible();
         const caixa = (await modal.boundingBox())!;

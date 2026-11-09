@@ -2,27 +2,49 @@ import type { ListaCadastro } from "../types/Cadastro";
 
 // Constantes dos Cadastros (Configurações → Cadastros).
 
-export const LISTAS_CADASTRO: readonly ListaCadastro[] = ["fornecedores", "despachantes", "temperaturas"];
+export const LISTAS_CADASTRO: readonly ListaCadastro[] = ["fornecedores", "despachantes", "cias-aereas"];
 
-/** Rótulo da lista (aba interna da tela). */
+/** Rótulo da lista (título do bloco na tela). */
 export const LISTA_CADASTRO_ROTULO: Record<ListaCadastro, string> = {
   fornecedores: "Fornecedores",
   despachantes: "Despachantes",
-  temperaturas: "Temperaturas",
+  "cias-aereas": "Cias aéreas",
 };
 
-/** Rótulo de UM item da lista (botão "Novo …", título do modal, mensagens). */
-export const LISTA_CADASTRO_ITEM: Record<ListaCadastro, string> = {
-  fornecedores: "fornecedor",
-  despachantes: "despachante",
-  temperaturas: "temperatura",
+/** Textos de UM item da lista, já com o gênero certo (botão "+ Novo …", título do modal, aviso de criado). */
+export interface TextosItemCadastro {
+  novo: string;
+  tituloNovo: string;
+  tituloEditar: string;
+  criado: string;
+}
+
+export const LISTA_CADASTRO_TEXTOS: Record<ListaCadastro, TextosItemCadastro> = {
+  fornecedores: {
+    novo: "+ Novo fornecedor",
+    tituloNovo: "Novo fornecedor",
+    tituloEditar: "Editar fornecedor",
+    criado: "Fornecedor criado.",
+  },
+  despachantes: {
+    novo: "+ Novo despachante",
+    tituloNovo: "Novo despachante",
+    tituloEditar: "Editar despachante",
+    criado: "Despachante criado.",
+  },
+  "cias-aereas": {
+    novo: "+ Nova cia aérea",
+    tituloNovo: "Nova cia aérea",
+    tituloEditar: "Editar cia aérea",
+    criado: "Cia aérea criada.",
+  },
 };
 
 /** Tabela de cada lista no Supabase (supabase/migrations/20261109200000_cadastros.sql). */
 export const TABELA_CADASTRO: Record<ListaCadastro, string> = {
   fornecedores: "cadastro_fornecedores",
   despachantes: "cadastro_despachantes",
-  temperaturas: "cadastro_temperaturas",
+  "cias-aereas": "cadastro_cias_aereas",
 };
 
 // "Outro" é o sentinela dos selects das telas (digitar um valor fora da lista), não um item: o nome é reservado.

@@ -22,9 +22,9 @@ function middlewarePermite(role: Role, metodo: string, path: string): boolean {
 const CAMINHOS = [
   "/api/cadastros/fornecedores",
   "/api/cadastros/despachantes",
-  "/api/cadastros/temperaturas",
+  "/api/cadastros/cias-aereas",
   "/api/cadastros/fornecedores/forn_1",
-  "/api/cadastros/temperaturas/temp_1?x=1",
+  "/api/cadastros/cias-aereas/cia_1?x=1",
 ];
 
 describe("sectionForApiPath — /api/cadastros", () => {

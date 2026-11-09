@@ -1,5 +1,5 @@
 -- Cadastros v1 (Configurações → Cadastros): três listas editáveis só pelo administrador — fornecedores, despachantes
--- (só EMPRESA) e temperaturas. Nesta etapa NENHUMA outra tela lê estas tabelas: entram só as tabelas e a tela de Cadastros.
+-- (só EMPRESA) e cias aéreas. Nesta etapa NENHUMA outra tela lê estas tabelas: entram só as tabelas e a tela de Cadastros.
 --
 -- ADITIVA e IDEMPOTENTE: só cria tabelas e índices novos (create ... if not exists); não altera nem remove nada que já
 -- existe, e pode rodar de novo sem efeito colateral. NÃO APLICADA por quem escreveu este arquivo: aplicar à mão
@@ -58,7 +58,7 @@ create table if not exists public.cadastro_despachantes (
 
 create unique index if not exists cadastro_despachantes_nome_chave_uq on public.cadastro_despachantes (nome_chave);
 
-create table if not exists public.cadastro_temperaturas (
+create table if not exists public.cadastro_cias_aereas (
   id             text        primary key,
   nome           text        not null,
   nome_chave     text        not null,
@@ -66,23 +66,23 @@ create table if not exists public.cadastro_temperaturas (
   atualizado_por text,
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now(),
-  constraint cadastro_temperaturas_nome_valido check (btrim(nome) <> '' and nome_chave <> '')
+  constraint cadastro_cias_aereas_nome_valido check (btrim(nome) <> '' and nome_chave <> '')
 );
 
-create unique index if not exists cadastro_temperaturas_nome_chave_uq on public.cadastro_temperaturas (nome_chave);
+create unique index if not exists cadastro_cias_aereas_nome_chave_uq on public.cadastro_cias_aereas (nome_chave);
 
 -- RLS ligado e sem policies; só o cliente admin do servidor (service role) acessa.
 alter table public.cadastro_fornecedores enable row level security;
 alter table public.cadastro_despachantes enable row level security;
-alter table public.cadastro_temperaturas enable row level security;
+alter table public.cadastro_cias_aereas enable row level security;
 
 -- Privilégios: o Supabase concede tudo ao service_role em tabelas novas do schema public, então primeiro se tira tudo
 -- e depois se concede só ler, criar e alterar. Assim nem um erro de código consegue apagar um item (desativar é um
 -- update). Uma limpeza futura exigiria uma migration manual de propósito. Repetir estas linhas mantém o mesmo estado.
 revoke all on table public.cadastro_fornecedores from public, anon, authenticated, service_role;
 revoke all on table public.cadastro_despachantes from public, anon, authenticated, service_role;
-revoke all on table public.cadastro_temperaturas from public, anon, authenticated, service_role;
+revoke all on table public.cadastro_cias_aereas from public, anon, authenticated, service_role;
 
 grant select, insert, update on table public.cadastro_fornecedores to service_role;
 grant select, insert, update on table public.cadastro_despachantes to service_role;
-grant select, insert, update on table public.cadastro_temperaturas to service_role;
+grant select, insert, update on table public.cadastro_cias_aereas to service_role;

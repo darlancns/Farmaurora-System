@@ -115,13 +115,13 @@ function chavesDesconhecidas(corpo: Record<string, unknown>, permitidas: readonl
 const CHAVES_NOVO: Record<ListaCadastro, readonly string[]> = {
   fornecedores: ["nome", "pais", "prazoAlertaDias", "semAlerta"],
   despachantes: ["nome", "contatoNome", "telefone", "email"],
-  temperaturas: ["nome"],
+  "cias-aereas": ["nome"],
 };
 
 const CHAVES_PATCH: Record<ListaCadastro, readonly string[]> = {
   fornecedores: ["nome", "pais", "prazoAlertaDias", "semAlerta", "ativo"],
   despachantes: ["nome", "contatoNome", "telefone", "email", "ativo"],
-  temperaturas: ["nome", "ativo"],
+  "cias-aereas": ["nome", "ativo"],
 };
 
 /** Corpo de criação de um item da lista; o item nasce ativo. */

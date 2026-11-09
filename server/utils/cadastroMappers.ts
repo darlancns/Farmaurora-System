@@ -5,7 +5,7 @@ import type {
   ListaCadastro,
   NovoPorLista,
   PatchPorLista,
-  Temperatura,
+  CiaAerea,
 } from "../../shared/types/Cadastro";
 import { chaveCadastro } from "../../shared/utils/cadastroNome";
 
@@ -35,12 +35,12 @@ export interface DespachanteRow extends LinhaBase {
   email: string | null;
 }
 
-export type TemperaturaRow = LinhaBase;
+export type CiaAereaRow = LinhaBase;
 
 export interface CadastroRowPorLista {
   fornecedores: FornecedorRow;
   despachantes: DespachanteRow;
-  temperaturas: TemperaturaRow;
+  "cias-aereas": CiaAereaRow;
 }
 
 function textoOuNulo(v: string | undefined): string | null {
@@ -78,14 +78,14 @@ export function montarDespachante(row: DespachanteRow): Despachante {
   };
 }
 
-export function montarTemperatura(row: TemperaturaRow): Temperatura {
+export function montarCiaAerea(row: CiaAereaRow): CiaAerea {
   return base(row);
 }
 
 const MONTADORES: { [L in ListaCadastro]: (row: CadastroRowPorLista[L]) => CadastroPorLista[L] } = {
   fornecedores: montarFornecedor,
   despachantes: montarDespachante,
-  temperaturas: montarTemperatura,
+  "cias-aereas": montarCiaAerea,
 };
 
 export function montarCadastro<L extends ListaCadastro>(lista: L, row: CadastroRowPorLista[L]): CadastroPorLista[L] {

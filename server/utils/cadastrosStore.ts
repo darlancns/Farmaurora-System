@@ -13,7 +13,7 @@ import { erro, randomId } from "./storeKit";
 
 /**
  * Persistência dos Cadastros (Configurações → Cadastros) — tabelas `cadastro_fornecedores`, `cadastro_despachantes` e
- * `cadastro_temperaturas` (supabase/migrations/20261109200000_cadastros.sql). Mesmo molde de dirStore.ts: cliente admin
+ * `cadastro_cias_aereas` (supabase/migrations/20261109200000_cadastros.sql). Mesmo molde de dirStore.ts: cliente admin
  * do servidor, criar e alterar são cada um UM comando numa única linha.
  *
  * Regras:
@@ -27,7 +27,7 @@ import { erro, randomId } from "./storeKit";
 const ID_PREFIXO: Record<ListaCadastro, string> = {
   fornecedores: "forn_",
   despachantes: "desp_",
-  temperaturas: "temp_",
+  "cias-aereas": "cia_",
 };
 
 const CODIGO_UNICO_VIOLADO = "23505";

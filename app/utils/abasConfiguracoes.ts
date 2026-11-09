@@ -7,7 +7,7 @@ import { canReadSection, canWriteSection, type Role } from "#shared/utils/rbac";
 // - "contas": gestão das contas da equipe. Só quem LÊ a seção "admin" (hoje só o administrador); o ContasTab ainda
 //   confere canWrite("admin") para os botões de gestão.
 // - "minha-conta": nome, e-mail e senha da PRÓPRIA conta — todos os cargos.
-// - "cadastros": listas de Fornecedor, Despachante e Temperatura. Aba SÓ do administrador (quem ESCREVE a seção
+// - "cadastros": listas de Fornecedor, Despachante e Cia aérea. Aba SÓ do administrador (quem ESCREVE a seção
 //   "config"): o sócio não vê Cadastros (nem Contas). As listas em si são lidas por todos os cargos na API; esta aba
 //   é a tela de edição.
 //

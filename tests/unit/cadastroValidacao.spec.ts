@@ -99,11 +99,11 @@ describe("validarNovoCadastro — despachantes (só empresa; contato, telefone e
   });
 });
 
-describe("validarNovoCadastro — temperaturas", () => {
+describe("validarNovoCadastro — cias aéreas", () => {
   it("só o nome", () => {
-    expect(validarNovoCadastro("temperaturas", { nome: "2°C a 8°C" })).toEqual({ ok: true, valor: { nome: "2°C a 8°C" } });
-    expect(validarNovoCadastro("temperaturas", { nome: "2°C a 8°C", pais: "x" }).ok).toBe(false);
-    expect(validarNovoCadastro("temperaturas", { nome: "Outro" }).ok).toBe(false);
+    expect(validarNovoCadastro("cias-aereas", { nome: "2°C a 8°C" })).toEqual({ ok: true, valor: { nome: "2°C a 8°C" } });
+    expect(validarNovoCadastro("cias-aereas", { nome: "2°C a 8°C", pais: "x" }).ok).toBe(false);
+    expect(validarNovoCadastro("cias-aereas", { nome: "Outro" }).ok).toBe(false);
   });
 });
 
@@ -137,15 +137,15 @@ describe("validarPatchCadastro", () => {
   });
 
   it("aceita `nome` (aparado) só para o servidor comparar e recusar a troca", () => {
-    expect(validarPatchCadastro("temperaturas", { nome: "  Ambiente " })).toEqual({ ok: true, valor: { nome: "Ambiente" } });
+    expect(validarPatchCadastro("cias-aereas", { nome: "  Ambiente " })).toEqual({ ok: true, valor: { nome: "Ambiente" } });
   });
 
   it("recusa corpo vazio, campo desconhecido, campo de outra lista e ativo não booleano", () => {
-    expect(validarPatchCadastro("temperaturas", {}).ok).toBe(false);
-    expect(validarPatchCadastro("temperaturas", { pais: "x" }).ok).toBe(false);
+    expect(validarPatchCadastro("cias-aereas", {}).ok).toBe(false);
+    expect(validarPatchCadastro("cias-aereas", { pais: "x" }).ok).toBe(false);
     expect(validarPatchCadastro("despachantes", { prazoAlertaDias: 3 }).ok).toBe(false);
-    expect(validarPatchCadastro("temperaturas", { ativo: "sim" }).ok).toBe(false);
-    expect(validarPatchCadastro("temperaturas", "x").ok).toBe(false);
+    expect(validarPatchCadastro("cias-aereas", { ativo: "sim" }).ok).toBe(false);
+    expect(validarPatchCadastro("cias-aereas", "x").ok).toBe(false);
   });
 });
 

@@ -6,7 +6,7 @@ import { colunasDaLista } from "../../utils/cadastroColunas";
 import { listaTemEdicao } from "../../utils/cadastroForm";
 import ActionsMenu, { type ActionsMenuItem } from "../ActionsMenu.vue";
 
-// Lista de UM tipo de Cadastro: tabela no desktop e cards no mobile (molde do ContasTab.vue — dois renders alternados
+// Lista de UM tipo de Cadastro (dentro do bloco/card da lista, em CadastrosTab.vue): tabela no desktop e cards no mobile (molde do ContasTab.vue — dois renders alternados
 // só por CSS, com ids diferentes em cada um). Só apresenta: abrir modal, desativar e reativar são eventos do pai.
 // Itens inativos aparecem depois dos ativos, esmaecidos e com "(inativo)" ao lado do nome.
 
@@ -47,7 +47,7 @@ function itensDoMenu(item: Cadastro): ActionsMenuItem[] {
     @container: a partir de 700px de largura do próprio painel a tabela aparece; abaixo, a lista de cards (cabe em
     360px sem rolagem horizontal). Mesmo esquema do ContasTab.vue.
   -->
-  <div :id="`cadastro-lista-${lista}`" class="@container overflow-hidden rounded-lg border border-hairline bg-paper-raised">
+  <div :id="`cadastro-lista-${lista}`" class="@container overflow-hidden border-t border-hairline">
     <table class="hidden w-full text-left text-[13px] @[700px]:table">
       <thead class="border-b border-hairline bg-paper text-[11px] tracking-wide text-ink-soft uppercase">
         <tr>
