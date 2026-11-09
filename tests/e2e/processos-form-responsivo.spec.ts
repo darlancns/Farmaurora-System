@@ -510,6 +510,7 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
           expect(numero.x).toBeGreaterThan(direita(remessa));
           expect(numero.width, "Nº do processo ocupa o resto da linha").toBeCloseTo(util - larguraRemessa - 10, 0);
           expect(direita(numero), "Nº do processo vai até a borda útil").toBeCloseTo(paciente.x + util, 0);
+          expect(direita(numero), "Nº do processo termina onde termina o Nº Ordem").toBeCloseTo(direita(ordemPo), 0);
           // A Pasta comporta o MAIOR valor da máscara ("2026 - 234" = 10 caracteres, mono 16px = 96px) sem cortar.
           await campo(page, "pf-pasta").fill("2026234");
           expect(await campo(page, "pf-pasta").inputValue()).toBe("2026 - 234");

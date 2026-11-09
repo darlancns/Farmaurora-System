@@ -245,9 +245,9 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
           const larguraPasta = 112;
           const larguraPo = 168;
           const larguraPaciente = util - larguraPasta - larguraPo - 2 * 10; // 378px
-          // Linha 2: Nº Remessa (5rem = 80px) | Nº do processo (o resto, no máximo 22rem = 352px).
+          // Linha 2: Nº Remessa (5rem = 80px) | Nº do processo (TODO o resto da linha, sem teto: 678 − 80 − 10 = 588px).
           const larguraRemessa = 80;
-          const larguraNumeroProcesso = Math.min(22 * 16, util - larguraRemessa - 10);
+          const larguraNumeroProcesso = util - larguraRemessa - 10;
           // Dentro de um fieldset: borda 1+1 e padding 12+12.
           const interno = util - 2 - 24;
           const colEnvio = (interno - 2 * 10) / 3;
@@ -277,7 +277,10 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
           expect(Math.abs(remessa.x - paciente.x), "Nº Remessa na borda esquerda").toBeLessThanOrEqual(1);
           expect(remessa.width, "Nº Remessa estreito").toBeCloseTo(larguraRemessa, 0);
           expect(numeroProcesso.x).toBeGreaterThan(direita(remessa));
-          expect(numeroProcesso.width, "Nº do processo: o resto da linha, com teto de 22rem").toBeCloseTo(larguraNumeroProcesso, 0);
+          expect(numeroProcesso.width, "Nº do processo: todo o resto da linha (sem teto)").toBeCloseTo(larguraNumeroProcesso, 0);
+          // O fim do Nº do processo coincide com o fim do Nº Ordem (a mesma borda direita da linha 1) e com a borda útil.
+          expect(direita(numeroProcesso), "Nº do processo termina onde termina o Nº Ordem").toBeCloseTo(direita(ordemPo), 0);
+          expect(direita(numeroProcesso), "Nº do processo vai até a borda útil").toBeCloseTo(paciente.x + util, 0);
           // 2 dígitos cabem sem rolar (o texto vem do `fill`, que passa pelo filtro do campo).
           await page.locator("#pf-numero-remessa").fill("12");
           expect(

@@ -213,8 +213,8 @@ function handleSubmit(): void {
           </div>
 
           <!-- Linha 2: Nº Remessa (estreito: 5rem = 80px, cabem 2 dígitos + as setas dentro do campo; mais dígitos rolam dentro
-               do input) / Nº do processo (o resto da linha; no desktop no máximo 22rem). -->
-          <div class="grid grid-cols-[5rem_minmax(0,1fr)] gap-x-2.5 lg:grid-cols-[5rem_minmax(0,22rem)]">
+               do input) / Nº do processo (TODO o resto da linha, sem teto de largura: termina na mesma borda direita da linha 1). -->
+          <div class="grid grid-cols-[5rem_minmax(0,1fr)] gap-x-2.5">
             <div>
               <label for="pf-numero-remessa" :class="LABEL_CLASS">Nº Remessa</label>
               <!-- Input de quantidade (−, campo, +): ver ProcessoRemessaStepper.vue. Mínimo 1; vazio/0 vira 1. -->

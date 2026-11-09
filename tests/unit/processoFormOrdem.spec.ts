@@ -125,6 +125,22 @@ describe("Formulário de processo — ordem dos campos no DOM", () => {
     expect(linha2.compareDocumentPosition(el.querySelector("#pf-medicamento-nome-0")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it("linha 2: Nº Remessa com 5rem e Nº do processo com TODO o resto da linha (sem teto de largura em nenhuma faixa)", async () => {
+    const el = abrir();
+    await nextTick();
+    const linha2 = el.querySelector("#pf-numero-remessa")!.closest("#processo-form > div > div")!;
+    const classes = (linha2.getAttribute("class") ?? "").split(/\s+/);
+    // Uma única definição de colunas (vale em todas as larguras): 5rem | o resto. Nenhuma variante com teto (minmax(0,Nrem)).
+    expect(classes.filter((c) => c.includes("grid-cols-"))).toEqual(["grid-cols-[5rem_minmax(0,1fr)]"]);
+    expect(linha2.getAttribute("class")).not.toMatch(/minmax\(0,\d+(\.\d+)?(rem|px)\)/);
+    // O Nº do processo é a 2ª coluna: nenhum max-w/w-* no próprio campo nem no contêiner dele.
+    const campo = linha2.querySelector("#pf-numero-processo")!;
+    for (const n of [campo, campo.parentElement!]) {
+      const cls = (n.getAttribute("class") ?? "").split(/\s+/);
+      expect(cls.filter((c) => /(^|:)(max-w|w)-/.test(c) && c !== "w-full"), n.tagName).toEqual([]);
+    }
+  });
+
   it("o rótulo 'Pendências' vem logo antes do botão de adicionar, depois das datas, e o rodapé fecha o formulário", async () => {
     const el = abrir();
     await nextTick();
