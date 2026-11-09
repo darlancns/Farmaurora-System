@@ -28,6 +28,7 @@ export type CodigoAvisoDir =
   | "BOOLEANO_VAZIO"
   | "PLACEHOLDER_TRACOS"
   | "DATA_VAZIA"
+  | "DATA_TRACOS"
   | "RESPONSAVEL_VAZIO"
   | "RESPONSAVEL_DESCONHECIDO"
   | "VENDEDOR_LITERAL"
@@ -236,6 +237,15 @@ export function ehPlaceholderTracos(valor: string): boolean {
   return v !== "" && /^[-–—_\s]+$/.test(v);
 }
 
+/**
+ * Célula de DATA só com traços ("-----"): 2 ou mais "-", com espaços em volta permitidos. Vale vazio (com aviso).
+ * É mais estrito que ehPlaceholderTracos de propósito: "-" sozinho, "10/-/2026" ou traço misturado com outro texto
+ * continuam sendo erro de data.
+ */
+export function ehDataSoTracos(valor: string): boolean {
+  return /^\s*-{2,}\s*$/.test(valor);
+}
+
 function doisDigitos(n: number): string {
   return String(n).padStart(2, "0");
 }
@@ -413,6 +423,10 @@ function parseLinha(
   };
 
   const dataPlanilha = (chave: ChaveColuna): string => {
+    if (ehDataSoTracos(bruto(chave))) {
+      aviso("DATA_TRACOS", `${COLUNAS[chave]}: data com traços tratada como vazia`);
+      return "";
+    }
     if (bruto(chave).trim() === "") {
       aviso("DATA_VAZIA", `${COLUNAS[chave]}: sem data`);
       return "";
@@ -449,7 +463,9 @@ function parseLinha(
   const dataEmissao = dataPlanilha("emissao");
   const dataCobrancaFornecedores = dataPlanilha("cobranca");
   let dataPagamento = "";
-  if (bruto("pagamento").trim() !== "") {
+  if (ehDataSoTracos(bruto("pagamento"))) {
+    aviso("DATA_TRACOS", `${COLUNAS.pagamento}: data com traços tratada como vazia`);
+  } else if (bruto("pagamento").trim() !== "") {
     const r = parseDataPagamento(bruto("pagamento"));
     if (r.ok) dataPagamento = r.valor;
     else erros.push(`${COLUNAS.pagamento}: ${r.erro}`);
