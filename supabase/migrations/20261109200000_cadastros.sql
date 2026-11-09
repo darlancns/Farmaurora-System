@@ -15,7 +15,8 @@
 --     exclusão nestas tabelas (ver o fim do arquivo);
 --   * "Outro" é o sentinela dos selects das telas, não um item da lista: o servidor recusa esse nome;
 --   * fornecedor: o prazo do alerta é decidido de propósito — ou um número de dias (1 a 365) ou "sem alerta" marcado.
---     O CHECK abaixo impede salvar sem decidir. País é opcional.
+--     O CHECK abaixo impede salvar sem decidir (o "is not null" é necessário: um CHECK que dá NULL conta como aprovado,
+--     e "NULL between 1 and 365" dá NULL). País é opcional.
 --
 -- Acesso: o app fala com estas tabelas SEMPRE pelo servidor, com a service role (RBAC em shared/utils/rbac.ts, seção
 -- "config": todos os cargos leem, só o administrador escreve). RLS ligado e SEM policies: anon/authenticated não
@@ -35,7 +36,7 @@ create table if not exists public.cadastro_fornecedores (
   constraint cadastro_fornecedores_nome_valido check (btrim(nome) <> '' and nome_chave <> ''),
   constraint cadastro_fornecedores_alerta_decidido check (
     (sem_alerta and prazo_alerta_dias is null)
-    or (not sem_alerta and prazo_alerta_dias between 1 and 365)
+    or (not sem_alerta and prazo_alerta_dias is not null and prazo_alerta_dias between 1 and 365)
   )
 );
 

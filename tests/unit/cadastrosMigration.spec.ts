@@ -53,10 +53,19 @@ describe("migration dos Cadastros", () => {
     }
   });
 
-  it("CHECK do prazo: sem alerta e sem prazo, OU com alerta e prazo de 1 a 365", () => {
+  it("CHECK do prazo: sem alerta e sem prazo, OU com alerta, prazo preenchido e de 1 a 365", () => {
     expect(sql).toContain(
-      "check ( (sem_alerta and prazo_alerta_dias is null) or (not sem_alerta and prazo_alerta_dias between 1 and 365) )",
+      "check ( (sem_alerta and prazo_alerta_dias is null) or (not sem_alerta and prazo_alerta_dias is not null and prazo_alerta_dias between 1 and 365) )",
     );
+  });
+
+  it('o CHECK tem "prazo_alerta_dias is not null": sem isso, sem_alerta = false com prazo NULL passaria', () => {
+    // Por quê: um CHECK só reprova quando a expressão dá FALSE; se der NULL, a linha é aprovada. Com prazo NULL,
+    // "NULL between 1 and 365" dá NULL, então "not sem_alerta and NULL" dá NULL e o CHECK deixaria passar um
+    // fornecedor sem alerta marcado e sem prazo — justamente o que ele existe para impedir.
+    const check = sql.slice(sql.indexOf("cadastro_fornecedores_alerta_decidido"), sql.indexOf(");", sql.indexOf("cadastro_fornecedores_alerta_decidido")));
+    expect(check).toContain("prazo_alerta_dias is not null");
+    expect(check).toMatch(/not sem_alerta and prazo_alerta_dias is not null and prazo_alerta_dias between 1 and 365/);
   });
 
   it("colunas do fornecedor, do despachante e da temperatura", () => {
