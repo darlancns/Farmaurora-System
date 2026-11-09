@@ -5,8 +5,8 @@ import type { NavLink } from "../composables/useNavLinks";
 import NavIcon from "./NavIcon.vue";
 
 // Sheet do botão "Mais" do BottomNav — só aparece quando um cargo tem mais de
-// 5 itens de navegação (ver splitBottomNavLinks em utils/bottomNavLinks.ts);
-// nenhum cargo atual chega lá, mas o mecanismo precisa existir.
+// 5 itens de navegação (ver splitBottomNavLinks em utils/bottomNavLinks.ts) —
+// hoje só o administrador (com a DIR, são 6).
 defineProps<{ links: NavLink[] }>();
 
 const emit = defineEmits<{ close: []; navigate: [] }>();

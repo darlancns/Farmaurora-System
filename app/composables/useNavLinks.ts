@@ -13,10 +13,13 @@ export interface NavLink {
 // Ordem = prioridade de exibição (histórica do SidebarNav) — é também a ordem
 // que o BottomNav usa pra decidir quais itens ficam fixos quando sobra pro
 // "Mais" (ver splitBottomNavLinks em utils/bottomNavLinks.ts).
-const MAIN_LINKS: readonly NavLink[] = [
+export const MAIN_LINKS: readonly NavLink[] = [
   { label: "Follow-Up", to: "/processos", icon: "list", section: "processos" },
   { label: "Recados", to: "/recados", icon: "chat", section: "recados" },
   { label: "Pagamentos", to: "/pagamentos", icon: "cash", section: "pagamentos" },
+  // DIR só pra operacional e administrador (seção "dir"); entra ANTES de Prestações pra ficar
+  // entre os 4 itens fixos do BottomNav do administrador (Prestações + Configurações vão pro "Mais").
+  { label: "DIR", to: "/dir", icon: "document-check", section: "dir" },
   { label: "Prestações", to: "/prestacao", icon: "clipboard", section: "patients" },
 ];
 

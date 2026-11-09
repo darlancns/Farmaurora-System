@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { splitBottomNavLinks } from "../../app/utils/bottomNavLinks";
 
-// Hoje nenhum cargo tem mais de 5 itens de navegação (ver useNavLinks.ts +
-// rbac.ts: o máximo é 5, para socio/administrador), então o caminho de
-// overflow abaixo não é exercitado em produção ainda — mas o mecanismo
-// precisa existir e estar coberto pra quando um novo item de menu aparecer.
+// Com a DIR (ver useNavLinks.ts + rbac.ts) o administrador passa a ter 6 itens de
+// navegação, então o "Mais" já é exercitado em produção para esse cargo; os links
+// reais por cargo ficam em tests/unit/navLinksDir.spec.ts. Aqui o mecanismo
+// genérico, com itens quaisquer.
 describe("splitBottomNavLinks", () => {
   it("com 5 itens ou menos, mostra todos como fixos e não gera overflow", () => {
     const links = ["a", "b", "c", "d", "e"];
