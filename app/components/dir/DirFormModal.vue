@@ -334,7 +334,8 @@ function confirmarExclusao(): void {
                 <label for="df-companhia-aerea" :class="LABEL_CLASS">Cia aérea</label>
                 <AppSelect id="df-companhia-aerea" v-model="form.companhiaAerea" :options="ciaAereaOptions" />
               </div>
-              <div class="col-span-2">
+              <!-- Cia aérea e AWB lado a lado (meia largura cada) a partir de sm; abaixo de sm, um embaixo do outro em largura total. -->
+              <div class="col-span-2 sm:col-span-1">
                 <label for="df-awb" :class="LABEL_CLASS">AWB</label>
                 <input
                   id="df-awb"

@@ -171,6 +171,86 @@ test.describe("Responsividade de /dir", () => {
     expect(Math.round(modal.height)).toBe(667);
     await expect(page.locator("#btn-save-dir")).toBeVisible();
   });
+
+  // Logística: "Cia aérea" e "AWB" lado a lado (meia largura cada) a partir de sm (640); abaixo de sm, um embaixo do outro
+  // em largura total. A conta da sobra (tests/unit/dirFormLogisticaLayout.spec.ts) diz que o AWB cabe em meia largura; aqui
+  // a medida no navegador: o texto mais largo (AWB de FedEx e o texto bruto antigo) não corta e o placeholder tem sobra.
+  const LARGURAS_LOGISTICA = [
+    { largura: 360, lado: false },
+    { largura: 639, lado: false },
+    { largura: 640, lado: true },
+    { largura: 768, lado: true },
+    { largura: 1023, lado: true },
+    { largura: 1024, lado: true },
+    { largura: 1280, lado: true },
+  ];
+
+  test("formulário: Cia aérea e AWB lado a lado a partir de sm, um embaixo do outro abaixo; AWB sem cortar", async ({ page }) => {
+    await abrirDir(page, { width: 1280, height: 900 });
+
+    for (const { largura, lado } of LARGURAS_LOGISTICA) {
+      await page.setViewportSize({ width: largura, height: 900 });
+      await page.locator(largura >= 1024 ? "#btn-novo-dir" : "#fab-novo-dir").click();
+      await expect(page.locator("#dir-form")).toBeVisible();
+
+      const caixa = async (seletor: string) => (await page.locator(seletor).boundingBox())!;
+      const grade = await caixa("#dir-secao-logistica .grid");
+      const rotuloCia = await caixa("label[for='df-companhia-aerea']");
+      const rotuloAwb = await caixa("label[for='df-awb']");
+      const cia = await caixa("#df-companhia-aerea");
+      const awb = await caixa("#df-awb");
+      const quando = `a ${largura}px`;
+
+      if (lado) {
+        const meia = (grade.width - 10) / 2; // 2 colunas, gap de 10px
+        expect(Math.abs(rotuloCia.y - rotuloAwb.y), `mesma linha ${quando}`).toBeLessThanOrEqual(1);
+        expect(cia.x, `Cia antes do AWB ${quando}`).toBeLessThan(awb.x);
+        expect(Math.abs(cia.width - meia), `Cia com meia largura ${quando}`).toBeLessThanOrEqual(1);
+        expect(Math.abs(awb.width - meia), `AWB com meia largura ${quando}`).toBeLessThanOrEqual(1);
+        expect(Math.abs(awb.x + awb.width - (grade.x + grade.width)), `AWB termina na borda da seção ${quando}`).toBeLessThanOrEqual(1);
+      } else {
+        expect(awb.y, `AWB embaixo da Cia ${quando}`).toBeGreaterThan(cia.y + cia.height - 1);
+        expect(Math.abs(cia.width - grade.width), `Cia em largura total ${quando}`).toBeLessThanOrEqual(1);
+        expect(Math.abs(awb.width - grade.width), `AWB em largura total ${quando}`).toBeLessThanOrEqual(1);
+      }
+
+      // A Origem não saiu do lugar nem da meia largura de sempre (a partir de sm).
+      await expect(page.locator("#df-origem")).toBeVisible();
+
+      // O texto mais largo cabe: sem rolagem do texto e com sobra (medida com a fonte real do campo).
+      for (const texto of ["8789 1818 0440", "Lufthansa: 020-01045494"]) {
+        await page.locator("#df-awb").fill(texto);
+        const m = await page.locator("#df-awb").evaluate((el: HTMLInputElement) => {
+          const cs = getComputedStyle(el);
+          const ctx = document.createElement("canvas").getContext("2d")!;
+          ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+          const moldura =
+            parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth);
+          return {
+            cortado: el.scrollWidth > el.clientWidth + 0.5,
+            sobra: el.getBoundingClientRect().width - (ctx.measureText(el.value).width + moldura),
+          };
+        });
+        expect(m.cortado, `"${texto}" cortado ${quando}`).toBe(false);
+        expect(m.sobra, `sobra de "${texto}" ${quando}`).toBeGreaterThan(30);
+      }
+      await page.locator("#df-awb").fill("");
+      const folga = await page.locator("#df-awb").evaluate((el: HTMLInputElement) => {
+        const cs = getComputedStyle(el);
+        const ctx = document.createElement("canvas").getContext("2d")!;
+        ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+        const moldura =
+          parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth);
+        return el.getBoundingClientRect().width - (ctx.measureText(el.placeholder).width + moldura);
+      });
+      expect(folga, `sobra do placeholder ${quando}`).toBeGreaterThan(30);
+
+      expect(await hasHorizontalOverflow(page), `sem rolagem horizontal ${quando}`).toBe(false);
+
+      await page.keyboard.press("Escape");
+      await expect(page.locator("#dir-form")).toHaveCount(0);
+    }
+  });
 });
 
 test.describe("BottomNav com o item DIR", () => {
