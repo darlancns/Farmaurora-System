@@ -51,7 +51,6 @@ const VALIDADORES: Record<keyof NewDirDTO, (v: unknown) => boolean> = {
   medicamento: textoComTamanho,
   temperatura: textoComTamanho,
   fornecedor: textoComTamanho,
-  origem: textoComTamanho,
   envio: textoComTamanho,
   // Texto livre (como as outras listas): o valor fora da lista de cias (dado antigo) é tolerado. O conteúdo do AWB não é validado.
   companhiaAerea: textoComTamanho,
@@ -69,6 +68,11 @@ const VALIDADORES: Record<keyof NewDirDTO, (v: unknown) => boolean> = {
 
 const CHAVES = Object.keys(VALIDADORES) as Array<keyof NewDirDTO>;
 
+// Chave que o formulário antigo ainda manda (campo removido da DIR): é aceita e IGNORADA — não é validada nem gravada
+// (colunasDeDir não a conhece) —, para uma aba aberta antes da publicação continuar salvando. Qualquer outra chave
+// desconhecida segue recusada.
+const CHAVES_LEGADAS_IGNORADAS: readonly string[] = ["origem"];
+
 // Campos que o create pode omitir (aba antiga do navegador): ausente vale como vazio; se vier, é validado.
 const CHAVES_OPCIONAIS_NO_CREATE: ReadonlyArray<keyof NewDirDTO> = ["companhiaAerea"];
 
@@ -80,7 +84,7 @@ function objeto(body: unknown): Record<string, unknown> | null {
 export function isValidDirPayload(body: unknown): body is NewDirDTO {
   const b = objeto(body);
   if (!b) return false;
-  if (Object.keys(b).some((k) => !CHAVES.includes(k as keyof NewDirDTO))) return false;
+  if (Object.keys(b).some((k) => !CHAVES.includes(k as keyof NewDirDTO) && !CHAVES_LEGADAS_IGNORADAS.includes(k))) return false;
   return CHAVES.every((k) => (k in b ? VALIDADORES[k](b[k]) : CHAVES_OPCIONAIS_NO_CREATE.includes(k)));
 }
 
@@ -90,7 +94,10 @@ export function isValidDirPatch(body: unknown): body is DirPatchDTO {
   if (!b) return false;
   const chaves = Object.keys(b);
   if (chaves.length === 0) return false;
-  return chaves.every((k) => CHAVES.includes(k as keyof NewDirDTO) && VALIDADORES[k as keyof NewDirDTO](b[k]));
+  return chaves.every(
+    (k) =>
+      CHAVES_LEGADAS_IGNORADAS.includes(k) || (CHAVES.includes(k as keyof NewDirDTO) && VALIDADORES[k as keyof NewDirDTO](b[k])),
+  );
 }
 
 // ── Regra: não se marca em "fechamento restante" um PO com a operação encerrada ──────────────

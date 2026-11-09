@@ -16,7 +16,6 @@ export function novoDirDTO(sobrescrever: Partial<NewDirDTO> = {}): NewDirDTO {
     medicamento: "MEDICAMENTO X",
     temperatura: "2°C a 8°C",
     fornecedor: "Speciality",
-    origem: "Speciality",
     envio: "Air Cargo",
     companhiaAerea: "",
     awb: "Lufthansa: 020-00000000",

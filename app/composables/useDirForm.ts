@@ -5,7 +5,6 @@ import {
   ENVIOS_DIR,
   FORNECEDORES_DIR,
   OBSERVACOES_DIR,
-  ORIGENS_DIR,
   RECEITAS_DIR,
   RESPONSAVEIS_DIR,
   TEMPERATURAS_DIR,
@@ -32,7 +31,6 @@ export type CampoComOutro =
   | "vendedor"
   | "responsavel"
   | "fornecedor"
-  | "origem"
   | "despachante"
   | "banco"
   | "envio"
@@ -44,7 +42,6 @@ const LISTAS: Record<CampoComOutro, readonly string[]> = {
   vendedor: VENDEDORES_DIR,
   responsavel: RESPONSAVEIS_DIR,
   fornecedor: FORNECEDORES_DIR,
-  origem: ORIGENS_DIR,
   despachante: DESPACHANTES_DIR,
   banco: BANCOS_DIR,
   envio: ENVIOS_DIR,
@@ -196,7 +193,6 @@ export function useDirForm(editando: () => Dir | null | undefined) {
       vendedor,
       responsavel: outros.responsavel.build(),
       fornecedor: outros.fornecedor.build(),
-      origem: outros.origem.build(),
       despachante: outros.despachante.build(),
       banco: outros.banco.build(),
       envio: outros.envio.build(),

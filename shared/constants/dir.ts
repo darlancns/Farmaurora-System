@@ -91,9 +91,6 @@ export const FORNECEDORES_DIR: string[] = [
   "Venecza",
 ];
 
-// A origem usa os mesmos nomes da planilha (em 263 das linhas é igual ao fornecedor).
-export const ORIGENS_DIR: string[] = FORNECEDORES_DIR;
-
 export const DESPACHANTES_DIR: string[] = ["BRUNO / NILTON", "COURIER I N/A", "SOUTH AMERICA", "STAR CUSTOMS"];
 
 // Inclui as situações da cotação (Pendente, Cancelado, Não Cotado), que a planilha põe no mesmo campo.

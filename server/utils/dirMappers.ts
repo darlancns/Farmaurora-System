@@ -21,7 +21,6 @@ export interface DirRow {
   medicamento: string | null;
   temperatura: string | null;
   fornecedor: string | null;
-  origem: string | null;
   envio: string | null;
   companhia_aerea: string | null;
   awb: string | null;
@@ -54,7 +53,6 @@ type ChaveTextoOpcional =
   | "medicamento"
   | "temperatura"
   | "fornecedor"
-  | "origem"
   | "envio"
   | "companhiaAerea"
   | "awb"
@@ -73,7 +71,6 @@ export const CAMPOS_TEXTO_OPCIONAL: ReadonlyArray<readonly [ChaveTextoOpcional, 
   ["medicamento", "medicamento"],
   ["temperatura", "temperatura"],
   ["fornecedor", "fornecedor"],
-  ["origem", "origem"],
   ["envio", "envio"],
   ["companhiaAerea", "companhia_aerea"],
   ["awb", "awb"],
@@ -167,7 +164,6 @@ export function montarDir(row: DirRow): Dir {
     medicamento: row.medicamento ?? "",
     temperatura: row.temperatura ?? "",
     fornecedor: row.fornecedor ?? "",
-    origem: row.origem ?? "",
     envio: row.envio ?? "",
     companhiaAerea: row.companhia_aerea ?? "",
     awb: row.awb ?? "",

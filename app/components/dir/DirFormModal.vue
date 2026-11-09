@@ -10,7 +10,6 @@ import {
   ENVIO_DIR_OPTIONS,
   FORNECEDOR_DIR_OPTIONS,
   OBSERVACAO_DIR_OPTIONS,
-  ORIGEM_DIR_OPTIONS,
   RECEITA_DIR_OPTIONS,
   RESPONSAVEL_DIR_OPTIONS,
   STATUS_DIR_OPTIONS,
@@ -63,6 +62,8 @@ interface CampoLista {
   campo: CampoComOutro;
   rotulo: string;
   opcoes: AppSelectOption<string>[];
+  // Ocupa a linha inteira em qualquer largura (sem isso: linha inteira abaixo de sm e meia largura a partir de sm).
+  larguraTotal?: boolean;
 }
 
 const CAMPOS_IDENTIFICACAO: CampoLista[] = [
@@ -72,8 +73,8 @@ const CAMPOS_IDENTIFICACAO: CampoLista[] = [
   { campo: "temperatura", rotulo: "Temperatura", opcoes: TEMPERATURA_DIR_OPTIONS },
 ];
 const CAMPOS_LOGISTICA: CampoLista[] = [
-  { campo: "fornecedor", rotulo: "Fornecedor", opcoes: FORNECEDOR_DIR_OPTIONS },
-  { campo: "origem", rotulo: "Origem", opcoes: ORIGEM_DIR_OPTIONS },
+  // O Fornecedor ocupa a linha inteira (nenhum campo faz par com ele): Envio | Despachante e Cia aérea | AWB seguem em pares.
+  { campo: "fornecedor", rotulo: "Fornecedor", opcoes: FORNECEDOR_DIR_OPTIONS, larguraTotal: true },
   { campo: "envio", rotulo: "Envio", opcoes: ENVIO_DIR_OPTIONS },
   { campo: "despachante", rotulo: "Despachante", opcoes: DESPACHANTE_DIR_OPTIONS },
 ];
@@ -315,7 +316,7 @@ function confirmarExclusao(): void {
             <legend class="px-1 text-[11px] font-semibold text-ink-soft uppercase">Logística</legend>
             <div class="grid grid-cols-2 gap-2.5">
               <template v-for="c in CAMPOS_LOGISTICA" :key="c.campo">
-                <div class="col-span-2 sm:col-span-1" :class="SELECT_CAMPO_CLASS">
+                <div :class="[c.larguraTotal ? 'col-span-2' : 'col-span-2 sm:col-span-1', SELECT_CAMPO_CLASS]">
                   <label :for="`df-${c.campo}`" :class="LABEL_CLASS">{{ c.rotulo }}</label>
                   <AppSelect :id="`df-${c.campo}`" v-model="outros[c.campo].state.select" :options="c.opcoes" />
                   <input

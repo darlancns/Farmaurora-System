@@ -6,7 +6,6 @@ import {
   ENVIOS_DIR,
   FORNECEDORES_DIR,
   OBSERVACOES_DIR,
-  ORIGENS_DIR,
   OUTRO_DIR,
   RECEITAS_DIR,
   RESPONSAVEIS_DIR,
@@ -58,7 +57,6 @@ function opcoesComOutro(lista: readonly string[]): AppSelectOption<string>[] {
 export const VENDEDOR_DIR_OPTIONS = opcoesComOutro(VENDEDORES_DIR);
 export const RESPONSAVEL_DIR_OPTIONS = opcoesComOutro(RESPONSAVEIS_DIR);
 export const FORNECEDOR_DIR_OPTIONS = opcoesComOutro(FORNECEDORES_DIR);
-export const ORIGEM_DIR_OPTIONS = opcoesComOutro(ORIGENS_DIR);
 export const DESPACHANTE_DIR_OPTIONS = opcoesComOutro(DESPACHANTES_DIR);
 export const BANCO_DIR_OPTIONS = opcoesComOutro(BANCOS_DIR);
 export const ENVIO_DIR_OPTIONS = opcoesComOutro(ENVIOS_DIR);

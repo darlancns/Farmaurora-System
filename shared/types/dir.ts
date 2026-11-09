@@ -33,7 +33,6 @@ export interface Dir extends ChecklistDir {
   medicamento: string;
   temperatura: string;
   fornecedor: string;
-  origem: string;
   envio: string;
   // Companhia aérea (nome da lista de shared/constants/processos.ts) e AWB (só o número). As linhas antigas ainda têm a cia
   // dentro do AWB ("Lufthansa: 020-46388355") e companhiaAerea vazia, até o passo de dados que as separa.

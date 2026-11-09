@@ -32,7 +32,6 @@ const DTO = {
   medicamento: "MEDICAMENTO COM NOME BEM LONGO PARA TESTAR O TRUNCAMENTO DA COLUNA",
   temperatura: "Ambiente",
   fornecedor: "Care Pharma",
-  origem: "Tosun (China)",
   envio: "Air Cargo",
   awb: "Lufthansa: 020-00000000",
   despachante: "STAR CUSTOMS",
@@ -214,8 +213,20 @@ test.describe("Responsividade de /dir", () => {
         expect(Math.abs(awb.width - grade.width), `AWB em largura total ${quando}`).toBeLessThanOrEqual(1);
       }
 
-      // A Origem não saiu do lugar nem da meia largura de sempre (a partir de sm).
-      await expect(page.locator("#df-origem")).toBeVisible();
+      // Sem a Origem, o Fornecedor ocupa a linha inteira e Envio | Despachante seguem em pares (sem célula vazia).
+      await expect(page.locator("#df-origem")).toHaveCount(0);
+      const fornecedor = await caixa("#df-fornecedor");
+      const envio = await caixa("#df-envio");
+      const despachante = await caixa("#df-despachante");
+      expect(Math.abs(fornecedor.width - grade.width), `Fornecedor em largura total ${quando}`).toBeLessThanOrEqual(1);
+      if (lado) {
+        expect(Math.abs(envio.y - despachante.y), `Envio e Despachante na mesma linha ${quando}`).toBeLessThanOrEqual(1);
+        expect(envio.x, `Envio antes do Despachante ${quando}`).toBeLessThan(despachante.x);
+        expect(Math.abs(envio.width - (grade.width - 10) / 2), `Envio com meia largura ${quando}`).toBeLessThanOrEqual(1);
+      } else {
+        expect(despachante.y, `Despachante embaixo do Envio ${quando}`).toBeGreaterThan(envio.y + envio.height - 1);
+      }
+      expect(envio.y, `Envio abaixo do Fornecedor ${quando}`).toBeGreaterThan(fornecedor.y + fornecedor.height - 1);
 
       // O texto mais largo cabe: sem rolagem do texto e com sobra (medida com a fonte real do campo).
       for (const texto of ["8789 1818 0440", "Lufthansa: 020-01045494"]) {

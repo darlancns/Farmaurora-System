@@ -8,7 +8,8 @@ import { INPUT_MONO_CLASS, MODAL_PAD_X_CLASS } from "../../app/utils/processoFor
 import { novoDir } from "./helpers/dirFixtures";
 
 // Bloco de Logística do formulário da DIR: "Cia aérea" e "AWB" lado a lado (meia largura cada) a partir de sm; abaixo de
-// sm, um embaixo do outro em largura total. Nada mais do layout muda: a ordem (Cia antes do AWB) e a Origem ficam.
+// sm, um embaixo do outro em largura total. A Origem saiu da DIR; o Fornecedor ocupa a linha inteira para a grade não
+// ficar com buraco (ver o bloco "sem buraco"). A ordem (Cia antes do AWB) segue.
 // A conta da sobra prova que o AWB cabe em meia largura em sm, md e lg sem cortar.
 vi.mock("#shared/utils/dataBrasilia", async (importOriginal) => ({
   ...(await importOriginal<typeof import("#shared/utils/dataBrasilia")>()),
@@ -58,13 +59,31 @@ describe("Logística: estrutura", () => {
   it("a ordem não mudou: Cia aérea logo antes do AWB, os dois depois dos 4 campos de lista", () => {
     montar();
     const ids = [...grade().children].map((c) => c.querySelector("[id]")?.id);
-    expect(ids).toEqual(["df-fornecedor", "df-origem", "df-envio", "df-despachante", "df-companhia-aerea", "df-awb"]);
+    expect(ids).toEqual(["df-fornecedor", "df-envio", "df-despachante", "df-companhia-aerea", "df-awb"]);
   });
 
-  it("a Origem e os 4 campos de lista continuam como estavam (meia largura a partir de sm, como sempre)", () => {
+  it("Envio e Despachante continuam em meia largura a partir de sm; o Fornecedor ocupa a linha inteira em qualquer largura", () => {
     montar();
-    for (const id of ["df-fornecedor", "df-origem", "df-envio", "df-despachante"]) {
+    for (const id of ["df-envio", "df-despachante"]) {
       expect(classes(bloco(id)), id).toEqual(["col-span-2", "sm:col-span-1"]);
+    }
+    expect(classes(bloco("df-fornecedor"))).toEqual(["col-span-2"]);
+  });
+
+  it("sem buraco: simulando a grade de 2 colunas, nenhuma linha fica com uma célula vazia (360, 640, 768, 1024, 1280)", () => {
+    montar();
+    const blocos = [...grade().children] as HTMLElement[];
+    for (const largura of [360, 639, 640, 768, 1023, 1024, 1280]) {
+      const linhas: number[][] = [[]];
+      for (const b of blocos) {
+        const span = b.classList.contains("sm:col-span-1") && largura >= 640 ? 1 : 2;
+        const atual = linhas[linhas.length - 1]!;
+        if (atual.reduce((a, c) => a + c, 0) + span > 2) linhas.push([span]);
+        else atual.push(span);
+      }
+      for (const l of linhas) expect(l.reduce((a, c) => a + c, 0), `linha ${JSON.stringify(l)} a ${largura}px`).toBe(2);
+      // acima de sm: 3 linhas (Fornecedor | Envio e Despachante | Cia e AWB); abaixo: 5 linhas, uma por campo
+      expect(linhas, `linhas a ${largura}px`).toHaveLength(largura >= 640 ? 3 : 5);
     }
   });
 

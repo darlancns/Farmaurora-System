@@ -23,7 +23,6 @@ import {
   ENVIOS_DIR,
   FORNECEDORES_DIR,
   OBSERVACOES_DIR,
-  ORIGENS_DIR,
   RECEITAS_DIR,
   TEMPERATURAS_DIR,
   VENDEDOR_CANONICO,
@@ -211,7 +210,6 @@ confere("responsáveis somam o total a importar", soma(porResp) === TOTAL);
 titulo("6. VALORES FORA DAS LISTAS DA DIR (gravados literais; viram 'Outro' no formulário)");
 const listas = [
   ["fornecedor", FORNECEDORES_DIR],
-  ["origem", ORIGENS_DIR],
   ["despachante", DESPACHANTES_DIR],
   ["banco", BANCOS_DIR],
   ["envio", ENVIOS_DIR],
@@ -227,6 +225,33 @@ for (const [campo, lista] of listas) {
   for (const [k, v] of [...fora].sort((a, b) => b[1] - a[1])) log(`        ${n3(v)}  "${k}"`);
   confere(`${campo}: na lista + fora + vazio = total`, dentro + soma(fora) + vazias === TOTAL);
 }
+
+// Regra do fornecedor "Care Pharma": a coluna ORIGEM da planilha NÃO é mais gravada (o campo saiu da DIR), mas o parser a
+// lê para uma regra — Fornecedor "Care Pharma" com Origem preenchida e diferente → o fornecedor carregado é a Origem.
+// Care Pharma com Origem vazia ou igual a Care Pharma fica como está e sai aqui como "sem fornecedor real".
+// Só linha e PO são impressos (nunca paciente).
+log("\n  Fornecedor \"Care Pharma\" × coluna ORIGEM (regra do parser; a Origem não é gravada):");
+const chaveCare = (v) => v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+const origemPorLinha = new Map(cru("ORIGEM").map((c) => [c.linha, c.valor]));
+const carePharma = regs.filter((r) => chaveCare(r.fornecedor) === "care pharma");
+const comAviso = (codigo) => aImportar.filter((l) => l.avisos.some((a) => a.codigo === codigo));
+const pelaOrigem = comAviso("FORNECEDOR_PELA_ORIGEM");
+const semReal = comAviso("FORNECEDOR_SEM_REAL");
+const fornecedorCruPorLinha = new Map(cru("FORNECEDOR").map((c) => [c.linha, c.valor]));
+const careNaPlanilha = aImportar.filter((l) => chaveCare(fornecedorCruPorLinha.get(l.linha) ?? "") === "care pharma");
+const trocadasEsperadas = careNaPlanilha.filter((l) => {
+  const o = (origemPorLinha.get(l.linha) ?? "").trim();
+  return o !== "" && !/^-+$/.test(o) && chaveCare(o) !== "care pharma";
+});
+log(`    Fornecedor "Care Pharma" na planilha:                     ${n3(careNaPlanilha.length)}`);
+log(`    trocados pela Origem (Origem preenchida e diferente):     ${n3(pelaOrigem.length)}`);
+const porNovo = contar(pelaOrigem, (l) => regs.find((r) => r.linha === l.linha).fornecedor);
+for (const [k, v] of [...porNovo].sort((a, b) => b[1] - a[1])) log(`        ${n3(v)}  → "${k}"`);
+log(`    sem fornecedor real (Origem vazia ou Care Pharma):        ${n3(semReal.length)}   linhas/PO: ${semReal.map((l) => `${l.linha}/${l.registro.po}`).join(", ") || "nenhuma"}`);
+log(`    "Care Pharma" que continua no fornecedor carregado:       ${n3(carePharma.length)}`);
+confere("Care Pharma: trocadas + sem fornecedor real = Care Pharma na planilha", pelaOrigem.length + semReal.length === careNaPlanilha.length);
+confere("Care Pharma: trocadas pelo parser = Origem preenchida e diferente na planilha", pelaOrigem.length === trocadasEsperadas.length);
+confere("Care Pharma que sobra no carregado = só os sem fornecedor real", carePharma.length === semReal.length);
 
 // ── 7. Avisos ───────────────────────────────────────────────────────────────
 titulo("7. AVISOS (importam do mesmo jeito; nada é bloqueado)");

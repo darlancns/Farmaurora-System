@@ -31,7 +31,41 @@ export type CodigoAvisoDir =
   | "RESPONSAVEL_DESCONHECIDO"
   | "VENDEDOR_LITERAL"
   | "OPERACAO_VAZIA"
-  | "FECHAMENTO_RESTANTE_DUPLICADA";
+  | "FECHAMENTO_RESTANTE_DUPLICADA"
+  | "FORNECEDOR_PELA_ORIGEM"
+  | "FORNECEDOR_SEM_REAL";
+
+// ── Fornecedor "Care Pharma" ───────────────────────────────────────────────────────────────────────
+// Na planilha, "Care Pharma" aparece como intermediário e o fornecedor real fica na coluna ORIGEM. A coluna ORIGEM
+// deixou de existir na DIR (não é gravada), mas o parser a lê para UMA regra: Fornecedor "Care Pharma" com Origem
+// preenchida e diferente → o fornecedor carregado é o valor da Origem. Qualquer outro caso, vale o Fornecedor.
+//   - Care Pharma + Origem preenchida e diferente  → "pela_origem" (fornecedor = Origem)
+//   - Care Pharma + Origem vazia ou Care Pharma     → "sem_real" (fica Care Pharma; sai no relatório do dry-run)
+//   - qualquer outro Fornecedor (com ou sem Origem) → "normal" (fica o Fornecedor)
+export const FORNECEDOR_CARE_PHARMA = "Care Pharma";
+
+export type SituacaoFornecedorDir = "normal" | "pela_origem" | "sem_real";
+
+// Mesma chave dos nomes da planilha: sem diferença de caixa, de acento e de espaços repetidos.
+function chaveFornecedor(valor: string): string {
+  return valor
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+export function resolverFornecedorDaPlanilha(
+  fornecedor: string,
+  origem: string,
+): { fornecedor: string; situacao: SituacaoFornecedorDir } {
+  const chaveCare = chaveFornecedor(FORNECEDOR_CARE_PHARMA);
+  if (chaveFornecedor(fornecedor) !== chaveCare) return { fornecedor, situacao: "normal" };
+  const origemLimpa = origem.trim();
+  if (origemLimpa === "" || chaveFornecedor(origemLimpa) === chaveCare) return { fornecedor, situacao: "sem_real" };
+  return { fornecedor: origemLimpa, situacao: "pela_origem" };
+}
 
 export interface AvisoDir {
   codigo: CodigoAvisoDir;
@@ -454,6 +488,16 @@ function parseLinha(
     if (dataEntrega !== "" && dataEntrega > opcoes.hoje) aviso("ENTREGA_FUTURA", `entrega no futuro (${dataEntrega})`);
   }
 
+  // Fornecedor (+ regra do Care Pharma, que lê a ORIGEM da planilha; a Origem em si não é gravada).
+  const fornecedorPlanilha = texto("fornecedor");
+  const origemPlanilha = texto("origem");
+  const resolvido = resolverFornecedorDaPlanilha(fornecedorPlanilha, origemPlanilha);
+  if (resolvido.situacao === "pela_origem") {
+    aviso("FORNECEDOR_PELA_ORIGEM", `FORNECEDOR "${FORNECEDOR_CARE_PHARMA}" trocado pela ORIGEM ("${resolvido.fornecedor}")`);
+  } else if (resolvido.situacao === "sem_real") {
+    aviso("FORNECEDOR_SEM_REAL", `FORNECEDOR "${FORNECEDOR_CARE_PHARMA}" sem fornecedor real (ORIGEM vazia ou igual)`);
+  }
+
   const registro: NewDirDTO = {
     po,
     paciente,
@@ -466,8 +510,7 @@ function parseLinha(
     receita: texto("receita"),
     medicamento: texto("medicamento"),
     temperatura: texto("temperatura"),
-    fornecedor: texto("fornecedor"),
-    origem: texto("origem"),
+    fornecedor: resolvido.fornecedor,
     envio: texto("envio"),
     awb: texto("awb"),
     despachante: texto("despachante"),

@@ -303,7 +303,6 @@ function dtoFech(po: string, paciente: string, extra: Record<string, unknown> = 
     medicamento: "MEDICAMENTO FECH",
     temperatura: "Ambiente",
     fornecedor: "Care Pharma",
-    origem: "Tosun (China)",
     envio: "Air Cargo",
     awb: "",
     despachante: "STAR CUSTOMS",

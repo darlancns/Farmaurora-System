@@ -22,9 +22,10 @@ describe("dirMappers — colunasDeDir", () => {
       fechamento_restante: false,
       status: "on_going",
     });
-    // 33 campos do DTO (com companhiaAerea) + fechamento_restante_em/_por (zerados quando desmarcado) = 35 colunas
+    // 32 campos do DTO (com companhiaAerea, sem origem) + fechamento_restante_em/_por (zerados quando desmarcado) = 35 colunas
     // (sem id e sem created_at/updated_at).
-    expect(Object.keys(col)).toHaveLength(35);
+    expect(Object.keys(col)).toHaveLength(34);
+    expect("origem" in col).toBe(false);
   });
 
   it('texto e data vazios ("" ou só espaços) viram NULL; status nulo continua NULL', () => {
@@ -101,7 +102,6 @@ describe("dirMappers — montarDir", () => {
     medicamento: "MEDICAMENTO X",
     temperatura: null,
     fornecedor: "Matsun",
-    origem: null,
     envio: null,
     awb: null,
     despachante: null,

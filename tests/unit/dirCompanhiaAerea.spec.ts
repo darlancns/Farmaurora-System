@@ -308,10 +308,10 @@ describe("DirFormModal montado: Cia aérea", () => {
     expect(awb.hasAttribute("data-sem-maiuscula")).toBe(true);
   });
 
-  it("a Origem continua no formulário (não foi removida)", async () => {
+  it("a Origem saiu do formulário (ver dirSemOrigem.spec)", async () => {
     montar();
     await nextTick();
-    expect(document.getElementById("df-origem")).not.toBeNull();
+    expect(document.getElementById("df-origem")).toBeNull();
   });
 });
 
