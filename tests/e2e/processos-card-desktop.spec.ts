@@ -225,14 +225,31 @@ test.describe("/processos em lg+ — card e detalhe inalterados", () => {
           expect(estilo).toEqual({ colunas: 4, colGap: "16px", rowGap: "8px" });
         }
 
-        // "Nº do processo" e "Transportadora" são células comuns da grade (1 coluna), lado a lado.
-        const np = (await celula(page, id, "Nº do processo").boundingBox())!;
-        const tr = (await celula(page, id, "Transportadora").boundingBox())!;
+        // 4 colunas de largura igual, cada uma um empilhado independente: Pasta/Nº Ordem/Nº Remessa,
+        // Envio/Cia. aérea/Nº AWB, Fornecedor/Despachante/Nº do processo, Transportadora/Local de entrega.
         const pasta = (await celula(page, id, "Pasta").boundingBox())!;
-        expect(Math.abs(np.width - pasta.width)).toBeLessThanOrEqual(1);
-        expect(Math.abs(tr.width - pasta.width)).toBeLessThanOrEqual(1);
-        expect(Math.abs(np.y - tr.y)).toBeLessThanOrEqual(1);
-        expect(tr.x).toBeGreaterThanOrEqual(direita(np) - 1);
+        const empilhados = [
+          ["Pasta", "Nº Ordem", "Nº Remessa"],
+          ["Envio", "Cia. aérea", "Nº AWB"],
+          ["Fornecedor", "Despachante", "Nº do processo"],
+          ["Transportadora", "Local de entrega"],
+        ];
+        const topos: { x: number; y: number }[] = [];
+        for (const coluna of empilhados) {
+          const boxes = [];
+          for (const rotulo of coluna) boxes.push((await celula(page, id, rotulo).boundingBox())!);
+          topos.push({ x: boxes[0]!.x, y: boxes[0]!.y });
+          for (let i = 0; i < boxes.length; i++) {
+            expect(Math.abs(boxes[i]!.width - pasta.width), `${coluna[i]} com a largura de uma coluna`).toBeLessThanOrEqual(1);
+            expect(Math.abs(boxes[i]!.x - boxes[0]!.x), `${coluna[i]} alinhado à coluna`).toBeLessThanOrEqual(1);
+            if (i > 0) expect(boxes[i]!.y, `${coluna[i]} abaixo de ${coluna[i - 1]}`).toBeGreaterThan(boxes[i - 1]!.y);
+          }
+        }
+        // Os 4 topos na mesma linha, da esquerda para a direita.
+        for (let i = 1; i < topos.length; i++) {
+          expect(Math.abs(topos[i]!.y - topos[0]!.y), `topo da coluna ${i + 1} na mesma linha`).toBeLessThanOrEqual(1);
+          expect(topos[i]!.x, `coluna ${i + 1} à direita da ${i}`).toBeGreaterThanOrEqual(topos[i - 1]!.x + pasta.width - 1);
+        }
 
         // Todos os valores em monoespaçado (inclusive os que no mobile são sans), "— R$" inline.
         for (const rotulo of ["Pasta", "Despachante", "Fornecedor", "Cia. aérea", "Nº AWB", "Local de entrega", "Compra (PO)", "Embarque"]) {

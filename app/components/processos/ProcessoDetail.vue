@@ -20,8 +20,7 @@ const emit = defineEmits<{
 }>();
 
 // Só apresentação (abaixo de lg): `mono` mantém a fonte monoespaçada no mobile (em lg+ todos os
-// valores já são mono); `wide` ocupa a linha toda abaixo de lg (em lg+ é uma célula comum);
-// `destaque` pinta a previsão de entrega de azul-marinho em negrito abaixo de lg;
+// valores já são mono); `destaque` pinta a previsão de entrega de azul-marinho em negrito abaixo de lg;
 // `quebrar` deixa o valor quebrar só em ponto/barra/traço abaixo de lg.
 interface DetailField {
   label: string;
@@ -30,23 +29,35 @@ interface DetailField {
   wide?: boolean;
   destaque?: boolean;
   quebrar?: boolean;
+  // Só a Transportadora: nome + valor em R$ (renderizados juntos, como sempre).
+  transportadora?: NonNullable<Processo["transportadoraNacional"]>;
 }
 
-function fields(processo: Processo): DetailField[] {
+// Os campos são preenchidos por COLUNA: cada coluna é um empilhado independente (um wrapper por coluna no
+// template), então um campo condicional ausente (Transportadora) só encurta a própria coluna e não desloca
+// nenhum campo das outras. A ordem dos arrays é também a ordem de leitura/Tab: coluna 1, 2, 3, 4.
+function colunas(processo: Processo): DetailField[][] {
+  const transportadora: DetailField[] = processo.transportadoraNacional
+    ? [{ label: "Transportadora", transportadora: processo.transportadoraNacional }]
+    : [];
   return [
-    { label: "Pasta", value: processo.pasta },
-    { label: "Despachante", value: processo.despachante },
-    { label: "Fornecedor", value: processo.fornecedor },
-    { label: "Envio", value: processo.modalEnvio },
-    { label: "Cia. aérea", value: processo.companhiaAerea },
-    { label: "Nº AWB", value: processo.numeroAwb, mono: true },
-    { label: "Nº Ordem", value: processo.numeroPo, mono: true },
-    // Sempre aparece (a linha do processo só o mostra quando N > 1 ou a pasta se repete). Fica DEPOIS do Nº Ordem: com
-    // os 8 campos de largura simples a grade fecha sem buraco em 2 colunas (<sm) e em 4 (lg: 2 linhas cheias); em
-    // 3 colunas (sm..lg) a última linha dos 8 tem 2 campos, antes dos campos de linha inteira.
-    { label: "Nº Remessa", value: String(processo.numeroRemessa), mono: true },
-    { label: "Local de entrega", value: processo.localEntrega, wide: true },
-    { label: "Nº do processo", value: processo.numeroProcesso, mono: true, wide: true, quebrar: true },
+    [
+      { label: "Pasta", value: processo.pasta },
+      { label: "Nº Ordem", value: processo.numeroPo, mono: true },
+      // Sempre aparece (a linha do processo só o mostra quando N > 1 ou a pasta se repete).
+      { label: "Nº Remessa", value: String(processo.numeroRemessa), mono: true },
+    ],
+    [
+      { label: "Envio", value: processo.modalEnvio },
+      { label: "Cia. aérea", value: processo.companhiaAerea },
+      { label: "Nº AWB", value: processo.numeroAwb, mono: true },
+    ],
+    [
+      { label: "Fornecedor", value: processo.fornecedor },
+      { label: "Despachante", value: processo.despachante },
+      { label: "Nº do processo", value: processo.numeroProcesso, mono: true, quebrar: true },
+    ],
+    [...transportadora, { label: "Local de entrega", value: processo.localEntrega }],
   ];
 }
 
@@ -92,37 +103,32 @@ function datasFields(processo: Processo): DetailField[] {
       >
     </div>
 
-    <div class="grid grid-cols-2 gap-x-4 gap-y-3 text-[12.5px] sm:grid-cols-3 lg:grid-cols-4 lg:gap-y-2">
-      <div
-        v-for="field in fields(processo)"
-        :key="field.label"
-        class="flex flex-col gap-0.5"
-        :class="{ 'col-span-full lg:col-span-1': field.wide }"
-      >
-        <span class="text-ink-soft">{{ field.label }}</span>
-        <template v-if="field.quebrar && field.value">
-          <span class="font-mono text-ink lg:hidden">
-            <template v-for="(trecho, index) in quebrarNumeroProcesso(field.value)" :key="index"
-              >{{ trecho }}<wbr
-            /></template>
+    <!-- 4 colunas em lg+; abaixo de lg, 2 colunas (1-2 em cima, 3-4 embaixo). Cada coluna é um wrapper próprio. -->
+    <div class="grid grid-cols-2 gap-x-4 gap-y-3 text-[12.5px] lg:grid-cols-4 lg:gap-y-2">
+      <div v-for="(coluna, indice) in colunas(processo)" :key="indice" class="flex min-w-0 flex-col gap-3 lg:gap-2">
+        <div v-for="field in coluna" :key="field.label" class="flex flex-col gap-0.5">
+          <span class="text-ink-soft">{{ field.label }}</span>
+          <span v-if="field.transportadora" class="break-words text-ink lg:font-mono lg:break-normal">
+            {{ field.transportadora.nome }}
+            <span v-if="field.transportadora.valor !== undefined" class="block font-semibold lg:inline lg:font-normal"
+              ><span class="hidden lg:inline">— </span>R$ {{ formatCurrency(field.transportadora.valor) }}</span
+            >
           </span>
-          <span class="hidden font-mono text-ink lg:inline">{{ field.value }}</span>
-        </template>
-        <span
-          v-else
-          class="break-words text-ink lg:font-mono lg:break-normal"
-          :class="{ 'font-mono': field.mono }"
-          >{{ field.value || "—" }}</span
-        >
-      </div>
-      <div v-if="processo.transportadoraNacional" class="col-span-full flex flex-col gap-0.5 lg:col-span-1">
-        <span class="text-ink-soft">Transportadora</span>
-        <span class="break-words text-ink lg:font-mono lg:break-normal">
-          {{ processo.transportadoraNacional.nome }}
-          <span v-if="processo.transportadoraNacional.valor !== undefined" class="block font-semibold lg:inline lg:font-normal"
-            ><span class="hidden lg:inline">— </span>R$ {{ formatCurrency(processo.transportadoraNacional.valor) }}</span
+          <template v-else-if="field.quebrar && field.value">
+            <span class="font-mono text-ink lg:hidden">
+              <template v-for="(trecho, index) in quebrarNumeroProcesso(field.value)" :key="index"
+                >{{ trecho }}<wbr
+              /></template>
+            </span>
+            <span class="hidden font-mono text-ink lg:inline">{{ field.value }}</span>
+          </template>
+          <span
+            v-else
+            class="break-words text-ink lg:font-mono lg:break-normal"
+            :class="{ 'font-mono': field.mono }"
+            >{{ field.value || "—" }}</span
           >
-        </span>
+        </div>
       </div>
     </div>
 

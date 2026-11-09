@@ -115,9 +115,9 @@ const VAZIO = {
 const VIEWPORTS = [
   { name: "375x667", width: 375, height: 667, colunas: 2, colunasDatas: 2 },
   { name: "390x844", width: 390, height: 844, colunas: 2, colunasDatas: 2 },
-  { name: "768x1024", width: 768, height: 1024, colunas: 3, colunasDatas: 4 },
-  { name: "820x1180", width: 820, height: 1180, colunas: 3, colunasDatas: 4 },
-  { name: "1023x768 (último pixel antes de lg)", width: 1023, height: 768, colunas: 3, colunasDatas: 4 },
+  { name: "768x1024", width: 768, height: 1024, colunas: 2, colunasDatas: 4 },
+  { name: "820x1180", width: 820, height: 1180, colunas: 2, colunasDatas: 4 },
+  { name: "1023x768 (último pixel antes de lg)", width: 1023, height: 768, colunas: 2, colunasDatas: 4 },
 ];
 
 type Ids = { robusto: string; adversarial: string; vazio: string };
@@ -450,7 +450,7 @@ test.describe("/processos abaixo de lg — card e detalhe do processo", () => {
         await expect(medicamentos).toContainText("Pembrolizumabe 100mg 4 cx e Nivolumabe 40mg 2 cx");
       });
 
-      test("detalhe: grade de colunas por faixa, pares lado a lado na ordem pedida", async ({ page }) => {
+      test("detalhe: 2 colunas abaixo de lg (1-2 em cima, 3-4 embaixo), cada coluna um empilhado", async ({ page }) => {
         const id = ids!.robusto;
         await abrirDetalhe(page, id);
 
@@ -458,28 +458,34 @@ test.describe("/processos abaixo de lg — card e detalhe do processo", () => {
         const colunas = await grade.evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(" ").length);
         expect(colunas).toBe(viewport.colunas);
 
-        if (viewport.colunas === 2) {
-          // < 640px: duas colunas — Pasta|Despachante, Fornecedor|Modal, Cia|AWB; Local de entrega e Nº do processo em linha própria.
-          await expectLadoALado(page, id, "Pasta", "Despachante");
-          await expectLadoALado(page, id, "Fornecedor", "Envio");
-          await expectLadoALado(page, id, "Cia. aérea", "Nº AWB");
-        } else {
-          // sm..lg: três colunas — Pasta|Despachante|Fornecedor, Modal|Cia|AWB; Local de entrega e Nº do processo em linha própria.
-          await expectLadoALado(page, id, "Pasta", "Despachante");
-          await expectLadoALado(page, id, "Despachante", "Fornecedor");
-          await expectLadoALado(page, id, "Envio", "Cia. aérea");
-          await expectLadoALado(page, id, "Cia. aérea", "Nº AWB");
-        }
-        // Sem o Rastreio, Local de entrega ocupa a linha toda (sem buraco ao lado) e fica abaixo de Cia|AWB.
-        expect((await boxCelula(page, id, "Local de entrega")).y).toBeGreaterThan((await boxCelula(page, id, "Nº AWB")).y);
-        await expect(celula(page, id, "Rastreio")).toHaveCount(0);
+        // Coluna 1 | coluna 2 na mesma linha (os topos: Pasta | Envio); coluna 3 | coluna 4 na linha de baixo
+        // (Fornecedor | Transportadora).
+        await expectLadoALado(page, id, "Pasta", "Envio");
+        await expectLadoALado(page, id, "Fornecedor", "Transportadora");
+        const nAwb = await boxCelula(page, id, "Nº AWB");
+        const nRemessa = await boxCelula(page, id, "Nº Remessa");
+        const fornecedor = await boxCelula(page, id, "Fornecedor");
+        expect(fornecedor.y, "colunas 3-4 abaixo das colunas 1-2").toBeGreaterThan(Math.max(nAwb.y, nRemessa.y));
 
-        // Ordem vertical dos pares.
-        const ys = [];
-        for (const r of ["Pasta", "Envio", "Local de entrega", "Nº do processo", "Transportadora"]) {
-          ys.push((await boxCelula(page, id, r)).y);
+        // Cada coluna empilha seus campos, todos no mesmo x e em ordem vertical crescente.
+        const empilhados = [
+          ["Pasta", "Nº Ordem", "Nº Remessa"],
+          ["Envio", "Cia. aérea", "Nº AWB"],
+          ["Fornecedor", "Despachante", "Nº do processo"],
+          ["Transportadora", "Local de entrega"],
+        ];
+        for (const coluna of empilhados) {
+          const boxes = [];
+          for (const rotulo of coluna) boxes.push(await boxCelula(page, id, rotulo));
+          for (let i = 1; i < boxes.length; i++) {
+            expect(boxes[i]!.y, `${coluna[i]} abaixo de ${coluna[i - 1]}`).toBeGreaterThan(boxes[i - 1]!.y);
+            expect(Math.abs(boxes[i]!.x - boxes[0]!.x), `${coluna[i]} alinhado à coluna`).toBeLessThanOrEqual(1);
+          }
         }
-        for (let i = 1; i < ys.length; i++) expect(ys[i]!).toBeGreaterThan(ys[i - 1]!);
+        // Coluna 2 à direita da 1 (e a 4 à direita da 3).
+        expect((await boxCelula(page, id, "Envio")).x).toBeGreaterThan((await boxCelula(page, id, "Pasta")).x);
+        expect((await boxCelula(page, id, "Transportadora")).x).toBeGreaterThan(fornecedor.x);
+        await expect(celula(page, id, "Rastreio")).toHaveCount(0);
 
         // Rótulo pequeno e cinza em cima, valor embaixo; AWB monoespaçado.
         const pasta = celula(page, id, "Pasta");
@@ -493,21 +499,24 @@ test.describe("/processos abaixo de lg — card e detalhe do processo", () => {
         expect(await awb.evaluate((el) => getComputedStyle(el).fontFamily)).toMatch(/mono/i);
       });
 
-      test("detalhe: Nº do processo e Transportadora em largura total, sem overflow, com dados adversariais", async ({
+      test("detalhe: Nº do processo e Transportadora cabem na coluna, sem overflow, com dados adversariais", async ({
         page,
       }) => {
         const id = ids!.adversarial;
         await abrirDetalhe(page, id);
         const grade = (await page.locator(`#processo-detail-${id} > div.grid`).first().boundingBox())!;
+        const larguraColuna = (grade.width - 16) / 2; // 2 colunas, folga de 16px
 
-        for (const rotulo of ["Nº do processo", "Transportadora"]) {
-          const c = await boxCelula(page, id, rotulo);
-          expect(Math.abs(c.x - grade.x), `${rotulo} começa na margem`).toBeLessThanOrEqual(1);
-          expect(c.width, `${rotulo} em largura total`).toBeGreaterThanOrEqual(grade.width - 1);
-        }
+        // Nº do processo (coluna 3, esquerda) e Transportadora (coluna 4, direita) ocupam a largura de UMA coluna.
         const np = await boxCelula(page, id, "Nº do processo");
         const tr = await boxCelula(page, id, "Transportadora");
-        expect(tr.y).toBeGreaterThanOrEqual(np.y + np.height - 1);
+        for (const [rotulo, c] of [["Nº do processo", np], ["Transportadora", tr]] as const) {
+          expect(c.width, `${rotulo} na largura da coluna`).toBeLessThanOrEqual(larguraColuna + 1);
+          expect(c.x, `${rotulo} dentro da grade`).toBeGreaterThanOrEqual(grade.x - 1);
+          expect(c.x + c.width, `${rotulo} dentro da grade`).toBeLessThanOrEqual(grade.x + grade.width + 1);
+        }
+        expect(Math.abs(np.x - grade.x), "Nº do processo começa na margem").toBeLessThanOrEqual(1);
+        expect(tr.x, "Transportadora na coluna da direita").toBeGreaterThanOrEqual(direita(np) - 1);
 
         // Nenhum valor do detalhe vaza do próprio bloco.
         const vazamentos = await page.locator(`#processo-detail-${id}`).evaluate((det) =>
@@ -558,7 +567,7 @@ test.describe("/processos abaixo de lg — card e detalhe do processo", () => {
         const id = ids!.vazio;
         await abrirDetalhe(page, id);
         const rotulos = [
-          "Pasta", "Despachante", "Fornecedor", "Envio", "Cia. aérea", "Nº AWB",
+          "Pasta", "Nº Ordem", "Despachante", "Fornecedor", "Envio", "Cia. aérea", "Nº AWB",
           "Local de entrega", "Nº do processo", "Compra (PO)", "Embarque", "Abertura thread", "Chegada Brasil",
           "Registro Radar", "Registro Duimp", "Registro Lpco", "Previsão entrega", "Suposta estimativa",
         ];

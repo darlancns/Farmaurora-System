@@ -146,12 +146,6 @@ describe("ProcessoDeliveredList — Entregues", () => {
 });
 
 describe("ProcessoDetail — Nº Remessa sempre aparece", () => {
-  function rotulos(el: HTMLElement): string[] {
-    return Array.from(el.querySelectorAll("#processo-detail-a > div.grid > div")).map((c) =>
-      texto(c.querySelector("span")),
-    );
-  }
-
   it("mostra o rótulo e o valor, mesmo com N = 1 e pasta única", () => {
     const p = proc("a", "2026 - 100", 1);
     const el = montar(defineComponent({ render: () => h(ProcessoDetail, { processo: p }) }));
@@ -172,19 +166,14 @@ describe("ProcessoDetail — Nº Remessa sempre aparece", () => {
     expect(texto(celula.querySelectorAll("span")[1] ?? null)).toBe("12");
   });
 
-  it("fica logo depois do Nº Ordem e antes dos campos de linha inteira (grade sem buraco no meio)", () => {
+  it("fica na coluna 1, logo depois do Nº Ordem (a ordem completa das colunas está em processoDetalheColunas.spec.ts)", () => {
     const p = proc("a", "2026 - 100", 1);
     const el = montar(defineComponent({ render: () => h(ProcessoDetail, { processo: p }) }));
-    expect(rotulos(el).slice(0, 9)).toEqual([
+    const coluna1 = el.querySelector("#processo-detail-a > div.grid > div")!;
+    expect(Array.from(coluna1.querySelectorAll(":scope > div > span:first-child")).map((c) => texto(c))).toEqual([
       "Pasta",
-      "Despachante",
-      "Fornecedor",
-      "Envio",
-      "Cia. aérea",
-      "Nº AWB",
       "Nº Ordem",
       "Nº Remessa",
-      "Local de entrega",
     ]);
   });
 });
