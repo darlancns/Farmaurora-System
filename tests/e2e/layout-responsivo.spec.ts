@@ -157,6 +157,16 @@ test.describe("Shell de navegação — sidebar (desktop) vs BottomNav (mobile/t
     const bottomNavHrefs = await page.locator("#bottom-nav a").evaluateAll((els) =>
       els.map((el) => el.getAttribute("href")),
     );
+    // Com mais de 5 itens (ex.: administrador, com a DIR) o resto fica atrás do botão "Mais":
+    // abre o sheet e soma os links dele aos fixos.
+    const botaoMais = page.locator("#btn-bottom-nav-more");
+    if ((await botaoMais.count()) > 0) {
+      await botaoMais.click();
+      bottomNavHrefs.push(
+        ...(await page.locator("#nav-more-sheet a").evaluateAll((els) => els.map((el) => el.getAttribute("href")))),
+      );
+      await page.keyboard.press("Escape");
+    }
     const sidebarHrefs = await page
       .locator("#sidebar-nav a")
       .evaluateAll((els) => els.map((el) => el.getAttribute("href")));
