@@ -1,4 +1,4 @@
-import { canReadSection, type Role } from "#shared/utils/rbac";
+import { canReadSection, canWriteSection, type Role } from "#shared/utils/rbac";
 
 // O nome do parâmetro (?aba=) e o valor "contas" são os mesmos de contaFoco.ts, que monta o link do sino.
 
@@ -7,10 +7,13 @@ import { canReadSection, type Role } from "#shared/utils/rbac";
 // - "contas": gestão das contas da equipe. Só quem LÊ a seção "admin" (hoje só o administrador); o ContasTab ainda
 //   confere canWrite("admin") para os botões de gestão.
 // - "minha-conta": nome, e-mail e senha da PRÓPRIA conta — todos os cargos.
+// - "cadastros": listas de Fornecedor, Despachante e Temperatura. Aba SÓ do administrador (quem ESCREVE a seção
+//   "config"): o sócio não vê Cadastros (nem Contas). As listas em si são lidas por todos os cargos na API; esta aba
+//   é a tela de edição.
 //
-// Ordem: "Minha conta" é SEMPRE a primeira aba e a aba padrão de todos os cargos; "Contas" vem depois,
-// só pra quem a vê.
-export type AbaConfiguracoes = "contas" | "minha-conta";
+// Ordem: "Minha conta" é SEMPRE a primeira aba e a aba padrão de todos os cargos; "Contas" vem depois, só pra quem a
+// vê, e "Cadastros" por último, só pro administrador.
+export type AbaConfiguracoes = "contas" | "minha-conta" | "cadastros";
 
 export interface AbaConfiguracoesDef {
   key: AbaConfiguracoes;
@@ -18,6 +21,7 @@ export interface AbaConfiguracoesDef {
 }
 
 export const DEF_ABA_CONTAS: AbaConfiguracoesDef = { key: "contas", label: "Contas" };
+export const DEF_ABA_CADASTROS: AbaConfiguracoesDef = { key: "cadastros", label: "Cadastros" };
 export const DEF_ABA_MINHA_CONTA: AbaConfiguracoesDef = { key: "minha-conta", label: "Minha conta" };
 
 /** Aba padrão de TODOS os cargos: a que abre sem ?aba= (e a que a URL não precisa escrever). */
@@ -26,7 +30,10 @@ export const ABA_PADRAO: AbaConfiguracoes = DEF_ABA_MINHA_CONTA.key;
 /** Abas visíveis ao cargo, na ordem de exibição. Sem cargo (ainda não carregado) → nenhuma. */
 export function abasParaCargo(role: Role | null | undefined): AbaConfiguracoesDef[] {
   if (!role) return [];
-  return canReadSection(role, "admin") ? [DEF_ABA_MINHA_CONTA, DEF_ABA_CONTAS] : [DEF_ABA_MINHA_CONTA];
+  const abas: AbaConfiguracoesDef[] = [DEF_ABA_MINHA_CONTA];
+  if (canReadSection(role, "admin")) abas.push(DEF_ABA_CONTAS);
+  if (canWriteSection(role, "config")) abas.push(DEF_ABA_CADASTROS);
+  return abas;
 }
 
 /**

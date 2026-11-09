@@ -13,8 +13,11 @@ const props = withDefaults(
     id: string;
     label: string;
     disabled?: boolean;
+    // Para 3 opções com texto comprido (ex.: Cadastros): texto 14px e menos folga lateral abaixo de lg,
+    // para caber em 360px. Sem isto o visual é o de sempre.
+    compacto?: boolean;
   }>(),
-  { disabled: false }
+  { disabled: false, compacto: false }
 );
 
 const emit = defineEmits<{
@@ -62,7 +65,8 @@ function onKeydown(event: KeyboardEvent, index: number): void {
     role="radiogroup"
     :aria-label="label"
     :aria-disabled="disabled ? 'true' : undefined"
-    class="grid w-full grid-cols-2 gap-0.5 rounded-md bg-paper p-0 ring-1 ring-hairline ring-inset"
+    class="grid w-full gap-0.5 rounded-md bg-paper p-0 ring-1 ring-hairline ring-inset"
+    :class="options.length === 3 ? 'grid-cols-3' : 'grid-cols-2'"
   >
     <button
       v-for="(option, index) in options"
@@ -74,12 +78,11 @@ function onKeydown(event: KeyboardEvent, index: number): void {
       :aria-checked="option.value === modelValue"
       :tabindex="option.value === modelValue ? 0 : -1"
       :disabled="disabled"
-      class="min-h-11 rounded-md px-3 text-[16px] font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-dark disabled:cursor-not-allowed disabled:opacity-60 lg:min-h-[38px] lg:text-[13.5px]"
-      :class="
-        option.value === modelValue
-          ? 'bg-accent-dark text-white'
-          : 'text-ink-soft hover:text-ink'
-      "
+      class="min-h-11 rounded-md font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-dark disabled:cursor-not-allowed disabled:opacity-60 lg:min-h-[38px] lg:text-[13.5px]"
+      :class="[
+        compacto ? 'min-w-0 px-1 text-[14px] lg:px-3' : 'px-3 text-[16px]',
+        option.value === modelValue ? 'bg-accent-dark text-white' : 'text-ink-soft hover:text-ink',
+      ]"
       @click="selecionar(index, false)"
       @keydown="onKeydown($event, index)"
     >

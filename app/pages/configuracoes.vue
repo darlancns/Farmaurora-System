@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "#app";
 import { useAuth } from "../composables/useAuth";
 import GlobalHeader from "../components/GlobalHeader.vue";
+import CadastrosTab from "../components/configuracoes/CadastrosTab.vue";
 import ContasTab from "../components/configuracoes/ContasTab.vue";
 import MinhaContaTab from "../components/configuracoes/MinhaContaTab.vue";
 import {
@@ -15,8 +16,9 @@ import { QUERY_ABA } from "../utils/contaFoco";
 
 // A página abre pra TODOS os cargos (seção "config" em shared/utils/rbac.ts); o que muda é QUAIS abas
 // cada um vê (app/utils/abasConfiguracoes.ts): sócio e administrador, "Minha conta" + "Contas";
-// consultor e operacional, só "Minha conta". "Minha conta" é a primeira aba e a padrão de todos. A autorização real das ações de gestão continua no
-// servidor (/api/admin/**) e dentro do ContasTab — esconder a aba aqui é só a parte visível disso.
+// consultor e operacional, só "Minha conta". "Minha conta" é a primeira aba e a padrão de todos. "Cadastros" (listas
+// de Fornecedor, Despachante e Temperatura) é só do administrador. A autorização real das ações de gestão continua no
+// servidor (/api/admin/**, /api/cadastros/**) e dentro das abas — esconder a aba aqui é só a parte visível disso.
 //
 // O cargo só existe no client (via /api/auth/me), então o conteúdo dependente dele só é montado
 // depois da hidratação — o HTML do SSR (sem conteúdo) bate com o primeiro render do client, evitando
@@ -42,12 +44,15 @@ function selecionarAba(aba: AbaConfiguracoes): void {
   router.replace({ path: route.path, query: { ...route.query, [QUERY_ABA]: aba } });
 }
 
-// Subtítulo da aba ativa: "Gestão de contas e acessos da equipe." só na aba Contas (texto de sempre);
-// em "Minha conta" — e antes de o cargo carregar, quando a aba padrão é essa — vale o da conta própria.
+// Subtítulo da aba ativa: "Gestão de contas e acessos da equipe." na aba Contas (texto de sempre) e o das listas
+// em Cadastros; em "Minha conta" — e antes de o cargo carregar, quando a aba padrão é essa — vale o da conta própria.
+const SUBTITULO_POR_ABA: Record<AbaConfiguracoes, string> = {
+  contas: "Gestão de contas e acessos da equipe.",
+  cadastros: "Listas de fornecedores, despachantes e temperaturas.",
+  "minha-conta": "Seus dados de acesso.",
+};
 const subtitle = computed<string>(() =>
-  showContent.value && activeTab.value === "contas"
-    ? "Gestão de contas e acessos da equipe."
-    : "Seus dados de acesso.",
+  showContent.value ? SUBTITULO_POR_ABA[activeTab.value] : SUBTITULO_POR_ABA["minha-conta"],
 );
 </script>
 
@@ -78,6 +83,7 @@ const subtitle = computed<string>(() =>
     </GlobalHeader>
 
     <ContasTab v-if="showContent && activeTab === 'contas'" />
+    <CadastrosTab v-else-if="showContent && activeTab === 'cadastros'" />
     <MinhaContaTab v-else-if="showContent && activeTab === 'minha-conta'" />
   </div>
 </template>

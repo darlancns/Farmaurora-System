@@ -1,17 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { ABA_PADRAO, abasParaCargo, resolverAba } from "../../app/utils/abasConfiguracoes";
 import { rotaParaContas } from "../../app/utils/contaFoco";
-import { ROLES, type Role } from "../../shared/utils/rbac";
+import { ROLES, canWriteSection, type Role } from "../../shared/utils/rbac";
 
 // Abas de /configuracoes por cargo, ordem, aba padrão e leitura de ?aba=.
 // "Minha conta" é a PRIMEIRA aba e a aba padrão de todos os cargos; "Contas" vem depois, SÓ do administrador —
-// o sócio, que antes lia a lista de contas, agora vê só "Minha conta".
+// o sócio, que antes lia a lista de contas, agora vê só "Minha conta". "Cadastros" é a última e também SÓ do administrador.
 
 const chaves = (role: Role | null) => abasParaCargo(role).map((a) => a.key);
 
 describe("abasParaCargo", () => {
-  it("administrador: Minha conta + Contas, nessa ordem (Minha conta primeiro)", () => {
-    expect(chaves("administrador")).toEqual(["minha-conta", "contas"]);
+  it("administrador: Minha conta, Contas e Cadastros, nessa ordem (Minha conta primeiro)", () => {
+    expect(chaves("administrador")).toEqual(["minha-conta", "contas", "cadastros"]);
+  });
+
+  it("Cadastros só aparece para quem ESCREVE a seção config (hoje só o administrador)", () => {
+    for (const r of ROLES) {
+      expect(chaves(r).includes("cadastros"), r).toBe(canWriteSection(r, "config"));
+    }
+    expect(ROLES.filter((r) => chaves(r).includes("cadastros"))).toEqual(["administrador"]);
   });
 
   it("sócio: SÓ Minha conta (Contas é do administrador)", () => {
@@ -36,7 +43,7 @@ describe("abasParaCargo", () => {
   });
 
   it("rótulos em pt-BR, na ordem de exibição", () => {
-    expect(abasParaCargo("administrador").map((a) => a.label)).toEqual(["Minha conta", "Contas"]);
+    expect(abasParaCargo("administrador").map((a) => a.label)).toEqual(["Minha conta", "Contas", "Cadastros"]);
   });
 
   it("sem cargo (ainda não carregado): nenhuma aba", () => {
@@ -79,6 +86,14 @@ describe("resolverAba (?aba=)", () => {
     expect(resolverAba("socio", "contas")).toBe("minha-conta");
     expect(resolverAba("consultor", "contas")).toBe("minha-conta");
     expect(resolverAba("operacional", "contas")).toBe("minha-conta");
+  });
+
+  it("?aba=cadastros: abre Cadastros para o administrador; qualquer outro cargo cai em Minha conta", () => {
+    expect(resolverAba("administrador", "cadastros")).toBe("cadastros");
+    for (const r of ["socio", "operacional", "consultor"] as const) expect(resolverAba(r, "cadastros"), r).toBe("minha-conta");
+    expect(resolverAba(null, "cadastros")).toBe("minha-conta");
+    expect(resolverAba("administrador", ["cadastros", "contas"])).toBe("cadastros");
+    expect(resolverAba("socio", ["cadastros", "contas"])).toBe("minha-conta"); // 1º não permitido → padrão
   });
 
   it("valor inválido (desconhecido, vazio, caixa errada, número, objeto) → aba padrão, pra qualquer cargo", () => {

@@ -360,6 +360,8 @@ test.describe("Configurações → Contas", () => {
     await expect(page.locator("#contas-tab")).toHaveCount(0);
     await expect(page.locator("#btn-nova-conta")).toHaveCount(0);
     await expect(page.locator("[id^='btn-acoes-conta-']")).toHaveCount(0);
+    // A aba Cadastros é só do administrador: o sócio vê Contas, mas não Cadastros.
+    await expect(page.locator("#tab-cadastros")).toHaveCount(0);
 
     // API: nem a leitura da lista de contas (antes liberada ao sócio) nem a criação passam.
     const get = await page.request.get("/api/admin/users");

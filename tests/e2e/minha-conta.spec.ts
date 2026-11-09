@@ -45,9 +45,9 @@ async function abrirConfiguracoes(page: Page, query = ""): Promise<void> {
 test.describe("Minha conta — abas por cargo", () => {
   test.describe.configure({ retries: 2 });
 
-  // Contas é só do administrador (o sócio, que antes lia a lista de contas, vê só Minha conta).
+  // Contas e Cadastros são só do administrador (o sócio, que antes lia a lista de contas, vê só Minha conta).
   for (const cargo of ["administrador"] as const) {
-    test(`${cargo}: vê Minha conta + Contas (Minha conta PRIMEIRO e padrão) e respeita ?aba=`, async ({ page }) => {
+    test(`${cargo}: vê Minha conta + Contas + Cadastros (Minha conta PRIMEIRO e padrão) e respeita ?aba=`, async ({ page }) => {
       test.skip(!tem(cargo), `defina as credenciais E2E de ${cargo}`);
       await login(page, credenciais[cargo].email, credenciais[cargo].password);
 
@@ -58,9 +58,9 @@ test.describe("Minha conta — abas por cargo", () => {
       await expect(page.locator("#tab-contas")).toBeVisible();
       await expect(page.locator("#minha-conta-tab")).toBeVisible();
       await expect(page.locator("#contas-tab")).toHaveCount(0);
-      // Ordem das abas: Minha conta antes de Contas.
+      // Ordem das abas: Minha conta antes de Contas; Cadastros por último (Contas e Cadastros são só do administrador).
       const ordem = await page.locator("[id^='tab-']").evaluateAll((els) => els.map((el) => el.id));
-      expect(ordem).toEqual(["tab-minha-conta", "tab-contas"]);
+      expect(ordem).toEqual(["tab-minha-conta", "tab-contas", "tab-cadastros"]);
       await expect(page.locator("#tab-minha-conta")).toHaveClass(/border-accent-dark/);
 
       // ?aba=contas continua abrindo Contas pra quem a vê.
