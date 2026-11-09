@@ -77,6 +77,7 @@ interface FormDir {
   po: string;
   paciente: string;
   medicamento: string;
+  companhiaAerea: string;
   awb: string;
   contratoCambio: string;
   dataEmissao: string;
@@ -107,6 +108,7 @@ function formVazio(): FormDir {
     po: "",
     paciente: "",
     medicamento: "",
+    companhiaAerea: "",
     awb: "",
     contratoCambio: "",
     dataEmissao: hojeBrasilia(),
@@ -141,6 +143,7 @@ export function useDirForm(editando: () => Dir | null | undefined) {
     form.po = dir.po;
     form.paciente = dir.paciente;
     form.medicamento = dir.medicamento;
+    form.companhiaAerea = dir.companhiaAerea;
     form.awb = dir.awb;
     form.contratoCambio = dir.contratoCambio;
     form.dataEmissao = dir.dataEmissao;
@@ -201,6 +204,8 @@ export function useDirForm(editando: () => Dir | null | undefined) {
       temperatura: outros.temperatura.build(),
       observacao: outros.observacao.build(),
       medicamento: form.medicamento.trim(),
+      // Cia aérea: lista do Follow-Up, sem "Outro". Valor antigo fora da lista continua como está (aparece "(inativo)").
+      companhiaAerea: form.companhiaAerea.trim(),
       awb: form.awb.trim(),
       contratoCambio,
       dataEmissao: form.dataEmissao,

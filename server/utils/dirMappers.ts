@@ -23,6 +23,7 @@ export interface DirRow {
   fornecedor: string | null;
   origem: string | null;
   envio: string | null;
+  companhia_aerea: string | null;
   awb: string | null;
   despachante: string | null;
   status: StatusDir | null;
@@ -55,6 +56,7 @@ type ChaveTextoOpcional =
   | "fornecedor"
   | "origem"
   | "envio"
+  | "companhiaAerea"
   | "awb"
   | "despachante"
   | "contratoCambio"
@@ -73,6 +75,7 @@ export const CAMPOS_TEXTO_OPCIONAL: ReadonlyArray<readonly [ChaveTextoOpcional, 
   ["fornecedor", "fornecedor"],
   ["origem", "origem"],
   ["envio", "envio"],
+  ["companhiaAerea", "companhia_aerea"],
   ["awb", "awb"],
   ["despachante", "despachante"],
   ["contratoCambio", "contrato_cambio"],
@@ -166,6 +169,7 @@ export function montarDir(row: DirRow): Dir {
     fornecedor: row.fornecedor ?? "",
     origem: row.origem ?? "",
     envio: row.envio ?? "",
+    companhiaAerea: row.companhia_aerea ?? "",
     awb: row.awb ?? "",
     despachante: row.despachante ?? "",
     contratoCambio: row.contrato_cambio ?? "",

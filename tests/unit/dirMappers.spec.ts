@@ -22,9 +22,9 @@ describe("dirMappers — colunasDeDir", () => {
       fechamento_restante: false,
       status: "on_going",
     });
-    // 32 campos do DTO + fechamento_restante_em/_por (zerados quando desmarcado) = 34 colunas
+    // 33 campos do DTO (com companhiaAerea) + fechamento_restante_em/_por (zerados quando desmarcado) = 35 colunas
     // (sem id e sem created_at/updated_at).
-    expect(Object.keys(col)).toHaveLength(34);
+    expect(Object.keys(col)).toHaveLength(35);
   });
 
   it('texto e data vazios ("" ou só espaços) viram NULL; status nulo continua NULL', () => {

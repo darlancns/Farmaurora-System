@@ -16,6 +16,7 @@ import {
   STATUS_DIR_OPTIONS,
   TEMPERATURA_DIR_OPTIONS,
   VENDEDOR_DIR_OPTIONS,
+  montarCiaAereaDirOptions,
 } from "../../utils/dirOptions";
 import {
   INPUT_CLASS,
@@ -54,6 +55,9 @@ const emit = defineEmits<{
 const { form, outros, onPoInput, onMedicamentoInput, onContratoCambioInput, validar, valorToggle } = useDirForm(
   () => props.editingDir,
 );
+
+// Cia aérea: a lista do Follow-Up (+ o valor antigo fora da lista como "(inativo)", nunca vazio).
+const ciaAereaOptions = computed<AppSelectOption<string>[]>(() => montarCiaAereaDirOptions(form.companhiaAerea));
 
 interface CampoLista {
   campo: CampoComOutro;
@@ -326,13 +330,17 @@ function confirmarExclusao(): void {
                   />
                 </div>
               </template>
+              <div class="col-span-2 sm:col-span-1" :class="SELECT_CAMPO_CLASS">
+                <label for="df-companhia-aerea" :class="LABEL_CLASS">Cia aérea</label>
+                <AppSelect id="df-companhia-aerea" v-model="form.companhiaAerea" :options="ciaAereaOptions" />
+              </div>
               <div class="col-span-2">
                 <label for="df-awb" :class="LABEL_CLASS">AWB</label>
                 <input
                   id="df-awb"
                   v-model="form.awb"
                   type="text"
-                  placeholder="Lufthansa: 020-00000000"
+                  placeholder="020-00000000"
                   data-sem-maiuscula
                   :class="INPUT_MONO_CLASS"
                 />

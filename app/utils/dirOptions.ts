@@ -16,6 +16,7 @@ import {
   TEMPERATURAS_DIR,
   VENDEDORES_DIR,
 } from "#shared/constants/dir";
+import { CIAS_AEREAS_TODAS } from "#shared/constants/processos";
 import type { Dir, StatusDir } from "#shared/types/dir";
 import type { AppSelectOption } from "../types/appSelect";
 import {
@@ -64,6 +65,22 @@ export const ENVIO_DIR_OPTIONS = opcoesComOutro(ENVIOS_DIR);
 export const RECEITA_DIR_OPTIONS = opcoesComOutro(RECEITAS_DIR);
 export const TEMPERATURA_DIR_OPTIONS = opcoesComOutro(TEMPERATURAS_DIR);
 export const OBSERVACAO_DIR_OPTIONS = opcoesComOutro(OBSERVACOES_DIR);
+
+/**
+ * Select "Cia aérea" do formulário: "Selecione" + a lista de companhias do Follow-Up (fonte única,
+ * shared/constants/processos.ts). Sem "Outro" (o Follow-Up também não tem). Valor atual fora da lista (dado antigo) entra
+ * como opção extra "<valor> (inativo)": continua visível e selecionado, nunca vira vazio, até a pessoa trocá-lo.
+ */
+export function montarCiaAereaDirOptions(atual: string): AppSelectOption<string>[] {
+  const opcoes: AppSelectOption<string>[] = [
+    { value: "", label: "Selecione" },
+    ...CIAS_AEREAS_TODAS.map((cia) => ({ value: cia, label: cia })),
+  ];
+  if (atual.trim() !== "" && !CIAS_AEREAS_TODAS.includes(atual)) {
+    opcoes.push({ value: atual, label: `${atual.trim()} (inativo)` });
+  }
+  return opcoes;
+}
 
 /** Status do formulário: "" = sem status ("—"). */
 export const STATUS_DIR_OPTIONS: AppSelectOption<StatusDir | "">[] = [

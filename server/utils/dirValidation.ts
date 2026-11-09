@@ -53,6 +53,8 @@ const VALIDADORES: Record<keyof NewDirDTO, (v: unknown) => boolean> = {
   fornecedor: textoComTamanho,
   origem: textoComTamanho,
   envio: textoComTamanho,
+  // Texto livre (como as outras listas): o valor fora da lista de cias (dado antigo) é tolerado. O conteúdo do AWB não é validado.
+  companhiaAerea: textoComTamanho,
   awb: textoComTamanho,
   despachante: textoComTamanho,
   contratoCambio: textoComTamanho,
@@ -67,6 +69,9 @@ const VALIDADORES: Record<keyof NewDirDTO, (v: unknown) => boolean> = {
 
 const CHAVES = Object.keys(VALIDADORES) as Array<keyof NewDirDTO>;
 
+// Campos que o create pode omitir (aba antiga do navegador): ausente vale como vazio; se vier, é validado.
+const CHAVES_OPCIONAIS_NO_CREATE: ReadonlyArray<keyof NewDirDTO> = ["companhiaAerea"];
+
 function objeto(body: unknown): Record<string, unknown> | null {
   return body && typeof body === "object" && !Array.isArray(body) ? (body as Record<string, unknown>) : null;
 }
@@ -76,7 +81,7 @@ export function isValidDirPayload(body: unknown): body is NewDirDTO {
   const b = objeto(body);
   if (!b) return false;
   if (Object.keys(b).some((k) => !CHAVES.includes(k as keyof NewDirDTO))) return false;
-  return CHAVES.every((k) => k in b && VALIDADORES[k](b[k]));
+  return CHAVES.every((k) => (k in b ? VALIDADORES[k](b[k]) : CHAVES_OPCIONAIS_NO_CREATE.includes(k)));
 }
 
 // Patch: pelo menos uma chave, só chaves conhecidas, cada uma válida.

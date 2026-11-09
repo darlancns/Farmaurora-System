@@ -94,14 +94,15 @@ export function criarTermoBuscaDir(busca: string): TermoBuscaDir | null {
 
 /**
  * O registro casa com a busca? Dois jeitos, qualquer um vale:
- * 1) o texto digitado (sem caixa e sem acento, pontuação como está) dentro de "paciente po medicamento awb";
+ * 1) o texto digitado (sem caixa e sem acento, pontuação como está) dentro de "paciente po medicamento cia awb"
+ *    ("lufthansa" acha pela companhia aérea, mesmo nas linhas em que a cia ainda está dentro do AWB);
  * 2) o texto SÓ com letras e números dentro do PO ou do AWB (a mesma regra do Nº Ordem do Follow-Up):
  *    "po261004", "26-10-0471" e "Po26" acham PO26-10-0471; "02046388355" acha "020-46388355".
  * Paciente e medicamento NÃO ignoram pontuação (como o paciente no Follow-Up). Termo que é só pontuação não
  * entra no jeito 2 (um termo vazio casaria com tudo).
  */
 export function dirCombinaBusca(dir: Dir, termo: TermoBuscaDir): boolean {
-  const alvo = normalizeText([dir.paciente, dir.po, dir.medicamento, dir.awb].join(" "));
+  const alvo = normalizeText([dir.paciente, dir.po, dir.medicamento, dir.companhiaAerea, dir.awb].join(" "));
   if (alvo.includes(termo.texto)) return true;
   if (termo.codigo === "") return false;
   return normalizarSemPontuacao(dir.po).includes(termo.codigo) || normalizarSemPontuacao(dir.awb).includes(termo.codigo);

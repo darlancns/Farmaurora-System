@@ -79,6 +79,12 @@ export const CIAS_AEREAS_POR_MODAL: Record<ModalEnvio, readonly string[]> = {
   [MODAL_COURIER_SIMPLES]: CIAS_COURIER,
 };
 
+// Todas as cias, sem repetir, em ordem alfabética (pt-BR): DHL, Emirates, FedEx, Lufthansa, Qatar, Swiss, Turkish. É a fonte
+// única da lista para quem não depende do modal (o select "Cia aérea" da DIR).
+export const CIAS_AEREAS_TODAS: readonly string[] = [...new Set(Object.values(CIAS_AEREAS_POR_MODAL).flat())].sort(
+  (a, b) => a.localeCompare(b, "pt-BR"),
+);
+
 // Cias do modal; lista vazia se o modal for vazio ou desconhecido (inclui o legado "Courier"). O modal é
 // comparado exatamente como vem.
 export function ciasAereasDoModal(modal: string | null | undefined): readonly string[] {

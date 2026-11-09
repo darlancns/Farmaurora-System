@@ -18,6 +18,7 @@ export function novoDirDTO(sobrescrever: Partial<NewDirDTO> = {}): NewDirDTO {
     fornecedor: "Speciality",
     origem: "Speciality",
     envio: "Air Cargo",
+    companhiaAerea: "",
     awb: "Lufthansa: 020-00000000",
     despachante: "STAR CUSTOMS",
     status: "on_going",

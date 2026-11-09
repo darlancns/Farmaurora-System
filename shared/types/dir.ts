@@ -35,7 +35,10 @@ export interface Dir extends ChecklistDir {
   fornecedor: string;
   origem: string;
   envio: string;
-  awb: string; // texto bruto, ex.: "Lufthansa: 020-46388355"
+  // Companhia aérea (nome da lista de shared/constants/processos.ts) e AWB (só o número). As linhas antigas ainda têm a cia
+  // dentro do AWB ("Lufthansa: 020-46388355") e companhiaAerea vazia, até o passo de dados que as separa.
+  companhiaAerea: string;
+  awb: string;
   despachante: string;
   status: StatusDir | null;
   dataEntrega: string;
@@ -54,7 +57,11 @@ export interface Dir extends ChecklistDir {
   updatedAt: string;
 }
 
-export type NewDirDTO = Omit<Dir, "id" | "createdAt" | "updatedAt" | "fechamentoRestanteEm" | "fechamentoRestantePor">;
+// companhiaAerea é OPCIONAL no create: aba antiga do navegador (sem o campo) e a carga da planilha continuam funcionando.
+export type NewDirDTO = Omit<
+  Dir,
+  "id" | "createdAt" | "updatedAt" | "fechamentoRestanteEm" | "fechamentoRestantePor" | "companhiaAerea"
+> & { companhiaAerea?: string };
 
 // Patch seletivo: só as chaves presentes são gravadas.
 export type DirPatchDTO = Partial<NewDirDTO>;
