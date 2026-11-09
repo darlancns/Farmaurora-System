@@ -22,7 +22,8 @@ const emit = defineEmits<{
 <template>
   <div>
     <p v-if="!semRotulo" :class="LABEL_CLASS">Medicamentos</p>
-    <!-- Cada linha: Qtd. (estreita, texto livre, ~14 caracteres) / Medicamento (o resto) / "+" / remover. A dosagem NÃO é
+    <!-- Cada linha: Qtd. (estreita, texto livre, ~14 caracteres) / Medicamento (o resto) / botões como sempre foram: remover (✕,
+         a partir do 2º item) e depois adicionar ("+", só no último item). A dosagem NÃO é
          mais um campo do formulário (o valor que um item já tenha continua sendo preservado ao salvar; ver
          buildBasePayload). Ordem do DOM = ordem visual (nenhuma classe order-*). Abaixo de lg os botões vão para a linha
          de baixo; em lg+ ficam na mesma linha, à direita. -->
@@ -53,15 +54,6 @@ const emit = defineEmits<{
       </div>
       <div class="col-span-2 flex gap-2 empty:hidden lg:col-span-1 lg:gap-1 lg:empty:flex">
         <button
-          v-if="index === items.length - 1"
-          type="button"
-          title="Adicionar medicamento"
-          class="flex min-h-11 flex-1 items-center justify-center rounded-md border border-hairline px-2.5 py-2 text-[14px] font-semibold text-accent-dark transition-colors hover:bg-paper lg:block lg:min-h-auto lg:flex-[0_1_auto] lg:text-[13px]"
-          @click="emit('add')"
-        >
-          +
-        </button>
-        <button
           v-if="index > 0"
           type="button"
           title="Remover medicamento"
@@ -69,6 +61,15 @@ const emit = defineEmits<{
           @click="emit('remove', index)"
         >
           ✕
+        </button>
+        <button
+          v-if="index === items.length - 1"
+          type="button"
+          title="Adicionar medicamento"
+          class="flex min-h-11 flex-1 items-center justify-center rounded-md border border-hairline px-2.5 py-2 text-[14px] font-semibold text-accent-dark transition-colors hover:bg-paper lg:block lg:min-h-auto lg:flex-[0_1_auto] lg:text-[13px]"
+          @click="emit('add')"
+        >
+          +
         </button>
       </div>
     </div>

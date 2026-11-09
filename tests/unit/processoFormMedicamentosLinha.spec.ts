@@ -73,8 +73,8 @@ function salvar(el: HTMLElement): void {
   el.querySelector("#processo-form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
 }
 
-describe("linha do medicamento: Qtd. / Medicamento / + / remover", () => {
-  it("ordem dos campos e botões na última linha: Qtd., Medicamento, '+', remover", async () => {
+describe("linha do medicamento: Qtd. / Medicamento / botões (✕ e depois +, como sempre)", () => {
+  it("ordem dos campos e botões na última linha: Qtd., Medicamento, ✕ (remover), depois '+'", async () => {
     const { el } = abrir(ITENS_ANTIGOS);
     await nextTick();
     const qtd = el.querySelector("#pf-medicamento-quantidade-2")!;
@@ -83,13 +83,30 @@ describe("linha do medicamento: Qtd. / Medicamento / + / remover", () => {
     const remover = [...el.querySelectorAll("#processo-form button[title='Remover medicamento']")].at(-1)!;
     const depois = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
     expect(depois(qtd, nome)).toBe(true);
-    expect(depois(nome, mais)).toBe(true);
-    expect(depois(mais, remover)).toBe(true);
+    expect(depois(nome, remover)).toBe(true);
+    expect(depois(remover, mais)).toBe(true);
     // Os quatro estão na MESMA linha (o contêiner de cada item), e o "+" só existe no último.
     const linha = qtd.parentElement!.parentElement!;
     for (const filho of [nome, mais, remover]) expect(linha.contains(filho)).toBe(true);
     expect(el.querySelectorAll("#processo-form button[title='Adicionar medicamento']")).toHaveLength(1);
     expect(el.querySelectorAll("#processo-form button[title='Remover medicamento']")).toHaveLength(2); // o 1º item não remove
+  });
+
+  it("com 1 item só aparece o '+'; com 2 itens o 2º (último) tem ✕ e depois '+', e o 1º não tem botão", async () => {
+    const um = abrir([{ nome: "A", quantidade: "1" }]);
+    await nextTick();
+    expect([...um.el.querySelectorAll<HTMLElement>("#processo-form button[title*='medicamento']")].map((b) => b.title)).toEqual([
+      "Adicionar medicamento",
+    ]);
+    const dois = abrir([{ nome: "A", quantidade: "1" }, { nome: "B", quantidade: "2" }]);
+    await nextTick();
+    expect([...dois.el.querySelectorAll<HTMLElement>("#processo-form button[title*='medicamento']")].map((b) => b.title)).toEqual([
+      "Remover medicamento",
+      "Adicionar medicamento",
+    ]);
+    // O botão do 1º item não existe: a linha dele só tem Qtd. e Medicamento.
+    const linha0 = dois.el.querySelector("#pf-medicamento-quantidade-0")!.parentElement!.parentElement!;
+    expect(linha0.querySelectorAll("button")).toHaveLength(0);
   });
 
   it("a ordem entre os itens segue a lista (Qtd./Medicamento do 1º, depois do 2º...)", async () => {

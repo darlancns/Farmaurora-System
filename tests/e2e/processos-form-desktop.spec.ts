@@ -402,7 +402,7 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
           expect(mNome.width, "Medicamento ocupa o resto da linha").toBeGreaterThan(mQtd.width * 2);
           await expect(page.locator("#pf-medicamento-dosagem-0")).toHaveCount(0);
           const botaoAdd = await caixa(page.locator(`#processo-form button[title='Adicionar medicamento']`), "adicionar");
-          // O "+" só existe no último item (o 2º no modo Editar), à direita do Medicamento e alinhado pela base.
+          // Os botões só existem a partir do 2º item (✕) e no último (+): o "+" fica à direita do Medicamento, alinhado pela base.
           const mQtdUltimo = modo === "editar" ? await b("pf-medicamento-quantidade-1") : mQtd;
           const mNomeUltimo = modo === "editar" ? await b("pf-medicamento-nome-1") : mNome;
           mesmaLinha(mQtdUltimo, mNomeUltimo, "Qtd. | Medicamento (último item)");
@@ -410,10 +410,10 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
           expect(botaoAdd.x).toBeGreaterThanOrEqual(direita(mNomeUltimo));
           expect(botaoAdd.width, "+ continua um botão pequeno").toBeLessThan(44);
           if (modo === "editar") {
-            // Ordem dos botões: "+" e depois ✕ (remover), na mesma linha.
+            // Ordem dos botões (como sempre foi): ✕ (remover) e depois "+", na mesma linha.
             const remover = await caixa(page.locator(`#processo-form button[title='Remover medicamento']`), "remover");
-            expect(remover.x).toBeGreaterThanOrEqual(direita(botaoAdd) - 1);
-            expect(Math.abs(embaixo(remover) - embaixo(botaoAdd)), "+ e ✕ na mesma linha").toBeLessThanOrEqual(1);
+            expect(botaoAdd.x).toBeGreaterThanOrEqual(direita(remover) - 1);
+            expect(Math.abs(embaixo(remover) - embaixo(botaoAdd)), "✕ e + na mesma linha").toBeLessThanOrEqual(1);
           }
 
           // Datas: 4 colunas (Suposta estimativa sozinha na 3ª linha, 1 coluna).
