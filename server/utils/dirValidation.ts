@@ -1,6 +1,7 @@
 import { FECHAMENTO_RESTANTE_ENCERRADA_ERRO, STATUS_DIR_ORDER } from "../../shared/constants/dir";
 import type { DirPatchDTO, NewDirDTO, StatusDir } from "../../shared/types/dir";
 import { parseDataISO } from "../../shared/utils/dataBrasilia";
+import { CONTRATO_CAMBIO_ERRO, contratoCambioValido, normalizarContratoCambio } from "../../shared/utils/contratoCambio";
 import { NUMERO_PO_REGEX as PO_RE } from "../../shared/utils/numeroPo";
 
 // Tamanho máximo de qualquer campo de texto (mesmo limite do parser da importação).
@@ -101,6 +102,20 @@ export function erroMarcacaoFechamentoRestante(
   if (corpo.fechamentoRestante !== true) return null;
   const encerrada = corpo.operacaoEncerrada ?? atual?.operacaoEncerrada ?? false;
   return encerrada ? FECHAMENTO_RESTANTE_ENCERRADA_ERRO : null;
+}
+
+// ── Regra: contrato de câmbio só número (shared/utils/contratoCambio.ts, a mesma do formulário) ──
+// Vale para o que o corpo traz. Tolerância a dado antigo: um valor IGUAL ao já gravado (anotação em texto de antes da
+// regra, ex.: "Venda a prazo") não impede salvar os outros campos — por isso o PATCH informa o valor `atual`.
+// Corpo sem a chave não é conferido. Devolve a mensagem de erro (400) ou null.
+export function erroContratoCambio(corpo: DirPatchDTO | NewDirDTO, atual?: { contratoCambio: string | null }): string | null {
+  if (!("contratoCambio" in corpo)) return null;
+  const valor = corpo.contratoCambio;
+  if (contratoCambioValido(valor)) return null;
+  if (typeof valor === "string" && atual && normalizarContratoCambio(valor) === normalizarContratoCambio(atual.contratoCambio ?? "")) {
+    return null;
+  }
+  return CONTRATO_CAMBIO_ERRO;
 }
 
 // Violação de regra de negócio (400), lançada pelo dirStore e traduzida pelo endpoint.

@@ -2,7 +2,7 @@ import type { Dir, DirPatchDTO, NewDirDTO } from "../../shared/types/dir";
 import { createSupabaseAdminClient } from "./supabaseServerClient";
 import { erro, randomId } from "./storeKit";
 import { colunasDeDir, montarDir, type DirRow, type MarcaFechamentoRestante } from "./dirMappers";
-import { DirRegraError, erroMarcacaoFechamentoRestante } from "./dirValidation";
+import { DirRegraError, erroContratoCambio, erroMarcacaoFechamentoRestante } from "./dirValidation";
 
 /**
  * Persistência da DIR no Supabase — tabela `dir` (1 linha por PO; `po` NÃO é único).
@@ -46,6 +46,8 @@ export async function listDir(): Promise<Dir[]> {
 export async function createDir(input: NewDirDTO, por: string): Promise<Dir> {
   const mensagem = erroMarcacaoFechamentoRestante(input);
   if (mensagem) throw new DirRegraError(mensagem);
+  const erroContrato = erroContratoCambio(input);
+  if (erroContrato) throw new DirRegraError(erroContrato);
 
   const db = createSupabaseAdminClient();
   const now = new Date().toISOString();
@@ -63,6 +65,19 @@ export async function patchDir(id: string, patch: DirPatchDTO, por: string): Pro
   const db = createSupabaseAdminClient();
   const now = new Date().toISOString();
   let marca: MarcaFechamentoRestante | undefined;
+
+  // Contrato de câmbio só número. Só se lê o valor gravado quando o enviado NÃO cumpre a regra: um valor igual ao que
+  // já está lá (anotação antiga em texto) não impede salvar os outros campos; qualquer outro valor inválido é 400.
+  if (erroContratoCambio(patch)) {
+    const { data, error } = await db.from(TABELA).select("id, contrato_cambio").eq("id", id);
+    if (error) throw erro("buscar registro da DIR", error);
+
+    const atual = (data ?? [])[0] as Pick<DirRow, "id" | "contrato_cambio"> | undefined;
+    if (!atual) return null;
+
+    const erroContrato = erroContratoCambio(patch, { contratoCambio: atual.contrato_cambio });
+    if (erroContrato) throw new DirRegraError(erroContrato);
+  }
 
   // Só mexer em fechamentoRestante exige conhecer o estado atual: a regra do PO encerrado vale sobre o
   // estado resultante, e quem já estava marcado não pode perder quem/quando marcou.

@@ -13,9 +13,16 @@ import {
 } from "#shared/constants/dir";
 import type { ChecklistChaveDir, Dir, DirPatchDTO, NewDirDTO, StatusDir } from "#shared/types/dir";
 import { hojeBrasilia } from "#shared/utils/dataBrasilia";
+import {
+  CONTRATO_CAMBIO_ERRO,
+  contratoCambioValido,
+  filtrarContratoCambio,
+  normalizarContratoCambio,
+} from "#shared/utils/contratoCambio";
 import { NUMERO_PO_REGEX as PO_RE } from "#shared/utils/numeroPo";
 import { aplicarMascaraNumeroPo } from "../utils/aplicarMascaraNumeroPo";
 import { aplicarMaiusculasNoCampo } from "../utils/aplicarMaiusculasNoCampo";
+import { aplicarTransformacaoNoCampo } from "../utils/aplicarTransformacaoNoCampo";
 import { useOutroSentinel } from "./useOutroSentinel";
 
 // Estado e regras do formulário da DIR (DirFormModal.vue). O componente só liga os campos.
@@ -160,6 +167,12 @@ export function useDirForm(editando: () => Dir | null | undefined) {
     form.medicamento = aplicarMaiusculasNoCampo(event.target as HTMLInputElement);
   }
 
+  // Contrato de câmbio: só números separados por espaço, vírgula ou barra (shared/utils/contratoCambio.ts, a mesma regra do
+  // servidor). Letras e outros símbolos são filtrados ao digitar e ao colar; o cursor fica no ponto.
+  function onContratoCambioInput(event: Event): void {
+    form.contratoCambio = aplicarTransformacaoNoCampo(event.target as HTMLInputElement, filtrarContratoCambio);
+  }
+
   function validar(): ResultadoValidacaoDir {
     const po = form.po.trim().toUpperCase();
     if (!PO_RE.test(po)) return { valido: false, erro: "Informe o PO no padrão PO26-MM-NNNN." };
@@ -167,6 +180,12 @@ export function useDirForm(editando: () => Dir | null | undefined) {
     if (!paciente) return { valido: false, erro: "Informe o nome do paciente." };
     const vendedor = outros.vendedor.build();
     if (!vendedor) return { valido: false, erro: "Informe o vendedor." };
+    // Valor antigo (anotação em texto de antes da regra) igual ao já gravado não impede salvar os outros campos.
+    const contratoCambio = normalizarContratoCambio(form.contratoCambio);
+    const gravado = normalizarContratoCambio(editando()?.contratoCambio ?? "");
+    if (!contratoCambioValido(contratoCambio) && contratoCambio !== gravado) {
+      return { valido: false, erro: CONTRATO_CAMBIO_ERRO };
+    }
 
     const payload: NewDirDTO = {
       po,
@@ -183,7 +202,7 @@ export function useDirForm(editando: () => Dir | null | undefined) {
       observacao: outros.observacao.build(),
       medicamento: form.medicamento.trim(),
       awb: form.awb.trim(),
-      contratoCambio: form.contratoCambio.trim(),
+      contratoCambio,
       dataEmissao: form.dataEmissao,
       dataCobrancaFornecedores: form.dataCobrancaFornecedores,
       dataEntrega: form.dataEntrega,
@@ -217,5 +236,5 @@ export function useDirForm(editando: () => Dir | null | undefined) {
     return vivo ? vivo[chave] : form[chave];
   }
 
-  return { form, outros, onPoInput, onMedicamentoInput, validar, valorToggle };
+  return { form, outros, onPoInput, onMedicamentoInput, onContratoCambioInput, validar, valorToggle };
 }

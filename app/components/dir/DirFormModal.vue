@@ -51,7 +51,9 @@ const emit = defineEmits<{
   invalid: [message: string];
 }>();
 
-const { form, outros, onPoInput, onMedicamentoInput, validar, valorToggle } = useDirForm(() => props.editingDir);
+const { form, outros, onPoInput, onMedicamentoInput, onContratoCambioInput, validar, valorToggle } = useDirForm(
+  () => props.editingDir,
+);
 
 interface CampoLista {
   campo: CampoComOutro;
@@ -344,7 +346,16 @@ function confirmarExclusao(): void {
             <div class="grid grid-cols-2 gap-2.5">
               <div class="col-span-2 sm:col-span-1">
                 <label for="df-contrato" :class="LABEL_CLASS">Contrato de câmbio</label>
-                <input id="df-contrato" v-model="form.contratoCambio" type="text" data-sem-maiuscula :class="INPUT_MONO_CLASS" />
+                <input
+                  id="df-contrato"
+                  :value="form.contratoCambio"
+                  type="text"
+                  inputmode="numeric"
+                  placeholder="123456 789012"
+                  data-sem-maiuscula
+                  :class="INPUT_MONO_CLASS"
+                  @input="onContratoCambioInput"
+                />
               </div>
               <template v-for="c in CAMPOS_FINANCEIRO" :key="c.campo">
                 <div class="col-span-2 sm:col-span-1" :class="SELECT_CAMPO_CLASS">

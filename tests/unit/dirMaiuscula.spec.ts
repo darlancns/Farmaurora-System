@@ -132,7 +132,7 @@ describe("DirFormModal — inventário dos campos de texto", () => {
     expect(po.value).toBe("PO26-10-0471");
   });
 
-  it("AWB e contrato de câmbio: ficam exatamente como digitados", async () => {
+  it("AWB fica exatamente como digitado; o contrato de câmbio só tem a regra própria (só números; ver dirContratoCambioForm.spec)", async () => {
     formulario();
     const awb = document.getElementById("df-awb") as HTMLInputElement;
     const contrato = document.getElementById("df-contrato") as HTMLInputElement;
@@ -140,7 +140,7 @@ describe("DirFormModal — inventário dos campos de texto", () => {
     digitar(contrato, "abc-123/x");
     await nextTick();
     expect(awb.value).toBe("lufthansa: 020-46388355");
-    expect(contrato.value).toBe("abc-123/x");
+    expect(contrato.value).toBe("123/"); // letras e hífen filtrados; nada de maiúscula do plugin
   });
 
   it("as datas são botões (não entram na regra) e as caixas de marcar também não", () => {
