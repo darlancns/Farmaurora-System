@@ -344,12 +344,12 @@ describe("busca da DIR pela cia (e AWB sem mudança)", () => {
   });
 });
 
-describe("carga (parser) não muda", () => {
-  it("o registro do parser NÃO traz companhiaAerea: a carga não escreve a coluna e o AWB sai cru", () => {
+describe("carga (parser) separa a cia do AWB", () => {
+  it("o registro do parser traz companhiaAerea e o AWB só com o número; a carga escreve companhia_aerea", () => {
     const r = parseDirCsv(csv(CASCA, linhaCsv({ ...EM_ABERTO, awb: "Lufthansa: 020-01045494" })));
     const registro = r.linhas.find((l) => l.registro?.po)?.registro;
-    expect(registro?.awb).toBe("Lufthansa: 020-01045494");
-    expect(registro && "companhiaAerea" in registro).toBe(false);
-    expect("companhia_aerea" in colunasDeDir(registro!)).toBe(false);
+    expect(registro?.companhiaAerea).toBe("Lufthansa");
+    expect(registro?.awb).toBe("020-01045494");
+    expect(colunasDeDir(registro!)).toMatchObject({ companhia_aerea: "Lufthansa", awb: "020-01045494" });
   });
 });

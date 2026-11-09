@@ -27,6 +27,7 @@ import {
   TEMPERATURAS_DIR,
   VENDEDOR_CANONICO,
 } from "../../shared/constants/dir.ts";
+import { CIAS_AEREAS_TODAS } from "../../shared/constants/processos.ts";
 
 const CRM = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const CAMINHO = resolve(process.argv[2] ?? join(CRM, "scratch", "dir.csv"));
@@ -252,6 +253,31 @@ log(`    "Care Pharma" que continua no fornecedor carregado:       ${n3(carePhar
 confere("Care Pharma: trocadas + sem fornecedor real = Care Pharma na planilha", pelaOrigem.length + semReal.length === careNaPlanilha.length);
 confere("Care Pharma: trocadas pelo parser = Origem preenchida e diferente na planilha", pelaOrigem.length === trocadasEsperadas.length);
 confere("Care Pharma que sobra no carregado = só os sem fornecedor real", carePharma.length === semReal.length);
+
+// Cia aérea × AWB: o parser separa "Lufthansa: 020-01045494" em companhia_aerea + awb (separarCiaAwb). Sem companhia
+// reconhecida, a cia fica vazia e o AWB segue como a planilha escreveu. Só linha e PO são impressos.
+log("\n  AWB da planilha → companhia aérea + número (separarCiaAwb, aplicada pelo parser):");
+const awbCruPorLinha = new Map(cru("AWB").map((c) => [c.linha, c.valor]));
+const comAwb = regs.filter((r) => r.awb !== "" || r.companhiaAerea !== "");
+const separadas = regs.filter((r) => r.companhiaAerea !== "");
+const naoCasadas = regs.filter((r) => r.companhiaAerea === "" && r.awb !== "");
+const semAwb = regs.filter((r) => r.companhiaAerea === "" && r.awb === "");
+const soCia = separadas.filter((r) => r.awb === "");
+log(`    linhas com AWB preenchido na planilha:                    ${n3(comAwb.length)}`);
+log(`    separadas em cia + número:                                ${n3(separadas.length)}   (só a cia, sem número: ${soCia.length})`);
+for (const [k, v] of [...contar(separadas, (r) => r.companhiaAerea)].sort((a, b) => b[1] - a[1])) log(`        ${n3(v)}  ${k}`);
+log(`    NÃO casadas (sem cia reconhecida; AWB fica como está):    ${n3(naoCasadas.length)}   linhas/PO: ${naoCasadas.map((r) => `${r.linha}/${r.po}`).join(", ") || "nenhuma"}`);
+log(`    AWB vazio (ou só traços) na planilha:                     ${n3(semAwb.length)}`);
+confere("AWB: separadas + não casadas + vazias = total a importar", separadas.length + naoCasadas.length + semAwb.length === TOTAL);
+confere(
+  "AWB: nada se perde — o número gravado é o fim do texto da planilha, e o não casado é o texto da planilha",
+  regs.every((r) => {
+    const original = (awbCruPorLinha.get(r.linha) ?? "").replace(/\s+/g, " ").trim();
+    const bruto = /^[-–—_\s]+$/.test(original) ? "" : original;
+    return r.companhiaAerea === "" ? r.awb === bruto : r.awb === "" || bruto.endsWith(r.awb);
+  }),
+);
+confere("AWB: toda cia gravada está na lista de companhias do Follow-Up", separadas.every((r) => CIAS_AEREAS_TODAS.includes(r.companhiaAerea)));
 
 // ── 7. Avisos ───────────────────────────────────────────────────────────────
 titulo("7. AVISOS (importam do mesmo jeito; nada é bloqueado)");

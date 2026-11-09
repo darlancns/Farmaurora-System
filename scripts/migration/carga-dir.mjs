@@ -16,6 +16,8 @@
 //     manualmente) e está VAZIA — a carga nunca mistura com dados existentes.
 // Os ids são determinísticos (dir_carga_<linha da planilha>), então rodar de novo com a tabela
 // preenchida não duplica nada (a pré-condição "vazia" já barra; o id repetido barraria também).
+// O parser separa a cia do AWB ("Lufthansa: 020-…" → companhia_aerea + awb): o INSERT leva a coluna companhia_aerea, então
+// a migration 20261109100000_dir_companhia_aerea.sql precisa estar aplicada antes de qualquer carga nova.
 // Os POs marcados na lista entram NO MESMO insert em lote atômico, com
 // fechamento_restante_por = "importação da planilha" e fechamento_restante_em = hora da carga.
 // Entradas ambíguas ou não encontradas NÃO marcam nada (nunca se escolhe um PO por conta própria).

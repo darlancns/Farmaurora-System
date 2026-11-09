@@ -135,10 +135,10 @@ describe("separarCiaAwb: nomes e fonte", () => {
     expect([...CIAS_AEREAS_TODAS]).toEqual(["DHL", "Emirates", "FedEx", "Lufthansa", "Qatar", "Swiss", "Turkish"]);
   });
 
-  it("é arquivo sem imports e ainda NÃO está ligado a nenhum fluxo (parser da carga, servidor, formulário)", () => {
+  it("é arquivo sem imports, usado SÓ pelo parser da carga; servidor e formulário não o chamam", () => {
     expect(lerFonte("shared/utils/dirCiaAwb.ts")).not.toMatch(/^import /m);
+    expect(lerFonte("shared/utils/dirParser.ts")).toMatch(/import \{ separarCiaAwb \} from "\.\/dirCiaAwb\.ts"/);
     for (const arquivo of [
-      "shared/utils/dirParser.ts",
       "scripts/migration/carga-dir.mjs",
       "scripts/migration/dry-run-dir.mjs",
       "server/utils/dirStore.ts",

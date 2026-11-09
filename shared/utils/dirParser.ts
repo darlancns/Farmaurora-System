@@ -13,6 +13,7 @@
 import { VENDEDOR_CANONICO } from "../constants/dir.ts";
 import type { NewDirDTO, StatusDir } from "../types/dir";
 import { parseDataISO } from "./dataBrasilia.ts";
+import { separarCiaAwb } from "./dirCiaAwb.ts";
 import { NUMERO_PO_REGEX_PARTES as PO_RE } from "./numeroPo.ts";
 
 export type CodigoAvisoDir =
@@ -498,6 +499,10 @@ function parseLinha(
     aviso("FORNECEDOR_SEM_REAL", `FORNECEDOR "${FORNECEDOR_CARE_PHARMA}" sem fornecedor real (ORIGEM vazia ou igual)`);
   }
 
+  // AWB: o texto da planilha ("Lufthansa: 020-01045494") vira cia + número. Célula só com traços já chegou vazia (texto()).
+  // Sem companhia reconhecida, a cia fica "" e o AWB segue como a planilha escreveu (nada se perde).
+  const awbSeparado = separarCiaAwb(texto("awb"));
+
   const registro: NewDirDTO = {
     po,
     paciente,
@@ -512,7 +517,8 @@ function parseLinha(
     temperatura: texto("temperatura"),
     fornecedor: resolvido.fornecedor,
     envio: texto("envio"),
-    awb: texto("awb"),
+    companhiaAerea: awbSeparado.cia ?? "",
+    awb: awbSeparado.awb,
     despachante: texto("despachante"),
     status,
     dataEntrega,

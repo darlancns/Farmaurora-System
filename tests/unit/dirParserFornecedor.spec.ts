@@ -82,11 +82,10 @@ describe("parser: fornecedor × origem (regra do Care Pharma)", () => {
     expect(parseDirCsv(csv(CASCA, linhaCsv(EM_ABERTO))).colunasExtras).not.toContain("ORIGEM");
   });
 
-  it("separarCiaAwb continua fora do parser (é o passo do corte)", () => {
-    const r = parseDirCsv(csv(CASCA, linhaCsv({ ...EM_ABERTO, awb: "Lufthansa: 020-01045494" })));
+  it("a regra do Care Pharma convive com a separação da cia do AWB (uma não mexe na outra)", () => {
+    const r = parseDirCsv(csv(CASCA, linhaCsv({ ...EM_ABERTO, fornecedor: "Care Pharma", origem: "Speciality", awb: "Lufthansa: 020-01045494" })));
     const registro = r.linhas.find((l) => !l.ignorada)!.registro!;
-    expect(registro.awb).toBe("Lufthansa: 020-01045494");
-    expect("companhiaAerea" in registro).toBe(false);
+    expect(registro).toMatchObject({ fornecedor: "Speciality", companhiaAerea: "Lufthansa", awb: "020-01045494" });
   });
 });
 

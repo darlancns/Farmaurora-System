@@ -1,8 +1,8 @@
 // Separa a companhia aérea do número no texto antigo do AWB da DIR ("Lufthansa: 020-01045494" → cia "Lufthansa", AWB
 // "020-01045494"). Função PURA e sem imports (o script de dados e o navegador carregam este arquivo direto).
 //
-// POR ENQUANTO NÃO É USADA por nenhum fluxo (nem pelo parser da carga): foi criada e testada para o passo de dados
-// e para o corte. Os nomes devolvidos são os da lista de companhias do Follow-Up (shared/constants/processos.ts).
+// Usada SÓ pelo parser da carga (shared/utils/dirParser.ts), que a aplica ao AWB da planilha; nenhum fluxo da aplicação
+// (servidor, formulário) a chama. Os nomes devolvidos são os da lista de companhias do Follow-Up (shared/constants/processos.ts).
 
 export interface CiaAwbSeparados {
   /** Nome da companhia como na lista (ex.: "Lufthansa"), ou null quando o texto não começa por uma companhia conhecida. */
