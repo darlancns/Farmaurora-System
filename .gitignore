@@ -47,3 +47,4 @@ scripts/migration/backups/
 
 # Dados de pacientes (CSV da planilha DIR etc.) — NUNCA versionar.
 scratch/
+supabase/.temp/
