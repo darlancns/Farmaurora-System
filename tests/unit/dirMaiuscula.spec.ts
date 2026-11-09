@@ -51,7 +51,6 @@ const CAMPOS_LISTA_COM_OUTRO = [
   "receita",
   "temperatura",
   "fornecedor",
-  "envio",
   "despachante",
   "banco",
   "observacao",
@@ -64,7 +63,7 @@ function formulario(): HTMLElement {
     receita: "x",
     temperatura: "x",
     fornecedor: "x",
-    envio: "x",
+    envio: "Air Cargo", // Envio é select das opções do Follow-Up, sem "Outro" (não tem campo de texto)
     despachante: "x",
     banco: "x",
     observacao: "x",

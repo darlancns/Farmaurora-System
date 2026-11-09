@@ -20,14 +20,13 @@ import {
   BANCOS_DIR,
   CHECKLIST_DIR,
   DESPACHANTES_DIR,
-  ENVIOS_DIR,
   FORNECEDORES_DIR,
   OBSERVACOES_DIR,
   RECEITAS_DIR,
   TEMPERATURAS_DIR,
   VENDEDOR_CANONICO,
 } from "../../shared/constants/dir.ts";
-import { CIAS_AEREAS_TODAS } from "../../shared/constants/processos.ts";
+import { CIAS_AEREAS_TODAS, MODAIS_ENVIO } from "../../shared/constants/processos.ts";
 
 const CRM = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const CAMINHO = resolve(process.argv[2] ?? join(CRM, "scratch", "dir.csv"));
@@ -213,7 +212,7 @@ const listas = [
   ["fornecedor", FORNECEDORES_DIR],
   ["despachante", DESPACHANTES_DIR],
   ["banco", BANCOS_DIR],
-  ["envio", ENVIOS_DIR],
+  ["envio", MODAIS_ENVIO], // Envio = opções do Follow-Up (o parser converte o texto da planilha)
   ["receita", RECEITAS_DIR],
   ["temperatura", TEMPERATURAS_DIR],
   ["observacao", OBSERVACOES_DIR],

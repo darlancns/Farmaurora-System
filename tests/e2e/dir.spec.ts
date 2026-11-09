@@ -170,7 +170,7 @@ test.describe("DIR — fluxo (cria, edita, grava na hora, filtra, exclui)", () =
     await expect(page.locator("#df-po")).toHaveValue(PO);
     await page.locator("#df-paciente").fill(PACIENTE);
     await page.locator("#btn-save-dir").click();
-    await expect(page.locator("#toast-notice")).toContainText("vendedor");
+    await expect(page.locator("#toast-notice")).toContainText("consultor");
 
     await escolher(page, "df-vendedor", "Mateus Morais");
     // "Outro" digitável no fornecedor

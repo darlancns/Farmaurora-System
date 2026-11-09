@@ -2,7 +2,6 @@ import { reactive } from "vue";
 import {
   BANCOS_DIR,
   DESPACHANTES_DIR,
-  ENVIOS_DIR,
   FORNECEDORES_DIR,
   OBSERVACOES_DIR,
   RECEITAS_DIR,
@@ -19,6 +18,7 @@ import {
   normalizarContratoCambio,
 } from "#shared/utils/contratoCambio";
 import { NUMERO_PO_REGEX as PO_RE } from "#shared/utils/numeroPo";
+import { ENVIO_DIR_ERRO, envioDirValido } from "#shared/utils/dirEnvio";
 import { aplicarMascaraNumeroPo } from "../utils/aplicarMascaraNumeroPo";
 import { aplicarMaiusculasNoCampo } from "../utils/aplicarMaiusculasNoCampo";
 import { aplicarTransformacaoNoCampo } from "../utils/aplicarTransformacaoNoCampo";
@@ -33,7 +33,6 @@ export type CampoComOutro =
   | "fornecedor"
   | "despachante"
   | "banco"
-  | "envio"
   | "receita"
   | "temperatura"
   | "observacao";
@@ -44,7 +43,6 @@ const LISTAS: Record<CampoComOutro, readonly string[]> = {
   fornecedor: FORNECEDORES_DIR,
   despachante: DESPACHANTES_DIR,
   banco: BANCOS_DIR,
-  envio: ENVIOS_DIR,
   receita: RECEITAS_DIR,
   temperatura: TEMPERATURAS_DIR,
   observacao: OBSERVACOES_DIR,
@@ -74,6 +72,7 @@ interface FormDir {
   po: string;
   paciente: string;
   medicamento: string;
+  envio: string;
   companhiaAerea: string;
   awb: string;
   contratoCambio: string;
@@ -105,6 +104,7 @@ function formVazio(): FormDir {
     po: "",
     paciente: "",
     medicamento: "",
+    envio: "",
     companhiaAerea: "",
     awb: "",
     contratoCambio: "",
@@ -140,6 +140,7 @@ export function useDirForm(editando: () => Dir | null | undefined) {
     form.po = dir.po;
     form.paciente = dir.paciente;
     form.medicamento = dir.medicamento;
+    form.envio = dir.envio;
     form.companhiaAerea = dir.companhiaAerea;
     form.awb = dir.awb;
     form.contratoCambio = dir.contratoCambio;
@@ -179,13 +180,19 @@ export function useDirForm(editando: () => Dir | null | undefined) {
     const paciente = form.paciente.trim();
     if (!paciente) return { valido: false, erro: "Informe o nome do paciente." };
     const vendedor = outros.vendedor.build();
-    if (!vendedor) return { valido: false, erro: "Informe o vendedor." };
+    if (!vendedor) return { valido: false, erro: "Informe o consultor." };
     // Valor antigo (anotação em texto de antes da regra) igual ao já gravado não impede salvar os outros campos.
     const contratoCambio = normalizarContratoCambio(form.contratoCambio);
     const gravado = normalizarContratoCambio(editando()?.contratoCambio ?? "");
     if (!contratoCambioValido(contratoCambio) && contratoCambio !== gravado) {
       return { valido: false, erro: CONTRATO_CAMBIO_ERRO };
     }
+
+    // Envio: só as opções do Follow-Up. Valor antigo igual ao já gravado não impede salvar os outros campos (o select o mostra
+    // como "(inativo)"); qualquer outro valor fora da lista é recusado (o servidor confere de novo).
+    const envio = form.envio.trim();
+    const envioGravado = (editando()?.envio ?? "").trim();
+    if (!envioDirValido(envio) && envio !== envioGravado) return { valido: false, erro: ENVIO_DIR_ERRO };
 
     const payload: NewDirDTO = {
       po,
@@ -195,7 +202,7 @@ export function useDirForm(editando: () => Dir | null | undefined) {
       fornecedor: outros.fornecedor.build(),
       despachante: outros.despachante.build(),
       banco: outros.banco.build(),
-      envio: outros.envio.build(),
+      envio,
       receita: outros.receita.build(),
       temperatura: outros.temperatura.build(),
       observacao: outros.observacao.build(),

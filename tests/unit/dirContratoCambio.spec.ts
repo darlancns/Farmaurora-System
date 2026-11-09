@@ -246,14 +246,14 @@ describe("formulário: validar()", () => {
     expect(vazio.valido && vazio.atualizacao.contratoCambio).toBe("");
   });
 
-  it("a ordem das mensagens não mudou: PO, paciente e vendedor vêm antes do contrato", () => {
+  it("a ordem das mensagens não mudou: PO, paciente e consultor vêm antes do contrato", () => {
     const f = useDirForm(() => null);
     f.form.contratoCambio = "ABC";
     expect(f.validar()).toEqual({ valido: false, erro: "Informe o PO no padrão PO26-MM-NNNN." });
     f.form.po = "PO26-10-0471";
     expect(f.validar()).toEqual({ valido: false, erro: "Informe o nome do paciente." });
     f.form.paciente = "Fulano";
-    expect(f.validar()).toEqual({ valido: false, erro: "Informe o vendedor." });
+    expect(f.validar()).toEqual({ valido: false, erro: "Informe o consultor." });
     f.outros.vendedor.state.select = "Mateus Morais";
     expect(f.validar()).toEqual({ valido: false, erro: CONTRATO_CAMBIO_ERRO });
   });

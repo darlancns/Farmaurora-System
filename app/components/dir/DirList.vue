@@ -39,7 +39,7 @@ const emit = defineEmits<{
           <span>PO</span>
           <span>Paciente</span>
           <span>Medicamento</span>
-          <span>Vendedor</span>
+          <span>Consultor</span>
           <span>Resp.</span>
           <span>Fornecedor</span>
           <span>Emissão</span>

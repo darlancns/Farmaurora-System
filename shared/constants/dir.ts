@@ -105,7 +105,8 @@ export const BANCOS_DIR: string[] = [
   "XP",
 ];
 
-export const ENVIOS_DIR: string[] = ["Air Cargo", "Courier", "DHL FORMAL", "FEDEX COURIER", "FEDEX FORMAL"];
+// Envio: NÃO há lista própria da DIR — as opções são as do Follow-Up (MODAIS_ENVIO, shared/constants/processos.ts;
+// regras em shared/utils/dirEnvio.ts).
 
 export const RECEITAS_DIR: string[] = [
   "Original",

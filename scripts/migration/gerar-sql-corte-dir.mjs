@@ -100,4 +100,14 @@ console.log(`  Ignorados:         ${corte.ignorados.length}${corte.ignorados.len
 if (ignoradosForaDoCsv.length) console.log(`    (não estão no CSV: ${ignoradosForaDoCsv.join(", ")}; ${ignoradosNoCsv.length} estão e deixaram de gerar comando)`);
 if (novos !== null) console.log(`  INSERT explícitos: ${lista(corte.inserts)}`);
 console.log(`  POs com fechamento_restante = true gravado pelo INSERT: ${corte.comFechamentoRestante.length}`);
+
+// Envio da planilha → opções do Follow-Up (o parser converte). A cia vem do AWB e NÃO é sobrescrita pelo envio; quando os dois
+// se contradizem (ex.: FEDEX FORMAL com Lufthansa, Air Cargo com FedEx/DHL) só há aviso. Só PO e linha, nunca paciente.
+const linhasComAviso = (codigo) =>
+  resultado.linhas.filter((l) => !l.ignorada && l.registro && l.avisos.some((a) => a.codigo === codigo));
+const contradizem = linhasComAviso("ENVIO_CIA_CONTRADIZ");
+const desconhecidos = linhasComAviso("ENVIO_DESCONHECIDO");
+const rotuloLinhas = (ls) => ls.map((l) => `${l.registro.po} (linha ${l.linha})`).join(", ");
+console.log(`  Envio × cia aérea (aviso ENVIO_CIA_CONTRADIZ): ${contradizem.length} PO(s)${contradizem.length ? `  → ${rotuloLinhas(contradizem)}` : ""}`);
+console.log(`  Envio sem equivalente no Follow-Up (aviso ENVIO_DESCONHECIDO): ${desconhecidos.length} PO(s)${desconhecidos.length ? `  → ${rotuloLinhas(desconhecidos)}` : ""}`);
 console.log(`  SQL gravado em:    ${saida}   (não executado; tem dados pessoais — não vai para o git)`);

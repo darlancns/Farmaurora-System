@@ -3,7 +3,6 @@ import {
   BANCOS_DIR,
   CHECKLIST_DIR,
   DESPACHANTES_DIR,
-  ENVIOS_DIR,
   FORNECEDORES_DIR,
   OBSERVACOES_DIR,
   OUTRO_DIR,
@@ -15,7 +14,7 @@ import {
   TEMPERATURAS_DIR,
   VENDEDORES_DIR,
 } from "#shared/constants/dir";
-import { CIAS_AEREAS_TODAS } from "#shared/constants/processos";
+import { CIAS_AEREAS_TODAS, MODAIS_ENVIO } from "#shared/constants/processos";
 import type { Dir, StatusDir } from "#shared/types/dir";
 import type { AppSelectOption } from "../types/appSelect";
 import {
@@ -59,7 +58,6 @@ export const RESPONSAVEL_DIR_OPTIONS = opcoesComOutro(RESPONSAVEIS_DIR);
 export const FORNECEDOR_DIR_OPTIONS = opcoesComOutro(FORNECEDORES_DIR);
 export const DESPACHANTE_DIR_OPTIONS = opcoesComOutro(DESPACHANTES_DIR);
 export const BANCO_DIR_OPTIONS = opcoesComOutro(BANCOS_DIR);
-export const ENVIO_DIR_OPTIONS = opcoesComOutro(ENVIOS_DIR);
 export const RECEITA_DIR_OPTIONS = opcoesComOutro(RECEITAS_DIR);
 export const TEMPERATURA_DIR_OPTIONS = opcoesComOutro(TEMPERATURAS_DIR);
 export const OBSERVACAO_DIR_OPTIONS = opcoesComOutro(OBSERVACOES_DIR);
@@ -75,6 +73,22 @@ export function montarCiaAereaDirOptions(atual: string): AppSelectOption<string>
     ...CIAS_AEREAS_TODAS.map((cia) => ({ value: cia, label: cia })),
   ];
   if (atual.trim() !== "" && !CIAS_AEREAS_TODAS.includes(atual)) {
+    opcoes.push({ value: atual, label: `${atual.trim()} (inativo)` });
+  }
+  return opcoes;
+}
+
+/**
+ * Select "Envio" do formulário: "Selecione" + as opções do Follow-Up (fonte única: MODAIS_ENVIO em
+ * shared/constants/processos.ts). Sem "Outro". Valor atual fora da lista (dado antigo, ex.: "FEDEX FORMAL") entra como
+ * opção extra "<valor> (inativo)": continua visível e selecionado, nunca vira vazio, até a pessoa trocá-lo.
+ */
+export function montarEnvioDirOptions(atual: string): AppSelectOption<string>[] {
+  const opcoes: AppSelectOption<string>[] = [
+    { value: "", label: "Selecione" },
+    ...MODAIS_ENVIO.map((modal) => ({ value: modal, label: modal })),
+  ];
+  if (atual.trim() !== "" && !(MODAIS_ENVIO as readonly string[]).includes(atual)) {
     opcoes.push({ value: atual, label: `${atual.trim()} (inativo)` });
   }
   return opcoes;
@@ -145,11 +159,11 @@ export interface CampoFiltroDir {
   opcoes: AppSelectOption<string>[];
 }
 
-/** Campos de filtro, na ordem de exibição. Responsável/vendedor/fornecedor/banco/mês vêm dos dados. */
+/** Campos de filtro, na ordem de exibição. Responsável/consultor/fornecedor/banco/mês vêm dos dados. */
 export function montarCamposFiltroDir(lista: readonly Dir[]): CampoFiltroDir[] {
   return [
     { chave: "responsavel", id: "filtro-dir-responsavel", opcoes: opcoesDeFiltro("Todos os responsáveis", valoresDistintos(lista, "responsavel")) },
-    { chave: "vendedor", id: "filtro-dir-vendedor", opcoes: opcoesDeFiltro("Todos os vendedores", valoresDistintos(lista, "vendedor")) },
+    { chave: "vendedor", id: "filtro-dir-vendedor", opcoes: opcoesDeFiltro("Todos os consultores", valoresDistintos(lista, "vendedor")) },
     { chave: "fornecedor", id: "filtro-dir-fornecedor", opcoes: opcoesDeFiltro("Todos os fornecedores", valoresDistintos(lista, "fornecedor")) },
     {
       chave: "banco",

@@ -3,6 +3,7 @@ import { createSupabaseAdminClient } from "./supabaseServerClient";
 import { erro, randomId } from "./storeKit";
 import { colunasDeDir, montarDir, type DirRow, type MarcaFechamentoRestante } from "./dirMappers";
 import { DirRegraError, erroContratoCambio, erroMarcacaoFechamentoRestante } from "./dirValidation";
+import { erroEnvioDir } from "../../shared/utils/dirEnvio";
 
 /**
  * Persistência da DIR no Supabase — tabela `dir` (1 linha por PO; `po` NÃO é único).
@@ -48,6 +49,9 @@ export async function createDir(input: NewDirDTO, por: string): Promise<Dir> {
   if (mensagem) throw new DirRegraError(mensagem);
   const erroContrato = erroContratoCambio(input);
   if (erroContrato) throw new DirRegraError(erroContrato);
+  // Envio: só as opções do Follow-Up (ou vazio). Na criação não há valor antigo a tolerar.
+  const erroEnvio = erroEnvioDir(input);
+  if (erroEnvio) throw new DirRegraError(erroEnvio);
 
   const db = createSupabaseAdminClient();
   const now = new Date().toISOString();
@@ -77,6 +81,20 @@ export async function patchDir(id: string, patch: DirPatchDTO, por: string): Pro
 
     const erroContrato = erroContratoCambio(patch, { contratoCambio: atual.contrato_cambio });
     if (erroContrato) throw new DirRegraError(erroContrato);
+  }
+
+  // Envio: só as opções do Follow-Up (ou vazio). Mesma tolerância do contrato: um valor IGUAL ao gravado (ex.: "FEDEX FORMAL",
+  // de antes da regra) não impede salvar os outros campos; qualquer outro valor inválido é 400. Só se lê o gravado quando
+  // o enviado NÃO cumpre a regra.
+  if (erroEnvioDir(patch)) {
+    const { data, error } = await db.from(TABELA).select("id, envio").eq("id", id);
+    if (error) throw erro("buscar registro da DIR", error);
+
+    const atual = (data ?? [])[0] as Pick<DirRow, "id" | "envio"> | undefined;
+    if (!atual) return null;
+
+    const erroEnvio = erroEnvioDir(patch, { envio: atual.envio });
+    if (erroEnvio) throw new DirRegraError(erroEnvio);
   }
 
   // Só mexer em fechamentoRestante exige conhecer o estado atual: a regra do PO encerrado vale sobre o

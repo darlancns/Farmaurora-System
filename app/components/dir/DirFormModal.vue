@@ -7,7 +7,7 @@ import { formatarDataHoraBrasilia } from "../../utils/dirFormatters";
 import {
   BANCO_DIR_OPTIONS,
   DESPACHANTE_DIR_OPTIONS,
-  ENVIO_DIR_OPTIONS,
+  montarEnvioDirOptions,
   FORNECEDOR_DIR_OPTIONS,
   OBSERVACAO_DIR_OPTIONS,
   RECEITA_DIR_OPTIONS,
@@ -56,6 +56,9 @@ const { form, outros, onPoInput, onMedicamentoInput, onContratoCambioInput, vali
 );
 
 // Cia aérea: a lista do Follow-Up (+ o valor antigo fora da lista como "(inativo)", nunca vazio).
+// Envio: as opções do Follow-Up (+ valor antigo fora da lista como "(inativo)", nunca vazio).
+const envioOptions = computed<AppSelectOption<string>[]>(() => montarEnvioDirOptions(form.envio));
+
 const ciaAereaOptions = computed<AppSelectOption<string>[]>(() => montarCiaAereaDirOptions(form.companhiaAerea));
 
 interface CampoLista {
@@ -67,7 +70,7 @@ interface CampoLista {
 }
 
 const CAMPOS_IDENTIFICACAO: CampoLista[] = [
-  { campo: "vendedor", rotulo: "Vendedor", opcoes: VENDEDOR_DIR_OPTIONS },
+  { campo: "vendedor", rotulo: "Consultor", opcoes: VENDEDOR_DIR_OPTIONS },
   { campo: "responsavel", rotulo: "Responsável", opcoes: RESPONSAVEL_DIR_OPTIONS },
   { campo: "receita", rotulo: "Receita", opcoes: RECEITA_DIR_OPTIONS },
   { campo: "temperatura", rotulo: "Temperatura", opcoes: TEMPERATURA_DIR_OPTIONS },
@@ -75,7 +78,9 @@ const CAMPOS_IDENTIFICACAO: CampoLista[] = [
 const CAMPOS_LOGISTICA: CampoLista[] = [
   // O Fornecedor ocupa a linha inteira (nenhum campo faz par com ele): Envio | Despachante e Cia aérea | AWB seguem em pares.
   { campo: "fornecedor", rotulo: "Fornecedor", opcoes: FORNECEDOR_DIR_OPTIONS, larguraTotal: true },
-  { campo: "envio", rotulo: "Envio", opcoes: ENVIO_DIR_OPTIONS },
+];
+// Despachante vem depois do Envio (que é um select simples, sem "Outro"; ver o template).
+const CAMPOS_DESPACHANTE: CampoLista[] = [
   { campo: "despachante", rotulo: "Despachante", opcoes: DESPACHANTE_DIR_OPTIONS },
 ];
 const CAMPOS_FINANCEIRO: CampoLista[] = [{ campo: "banco", rotulo: "Banco", opcoes: BANCO_DIR_OPTIONS }];
@@ -316,6 +321,27 @@ function confirmarExclusao(): void {
             <legend class="px-1 text-[11px] font-semibold text-ink-soft uppercase">Logística</legend>
             <div class="grid grid-cols-2 gap-2.5">
               <template v-for="c in CAMPOS_LOGISTICA" :key="c.campo">
+                <div :class="[c.larguraTotal ? 'col-span-2' : 'col-span-2 sm:col-span-1', SELECT_CAMPO_CLASS]">
+                  <label :for="`df-${c.campo}`" :class="LABEL_CLASS">{{ c.rotulo }}</label>
+                  <AppSelect :id="`df-${c.campo}`" v-model="outros[c.campo].state.select" :options="c.opcoes" />
+                  <input
+                    v-if="outros[c.campo].state.select === 'Outro'"
+                    :id="`df-${c.campo}-outro`"
+                    v-model="outros[c.campo].state.outroTexto"
+                    type="text"
+                    :aria-label="`${c.rotulo} (outro)`"
+                    placeholder="Digite"
+                    class="mt-1.5"
+                    :class="INPUT_CLASS"
+                  />
+                </div>
+              </template>
+              <!-- Envio: as opções do Follow-Up (Air Cargo, Courier Formal, Courier Simples), sem "Outro". -->
+              <div class="col-span-2 sm:col-span-1" :class="SELECT_CAMPO_CLASS">
+                <label for="df-envio" :class="LABEL_CLASS">Envio</label>
+                <AppSelect id="df-envio" v-model="form.envio" :options="envioOptions" />
+              </div>
+              <template v-for="c in CAMPOS_DESPACHANTE" :key="c.campo">
                 <div :class="[c.larguraTotal ? 'col-span-2' : 'col-span-2 sm:col-span-1', SELECT_CAMPO_CLASS]">
                   <label :for="`df-${c.campo}`" :class="LABEL_CLASS">{{ c.rotulo }}</label>
                   <AppSelect :id="`df-${c.campo}`" v-model="outros[c.campo].state.select" :options="c.opcoes" />

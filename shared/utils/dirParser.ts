@@ -14,6 +14,7 @@ import { VENDEDOR_CANONICO } from "../constants/dir.ts";
 import type { NewDirDTO, StatusDir } from "../types/dir";
 import { parseDataISO } from "./dataBrasilia.ts";
 import { separarCiaAwb } from "./dirCiaAwb.ts";
+import { ciaContradizEnvio, converterEnvioDaPlanilha } from "./dirEnvio.ts";
 import { NUMERO_PO_REGEX_PARTES as PO_RE } from "./numeroPo.ts";
 
 export type CodigoAvisoDir =
@@ -35,7 +36,9 @@ export type CodigoAvisoDir =
   | "OPERACAO_VAZIA"
   | "FECHAMENTO_RESTANTE_DUPLICADA"
   | "FORNECEDOR_PELA_ORIGEM"
-  | "FORNECEDOR_SEM_REAL";
+  | "FORNECEDOR_SEM_REAL"
+  | "ENVIO_DESCONHECIDO"
+  | "ENVIO_CIA_CONTRADIZ";
 
 // ── Fornecedor "Care Pharma" ───────────────────────────────────────────────────────────────────────
 // Na planilha, "Care Pharma" aparece como intermediário e o fornecedor real fica na coluna ORIGEM. A coluna ORIGEM
@@ -518,6 +521,20 @@ function parseLinha(
   // AWB: o texto da planilha ("Lufthansa: 020-01045494") vira cia + número. Célula só com traços já chegou vazia (texto()).
   // Sem companhia reconhecida, a cia fica "" e o AWB segue como a planilha escreveu (nada se perde).
   const awbSeparado = separarCiaAwb(texto("awb"));
+  const cia = awbSeparado.cia ?? "";
+
+  // Envio: o texto da planilha vira uma das opções do Follow-Up (Air Cargo, Courier Formal, Courier Simples). A cia continua
+  // vindo do AWB — NUNCA é sobrescrita pelo nome do envio; quando os dois se contradizem, só se avisa (sem nome de paciente).
+  const envioPlanilha = texto("envio");
+  const envioConvertido = converterEnvioDaPlanilha(envioPlanilha);
+  if (envioConvertido.situacao === "desconhecido") {
+    aviso("ENVIO_DESCONHECIDO", `ENVIO sem equivalente nas opções do Follow-Up, gravado literal ("${envioConvertido.envio}")`);
+  } else if (ciaContradizEnvio(envioConvertido.envio, cia)) {
+    aviso(
+      "ENVIO_CIA_CONTRADIZ",
+      `ENVIO "${envioPlanilha}" (${envioConvertido.envio}) contradiz a CIA do AWB ("${cia}")`,
+    );
+  }
 
   const registro: NewDirDTO = {
     po,
@@ -532,8 +549,8 @@ function parseLinha(
     medicamento: texto("medicamento"),
     temperatura: texto("temperatura"),
     fornecedor: resolvido.fornecedor,
-    envio: texto("envio"),
-    companhiaAerea: awbSeparado.cia ?? "",
+    envio: envioConvertido.envio,
+    companhiaAerea: cia,
     awb: awbSeparado.awb,
     despachante: texto("despachante"),
     status,
