@@ -1,6 +1,6 @@
 import { ROTULOS_BRAND_MEDICAMENTO, STATUS_PROCESSO_LABELS, isBrandMedicamento } from "#shared/constants/processos";
 import type { Processo } from "#shared/types/processo";
-import { normalizeText } from "./search";
+import { normalizarSemPontuacao, normalizeText } from "./search";
 
 // Busca da tela de Processos: o que casa com o termo e o que abrir sozinho (grupos e detalhes) quando há
 // busca. Funções puras, testadas em tests/unit/processoBusca.spec.ts; os componentes só aplicam o resultado.
@@ -22,7 +22,7 @@ export function normalizarPasta(valor: string | null | undefined): string {
 // PO sem acento/maiúscula e SÓ com letras e números: "PO26-10-0471", "po26100471" e "26 10 0471" viram
 // "po26100471"/"26100471".
 export function normalizarOrdem(valor: string): string {
-  return normalizeText(valor).replace(/[^a-z0-9]+/g, "");
+  return normalizarSemPontuacao(valor);
 }
 
 /** O termo (digitado de qualquer jeito) está contido na pasta? "375" acha "2026 - 375". */

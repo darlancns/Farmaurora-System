@@ -1,6 +1,6 @@
 import { BANCO_DIR_SEM_BANCO, CHECKLIST_DIR } from "#shared/constants/dir";
 import type { ChecklistChaveDir, Dir, StatusDir } from "#shared/types/dir";
-import { normalizeText } from "./search";
+import { normalizarSemPontuacao, normalizeText } from "./search";
 
 // Lógica pura da lista da DIR (filtros, abas, ordenação, contagens, lista "Fechamentos restantes") —
 // sem Vue, testável isoladamente (tests/unit/dirFiltros.spec.ts).
@@ -80,13 +80,38 @@ function statusConfere(filtro: FiltrosDir["status"], dir: Dir): boolean {
   return dir.status === filtro;
 }
 
+// Busca da lista: o termo digitado preparado UMA vez por busca (e não uma vez por registro).
+export interface TermoBuscaDir {
+  texto: string; // normalizeText do que foi digitado (caixa e acento; a pontuação fica)
+  codigo: string; // normalizarSemPontuacao do que foi digitado ("" se só havia pontuação/espaços)
+}
+
+/** null quando não há busca (vazio ou só espaços). */
+export function criarTermoBuscaDir(busca: string): TermoBuscaDir | null {
+  const texto = normalizeText(busca);
+  if (!texto) return null;
+  return { texto, codigo: normalizarSemPontuacao(busca) };
+}
+
+/**
+ * O registro casa com a busca? Dois jeitos, qualquer um vale:
+ * 1) o texto digitado (sem caixa e sem acento, pontuação como está) dentro de "paciente po medicamento awb";
+ * 2) o texto SÓ com letras e números dentro do PO ou do AWB (a mesma regra do Nº Ordem do Follow-Up):
+ *    "po261004", "26-10-0471" e "Po26" acham PO26-10-0471; "02046388355" acha "020-46388355".
+ * Paciente e medicamento NÃO ignoram pontuação (como o paciente no Follow-Up). Termo que é só pontuação não
+ * entra no jeito 2 (um termo vazio casaria com tudo).
+ */
+export function dirCombinaBusca(dir: Dir, termo: TermoBuscaDir): boolean {
+  const alvo = normalizeText([dir.paciente, dir.po, dir.medicamento, dir.awb].join(" "));
+  if (alvo.includes(termo.texto)) return true;
+  if (termo.codigo === "") return false;
+  return normalizarSemPontuacao(dir.po).includes(termo.codigo) || normalizarSemPontuacao(dir.awb).includes(termo.codigo);
+}
+
 export function aplicarFiltrosDir(lista: readonly Dir[], filtros: FiltrosDir): Dir[] {
-  const busca = normalizeText(filtros.busca);
+  const busca = criarTermoBuscaDir(filtros.busca);
   return lista.filter((dir) => {
-    if (busca) {
-      const alvo = normalizeText([dir.paciente, dir.po, dir.medicamento, dir.awb].join(" "));
-      if (!alvo.includes(busca)) return false;
-    }
+    if (busca && !dirCombinaBusca(dir, busca)) return false;
     if (filtros.responsavel && dir.responsavel !== filtros.responsavel) return false;
     if (filtros.vendedor && dir.vendedor !== filtros.vendedor) return false;
     if (filtros.fornecedor && dir.fornecedor !== filtros.fornecedor) return false;
