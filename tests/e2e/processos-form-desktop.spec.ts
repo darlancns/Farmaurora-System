@@ -393,20 +393,28 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
           const fieldset = await caixa(page.locator("#pf-transp-nome").locator("xpath=ancestor::fieldset"), "fieldset");
           expect(fieldset.width).toBeCloseTo(util, 0);
 
-          // Medicamento: 4 colunas na mesma linha (Nome 1.4fr, Dosagem 1fr, Quantidade 0.7fr, ações).
-          const mNome = await b("pf-medicamento-nome-0");
-          const mDos = await b("pf-medicamento-dosagem-0");
+          // Medicamento: Qtd. (8,5rem = 136px) | Medicamento (o resto) | ações, tudo na mesma linha. Sem campo de dosagem.
           const mQtd = await b("pf-medicamento-quantidade-0");
-          mesmaLinha(mNome, mDos, "Nome | Dosagem");
-          mesmaLinha(mDos, mQtd, "Dosagem | Quantidade");
-          expect(mNome.width / mDos.width).toBeCloseTo(1.4, 1);
-          expect(mQtd.width / mDos.width).toBeCloseTo(0.7, 1);
+          const mNome = await b("pf-medicamento-nome-0");
+          mesmaLinha(mQtd, mNome, "Qtd. | Medicamento");
+          expect(mNome.x).toBeGreaterThan(direita(mQtd));
+          expect(mQtd.width, "Qtd. estreita (8,5rem)").toBeCloseTo(8.5 * 16, 0);
+          expect(mNome.width, "Medicamento ocupa o resto da linha").toBeGreaterThan(mQtd.width * 2);
+          await expect(page.locator("#pf-medicamento-dosagem-0")).toHaveCount(0);
           const botaoAdd = await caixa(page.locator(`#processo-form button[title='Adicionar medicamento']`), "adicionar");
-          // O "+" só existe no último item (o 2º no modo Editar).
-          const qtdUltimo = modo === "editar" ? await b("pf-medicamento-quantidade-1") : mQtd;
-          expect(Math.abs(embaixo(qtdUltimo) - embaixo(botaoAdd)), "Quantidade | + alinhados pela base (items-end)").toBeLessThanOrEqual(1);
-          expect(botaoAdd.x).toBeGreaterThanOrEqual(direita(qtdUltimo));
+          // O "+" só existe no último item (o 2º no modo Editar), à direita do Medicamento e alinhado pela base.
+          const mQtdUltimo = modo === "editar" ? await b("pf-medicamento-quantidade-1") : mQtd;
+          const mNomeUltimo = modo === "editar" ? await b("pf-medicamento-nome-1") : mNome;
+          mesmaLinha(mQtdUltimo, mNomeUltimo, "Qtd. | Medicamento (último item)");
+          expect(Math.abs(embaixo(mNomeUltimo) - embaixo(botaoAdd)), "Medicamento | + alinhados pela base (items-end)").toBeLessThanOrEqual(1);
+          expect(botaoAdd.x).toBeGreaterThanOrEqual(direita(mNomeUltimo));
           expect(botaoAdd.width, "+ continua um botão pequeno").toBeLessThan(44);
+          if (modo === "editar") {
+            // Ordem dos botões: "+" e depois ✕ (remover), na mesma linha.
+            const remover = await caixa(page.locator(`#processo-form button[title='Remover medicamento']`), "remover");
+            expect(remover.x).toBeGreaterThanOrEqual(direita(botaoAdd) - 1);
+            expect(Math.abs(embaixo(remover) - embaixo(botaoAdd)), "+ e ✕ na mesma linha").toBeLessThanOrEqual(1);
+          }
 
           // Datas: 4 colunas (Suposta estimativa sozinha na 3ª linha, 1 coluna).
           const datas = await Promise.all(

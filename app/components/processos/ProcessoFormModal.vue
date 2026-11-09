@@ -69,7 +69,6 @@ const {
   onPastaInput,
   onNumeroPoInput,
   onMedicamentoNomeInput,
-  onMedicamentoDosagemInput,
   onMedicamentoQuantidadeInput,
   onDataFieldChange,
   validar,
@@ -235,7 +234,6 @@ function handleSubmit(): void {
                 :items="medicamentos"
                 sem-rotulo
                 @nome-input="onMedicamentoNomeInput"
-                @dosagem-input="onMedicamentoDosagemInput"
                 @quantidade-input="onMedicamentoQuantidadeInput"
                 @add="addMedicamento"
                 @remove="removeMedicamento"

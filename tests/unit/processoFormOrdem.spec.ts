@@ -31,9 +31,8 @@ const ORDEM_ESPERADA = [
   "pf-numero-po",
   "pf-numero-remessa",
   "pf-numero-processo",
-  "pf-medicamento-nome-0",
-  "pf-medicamento-dosagem-0",
   "pf-medicamento-quantidade-0",
+  "pf-medicamento-nome-0",
   "pf-local-entrega",
   "pf-empresa",
   "pf-responsavel",
@@ -173,7 +172,7 @@ describe("Formulário de processo — ordem dos campos no DOM", () => {
     const el = abrir();
     await nextTick();
     const blocoDe = (id: string) => texto(el.querySelector(`#${id}`)!.closest("fieldset")?.querySelector(":scope > legend") ?? null);
-    for (const id of ["pf-medicamento-nome-0", "pf-medicamento-dosagem-0", "pf-medicamento-quantidade-0", "pf-local-entrega"]) {
+    for (const id of ["pf-medicamento-quantidade-0", "pf-medicamento-nome-0", "pf-local-entrega"]) {
       expect(blocoDe(id), id).toBe("Medicamentos e local de entrega");
     }
     for (const id of ["pf-modal", "pf-cia-aerea", "pf-awb"]) expect(blocoDe(id), id).toBe("Envio internacional");
@@ -234,7 +233,7 @@ describe("Formulário de processo — ordem dos campos no DOM", () => {
 });
 
 describe("ProcessoFormMedicamentos — prop semRotulo", () => {
-  const medicamentos = [{ nome: "", dosagem: "", quantidade: "" }];
+  const medicamentos = [{ nome: "", quantidade: "" }];
 
   it("por padrão mostra o rótulo 'Medicamentos' (comportamento de antes)", async () => {
     const el = montar(defineComponent({ render: () => h(ProcessoFormMedicamentos, { items: medicamentos }) }));
@@ -247,7 +246,7 @@ describe("ProcessoFormMedicamentos — prop semRotulo", () => {
     const el = montar(defineComponent({ render: () => h(ProcessoFormMedicamentos, { items: medicamentos, semRotulo: true }) }));
     await nextTick();
     expect([...el.querySelectorAll("p")].map(texto)).not.toContain("Medicamentos");
-    for (const id of ["pf-medicamento-nome-0", "pf-medicamento-dosagem-0", "pf-medicamento-quantidade-0"]) {
+    for (const id of ["pf-medicamento-quantidade-0", "pf-medicamento-nome-0"]) {
       expect(el.querySelector(`#${id}`), id).not.toBeNull();
     }
     expect(el.querySelector("button[title='Adicionar medicamento']")).not.toBeNull();

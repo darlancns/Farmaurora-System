@@ -111,7 +111,11 @@ export function buildBasePayload(
     numeroAwb: form.numeroAwb.trim() || undefined,
     medicamentos: medicamentos
       .filter((item) => item.nome.trim() !== "")
+      // O item volta com TODAS as chaves que já tinha (inclusive as que o formulário não exibe, como a dosagem, que saiu da
+      // tela mas continua gravada): só se tiram as pontas dos textos e os vazios viram ausentes, como sempre. Nada de
+      // trocar caixa ou formato dos valores.
       .map((item) => ({
+        ...item,
         nome: item.nome.trim(),
         dosagem: item.dosagem?.trim() || undefined,
         quantidade: item.quantidade?.trim() || undefined,

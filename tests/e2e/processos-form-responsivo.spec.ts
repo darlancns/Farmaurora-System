@@ -107,9 +107,8 @@ const CAMPOS_NOVO = [
   "pf-numero-remessa-menos",
   "pf-numero-remessa-mais",
   "pf-numero-processo",
-  "pf-medicamento-nome-0",
-  "pf-medicamento-dosagem-0",
   "pf-medicamento-quantidade-0",
+  "pf-medicamento-nome-0",
   "pf-local-entrega",
   "pf-empresa",
   "pf-responsavel",
@@ -129,9 +128,8 @@ const CAMPOS_NOVO = [
 // Editar: 2º medicamento (entra depois do 1º) e os dois condicionais (Qual fornecedor?, Qual status?).
 const CAMPOS_EDITAR = [
   ...CAMPOS_NOVO.slice(0, 10),
-  "pf-medicamento-nome-1",
-  "pf-medicamento-dosagem-1",
   "pf-medicamento-quantidade-1",
+  "pf-medicamento-nome-1",
   ...CAMPOS_NOVO.slice(10, 15),
   "pf-fornecedor-outro",
   ...CAMPOS_NOVO.slice(15, 17),
@@ -452,8 +450,7 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
             ["pf-transp-valor", "1234.5"],
             ["pf-awb", "957-12345678"],
             ["pf-medicamento-nome-0", "Pembrolizumabe"],
-            ["pf-medicamento-dosagem-0", "100mg/4mL"],
-            ["pf-medicamento-quantidade-0", "10 cx"],
+            ["pf-medicamento-quantidade-0", "12 ampolas"], // ~14 caracteres cabem na Qtd.
             ["pf-local-entrega", "Rua das Flores 123, São Paulo"],
             ["pf-numero-processo", "25BR00001234567-8/2026"],
             // As 9 datas não são mais digitáveis (calendário próprio): não entram aqui. O texto antigo longo
@@ -549,20 +546,22 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
             "Nº Remessa (2 dígitos) cortado",
           ).toBe(false);
 
-          // Medicamentos e local de entrega (fieldset em largura total): Nome em largura total do bloco; Dosagem | Quantidade;
-          // ações na linha de baixo; o Local de entrega fecha o bloco, também em largura total.
+          // Medicamentos e local de entrega (fieldset em largura total): Qtd. (10rem = 160px) | Medicamento (o resto da linha);
+          // os botões "+" e ✕ na linha de baixo; sem campo de dosagem; o Local de entrega fecha o bloco, em largura total.
           const fsMed = await caixaNoCorpo(page.locator("#pf-medicamento-nome-0").locator("xpath=ancestor::fieldset"), "fieldset Medicamentos");
           expect(fsMed.width).toBeCloseTo(util, 0);
           abaixoDe(fsMed, remessa, "Medicamentos e local de entrega");
-          const mNome = await b("pf-medicamento-nome-0");
-          const mDos = await b("pf-medicamento-dosagem-0");
           const mQtd = await b("pf-medicamento-quantidade-0");
-          expect(mNome.width, "nome do medicamento em largura total do bloco").toBeCloseTo(interno, 0);
-          mesmaLinha(mDos, mQtd, "Dosagem | Quantidade");
-          abaixoDe(mDos, mNome, "Dosagem");
+          const mNome = await b("pf-medicamento-nome-0");
+          await expect(campo(page, "pf-medicamento-dosagem-0")).toHaveCount(0);
+          mesmaLinha(mQtd, mNome, "Qtd. | Medicamento");
+          expect(mNome.x).toBeGreaterThan(direita(mQtd));
+          expect(mQtd.width, "Qtd. estreita (10rem)").toBeCloseTo(160, 0);
+          expect(mNome.width, "Medicamento ocupa o resto da linha").toBeCloseTo(interno - 160 - 8, 0);
+          expect(direita(mNome), "Medicamento vai até a borda do bloco").toBeCloseTo(fsMed.x + 1 + 12 + interno, 0);
           const adicionar = page.locator("#processo-form button[title='Adicionar medicamento']");
           const mAdd = await caixaNoCorpo(adicionar, "adicionar medicamento");
-          abaixoDe(mAdd, modo === "editar" ? await b("pf-medicamento-dosagem-1") : mDos, "Adicionar");
+          abaixoDe(mAdd, modo === "editar" ? await b("pf-medicamento-nome-1") : mNome, "Adicionar");
           expect(mAdd.width, "Adicionar medicamento em largura total do bloco (ou quase, ao lado do ✕)").toBeGreaterThanOrEqual(
             modo === "editar" ? interno - 44 - 8 - 2 : interno - 2,
           );

@@ -13,7 +13,6 @@ withDefaults(
 
 const emit = defineEmits<{
   "nome-input": [index: number, event: Event];
-  "dosagem-input": [index: number, event: Event];
   "quantidade-input": [index: number, event: Event];
   add: [];
   remove: [index: number];
@@ -23,33 +22,17 @@ const emit = defineEmits<{
 <template>
   <div>
     <p v-if="!semRotulo" :class="LABEL_CLASS">Medicamentos</p>
+    <!-- Cada linha: Qtd. (estreita, texto livre, ~14 caracteres) / Medicamento (o resto) / "+" / remover. A dosagem NÃO é
+         mais um campo do formulário (o valor que um item já tenha continua sendo preservado ao salvar; ver
+         buildBasePayload). Ordem do DOM = ordem visual (nenhuma classe order-*). Abaixo de lg os botões vão para a linha
+         de baixo; em lg+ ficam na mesma linha, à direita. -->
     <div
       v-for="(item, index) in items"
       :key="index"
-      class="mb-3 grid grid-cols-2 items-end gap-2 border-b border-hairline pb-3 last:mb-0 last:border-b-0 last:pb-0 lg:mb-1.5 lg:last:mb-1.5 lg:grid-cols-[1.4fr_1fr_0.7fr_auto] lg:border-b-0 lg:pb-0"
+      class="mb-3 grid grid-cols-[10rem_minmax(0,1fr)] items-end gap-2 border-b border-hairline pb-3 last:mb-0 last:border-b-0 last:pb-0 lg:mb-1.5 lg:last:mb-1.5 lg:grid-cols-[8.5rem_minmax(0,1fr)_auto] lg:border-b-0 lg:pb-0"
     >
-      <div class="col-span-2 lg:col-span-1">
-        <label :for="`pf-medicamento-nome-${index}`" :class="LABEL_CLASS">Nome</label>
-        <input
-          :id="`pf-medicamento-nome-${index}`"
-          :value="item.nome"
-          type="text"
-          :class="INPUT_COMPACTO_CLASS"
-          @input="emit('nome-input', index, $event)"
-        />
-      </div>
       <div>
-        <label :for="`pf-medicamento-dosagem-${index}`" :class="LABEL_CLASS">Dosagem</label>
-        <input
-          :id="`pf-medicamento-dosagem-${index}`"
-          :value="item.dosagem"
-          type="text"
-          :class="INPUT_COMPACTO_CLASS"
-          @input="emit('dosagem-input', index, $event)"
-        />
-      </div>
-      <div>
-        <label :for="`pf-medicamento-quantidade-${index}`" :class="LABEL_CLASS">Quantidade</label>
+        <label :for="`pf-medicamento-quantidade-${index}`" :class="LABEL_CLASS">Qtd.</label>
         <input
           :id="`pf-medicamento-quantidade-${index}`"
           :value="item.quantidade"
@@ -58,16 +41,17 @@ const emit = defineEmits<{
           @input="emit('quantidade-input', index, $event)"
         />
       </div>
+      <div>
+        <label :for="`pf-medicamento-nome-${index}`" :class="LABEL_CLASS">Medicamento</label>
+        <input
+          :id="`pf-medicamento-nome-${index}`"
+          :value="item.nome"
+          type="text"
+          :class="INPUT_COMPACTO_CLASS"
+          @input="emit('nome-input', index, $event)"
+        />
+      </div>
       <div class="col-span-2 flex gap-2 empty:hidden lg:col-span-1 lg:gap-1 lg:empty:flex">
-        <button
-          v-if="index > 0"
-          type="button"
-          title="Remover medicamento"
-          :class="BOTAO_REMOVER_CLASS"
-          @click="emit('remove', index)"
-        >
-          ✕
-        </button>
         <button
           v-if="index === items.length - 1"
           type="button"
@@ -76,6 +60,15 @@ const emit = defineEmits<{
           @click="emit('add')"
         >
           +
+        </button>
+        <button
+          v-if="index > 0"
+          type="button"
+          title="Remover medicamento"
+          :class="BOTAO_REMOVER_CLASS"
+          @click="emit('remove', index)"
+        >
+          ✕
         </button>
       </div>
     </div>

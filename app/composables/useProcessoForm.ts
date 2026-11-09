@@ -117,7 +117,8 @@ function emptyForm(): FormState {
 }
 
 function emptyMedicamento(): Medicamento {
-  return { nome: "", dosagem: "", quantidade: "" };
+  // O formulário não cria mais dosagem (o campo saiu da tela); a de um item existente continua no objeto e é preservada.
+  return { nome: "", quantidade: "" };
 }
 
 // Resultado de salvar uma EDIÇÃO: inválido (mensagem), ou válido com o patch diferencial — `null` quando
@@ -145,7 +146,6 @@ export interface UseProcessoFormReturn {
   onPastaInput: (event: Event) => void;
   onNumeroPoInput: (event: Event) => void;
   onMedicamentoNomeInput: (index: number, event: Event) => void;
-  onMedicamentoDosagemInput: (index: number, event: Event) => void;
   onMedicamentoQuantidadeInput: (index: number, event: Event) => void;
   onDataFieldChange: (field: DataField, value: string) => void;
   validar: () => ValidarProcessoFormResult;
@@ -306,13 +306,6 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     item.nome = target.value.toUpperCase();
   }
 
-  function onMedicamentoDosagemInput(index: number, event: Event): void {
-    const target = event.target as HTMLInputElement;
-    const item = medicamentos[index];
-    if (!item) return;
-    item.dosagem = target.value.toUpperCase();
-  }
-
   function onMedicamentoQuantidadeInput(index: number, event: Event): void {
     const target = event.target as HTMLInputElement;
     const item = medicamentos[index];
@@ -358,7 +351,6 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     onPastaInput,
     onNumeroPoInput,
     onMedicamentoNomeInput,
-    onMedicamentoDosagemInput,
     onMedicamentoQuantidadeInput,
     onDataFieldChange,
     validar,

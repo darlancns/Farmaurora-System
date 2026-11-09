@@ -240,19 +240,17 @@ test.describe.serial("Follow-Up de processos", () => {
     await expect(page.locator("#pf-pasta")).toHaveValue("2026 - 117");
   });
 
-  test("9 · campos de Medicamentos têm rótulo acima e convertem texto pra maiúsculas", async ({ page }) => {
+  test("9 · campos de Medicamentos (Qtd. e Medicamento) têm rótulo acima e convertem texto pra maiúsculas", async ({ page }) => {
     await page.goto("/processos", { waitUntil: "networkidle" });
     await page.locator("#btn-novo-processo").click();
 
-    await expect(page.locator('label[for="pf-medicamento-nome-0"]')).toHaveText("Nome");
-    await expect(page.locator('label[for="pf-medicamento-dosagem-0"]')).toHaveText("Dosagem");
-    await expect(page.locator('label[for="pf-medicamento-quantidade-0"]')).toHaveText("Quantidade");
+    // Linha do medicamento: Qtd. / Medicamento (a dosagem saiu do formulário).
+    await expect(page.locator('label[for="pf-medicamento-quantidade-0"]')).toHaveText("Qtd.");
+    await expect(page.locator('label[for="pf-medicamento-nome-0"]')).toHaveText("Medicamento");
+    await expect(page.locator("#pf-medicamento-dosagem-0")).toHaveCount(0);
 
     await page.locator("#pf-medicamento-nome-0").fill("enhertu");
     await expect(page.locator("#pf-medicamento-nome-0")).toHaveValue("ENHERTU");
-
-    await page.locator("#pf-medicamento-dosagem-0").fill("100mg");
-    await expect(page.locator("#pf-medicamento-dosagem-0")).toHaveValue("100MG");
 
     await page.locator("#pf-medicamento-quantidade-0").fill("6 caixas");
     await expect(page.locator("#pf-medicamento-quantidade-0")).toHaveValue("6 CAIXAS");
