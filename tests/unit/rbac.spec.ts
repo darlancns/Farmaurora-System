@@ -69,6 +69,50 @@ describe("rbac — escrita por seção", () => {
   });
 });
 
+describe("rbac — DIR (só operacional e administrador, leitura e escrita)", () => {
+  it("leitura: só operacional e administrador; sócio e consultor não leem nem de leitura", () => {
+    expect(ALL.filter((r) => canReadSection(r, "dir"))).toEqual(["operacional", "administrador"]);
+    expect(canReadSection("socio", "dir")).toBe(false);
+    expect(canReadSection("consultor", "dir")).toBe(false);
+  });
+
+  it("escrita: os mesmos dois cargos", () => {
+    expect(ALL.filter((r) => canWriteSection(r, "dir"))).toEqual(["operacional", "administrador"]);
+  });
+
+  it("quem escreve também lê (não existe cargo só-leitura na DIR)", () => {
+    for (const r of ALL) expect(!canWriteSection(r, "dir") || canReadSection(r, "dir")).toBe(true);
+    expect(ALL.filter((r) => canReadSection(r, "dir") && !canWriteSection(r, "dir"))).toEqual([]);
+  });
+
+  it("sectionForApiPath: /api/dir e subcaminhos (com ou sem query) → dir", () => {
+    for (const p of ["/api/dir", "/api/dir/", "/api/dir/dir_123", "/api/dir/dir_123?x=1", "/api/dir?mes=2026-10"]) {
+      expect(sectionForApiPath(p), p).toBe("dir");
+    }
+  });
+
+  it("sectionForApiPath: prefixos parecidos continuam NEGADOS por padrão (/api/directory, /api/dirx…)", () => {
+    for (const p of ["/api/directory", "/api/dirx", "/api/dir-x", "/api/Dir", "/api/dir.json"]) {
+      expect(sectionForApiPath(p), p).toBeNull();
+      expect(isAuthenticatedAnyApiPath(p), p).toBe(false);
+    }
+  });
+
+  it("sectionForPageRoute: /dir e subrotas → dir; /directory não", () => {
+    expect(sectionForPageRoute("/dir")).toBe("dir");
+    expect(sectionForPageRoute("/dir/")).toBe("dir");
+    expect(sectionForPageRoute("/dir/abc")).toBe("dir");
+    expect(sectionForPageRoute("/directory")).toBeNull();
+    expect(sectionForPageRoute("/dirx")).toBeNull();
+  });
+
+  it("as outras seções não mudaram de acesso", () => {
+    expect(ALL.filter((r) => canReadSection(r, "patients"))).toEqual(["socio", "administrador"]);
+    expect(ALL.filter((r) => canReadSection(r, "pagamentos"))).toEqual(["socio", "operacional", "administrador"]);
+    expect(ALL.filter((r) => canReadSection(r, "processos"))).toEqual(ALL);
+  });
+});
+
 describe("rbac — helpers", () => {
   it("isRole valida as 4 strings exatas", () => {
     for (const r of ["consultor", "socio", "operacional", "administrador"]) expect(isRole(r)).toBe(true);

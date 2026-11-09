@@ -8,8 +8,11 @@
  * - socio        → leitura + escrita de Patients, Processos e Pagamentos (tudo,
  *                  sem filtro). Em Configurações só tem "Minha conta": a lista
  *                  de contas (seção "admin") é só do administrador.
- * - operacional  → leitura + escrita de Processos e de Pagamentos (todos).
- * - administrador → acesso total (comportamento legado).
+ * - operacional  → leitura + escrita de Processos e de Pagamentos (todos) e da DIR.
+ * - administrador → acesso total (comportamento legado), inclusive a DIR.
+ *
+ * A seção "dir" (planilha DIR de POs) é restrita a operacional e administrador,
+ * leitura e escrita: consultor e sócio não veem a página, o item de menu nem a API.
  */
 export type Role = "consultor" | "socio" | "operacional" | "administrador";
 
@@ -27,12 +30,13 @@ export function isRole(value: unknown): value is Role {
  * destinatário) e /api/notificacoes e /api/lembretes — mesmo RBAC, sem
  * mecanismo de "qualquer autenticado" separado.
  */
-export type Section = "patients" | "processos" | "pagamentos" | "admin" | "config" | "recados";
+export type Section = "patients" | "processos" | "pagamentos" | "dir" | "admin" | "config" | "recados";
 
 const READ_ACCESS: Record<Section, readonly Role[]> = {
   patients: ["socio", "administrador"],
   processos: ["consultor", "socio", "operacional", "administrador"],
   pagamentos: ["socio", "operacional", "administrador"],
+  dir: ["operacional", "administrador"],
   // "admin" cobre /api/admin/** (contas): leitura e escrita SÓ do administrador (o sócio não lê nem a lista).
   admin: ["administrador"],
   // "config" (página /configuracoes) abre pra TODOS os cargos: "Minha conta" é de todo mundo. O que é de
@@ -45,6 +49,7 @@ const WRITE_ACCESS: Record<Section, readonly Role[]> = {
   patients: ["socio", "administrador"],
   processos: ["socio", "operacional", "administrador"],
   pagamentos: ["socio", "operacional", "administrador"],
+  dir: ["operacional", "administrador"],
   admin: ["administrador"],
   config: ["administrador"],
   recados: ROLES,
@@ -88,6 +93,7 @@ export function sectionForApiPath(path: string): Section | null {
   if (p === "/api/attachments" || p.startsWith("/api/attachments/")) return "patients";
   if (p === "/api/processos" || p.startsWith("/api/processos/")) return "processos";
   if (p === "/api/pagamentos" || p.startsWith("/api/pagamentos/")) return "pagamentos";
+  if (p === "/api/dir" || p.startsWith("/api/dir/")) return "dir";
   if (p === "/api/admin" || p.startsWith("/api/admin/")) return "admin";
   if (p === "/api/recados" || p.startsWith("/api/recados/")) return "recados";
   if (p === "/api/contas" || p.startsWith("/api/contas/")) return "recados";
@@ -118,6 +124,7 @@ export function sectionForPageRoute(path: string): Section | null {
   if (path === "/prestacao" || path.startsWith("/prestacao/")) return "patients";
   if (path === "/processos" || path.startsWith("/processos/")) return "processos";
   if (path === "/pagamentos" || path.startsWith("/pagamentos/")) return "pagamentos";
+  if (path === "/dir" || path.startsWith("/dir/")) return "dir";
   if (path === "/configuracoes" || path.startsWith("/configuracoes/")) return "config";
   if (path === "/recados" || path.startsWith("/recados/")) return "recados";
   return null;
