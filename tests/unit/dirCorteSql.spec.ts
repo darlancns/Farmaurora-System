@@ -126,11 +126,13 @@ describe("montarCorte: contagens e estrutura", () => {
     expect(corte.sql).toContain("depois do corte, PO(s) sem exatamente 1 linha no banco");
   });
 
-  it("o INSERT usa o id determinístico da carga (dir_carga_<linha>) e on conflict (id) do nothing", () => {
+  it("o INSERT usa o id determinístico da carga (dir_carga_<linha>), where not exists pelo PO e on conflict (id) do nothing", () => {
     for (const { po, linha } of corte.inserts) {
-      const m = new RegExp(`values \\('dir_carga_${String(linha).padStart(4, "0")}', '${po}'`).test(corte.sql);
+      const m = new RegExp(`^select 'dir_carga_${String(linha).padStart(4, "0")}', '${po}'`, "m").test(corte.sql);
       expect(m, po).toBe(true);
+      expect(corte.sql, po).toContain(`where not exists (select 1 from public.dir where po = '${po}')`);
     }
+    expect(corte.sql.match(/^where not exists \(select 1 from public\.dir where po = /gm)).toHaveLength(23);
     expect(corte.sql.match(/^on conflict \(id\) do nothing;$/gm)).toHaveLength(23);
   });
 
@@ -178,22 +180,36 @@ const PROIBIDAS_NO_UPDATE = ["id", "po", "created_at", "updated_at", "fechamento
 describe("o corte não escreve fora das colunas do parser", () => {
   const corte = montarCorte({ resultado: resultadoDos(POS), pos: POS, novos: NOVOS });
 
-  it("a lista fechada é exatamente a combinada (32 colunas; 31 no UPDATE)", () => {
+  it("a lista fechada é exatamente a combinada (32 colunas; 30 no UPDATE, sem po e sem fechamento_restante)", () => {
     expect([...COLUNAS_ESCRITAS_NO_CORTE]).toEqual(COLUNAS_ESPERADAS);
     expect(COLUNAS_ESCRITAS_NO_CORTE).toHaveLength(32);
-    expect([...COLUNAS_DO_UPDATE]).toEqual(COLUNAS_ESPERADAS.filter((c) => c !== "po"));
-    expect(COLUNAS_DO_UPDATE).toHaveLength(31);
+    expect([...COLUNAS_DO_UPDATE]).toEqual(COLUNAS_ESPERADAS.filter((c) => c !== "po" && c !== "fechamento_restante"));
+    expect(COLUNAS_DO_UPDATE).toHaveLength(30);
     expect([...COLUNAS_DO_INSERT]).toEqual(["id", ...COLUNAS_ESPERADAS, "created_at", "updated_at"]);
   });
 
-  it("cada UPDATE grava exatamente as 31 colunas do parser e nenhuma proibida", () => {
+  it("cada UPDATE grava exatamente as 30 colunas do parser e nenhuma proibida (fechamento_restante ausente)", () => {
     const updates = statementsDe(corte.sql, "update");
     expect(updates).toHaveLength(31);
     for (const stmt of updates) {
       const colunas = colunasDoUpdate(stmt);
-      expect(colunas).toEqual(COLUNAS_ESPERADAS.filter((c) => c !== "po"));
+      expect(colunas).toEqual(COLUNAS_ESPERADAS.filter((c) => c !== "po" && c !== "fechamento_restante"));
       for (const proibida of PROIBIDAS_NO_UPDATE) expect(colunas).not.toContain(proibida);
+      expect(stmt).not.toMatch(/fechamento_restante/);
     }
+  });
+
+  it("fechamento_restante: nenhum UPDATE o escreve, nem quando a planilha marca o PO; o INSERT o escreve", () => {
+    // Marca a lista da planilha: as entradas de texto igual ao PACIENTE marcam o PO (os 5 primeiros são UPDATE; os 3 últimos, INSERT).
+    const marcar = (i: number) => (i < 5 || i >= POS.length - 3 ? { restantes: `PACIENTE SINTETICO ${i + 1}` } : {});
+    const c = montarCorte({ resultado: resultadoDos(POS, (_po, i) => marcar(i)), pos: POS, novos: NOVOS });
+    for (const stmt of statementsDe(c.sql, "update")) expect(stmt).not.toMatch(/fechamento_restante/);
+    const inserts = statementsDe(c.sql, "insert");
+    expect(inserts).toHaveLength(23);
+    for (const stmt of inserts) expect(colunasDoInsert(stmt)).toContain("fechamento_restante");
+    expect(c.sql.match(/, true, now\(\), now\(\)$/gm)).toHaveLength(3); // os 3 INSERT de POs marcados
+    expect(c.sql.match(/, false, now\(\), now\(\)$/gm)).toHaveLength(20);
+    expect(c.comFechamentoRestante).toHaveLength(3);
   });
 
   it("cada INSERT grava só as colunas do parser + id, created_at e updated_at; nada da auditoria nem da coluna removida", () => {
@@ -215,10 +231,10 @@ describe("o corte não escreve fora das colunas do parser", () => {
       expect(semComentarios(c.sql)).not.toMatch(/fechamento_restante_em|fechamento_restante_por/);
       expect(c.sql).not.toMatch(/origem/i);
     }
+    // Os 5 primeiros POs marcados são UPDATE, que não escreve fechamento_restante: nenhum INSERT o grava como verdadeiro aqui.
     const c = montarCorte({ resultado: comMarcados, pos: POS, novos: NOVOS });
-    expect(c.comFechamentoRestante).toHaveLength(5);
-    expect(c.sql.match(/fechamento_restante = true/g)).toHaveLength(5); // os 5 primeiros POs são UPDATE
-    expect(c.sql.match(/, true, now\(\), now\(\)\)$/gm)).toBeNull(); // nenhum INSERT grava fechamento_restante verdadeiro aqui
+    expect(c.comFechamentoRestante).toEqual([]);
+    expect(c.sql.match(/, true, now\(\), now\(\)$/gm)).toBeNull();
   });
 
   it("o SQL só tem os comandos do corte: begin, do, update, insert, commit (nada de delete, drop, truncate, alter, create)", () => {
@@ -279,12 +295,109 @@ describe("montarCorte: o que aborta (nada é gerado)", () => {
     expect(soInsert).toContain("a inserir já existem");
     expect(soInsert).not.toContain("a atualizar ausentes");
   });
-  it("informa quais POs gravam fechamento_restante = true (marca da lista da planilha), só com PO e linha", () => {
-    const sem = montarCorte({ resultado: resultadoDos(POS.slice(0, 3)), pos: POS.slice(0, 3), novos: [] });
+  it("informa quais INSERT gravam fechamento_restante = true (marca da lista da planilha), só com PO e linha", () => {
+    const tres = POS.slice(0, 3);
+    const sem = montarCorte({ resultado: resultadoDos(tres), pos: tres, novos: [tres[1]!] });
     expect(sem.comFechamentoRestante).toEqual([]); // sem a lista preenchida, ninguém é marcado
-    const r = resultadoDos(POS.slice(0, 3), (_po, i) => ({ restantes: i === 1 ? "PACIENTE SINTETICO 2" : "" }));
-    const com = montarCorte({ resultado: r, pos: POS.slice(0, 3), novos: [] });
-    expect(com.comFechamentoRestante).toEqual([{ po: POS[1], linha: 4 }]);
+    const r = resultadoDos(tres, (_po, i) => ({ restantes: i === 1 ? "PACIENTE SINTETICO 2" : "" }));
+    const com = montarCorte({ resultado: r, pos: tres, novos: [tres[1]!] });
+    expect(com.comFechamentoRestante).toEqual([{ po: tres[1], linha: 4 }]);
+  });
+});
+
+// ── Escopo padrão (sem --pos / sem --novos) e --ignorar ───────────────────────────────────────────
+describe("montarCorte: sem --pos, sem --novos e --ignorar", () => {
+  const ocorrencias = (sql: string, tipo: "update" | "insert", po: string) =>
+    statementsDe(sql, tipo).filter((s) => s.includes(`-- ${po} (linha`)).length;
+  const pos10 = POS.slice(0, 10);
+
+  it("sem --pos: todo PO do CSV vira UPDATE (where po = …); sem --novos: todo PO também ganha INSERT com where not exists", () => {
+    const c = montarCorte({ resultado: resultadoDos(pos10) });
+    expect(c.updates.map((u: { po: string }) => u.po)).toEqual(pos10);
+    expect(c.inserts.map((u: { po: string }) => u.po)).toEqual(pos10);
+    for (const po of pos10) {
+      expect(c.sql, po).toContain(`where po = '${po}';`);
+      expect(c.sql, po).toContain(`where not exists (select 1 from public.dir where po = '${po}')`);
+    }
+    expect(c.sql.match(/^on conflict \(id\) do nothing;$/gm)).toHaveLength(10); // segunda proteção continua
+  });
+
+  it("nenhum PO sai duplicado: um UPDATE e um INSERT por PO, e todos os UPDATE vêm antes de qualquer INSERT", () => {
+    const c = montarCorte({ resultado: resultadoDos(pos10) });
+    for (const po of pos10) {
+      expect(ocorrencias(c.sql, "update", po), po).toBe(1);
+      expect(ocorrencias(c.sql, "insert", po), po).toBe(1);
+    }
+    expect(statementsDe(c.sql, "update")).toHaveLength(10);
+    expect(statementsDe(c.sql, "insert")).toHaveLength(10);
+    expect(c.sql.lastIndexOf("update public.dir set")).toBeLessThan(c.sql.indexOf("insert into public.dir"));
+    expect(c.sql).toContain("todos os UPDATE vêm antes dos INSERT");
+  });
+
+  it("com --pos e sem --novos: só aquela lista, cada PO com UPDATE e INSERT protegido", () => {
+    const c = montarCorte({ resultado: resultadoDos(pos10), pos: pos10.slice(0, 3) });
+    expect(c.updates).toHaveLength(3);
+    expect(c.inserts).toHaveLength(3);
+  });
+
+  it("com --novos e sem --pos: os novos só viram INSERT; os demais POs do CSV só viram UPDATE", () => {
+    const novos = pos10.slice(7);
+    const c = montarCorte({ resultado: resultadoDos(pos10), novos });
+    expect(c.inserts.map((u: { po: string }) => u.po)).toEqual(novos);
+    expect(c.updates.map((u: { po: string }) => u.po)).toEqual(pos10.slice(0, 7));
+    for (const po of pos10) expect(ocorrencias(c.sql, "update", po) + ocorrencias(c.sql, "insert", po), po).toBe(1);
+  });
+
+  it("travas no modo padrão: aborta se um PO existir mais de uma vez no banco, mas não exige que ele exista (o INSERT cria)", () => {
+    const sql = montarCorte({ resultado: resultadoDos(pos10) }).sql;
+    expect(sql).toContain("PO(s) a atualizar repetidos no banco");
+    expect(sql).not.toContain("a atualizar ausentes");
+    expect(sql).not.toContain("a inserir já existem");
+    expect(sql).toContain("depois do corte, PO(s) sem exatamente 1 linha no banco");
+    expect(sql.match(/^do \$corte\$$/gm)).toHaveLength(2);
+  });
+
+  it("--ignorar: o PO não gera UPDATE nem INSERT, nem trava, e sai na lista de ignorados", () => {
+    const ignorado = pos10[3]!;
+    const c = montarCorte({ resultado: resultadoDos(pos10), ignorar: [ignorado] });
+    expect(c.ignorados).toEqual([ignorado]);
+    expect(c.updates).toHaveLength(9);
+    expect(c.inserts).toHaveLength(9);
+    expect(c.sql).not.toContain(ignorado); // nem comentário, nem where, nem array das travas
+    for (const po of pos10.filter((p) => p !== ignorado)) expect(c.sql, po).toContain(po);
+  });
+
+  it("--ignorar também tira o PO de --pos e de --novos explícitos (sem erro)", () => {
+    const [a, b, c3] = pos10 as [string, string, string];
+    const c = montarCorte({ resultado: resultadoDos(pos10), pos: [a, b, c3], novos: [c3, b], ignorar: [b] });
+    expect(c.updates.map((u: { po: string }) => u.po)).toEqual([a]);
+    expect(c.inserts.map((u: { po: string }) => u.po)).toEqual([c3]);
+    expect(c.sql).not.toContain(b);
+  });
+
+  it("PO repetido na planilha aborta e manda usar --ignorar; ignorado, a duplicata não atrapalha", () => {
+    const r = parseDirCsv(
+      csv(
+        CASCA,
+        linhaCsv({ ...EM_ABERTO, po: "PO26-03-0109", paciente: "PACIENTE SINTETICO A" }),
+        linhaCsv({ ...EM_ABERTO, po: "PO26-03-0109", paciente: "PACIENTE SINTETICO B" }),
+        linhaCsv({ ...EM_ABERTO, po: "PO26-03-0110", paciente: "PACIENTE SINTETICO C" }),
+      ),
+    );
+    expect(() => montarCorte({ resultado: r })).toThrow(/PO26-03-0109 \(linhas 3, 4\).*--ignorar|--ignorar.*PO26-03-0109/s);
+    const c = montarCorte({ resultado: r, ignorar: ["PO26-03-0109"] });
+    expect(c.updates.map((u: { po: string }) => u.po)).toEqual(["PO26-03-0110"]);
+    expect(c.inserts.map((u: { po: string }) => u.po)).toEqual(["PO26-03-0110"]);
+    expect(c.sql).not.toContain("PO26-03-0109");
+  });
+
+  it("com o CSV inteiro, linha com erro no parser aborta (o PO dela não seria gerado em silêncio)", () => {
+    const r = parseDirCsv(
+      csv(CASCA, linhaCsv({ ...EM_ABERTO, po: "PO26-10-0470" }), linhaCsv({ ...EM_ABERTO, po: "PO26-10-0471", status: "ESTATUS INVENTADO" })),
+    );
+    expect(() => montarCorte({ resultado: r })).toThrow(/linhas da planilha com erro no parser.*4/);
+    // com lista explícita, a linha com erro só importa se for de um PO pedido
+    expect(montarCorte({ resultado: r, pos: ["PO26-10-0470"] }).updates).toHaveLength(1);
   });
 });
 
@@ -308,12 +421,42 @@ describe("gerar-sql-corte-dir.mjs", () => {
     mkdirSync(join(RAIZ, "scratch"), { recursive: true });
     const r = rodar("--pos", "PO26-10-0470, PO26-10-0503, 0504", "--novos", "PO26-10-0503 a 0504", "--saida", saidaScratch);
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).toMatch(/INSERT: 2\s+UPDATE: 1/);
+    expect(r.stdout).toMatch(/UPDATE:\s+1\b/);
+    expect(r.stdout).toMatch(/INSERT:\s+2\b/);
     expect(r.stdout).not.toMatch(/PACIENTE SINTETICO/);
     const sql = readFileSync(saidaScratch, "utf-8");
     expect(sql).toMatch(/^begin;$/m);
     expect(sql.match(/^update public\.dir set$/gm)).toHaveLength(1);
     expect(sql.match(/^insert into public\.dir /gm)).toHaveLength(2);
+  });
+
+  it("sem --pos e sem --novos: UPDATE e INSERT protegido para cada PO do CSV; o resumo traz arquivo, linhas, contagens e ignorados", () => {
+    const r = rodar("--saida", saidaScratch);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain("RESUMO DO CORTE");
+    expect(r.stdout).toContain(`Arquivo lido:      ${csvTeste}`);
+    expect(r.stdout).toMatch(/Linhas de dados:\s+4 \(com PO ou paciente: 3;/); // 1 casca + 3 POs
+    expect(r.stdout).toMatch(/UPDATE:\s+3\b/);
+    expect(r.stdout).toMatch(/INSERT:\s+3\b/);
+    expect(r.stdout).toMatch(/Ignorados:\s+0\b/);
+    expect(r.stdout).not.toMatch(/PACIENTE SINTETICO/);
+    const sql = readFileSync(saidaScratch, "utf-8");
+    expect(sql.match(/^update public\.dir set$/gm)).toHaveLength(3);
+    expect(sql.match(/^where not exists \(select 1 from public\.dir where po = /gm)).toHaveLength(3);
+  });
+
+  it("--ignorar: o PO sai dos dois comandos e o resumo diz quais foram ignorados (inclusive um que não está no CSV)", () => {
+    const r = rodar("--ignorar", "PO26-10-0503, PO26-10-0999", "--saida", saidaScratch);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/UPDATE:\s+2\b/);
+    expect(r.stdout).toMatch(/INSERT:\s+2\b/);
+    expect(r.stdout).toMatch(/Ignorados:\s+2\s+→ PO26-10-0503, PO26-10-0999/);
+    expect(r.stdout).toContain("não estão no CSV: PO26-10-0999");
+    const sql = readFileSync(saidaScratch, "utf-8");
+    expect(sql).not.toContain("PO26-10-0503");
+    expect(sql).not.toContain("PO26-10-0999");
+    expect(sql).toContain("PO26-10-0470");
+    expect(sql).toContain("PO26-10-0504");
   });
 
   it("recusa gravar fora de scratch/ (o arquivo tem nome de paciente)", () => {
@@ -332,9 +475,13 @@ describe("gerar-sql-corte-dir.mjs", () => {
     expect(existsSync(saidaScratch)).toBe(false);
   });
 
-  it("lista inválida e falta de --pos abortam", () => {
+  it("lista inválida em --pos, --novos ou --ignorar aborta; sem CSV aborta", () => {
+    rmSync(saidaScratch, { force: true });
     expect(rodar("--pos", "0470", "--saida", saidaScratch).status).toBe(1);
-    expect(rodar("--saida", saidaScratch).status).toBe(1);
+    expect(rodar("--novos", "abc", "--saida", saidaScratch).status).toBe(1);
+    expect(rodar("--ignorar", "0470", "--saida", saidaScratch).status).toBe(1);
+    expect(spawnSync(process.execPath, [SCRIPT, "--saida", saidaScratch], { encoding: "utf-8", cwd: pasta }).status).toBe(1);
+    expect(existsSync(saidaScratch)).toBe(false);
   });
 });
 

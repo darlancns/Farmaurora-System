@@ -48,8 +48,10 @@ export const COLUNAS_ESCRITAS_NO_CORTE = Object.freeze([
   "fechamento_restante",
 ]);
 
-// O UPDATE acha a linha pelo PO (a chave); então o PO não entra no SET.
-export const COLUNAS_DO_UPDATE = Object.freeze(COLUNAS_ESCRITAS_NO_CORTE.filter((c) => c !== "po"));
+// O UPDATE acha a linha pelo PO (a chave); então o PO não entra no SET. O fechamento_restante também fica de fora: o parser
+// não reproduz esse campo fora da planilha (a marca é feita no sistema), então o UPDATE não pode sobrescrevê-lo. Só o INSERT
+// o grava, porque numa linha nova não há valor anterior a preservar.
+export const COLUNAS_DO_UPDATE = Object.freeze(COLUNAS_ESCRITAS_NO_CORTE.filter((c) => c !== "po" && c !== "fechamento_restante"));
 
 // O INSERT leva as colunas do parser + o id determinístico + created_at/updated_at (agora, na hora de rodar).
 export const COLUNAS_DO_INSERT = Object.freeze(["id", ...COLUNAS_ESCRITAS_NO_CORTE, "created_at", "updated_at"]);
@@ -153,32 +155,50 @@ export function sqlInsert(registro, linha) {
     if (c === "created_at" || c === "updated_at") return "now()";
     return literalSql(col[c]);
   });
-  return `insert into public.dir (${COLUNAS_DO_INSERT.join(", ")})\nvalues (${valores.join(", ")})\non conflict (id) do nothing;`;
+  // INSERT … SELECT … where not exists: só cria se o PO não existir (e o on conflict (id) é a segunda proteção).
+  return `insert into public.dir (${COLUNAS_DO_INSERT.join(", ")})\nselect ${valores.join(", ")}\nwhere not exists (select 1 from public.dir where po = ${literalSql(registro.po)})\non conflict (id) do nothing;`;
 }
 
 // Trava de segurança do banco, dentro da transação: aborta (rollback) se o estado real não for o que o corte supõe.
-function guardaAntes(novos, atualizar) {
+//  - `inserirExplicitos`: POs que o usuário marcou como novos (--novos): não podem existir;
+//  - `atualizar`: POs com UPDATE. Se o PO NÃO tem INSERT, ele tem de existir exatamente uma vez; se também tem INSERT
+//    (modo sem --novos: o INSERT cria o que falta), só não pode existir mais de uma vez.
+function guardaAntes(inserirExplicitos, atualizar, inserir) {
+  const obrigatorios = atualizar.filter((po) => !inserir.includes(po));
+  const opcionais = atualizar.filter((po) => inserir.includes(po));
   const blocos = [];
-  if (novos.length) {
+  const declaracoes = [];
+  if (inserirExplicitos.length) {
+    declaracoes.push("ja_existem text;");
     blocos.push(`  select string_agg(v.po, ', ' order by v.po) into ja_existem
-    from unnest(${arrayDePos(novos)}) as v(po)
+    from unnest(${arrayDePos(inserirExplicitos)}) as v(po)
     where exists (select 1 from public.dir d where d.po = v.po);
   if ja_existem is not null then
     raise exception 'corte abortado: PO(s) a inserir já existem no banco: %', ja_existem;
   end if;`);
   }
-  if (atualizar.length) {
+  if (obrigatorios.length) {
+    declaracoes.push("faltam text;");
     blocos.push(`  select string_agg(v.po, ', ' order by v.po) into faltam
-    from unnest(${arrayDePos(atualizar)}) as v(po)
+    from unnest(${arrayDePos(obrigatorios)}) as v(po)
     where (select count(*) from public.dir d where d.po = v.po) <> 1;
   if faltam is not null then
     raise exception 'corte abortado: PO(s) a atualizar ausentes ou repetidos no banco: %', faltam;
   end if;`);
   }
+  if (opcionais.length) {
+    declaracoes.push("repetidos text;");
+    blocos.push(`  select string_agg(v.po, ', ' order by v.po) into repetidos
+    from unnest(${arrayDePos(opcionais)}) as v(po)
+    where (select count(*) from public.dir d where d.po = v.po) > 1;
+  if repetidos is not null then
+    raise exception 'corte abortado: PO(s) a atualizar repetidos no banco: %', repetidos;
+  end if;`);
+  }
+  if (!blocos.length) return null;
   return `do $corte$
 declare
-  ja_existem text;
-  faltam text;
+  ${declaracoes.join("\n  ")}
 begin
 ${blocos.join("\n")}
 end
@@ -203,61 +223,87 @@ $corte$;`;
 /**
  * Monta o SQL do corte.
  *  - `resultado`: o que parseDirCsv devolveu para o CSV inteiro;
- *  - `pos`: POs do corte (todos); `novos`: subconjunto de `pos` que NÃO existe no banco (INSERT). O resto é UPDATE.
- * Aborta (lança) se algum PO não estiver na planilha, estiver em mais de uma linha, ou tiver erro no parser.
+ *  - `pos`: lista de POs do corte; `null`/`undefined` = TODOS os POs do CSV;
+ *  - `novos`: POs que NÃO existem no banco (INSERT, com a trava das duas pontas); `null`/`undefined` = não informado:
+ *    todo PO do escopo ganha um INSERT protegido por `where not exists`. Um array (mesmo vazio) é uma lista explícita;
+ *  - `ignorar`: POs que não geram UPDATE nem INSERT (ex.: PO que existe duas vezes no banco).
+ *
+ * Quem recebe UPDATE: os POs do escopo (`pos` ou o CSV inteiro) menos os `novos` explícitos.
+ * Quem recebe INSERT: os `novos` explícitos ou, sem eles, todo o escopo.
+ * Sem `novos`, um mesmo PO tem UPDATE e INSERT; os dois NÃO se duplicam porque o SQL põe SEMPRE os UPDATE antes dos INSERT
+ * (o UPDATE só acha o que já existe; o INSERT só cria o que falta, por `where not exists`).
+ *
+ * Aborta (lança) se algum PO da lista não estiver na planilha, se um PO do escopo estiver em mais de uma linha da planilha
+ * (use `ignorar`) ou, com o CSV inteiro, se houver linha com erro no parser (o PO dela não seria gerado).
  */
-export function montarCorte({ resultado, pos, novos = [] }) {
-  const desconhecidosNovos = novos.filter((p) => !pos.includes(p));
+export function montarCorte({ resultado, pos = null, novos = null, ignorar = [] }) {
+  const reais = resultado.linhas.filter((l) => !l.ignorada);
+  const ignorados = new Set(ignorar);
+
+  // Escopo: a lista pedida ou todos os POs do CSV; sempre sem os ignorados.
+  const escopoCsv = pos === null;
+  const posPedidos = escopoCsv ? [...new Set(reais.map((l) => l.registro?.po).filter(Boolean))] : pos;
+  const escopo = posPedidos.filter((p) => !ignorados.has(p));
+  const novosExplicitos = novos === null ? null : novos.filter((p) => !ignorados.has(p));
+
+  const desconhecidosNovos = (novosExplicitos ?? []).filter((p) => !escopo.includes(p) && !escopoCsv);
   if (desconhecidosNovos.length) throw new Error(`POs "novos" que não estão na lista do corte: ${desconhecidosNovos.join(", ")}`);
 
-  const reais = resultado.linhas.filter((l) => !l.ignorada);
+  const problemas = [];
+  if (escopoCsv) {
+    const comErro = reais.filter((l) => l.registro === null).map((l) => l.linha);
+    if (comErro.length) problemas.push(`linhas da planilha com erro no parser (o PO delas não seria gerado): ${comErro.join(", ")}`);
+  }
+
+  const paraGerar = [...new Set([...escopo, ...(novosExplicitos ?? [])])];
   const ausentes = [];
   const repetidos = [];
-  const itens = [];
-  for (const po of pos) {
+  const itens = new Map();
+  for (const po of paraGerar) {
     // Só linhas sem erro têm registro; uma linha com erro no parser deixa o PO "ausente" (o dry-run mostra o erro).
     const linhas = reais.filter((l) => l.registro?.po === po);
-    if (linhas.length === 0) {
-      ausentes.push(po);
-      continue;
-    }
-    if (linhas.length > 1) {
-      repetidos.push(`${po} (linhas ${linhas.map((l) => l.linha).join(", ")})`);
-      continue;
-    }
-    itens.push({ po, linha: linhas[0].linha, registro: linhas[0].registro });
+    if (linhas.length === 0) ausentes.push(po);
+    else if (linhas.length > 1) repetidos.push(`${po} (linhas ${linhas.map((l) => l.linha).join(", ")})`);
+    else itens.set(po, { po, linha: linhas[0].linha, registro: linhas[0].registro });
   }
-  const problemas = [];
   if (ausentes.length) problemas.push(`POs que não estão na planilha (ou estão com erro no parser): ${ausentes.join(", ")}`);
-  if (repetidos.length) problemas.push(`POs em mais de uma linha da planilha: ${repetidos.join("; ")}`);
+  if (repetidos.length) problemas.push(`POs em mais de uma linha da planilha (use --ignorar): ${repetidos.join("; ")}`);
   if (problemas.length) throw new Error(problemas.join("\n"));
 
-  const inserts = itens.filter((i) => novos.includes(i.po));
-  const updates = itens.filter((i) => !novos.includes(i.po));
+  const poInserir = novosExplicitos ?? escopo;
+  const poAtualizar = escopo.filter((p) => !(novosExplicitos ?? []).includes(p));
+  const updates = poAtualizar.map((p) => itens.get(p));
+  const inserts = poInserir.map((p) => itens.get(p));
+  const todosPos = [...new Set([...poAtualizar, ...poInserir])];
 
   const partes = [];
   partes.push(
     [
       "-- Corte da DIR. GERADO por scripts/migration/gerar-sql-corte-dir.mjs com o parser da carga; não editar à mão.",
       "-- NÃO foi executado em lugar nenhum. Tem dados pessoais (nomes de pacientes): fica em scratch/, fora do git.",
-      `-- ${inserts.length} INSERT (PO novo) e ${updates.length} UPDATE (PO existente). Tudo numa transação: se uma trava falhar, nada muda.`,
-      "-- O UPDATE grava só as colunas do parser (sem po, id, created_at, updated_at e sem fechamento_restante_em/_por).",
+      `-- ${updates.length} UPDATE (PO existente) e ${inserts.length} INSERT (PO novo, só se não existir). Tudo numa transação: se uma trava falhar, nada muda.`,
+      "-- O UPDATE grava só as colunas do parser (sem po, id, created_at, updated_at, fechamento_restante e fechamento_restante_em/_por).",
+      "-- A ordem importa: todos os UPDATE vêm antes dos INSERT; assim um PO que acaba de ser inserido não é atualizado de novo.",
     ].join("\n"),
   );
   partes.push("begin;");
-  partes.push(guardaAntes(inserts.map((i) => i.po), updates.map((i) => i.po)));
+  const antes = guardaAntes(novosExplicitos ?? [], poAtualizar, poInserir);
+  if (antes) partes.push(antes);
   for (const i of updates) partes.push(`-- ${i.po} (linha ${i.linha} da planilha): UPDATE\n${sqlUpdate(i.registro)}`);
   for (const i of inserts) partes.push(`-- ${i.po} (linha ${i.linha} da planilha): INSERT\n${sqlInsert(i.registro, i.linha)}`);
-  partes.push(guardaDepois(itens.map((i) => i.po)));
+  partes.push(guardaDepois(todosPos));
   partes.push("commit;");
 
+  const resumo = ({ po, linha }) => ({ po, linha });
   return {
     sql: `${partes.join("\n\n")}\n`,
-    inserts: inserts.map(({ po, linha }) => ({ po, linha })),
-    updates: updates.map(({ po, linha }) => ({ po, linha })),
+    inserts: inserts.map(resumo),
+    updates: updates.map(resumo),
+    ignorados: [...ignorados],
     colunasUpdate: [...COLUNAS_DO_UPDATE],
     colunasInsert: [...COLUNAS_DO_INSERT],
-    // POs cujo fechamento_restante o SQL grava como verdadeiro (a auditoria _em/_por NÃO é tocada).
-    comFechamentoRestante: itens.filter((i) => i.registro.fechamentoRestante).map(({ po, linha }) => ({ po, linha })),
+    // POs cujo INSERT grava fechamento_restante = true (marca da lista da planilha; a auditoria _em/_por NÃO é gravada).
+    // O UPDATE nunca grava fechamento_restante.
+    comFechamentoRestante: inserts.filter((i) => i.registro.fechamentoRestante).map(resumo),
   };
 }
