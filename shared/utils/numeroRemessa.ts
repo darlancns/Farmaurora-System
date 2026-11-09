@@ -10,7 +10,7 @@ export const NUMERO_REMESSA_MAXIMO = 2147483647;
 /** Valor de um processo novo e de um campo esvaziado. */
 export const NUMERO_REMESSA_PADRAO = 1;
 
-export const NUMERO_REMESSA_ERRO = "Nº Remessa inválido. Use um número inteiro maior ou igual a 1.";
+export const NUMERO_REMESSA_ERRO = "Nº Ordem inválido. Use um número inteiro maior ou igual a 1.";
 
 /**
  * Valor para gravar, ou `undefined` se for inválido.

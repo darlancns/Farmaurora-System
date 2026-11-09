@@ -122,19 +122,19 @@ describe("calcularAvisosChegada — dispensa do administrador (processo + data p
 });
 
 describe("calcularAvisosChegada — texto do item", () => {
-  it("Nº Remessa aparece quando a linha mostra (N>1 ou pasta repetida) e some caso contrário", () => {
+  it("Nº Ordem aparece quando a linha mostra (N>1 ou pasta repetida) e some caso contrário", () => {
     const unica = calcularAvisosChegada([proc("1")], adm, DEPOIS_DAS_13)[0]!;
-    expect(unica.linhaProcesso).toBe("Remessa de Paciente 1 · 2026 - 1");
+    expect(unica.linhaProcesso).toBe("Ordem de Paciente 1 · 2026 - 1");
 
     const segunda = calcularAvisosChegada([proc("1", { numeroRemessa: 2 })], adm, DEPOIS_DAS_13)[0]!;
-    expect(segunda.linhaProcesso).toBe("Remessa 2 de Paciente 1 · 2026 - 1");
+    expect(segunda.linhaProcesso).toBe("Ordem 2 de Paciente 1 · 2026 - 1");
 
     const repetidas = calcularAvisosChegada(
       [proc("1", { pasta: "2026 - 9" }), proc("2", { pasta: "2026 - 9", status: "entregue" })],
       adm,
       DEPOIS_DAS_13,
     );
-    expect(repetidas[0]!.linhaProcesso).toBe("Remessa 1 de Paciente 1 · 2026 - 9");
+    expect(repetidas[0]!.linhaProcesso).toBe("Ordem 1 de Paciente 1 · 2026 - 9");
   });
 
   it("cia aérea e AWB entram na linha da data", () => {

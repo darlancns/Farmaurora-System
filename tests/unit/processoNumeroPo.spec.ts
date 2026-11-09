@@ -16,7 +16,7 @@ import {
   linhaCompleta,
 } from "./helpers/processoEdicaoFixtures";
 
-// Item 7 do lote Follow-Up (regra da Cris, 2ª versão) — campo "Nº Ordem" (numeroPo / coluna numero_po): mapper,
+// Item 7 do lote Follow-Up (regra da Cris, 2ª versão) — campo "PO" (numeroPo / coluna numero_po): mapper,
 // payload, patch diferencial, servidor (POST e PATCH), formulário e busca. A máscara em si está em numeroOrdem.spec.ts.
 // Handlers e store REAIS; só h3 (readBody/getRouterParam) e o Supabase (em memória) são simulados.
 
@@ -109,7 +109,7 @@ describe("patch diferencial", () => {
     expect("numeroPo" in patch).toBe(false);
   });
 
-  it("alterou o Nº Ordem: vai só ele (normalizado)", () => {
+  it("alterou o PO: vai só ele (normalizado)", () => {
     const patch = montarPatchDiferencial(estadoCompleto(), editado((e) => (e.form.numeroPo = "PO-26-0001")))!;
     expect(patch).toEqual({ numeroPo: "PO-26-0001", parcial: true });
   });
@@ -160,7 +160,7 @@ describe("formulário: salvar incompleto é permitido (sem trava)", () => {
     expect(validar("LEGADO 123", inicial).valido).toBe(true);
   });
 
-  it("o resultado inválido de outras regras não traz campo de Nº Ordem", () => {
+  it("o resultado inválido de outras regras não traz campo de PO", () => {
     const r = validarProcessoForm({ ...formCompleto(), paciente: "" }, MEDICAMENTOS, [], "");
     expect(r).toEqual({ valido: false, erro: "Informe o nome do paciente." });
   });
@@ -365,7 +365,7 @@ describe("servidor: PATCH", () => {
     }
   });
 
-  it("patch sem a chave não toca o Nº Ordem (e não o valida, nem se o gravado for antigo/inválido)", async () => {
+  it("patch sem a chave não toca o PO (e não o valida, nem se o gravado for antigo/inválido)", async () => {
     fake.tabelas[T] = [linhaCompleta({ numero_po: "PO-25-0123/ALFA" })]; // texto livre, de antes da regra
     await patch({ parcial: true, localEntrega: "Nova clínica" });
     expect(row().local_entrega).toBe("Nova clínica");
@@ -399,7 +399,7 @@ describe("servidor: PATCH", () => {
     expect(row().numero_po).toBe("PO-27-2");
   });
 
-  it("ida e volta do formulário: editar o Nº Ordem e esvaziar", async () => {
+  it("ida e volta do formulário: editar o PO e esvaziar", async () => {
     const processo = montarProcesso(linhaCompleta() as unknown as FollowUpRow);
     const f = useProcessoForm(() => processo);
 
@@ -439,7 +439,7 @@ describe("busca", () => {
   const lista = [
     proc("a", "Maria Silva", "2026 - 100", "PO-25-11"),
     proc("b", "João Souza", "2026 - 375", "PO-25-2652/3"),
-    proc("c", "Ana Lima", "2026 - 200"), // sem Nº Ordem
+    proc("c", "Ana Lima", "2026 - 200"), // sem PO
   ];
   const ids = (termo: string) => filtrarPorBusca(lista, termo).map((p) => p.id);
 
@@ -477,7 +477,7 @@ describe("busca", () => {
     expect(ids("375")).toEqual(["b"]);
   });
 
-  it("processo sem Nº Ordem não casa por ele", () => {
+  it("processo sem PO não casa por ele", () => {
     const termo = criarTermoBusca("PO-25")!;
     expect(processoCombinaBusca(lista[2]!, termo)).toBe(false);
   });

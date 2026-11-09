@@ -292,18 +292,18 @@ test.describe("/processos abaixo de lg — card e detalhe do processo", () => {
         expect(await seloComum.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
       });
 
-      test("card fechado: Remessa · Pasta, medicamento em 1 linha, data + responsável (só texto) na última linha", async ({ page }) => {
+      test("card fechado: Ordem · Pasta, medicamento em 1 linha, data + responsável (só texto) na última linha", async ({ page }) => {
         const id = ids!.robusto;
         const nome = await box(page, `#mobile-paciente-${id}`);
         const ordemPasta = await box(page, `#mobile-ordem-pasta-${id}`);
         expect(ordemPasta.y).toBeGreaterThanOrEqual(nome.y + nome.height - 1);
         const textoOrdem = (await page.locator(`#mobile-ordem-pasta-${id}`).innerText()).replace(/\s+/g, " ").trim();
-        expect(textoOrdem).toBe("Remessa 2 · Pasta 2026 - 234");
+        expect(textoOrdem).toBe("Ordem 2 · Pasta 2026 - 234");
         expect(await page.locator(`#mobile-ordem-pasta-${id}`).evaluate((el) => getComputedStyle(el).color)).toBe(
           INK_SOFT_RGB,
         );
 
-        // Nº Remessa 1 com pasta única: sem "Remessa", só "Pasta XXXX" (o texto aparece só se N > 1 ou a pasta se repete).
+        // Nº Ordem 1 com pasta única: sem "Ordem N", só "Pasta XXXX" (o texto aparece só se N > 1 ou a pasta se repete).
         const textoSemOrdem = (await page.locator(`#mobile-ordem-pasta-${ids!.vazio}`).innerText())
           .replace(/\s+/g, " ")
           .trim();
@@ -463,13 +463,13 @@ test.describe("/processos abaixo de lg — card e detalhe do processo", () => {
         await expectLadoALado(page, id, "Pasta", "Envio");
         await expectLadoALado(page, id, "Fornecedor", "Transportadora");
         const nAwb = await boxCelula(page, id, "Nº AWB");
-        const nRemessa = await boxCelula(page, id, "Nº Remessa");
+        const nRemessa = await boxCelula(page, id, "Nº Ordem");
         const fornecedor = await boxCelula(page, id, "Fornecedor");
         expect(fornecedor.y, "colunas 3-4 abaixo das colunas 1-2").toBeGreaterThan(Math.max(nAwb.y, nRemessa.y));
 
         // Cada coluna empilha seus campos, todos no mesmo x e em ordem vertical crescente.
         const empilhados = [
-          ["Pasta", "Nº Ordem", "Nº Remessa"],
+          ["Pasta", "PO", "Nº Ordem"],
           ["Envio", "Cia. aérea", "Nº AWB"],
           ["Fornecedor", "Despachante", "Nº do processo"],
           ["Transportadora", "Local de entrega"],
@@ -567,7 +567,7 @@ test.describe("/processos abaixo de lg — card e detalhe do processo", () => {
         const id = ids!.vazio;
         await abrirDetalhe(page, id);
         const rotulos = [
-          "Pasta", "Nº Ordem", "Despachante", "Fornecedor", "Envio", "Cia. aérea", "Nº AWB",
+          "Pasta", "PO", "Despachante", "Fornecedor", "Envio", "Cia. aérea", "Nº AWB",
           "Local de entrega", "Nº do processo", "Compra (PO)", "Embarque", "Abertura thread", "Chegada Brasil",
           "Registro Radar", "Registro Duimp", "Registro Lpco", "Previsão entrega", "Suposta estimativa",
         ];

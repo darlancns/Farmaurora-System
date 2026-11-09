@@ -11,7 +11,7 @@ import {
   linhaCompleta,
 } from "./helpers/processoEdicaoFixtures";
 
-// Nº Remessa no servidor: POST e PATCH. Os handlers e o processosStore são os REAIS; só h3 e o Supabase (em
+// Nº Ordem no servidor: POST e PATCH. Os handlers e o processosStore são os REAIS; só h3 e o Supabase (em
 // memória) são simulados. O corpo passa por JSON.stringify/parse, como na rede.
 //
 // A coluna antiga `ordem` está CONGELADA: o código novo não a lê nem a grava; `ordem` vindo de abas antigas é
@@ -32,7 +32,7 @@ const { default: patchHandler } = await import("../../server/api/processos/[id].
 const { default: postHandler } = await import("../../server/api/processos/index.post");
 
 const T = "follow_up";
-const MENSAGEM = "Nº Remessa inválido. Use um número inteiro maior ou igual a 1.";
+const MENSAGEM = "Nº Ordem inválido. Use um número inteiro maior ou igual a 1.";
 const evento = { context: { user: null } } as unknown as Parameters<typeof patchHandler>[0];
 const linha1 = () => fake.linhas(T).find((r) => r.id === "proc_1")!;
 
@@ -70,7 +70,7 @@ beforeEach(() => {
   fake.chamadas.length = 0;
 });
 
-describe("POST — Nº Remessa", () => {
+describe("POST — Nº Ordem", () => {
   beforeEach(() => {
     fake.tabelas[T] = [];
   });
@@ -128,7 +128,7 @@ describe("POST — Nº Remessa", () => {
   });
 });
 
-describe("PATCH — Nº Remessa", () => {
+describe("PATCH — Nº Ordem", () => {
   it("ausente: não mexe na coluna", async () => {
     await patch({ parcial: true, localEntrega: "Outro lugar" });
     expect(linha1().numero_remessa).toBe(2);
@@ -189,13 +189,13 @@ describe("PATCH — Nº Remessa", () => {
     expect(linha1().ordem).toBe("Ordem 2");
   });
 
-  it("caminho antigo sem `parcial` (aba velha reenviando campos): aceita e grava o Nº Remessa; ordem fica ignorada", async () => {
+  it("caminho antigo sem `parcial` (aba velha reenviando campos): aceita e grava o Nº Ordem; ordem fica ignorada", async () => {
     await patch({ paciente: "Fulano", ordem: "Ordem 9", numeroRemessa: 6 });
     expect(linha1().numero_remessa).toBe(6);
     expect(linha1().ordem).toBe("Ordem 2");
   });
 
-  it("caminho com versão e atualizações: aceita e grava o Nº Remessa; `ordem` ignorada", async () => {
+  it("caminho com versão e atualizações: aceita e grava o Nº Ordem; `ordem` ignorada", async () => {
     const res = await patch({ numeroRemessa: 8, ordem: "Ordem 9", atualizacoes: ATUALIZACOES, versao: VERSAO });
     expect(res.numeroRemessa).toBe(8);
     expect(linha1().numero_remessa).toBe(8);

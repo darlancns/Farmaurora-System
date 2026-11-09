@@ -118,7 +118,7 @@ describe("esvaziar na edição persiste como NULL no banco", () => {
     expect(row()[coluna]).toBeNull();
   });
 
-  it("Nº Remessa esvaziado NÃO vira NULL (a coluna é NOT NULL): vira 1", async () => {
+  it("Nº Ordem esvaziado NÃO vira NULL (a coluna é NOT NULL): vira 1", async () => {
     expect(row().numero_remessa).toBe(2);
     await editar((e) => (e.form.numeroRemessa = ""));
     expect(row().numero_remessa).toBe(1);

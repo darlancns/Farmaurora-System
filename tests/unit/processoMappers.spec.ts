@@ -84,12 +84,12 @@ describe("colunasDeDTO", () => {
     expect(soRastreio).toEqual({});
   });
 
-  it("Nº Remessa: grava numero_remessa como inteiro; só entra quando a chave está presente (patch seletivo)", () => {
+  it("Nº Ordem: grava numero_remessa como inteiro; só entra quando a chave está presente (patch seletivo)", () => {
     expect(colunasDeDTO({ numeroRemessa: 5 })).toEqual({ numero_remessa: 5 });
     expect("numero_remessa" in colunasDeDTO({ paciente: "X" })).toBe(false);
   });
 
-  it("Nº Remessa nulo, vazio ou 0 vira 1 (a coluna é NOT NULL e nunca recebe null)", () => {
+  it("Nº Ordem nulo, vazio ou 0 vira 1 (a coluna é NOT NULL e nunca recebe null)", () => {
     for (const vazio of [null, "", 0, "0", "  "]) {
       const col = colunasDeDTO({ numeroRemessa: vazio } as unknown as Parameters<typeof colunasDeDTO>[0]);
       expect(col, String(vazio)).toEqual({ numero_remessa: 1 });
@@ -240,7 +240,7 @@ describe("montarProcesso", () => {
     expect("alertaMandadoResolvido" in processo).toBe(false);
   });
 
-  it("Nº Remessa: lê numero_remessa da linha", () => {
+  it("Nº Ordem: lê numero_remessa da linha", () => {
     const row = buildFullRow();
     row.numero_remessa = 12;
     expect(montarProcesso(row).numeroRemessa).toBe(12);

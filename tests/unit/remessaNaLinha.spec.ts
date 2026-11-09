@@ -4,7 +4,7 @@ import { contarProcessosPorPasta, remessaVisivelNaLinha } from "../../app/utils/
 import { filtrarPorBusca } from "../../app/utils/processoBusca";
 import { separarAbas } from "../../app/utils/processoListas";
 
-// Quando a linha do processo mostra "Remessa N": N > 1 OU a pasta se repete entre TODOS os processos carregados.
+// Quando a linha do processo mostra "Ordem N": N > 1 OU a pasta se repete entre TODOS os processos carregados.
 
 function proc(id: string, pasta: string, numeroRemessa: number, extra: Partial<Processo> = {}): Processo {
   return {
@@ -72,7 +72,7 @@ describe("remessaVisivelNaLinha", () => {
     expect(visivel(a, [a, b])).toBe(false);
   });
 
-  it("a contagem NÃO depende da lista filtrada: filtrar pela busca não faz a 'Remessa 1' sumir", () => {
+  it("a contagem NÃO depende da lista filtrada: filtrar pela busca não faz a 'Ordem 1' sumir", () => {
     const a = proc("a", "2026 - 409", 1, { paciente: "Amanda Carvalho" });
     const b = proc("b", "2026 - 409", 2, { paciente: "Amanda Carvalho" });
     const outro = proc("o", "2026 - 100", 1, { paciente: "Zeca" });

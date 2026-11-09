@@ -198,7 +198,7 @@ function handleSubmit(): void {
             <!-- Nº Ordem (PO): máscara PO-00-0000[/números] (useProcessoForm.onNumeroPoInput); incompleto salva.
                  data-sem-maiuscula: a máscara já cuida das maiúsculas; o plugin global não deve disputar o valor. -->
             <div>
-              <label for="pf-numero-po" :class="LABEL_CLASS">Nº Ordem</label>
+              <label for="pf-numero-po" :class="LABEL_CLASS">PO</label>
               <input
                 id="pf-numero-po"
                 data-sem-maiuscula
@@ -218,9 +218,9 @@ function handleSubmit(): void {
                do input) / Nº do processo (TODO o resto da linha, sem teto de largura: termina na mesma borda direita da linha 1). -->
           <div class="grid grid-cols-[5rem_minmax(0,1fr)] gap-x-2.5">
             <div>
-              <label for="pf-numero-remessa" :class="LABEL_CLASS">Nº Remessa</label>
+              <label for="pf-numero-remessa" :class="LABEL_CLASS">Nº Ordem</label>
               <!-- Input de quantidade (−, campo, +): ver ProcessoRemessaStepper.vue. Mínimo 1; vazio/0 vira 1. -->
-              <ProcessoRemessaStepper id="pf-numero-remessa" v-model="form.numeroRemessa" rotulo="Nº Remessa" />
+              <ProcessoRemessaStepper id="pf-numero-remessa" v-model="form.numeroRemessa" rotulo="Nº Ordem" />
             </div>
             <div>
               <label for="pf-numero-processo" :class="LABEL_CLASS">Nº do processo</label>

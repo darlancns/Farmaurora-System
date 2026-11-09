@@ -12,7 +12,7 @@ export const NUMERO_ORDEM_LIMITE = 30;
 export const NUMERO_ORDEM_REGEX = /^PO-\d{1,2}(-\d{1,4}(\/\d+)?)?$/;
 
 export const NUMERO_ORDEM_ERRO =
-  "Nº Ordem inválido. Use o formato PO-00-0000 (opcionalmente seguido de / e números).";
+  "PO inválido. Use o formato PO-00-0000 (opcionalmente seguido de / e números).";
 
 const PREFIXO = "PO-";
 const DIGITOS_ANO = 2; // "25" de PO-25-...

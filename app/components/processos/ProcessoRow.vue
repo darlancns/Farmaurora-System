@@ -124,7 +124,7 @@ function confirmDelete(): void {
 
         <p :id="`mobile-ordem-pasta-${processo.id}`" class="pl-[22px] text-[12px] text-ink-soft">
           <template v-if="mostrarRemessa"
-            ><span :id="`mobile-remessa-${processo.id}`">Remessa {{ processo.numeroRemessa }}</span> · </template
+            ><span :id="`mobile-remessa-${processo.id}`">Ordem {{ processo.numeroRemessa }}</span> · </template
           >Pasta
           <span class="font-mono">{{ processo.pasta }}</span>
           <template v-if="processo.numeroPo">
@@ -200,7 +200,7 @@ function confirmDelete(): void {
                 v-if="mostrarRemessa"
                 :id="`remessa-${processo.id}`"
                 class="shrink-0 text-[11.5px] text-ink-soft"
-                >Remessa {{ processo.numeroRemessa }}</span
+                >Ordem {{ processo.numeroRemessa }}</span
               >
               <span class="shrink-0 text-[11.5px] text-ink-soft/60">·</span>
               <span class="shrink-0 font-mono text-[11.5px] text-ink-soft">{{ processo.pasta }}</span>

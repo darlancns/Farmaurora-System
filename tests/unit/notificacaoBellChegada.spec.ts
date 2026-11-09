@@ -168,7 +168,7 @@ describe("sino — itens do aviso 'chegou?' por cargo", () => {
     await abrirSino();
 
     expect(texto($("#chegada-titulo-p1"))).toBe("Chegou?");
-    expect(texto($("#chegada-processo-p1"))).toBe("Remessa de Paciente p1 · 2026 - p1");
+    expect(texto($("#chegada-processo-p1"))).toBe("Ordem de Paciente p1 · 2026 - p1");
     expect(texto($("#chegada-data-linha-p1"))).toBe("Prevista para 06/11 (2 dias de atraso) · Lufthansa · AWB 020-1");
     expect(texto($("#btn-chegada-sim-p1"))).toBe("Sim, chegou");
     expect(texto($("#btn-chegada-nao-p1"))).toBe("Ainda não");

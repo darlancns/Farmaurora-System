@@ -382,12 +382,12 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
           const ids = modo === "editar" ? CAMPOS_EDITAR : CAMPOS_NOVO;
           for (const id of ids) {
             await rolarParaCampo(page, id);
-            // Setas ▲/▼ do Nº Remessa: ícones dentro do campo (cada uma com metade da altura), sem texto — conferidas na
+            // Setas ▲/▼ do Nº Ordem: ícones dentro do campo (cada uma com metade da altura), sem texto — conferidas na
             // grade abaixo; a altura de 44px é do CONTÊINER do campo (o input ocupa a altura toda dele, sem a borda).
             if (id === "pf-numero-remessa-mais" || id === "pf-numero-remessa-menos") continue;
             const b =
               id === "pf-numero-remessa"
-                ? await box(campo(page, id).locator("xpath=.."), "contêiner do Nº Remessa")
+                ? await box(campo(page, id).locator("xpath=.."), "contêiner do Nº Ordem")
                 : await boxCampo(page, id);
             expect(b.height, `altura de #${id}`).toBeGreaterThanOrEqual(44);
             const fonte = await campo(page, id).evaluate((el) => parseFloat(getComputedStyle(el.tagName === "BUTTON" ? el : el).fontSize));
@@ -486,43 +486,43 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
           const interno = util - 2 - 24;
           const col2 = (util - 10) / 2;
 
-          // Linha 1 (abaixo de lg): Paciente em linha inteira; Pasta | Nº Ordem em 2 colunas, abaixo dele.
-          // Linha 2: Nº Remessa (estreito, 5rem = 80px) na borda esquerda | Nº do processo (o resto da linha).
-          // Ordem visual = ordem do DOM (sem order-*): Paciente → Pasta → Nº Ordem → Nº Remessa → Nº do processo.
+          // Linha 1 (abaixo de lg): Paciente em linha inteira; Pasta | PO em 2 colunas, abaixo dele.
+          // Linha 2: Nº Ordem (estreito, 5rem = 80px) na borda esquerda | Nº do processo (o resto da linha).
+          // Ordem visual = ordem do DOM (sem order-*): Paciente → Pasta → PO → Nº Ordem → Nº do processo.
           // `remessa` é a caixa do CONTAINER do stepper (− campo +), que ocupa a coluna do grid; o input central é só o miolo.
           const larguraRemessa = 80;
           const paciente = await b("pf-paciente");
           const pasta = await b("pf-pasta");
           const ordemPo = await b("pf-numero-po");
-          const remessa = await caixaNoCorpo(campo(page, "pf-numero-remessa").locator("xpath=.."), "stepper do Nº Remessa");
+          const remessa = await caixaNoCorpo(campo(page, "pf-numero-remessa").locator("xpath=.."), "stepper do Nº Ordem");
           const numero = await b("pf-numero-processo");
           expect(paciente.width, "Paciente em largura total da coluna").toBeCloseTo(util, 0);
-          mesmaLinha(pasta, ordemPo, "Pasta | Nº Ordem");
+          mesmaLinha(pasta, ordemPo, "Pasta | PO");
           expect(ordemPo.x).toBeGreaterThanOrEqual(direita(pasta));
           expect(pasta.width, "Pasta, meia coluna").toBeCloseTo(col2, 0);
-          expect(ordemPo.width, "Nº Ordem, meia coluna").toBeCloseTo(col2, 0);
+          expect(ordemPo.width, "PO, meia coluna").toBeCloseTo(col2, 0);
           abaixoDe(pasta, paciente, "Pasta");
-          abaixoDe(remessa, pasta, "Nº Remessa (abaixo de Pasta)");
-          abaixoDe(remessa, ordemPo, "Nº Remessa (abaixo de Nº Ordem)");
-          expect(Math.abs(remessa.x - pasta.x), "Nº Remessa na borda esquerda").toBeLessThanOrEqual(1);
-          expect(remessa.width, "Nº Remessa estreito").toBeCloseTo(larguraRemessa, 0);
-          mesmaLinha(remessa, numero, "Nº Remessa | Nº do processo");
+          abaixoDe(remessa, pasta, "Nº Ordem (abaixo de Pasta)");
+          abaixoDe(remessa, ordemPo, "Nº Ordem (abaixo de PO)");
+          expect(Math.abs(remessa.x - pasta.x), "Nº Ordem na borda esquerda").toBeLessThanOrEqual(1);
+          expect(remessa.width, "Nº Ordem estreito").toBeCloseTo(larguraRemessa, 0);
+          mesmaLinha(remessa, numero, "Nº Ordem | Nº do processo");
           expect(numero.x).toBeGreaterThan(direita(remessa));
           expect(numero.width, "Nº do processo ocupa o resto da linha").toBeCloseTo(util - larguraRemessa - 10, 0);
           expect(direita(numero), "Nº do processo vai até a borda útil").toBeCloseTo(paciente.x + util, 0);
-          expect(direita(numero), "Nº do processo termina onde termina o Nº Ordem").toBeCloseTo(direita(ordemPo), 0);
+          expect(direita(numero), "Nº do processo termina onde termina o PO").toBeCloseTo(direita(ordemPo), 0);
           // A Pasta comporta o MAIOR valor da máscara ("2026 - 234" = 10 caracteres, mono 16px = 96px) sem cortar.
           await campo(page, "pf-pasta").fill("2026234");
           expect(await campo(page, "pf-pasta").inputValue()).toBe("2026 - 234");
           expect(await campo(page, "pf-pasta").evaluate((el) => el.scrollWidth > el.clientWidth + 0.5), "Pasta cortada").toBe(false);
-          // Nº Ordem com 30 caracteres (o limite): o campo NÃO cresce nem estoura a coluna; o texto rola dentro dele.
+          // PO com 30 caracteres (o limite): o campo NÃO cresce nem estoura a coluna; o texto rola dentro dele.
           await campo(page, "pf-numero-po").fill("PO-25-2652/12345678901234567");
           expect((await campo(page, "pf-numero-po").inputValue()).length).toBeLessThanOrEqual(30);
           const ordemPoCheio = await b("pf-numero-po");
-          expect(ordemPoCheio.width, "Nº Ordem mantém a largura da coluna").toBeCloseTo(col2, 0);
-          expect(direita(ordemPoCheio), "Nº Ordem dentro da coluna útil").toBeLessThanOrEqual(paciente.x + util + 0.5);
+          expect(ordemPoCheio.width, "PO mantém a largura da coluna").toBeCloseTo(col2, 0);
+          expect(direita(ordemPoCheio), "PO dentro da coluna útil").toBeLessThanOrEqual(paciente.x + util + 0.5);
 
-          // Stepper do Nº Remessa: UM campo com o número à esquerda e as setas ▲/▼ empilhadas à direita, DENTRO da borda.
+          // Stepper do Nº Ordem: UM campo com o número à esquerda e as setas ▲/▼ empilhadas à direita, DENTRO da borda.
           // Em 80px: 2px de borda + 32px de setas + 46px para o número (26px de texto: 2 dígitos). Setas na largura da coluna
           // (>= 31px) e cada uma com metade da altura do campo (~20,5px); sem overflow; o número não fica sob as setas.
           const mais = await b("pf-numero-remessa-mais");
@@ -544,7 +544,7 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
           await campo(page, "pf-numero-remessa").fill("12");
           expect(
             await campo(page, "pf-numero-remessa").evaluate((el) => el.scrollWidth > el.clientWidth + 0.5),
-            "Nº Remessa (2 dígitos) cortado",
+            "Nº Ordem (2 dígitos) cortado",
           ).toBe(false);
 
           // Medicamentos e local de entrega (fieldset em largura total): Qtd. (10rem = 160px) | Medicamento (o resto da linha);

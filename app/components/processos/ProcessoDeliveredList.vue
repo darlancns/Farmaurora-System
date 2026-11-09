@@ -108,7 +108,7 @@ function confirmDelete(): void {
               {{ processo.empresa }}
               <template v-if="remessaVisivelNaLinha(processo, contagemPasta)">
                 ·
-                <span :id="`entregue-remessa-${processo.id}`">Remessa {{ processo.numeroRemessa }}</span>
+                <span :id="`entregue-remessa-${processo.id}`">Ordem {{ processo.numeroRemessa }}</span>
               </template>
               <template v-if="processo.numeroPo">
                 ·

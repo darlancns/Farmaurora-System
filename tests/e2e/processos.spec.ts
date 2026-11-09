@@ -340,7 +340,7 @@ test.describe.serial("Follow-Up de processos", () => {
     await expect(detail).toContainText("Fornecedor sinalizou atraso no despacho.");
   });
 
-  test("13 · salva um processo com Nº Remessa preenchido sem erro e o stepper (− / +) ajusta o valor", async ({ page }) => {
+  test("13 · salva um processo com Nº Ordem preenchido sem erro e o stepper (− / +) ajusta o valor", async ({ page }) => {
     const PACIENTE_ORDEM = `Paciente ${RUN} Remessa Numerica`;
 
     await page.goto("/processos", { waitUntil: "networkidle" });
@@ -359,7 +359,7 @@ test.describe.serial("Follow-Up de processos", () => {
 
     await expandGroup(page, "Mateus Morais");
     const row = page.locator('[id^="processo-row-"]').filter({ hasText: PACIENTE_ORDEM });
-    await expect(row).toContainText("Remessa 3");
+    await expect(row).toContainText("Ordem 3");
 
     await row.locator("button").first().click();
     const detail = row.locator('[id^="processo-detail-"]');
@@ -378,7 +378,7 @@ test.describe.serial("Follow-Up de processos", () => {
     await expect(page.locator("#processo-form")).toBeVisible(); // o botão não envia o formulário
     await page.locator("#btn-save-processo").click();
     await expect(page.locator("#toast-notice")).toContainText("Processo atualizado");
-    await expect(row).toContainText("Remessa 4");
+    await expect(row).toContainText("Ordem 4");
 
     // Campo esvaziado e fora do foco volta a 1 (e "−" fica desabilitado).
     await detail.getByRole("button", { name: "Editar processo" }).click();

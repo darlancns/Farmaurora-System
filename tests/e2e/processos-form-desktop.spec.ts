@@ -241,27 +241,27 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
           const util = 720 - 2 - 40; // largura do modal - bordas - padding do corpo
           const col2 = (util - 10) / 2;
           const col3 = (util - 2 * 10) / 3;
-          // Linha 1: Paciente (flexível) | Pasta (7rem = 112px) | Nº Ordem (7rem = 112px) com 2 espaços de 10px.
+          // Linha 1: Paciente (flexível) | Pasta (7rem = 112px) | PO (7rem = 112px) com 2 espaços de 10px.
           const larguraPasta = 112;
           const larguraPo = 112; // igual à Pasta: a máscara "PO-00-0000" (10 caracteres = 81px em mono 13,5px) + 22 de padding e borda = 103px; 9px de sobra
           const larguraPaciente = util - larguraPasta - larguraPo - 2 * 10; // 434px
-          // Linha 2: Nº Remessa (5rem = 80px) | Nº do processo (TODO o resto da linha, sem teto: 678 − 80 − 10 = 588px).
+          // Linha 2: Nº Ordem (5rem = 80px) | Nº do processo (TODO o resto da linha, sem teto: 678 − 80 − 10 = 588px).
           const larguraRemessa = 80;
           const larguraNumeroProcesso = util - larguraRemessa - 10;
           // Dentro de um fieldset: borda 1+1 e padding 12+12.
           const interno = util - 2 - 24;
           const colEnvio = (interno - 2 * 10) / 3;
 
-          // Linha 1: Paciente | Pasta | Nº Ordem, todos na mesma linha, nessa ordem.
+          // Linha 1: Paciente | Pasta | PO, todos na mesma linha, nessa ordem.
           const paciente = await b("pf-paciente");
           const pasta = await b("pf-pasta");
           const ordemPo = await b("pf-numero-po");
-          for (const [nome, c] of [["Pasta", pasta], ["Nº Ordem", ordemPo]] as const) mesmaLinha(paciente, c, `Paciente | ${nome}`);
+          for (const [nome, c] of [["Pasta", pasta], ["PO", ordemPo]] as const) mesmaLinha(paciente, c, `Paciente | ${nome}`);
           expect(pasta.x).toBeGreaterThan(direita(paciente));
           expect(ordemPo.x).toBeGreaterThan(direita(pasta));
           expect(paciente.width, "Paciente").toBeCloseTo(larguraPaciente, 0);
           expect(pasta.width, "Pasta").toBeCloseTo(larguraPasta, 0);
-          expect(ordemPo.width, "Nº Ordem").toBeCloseTo(larguraPo, 0);
+          expect(ordemPo.width, "PO").toBeCloseTo(larguraPo, 0);
           expect(direita(ordemPo), "linha 1 ocupa a largura útil").toBeCloseTo(paciente.x + util, 0);
           // A Pasta comporta o MAIOR valor da máscara ("2026 - 234" = 10 caracteres, mono 13,5px) com o padding de sempre
           // (10px), sem cortar (o texto vem do `fill`, que passa pela máscara do campo).
@@ -269,33 +269,33 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
           expect(await page.locator("#pf-pasta").inputValue()).toBe("2026 - 234");
           expect(await page.locator("#pf-pasta").evaluate((el) => el.scrollWidth > el.clientWidth + 0.5), "Pasta cortada").toBe(false);
 
-          // O Nº Ordem tem a mesma largura da Pasta (e a mesma sobra depois da máscara de 10 caracteres, "PO-00-0000"): comporta a
+          // O PO tem a mesma largura da Pasta (e a mesma sobra depois da máscara de 10 caracteres, "PO-00-0000"): comporta a
           // máscara completa sem rolar; valores mais longos (até 30 caracteres) rolam DENTRO do campo, que não muda de largura.
-          expect(ordemPo.width, "Nº Ordem com a mesma largura da Pasta").toBeCloseTo(pasta.width, 0);
+          expect(ordemPo.width, "PO com a mesma largura da Pasta").toBeCloseTo(pasta.width, 0);
           await page.locator("#pf-numero-po").fill("PO-25-2652");
           expect(await page.locator("#pf-numero-po").inputValue()).toBe("PO-25-2652");
-          expect(await page.locator("#pf-numero-po").evaluate((el) => el.scrollWidth > el.clientWidth + 0.5), "Nº Ordem (10 caracteres) cortado").toBe(false);
+          expect(await page.locator("#pf-numero-po").evaluate((el) => el.scrollWidth > el.clientWidth + 0.5), "PO (10 caracteres) cortado").toBe(false);
           await page.locator("#pf-numero-po").fill("PO-25-2652/12345678901234567");
-          expect((await b("pf-numero-po")).width, "Nº Ordem mantém a largura com 30 caracteres").toBeCloseTo(larguraPo, 0);
+          expect((await b("pf-numero-po")).width, "PO mantém a largura com 30 caracteres").toBeCloseTo(larguraPo, 0);
           expect(await page.locator("#pf-numero-po").evaluate((el) => el.scrollWidth > el.clientWidth + 0.5), "30 caracteres rolam dentro do campo").toBe(true);
 
-          // Linha 2: Nº Remessa (estreito) | Nº do processo, abaixo da linha 1. O Nº Remessa sai da linha 1.
+          // Linha 2: Nº Ordem (estreito) | Nº do processo, abaixo da linha 1. O Nº Ordem sai da linha 1.
           const remessa = await b("pf-numero-remessa");
           const numeroProcesso = await b("pf-numero-processo");
-          mesmaLinha(remessa, numeroProcesso, "Nº Remessa | Nº do processo");
+          mesmaLinha(remessa, numeroProcesso, "Nº Ordem | Nº do processo");
           expect(remessa.y).toBeGreaterThan(embaixo(paciente) - 1);
-          expect(Math.abs(remessa.x - paciente.x), "Nº Remessa na borda esquerda").toBeLessThanOrEqual(1);
-          expect(remessa.width, "Nº Remessa estreito").toBeCloseTo(larguraRemessa, 0);
+          expect(Math.abs(remessa.x - paciente.x), "Nº Ordem na borda esquerda").toBeLessThanOrEqual(1);
+          expect(remessa.width, "Nº Ordem estreito").toBeCloseTo(larguraRemessa, 0);
           expect(numeroProcesso.x).toBeGreaterThan(direita(remessa));
           expect(numeroProcesso.width, "Nº do processo: todo o resto da linha (sem teto)").toBeCloseTo(larguraNumeroProcesso, 0);
-          // O fim do Nº do processo coincide com o fim do Nº Ordem (a mesma borda direita da linha 1) e com a borda útil.
-          expect(direita(numeroProcesso), "Nº do processo termina onde termina o Nº Ordem").toBeCloseTo(direita(ordemPo), 0);
+          // O fim do Nº do processo coincide com o fim do PO (a mesma borda direita da linha 1) e com a borda útil.
+          expect(direita(numeroProcesso), "Nº do processo termina onde termina o PO").toBeCloseTo(direita(ordemPo), 0);
           expect(direita(numeroProcesso), "Nº do processo vai até a borda útil").toBeCloseTo(paciente.x + util, 0);
           // 2 dígitos cabem sem rolar (o texto vem do `fill`, que passa pelo filtro do campo).
           await page.locator("#pf-numero-remessa").fill("12");
           expect(
             await page.locator("#pf-numero-remessa").evaluate((el) => el.scrollWidth > el.clientWidth + 0.5),
-            "Nº Remessa (2 dígitos) cortado",
+            "Nº Ordem (2 dígitos) cortado",
           ).toBe(false);
 
           // Grade 2x2: Empresa | Responsável // Consultor | Fornecedor, em 2 colunas iguais.
@@ -351,7 +351,7 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
           expect(transp[2]!.x).toBeGreaterThan(direita(transp[1]!));
           expect(transp[0]!.y).toBeGreaterThan(embaixo(desp) - 1);
 
-          // Stepper do Nº Remessa em lg+: UM campo (uma borda só) com o número à esquerda e, à direita DENTRO da borda, as
+          // Stepper do Nº Ordem em lg+: UM campo (uma borda só) com o número à esquerda e, à direita DENTRO da borda, as
           // setas ▲ (em cima) e ▼ (embaixo) empilhadas, cada uma com metade da altura. O contêiner ocupa a coluna inteira e
           // tem a MESMA altura de um campo de texto (não aumenta a linha).
           const mais = await caixa(page.locator("#pf-numero-remessa-mais"), "▲");

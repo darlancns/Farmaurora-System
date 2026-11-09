@@ -8,7 +8,7 @@ import {
   numeroOrdemValido,
 } from "#shared/utils/numeroOrdem";
 
-// Item 7 do lote Follow-Up (regra da Cris, 2ª versão) — Nº Ordem (PO): PO-00-0000 com barra automática e só
+// Item 7 do lote Follow-Up (regra da Cris, 2ª versão) — PO (PO): PO-00-0000 com barra automática e só
 // números depois da barra; máscara, normalização e validação. Incompleto é permitido.
 
 // Simula o campo: a pessoa digita caractere a caractere (cursor sempre no fim), cada edição passa pela máscara.
@@ -338,7 +338,7 @@ describe("numeroOrdemValido (o que o servidor aceita)", () => {
   });
 
   it("a mensagem de erro é a combinada", () => {
-    expect(NUMERO_ORDEM_ERRO).toBe("Nº Ordem inválido. Use o formato PO-00-0000 (opcionalmente seguido de / e números).");
+    expect(NUMERO_ORDEM_ERRO).toBe("PO inválido. Use o formato PO-00-0000 (opcionalmente seguido de / e números).");
   });
 });
 

@@ -12,7 +12,7 @@ import {
   numeroRemessaValido,
 } from "../../shared/utils/numeroRemessa";
 
-// Nº Remessa: inteiro >= 1, sempre com valor. A mesma função vale no cliente e no servidor.
+// Nº Ordem: inteiro >= 1, sempre com valor. A mesma função vale no cliente e no servidor.
 
 describe("normalizarNumeroRemessa", () => {
   it.each([
@@ -83,7 +83,7 @@ describe("numeroRemessaValido", () => {
   });
 
   it("a mensagem de erro é a combinada", () => {
-    expect(NUMERO_REMESSA_ERRO).toBe("Nº Remessa inválido. Use um número inteiro maior ou igual a 1.");
+    expect(NUMERO_REMESSA_ERRO).toBe("Nº Ordem inválido. Use um número inteiro maior ou igual a 1.");
   });
 });
 

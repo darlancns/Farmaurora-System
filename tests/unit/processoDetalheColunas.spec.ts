@@ -69,7 +69,7 @@ describe("ProcessoDetail — campos em colunas", () => {
   it("quatro colunas, cada uma com os campos na ordem pedida (Transportadora presente)", () => {
     const el = montar(proc({ transportadoraNacional: { nome: "Jadlog", valor: 10 } }));
     expect(rotulosPorColuna(el)).toEqual([
-      ["Pasta", "Nº Ordem", "Nº Remessa"],
+      ["Pasta", "PO", "Nº Ordem"],
       ["Envio", "Cia. aérea", "Nº AWB"],
       ["Fornecedor", "Despachante", "Nº do processo"],
       ["Transportadora", "Local de entrega"],
@@ -79,7 +79,7 @@ describe("ProcessoDetail — campos em colunas", () => {
   it("sem Transportadora só a coluna 4 encurta; as outras três não mudam (um wrapper por coluna)", () => {
     const el = montar(proc());
     expect(rotulosPorColuna(el)).toEqual([
-      ["Pasta", "Nº Ordem", "Nº Remessa"],
+      ["Pasta", "PO", "Nº Ordem"],
       ["Envio", "Cia. aérea", "Nº AWB"],
       ["Fornecedor", "Despachante", "Nº do processo"],
       ["Local de entrega"],
@@ -90,8 +90,8 @@ describe("ProcessoDetail — campos em colunas", () => {
     const el = montar(proc({ transportadoraNacional: { nome: "Jadlog" } }));
     expect(rotulosPorColuna(el).flat()).toEqual([
       "Pasta",
+      "PO",
       "Nº Ordem",
-      "Nº Remessa",
       "Envio",
       "Cia. aérea",
       "Nº AWB",
@@ -120,11 +120,11 @@ describe("ProcessoDetail — campos em colunas", () => {
       return texto(campo.querySelectorAll("span")[1]);
     };
     expect(valor("Pasta")).toBe("2026 - 100");
-    expect(valor("Nº Remessa")).toBe("2");
+    expect(valor("Nº Ordem")).toBe("2");
     expect(valor("Nº AWB")).toBe("957-12345678");
     expect(valor("Despachante")).toBe("—");
     expect(valor("Fornecedor")).toBe("—");
-    expect(valor("Nº Ordem")).toBe("—");
+    expect(valor("PO")).toBe("—");
     expect(valor("Local de entrega")).toBe("—");
   });
 

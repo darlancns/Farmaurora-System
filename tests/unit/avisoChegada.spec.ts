@@ -174,7 +174,7 @@ describe("montarTextoAvisoChegada", () => {
     diasAtraso: 2,
   };
 
-  it("responsável: título 'Chegou?', 'Remessa de …', data + cia + AWB (exemplo do pedido)", () => {
+  it("responsável: título 'Chegou?', 'Ordem de …', data + cia + AWB (exemplo do pedido)", () => {
     const t = montarTextoAvisoChegada({
       ...base,
       papel: "operacional",
@@ -183,7 +183,7 @@ describe("montarTextoAvisoChegada", () => {
     });
     expect(t).toEqual({
       titulo: "Chegou?",
-      linhaProcesso: "Remessa de Andrelino Oliveira de Santana · 2026 - 387",
+      linhaProcesso: "Ordem de Andrelino Oliveira de Santana · 2026 - 387",
       linhaData: "Prevista para 06/11 (2 dias de atraso) · Lufthansa · AWB 020-50680906",
     });
   });
@@ -191,15 +191,15 @@ describe("montarTextoAvisoChegada", () => {
   it("administrador: sem título (sem pergunta), mesmas duas linhas", () => {
     const t = montarTextoAvisoChegada({ ...base, papel: "administrador", companhiaAerea: "Lufthansa", numeroAwb: "1" });
     expect(t.titulo).toBeNull();
-    expect(t.linhaProcesso).toBe("Remessa de Andrelino Oliveira de Santana · 2026 - 387");
+    expect(t.linhaProcesso).toBe("Ordem de Andrelino Oliveira de Santana · 2026 - 387");
     expect(t.linhaData).toBe("Prevista para 06/11 (2 dias de atraso) · Lufthansa · AWB 1");
   });
 
-  it("Nº Remessa só quando visível na linha: 'Remessa {N} de …'", () => {
+  it("Nº Ordem só quando visível na linha: 'Ordem {N} de …'", () => {
     const t = montarTextoAvisoChegada({ ...base, papel: "operacional", numeroRemessa: 3, remessaVisivel: true });
-    expect(t.linhaProcesso).toBe("Remessa 3 de Andrelino Oliveira de Santana · 2026 - 387");
+    expect(t.linhaProcesso).toBe("Ordem 3 de Andrelino Oliveira de Santana · 2026 - 387");
     expect(montarTextoAvisoChegada({ ...base, papel: "operacional", numeroRemessa: 3 }).linhaProcesso).toBe(
-      "Remessa de Andrelino Oliveira de Santana · 2026 - 387",
+      "Ordem de Andrelino Oliveira de Santana · 2026 - 387",
     );
   });
 

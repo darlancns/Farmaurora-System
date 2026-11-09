@@ -158,7 +158,7 @@ export interface TextoAvisoChegada {
 }
 
 export function montarTextoAvisoChegada(entrada: EntradaTextoAvisoChegada): TextoAvisoChegada {
-  const remessa = entrada.remessaVisivel ? `Remessa ${entrada.numeroRemessa}` : "Remessa";
+  const remessa = entrada.remessaVisivel ? `Ordem ${entrada.numeroRemessa}` : "Ordem";
   const linhaProcesso = `${remessa} de ${entrada.paciente} · ${entrada.pasta}`;
 
   const previsao =

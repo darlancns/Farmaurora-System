@@ -121,7 +121,7 @@ describe("ida e volta: abrir e salvar sem alterar não envia nada", () => {
     expect(forn.fornecedor.state.select).toBe("Outro");
     expect(forn.fornecedor.state.outroTexto).toBe("Venecza");
 
-    // A coluna antiga `ordem` está congelada: o formulário mostra o Nº Remessa, nunca o texto antigo.
+    // A coluna antiga `ordem` está congelada: o formulário mostra o Nº Ordem, nunca o texto antigo.
     const remessa = abrir({ numero_remessa: 12, ordem: "Ordem 2 (complemento)" });
     expect(remessa.form.numeroRemessa).toBe("12");
     const semColuna = abrir({ numero_remessa: undefined, ordem: "Ordem 5" });
@@ -184,7 +184,7 @@ describe("o patch traz só o que mudou", () => {
     });
   });
 
-  it("Nº Remessa: vai como número e só se mudou", () => {
+  it("Nº Ordem: vai como número e só se mudou", () => {
     expect(montarPatchDiferencial(estadoCompleto(), editado((e) => (e.form.numeroRemessa = "3")))).toEqual({
       numeroRemessa: 3,
       parcial: true,
@@ -192,7 +192,7 @@ describe("o patch traz só o que mudou", () => {
     expect(montarPatchDiferencial(estadoCompleto(), editado((e) => (e.form.numeroRemessa = "2")))).toBeNull();
   });
 
-  it("Nº Remessa esvaziado vira 1 (não null): vai 1 se o atual era outro e não vai nada se já era 1", () => {
+  it("Nº Ordem esvaziado vira 1 (não null): vai 1 se o atual era outro e não vai nada se já era 1", () => {
     expect(montarPatchDiferencial(estadoCompleto(), editado((e) => (e.form.numeroRemessa = "")))).toEqual({
       numeroRemessa: 1,
       parcial: true,

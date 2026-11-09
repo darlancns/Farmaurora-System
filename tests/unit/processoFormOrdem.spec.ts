@@ -106,14 +106,14 @@ describe("Formulário de processo — ordem dos campos no DOM", () => {
     }
   });
 
-  it("linha 1 = Paciente / Pasta / Nº Ordem; linha 2 = Nº Remessa / Nº do processo; só depois vêm os Medicamentos", async () => {
+  it("linha 1 = Paciente / Pasta / PO; linha 2 = Nº Ordem / Nº do processo; só depois vêm os Medicamentos", async () => {
     const el = abrir();
     await nextTick();
     const linha = (id: string) => el.querySelector(`#${id}`)!.closest("#processo-form > div > div")!;
     const linha1 = linha("pf-paciente");
     expect(linha("pf-pasta")).toBe(linha1);
     expect(linha("pf-numero-po")).toBe(linha1);
-    expect(linha1.querySelector("#pf-numero-remessa")).toBeNull(); // o Nº Remessa saiu da linha 1
+    expect(linha1.querySelector("#pf-numero-remessa")).toBeNull(); // o Nº Ordem saiu da linha 1
     const linha2 = linha("pf-numero-remessa");
     expect(linha2).not.toBe(linha1);
     expect(linha("pf-numero-processo")).toBe(linha2);
@@ -125,12 +125,12 @@ describe("Formulário de processo — ordem dos campos no DOM", () => {
     expect(linha2.compareDocumentPosition(el.querySelector("#pf-medicamento-nome-0")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("linha 1 em lg+: Paciente flexível, Pasta e Nº Ordem com a MESMA largura (7rem); abaixo de lg, 2 colunas iguais", async () => {
+  it("linha 1 em lg+: Paciente flexível, Pasta e PO com a MESMA largura (7rem); abaixo de lg, 2 colunas iguais", async () => {
     const el = abrir();
     await nextTick();
     const linha1 = el.querySelector("#pf-paciente")!.closest("#processo-form > div > div")!;
     const classes = (linha1.getAttribute("class") ?? "").split(/\s+/);
-    expect(classes).toContain("grid-cols-2"); // abaixo de lg: Pasta | Nº Ordem iguais (o Paciente ocupa as 2)
+    expect(classes).toContain("grid-cols-2"); // abaixo de lg: Pasta | PO iguais (o Paciente ocupa as 2)
     expect(classes).toContain("lg:grid-cols-[minmax(0,1fr)_7rem_7rem]");
     expect(classes.filter((c) => c.startsWith("lg:grid-cols-"))).toHaveLength(1);
     // As duas colunas estreitas (lidas do elemento montado) têm a mesma largura, e ela comporta a máscara de 10 caracteres
@@ -150,7 +150,7 @@ describe("Formulário de processo — ordem dos campos no DOM", () => {
     }
   });
 
-  it("linha 2: Nº Remessa com 5rem e Nº do processo com TODO o resto da linha (sem teto de largura em nenhuma faixa)", async () => {
+  it("linha 2: Nº Ordem com 5rem e Nº do processo com TODO o resto da linha (sem teto de largura em nenhuma faixa)", async () => {
     const el = abrir();
     await nextTick();
     const linha2 = el.querySelector("#pf-numero-remessa")!.closest("#processo-form > div > div")!;

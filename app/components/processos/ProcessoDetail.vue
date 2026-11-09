@@ -43,9 +43,9 @@ function colunas(processo: Processo): DetailField[][] {
   return [
     [
       { label: "Pasta", value: processo.pasta },
-      { label: "Nº Ordem", value: processo.numeroPo, mono: true },
+      { label: "PO", value: processo.numeroPo, mono: true },
       // Sempre aparece (a linha do processo só o mostra quando N > 1 ou a pasta se repete).
-      { label: "Nº Remessa", value: String(processo.numeroRemessa), mono: true },
+      { label: "Nº Ordem", value: String(processo.numeroRemessa), mono: true },
     ],
     [
       { label: "Envio", value: processo.modalEnvio },

@@ -143,7 +143,7 @@ test.describe("/processos em lg+ — card e detalhe inalterados", () => {
         await expect(page.locator("[id^='processo-detail-']")).toHaveCount(0);
       });
 
-      test("card fechado: linha única (nome, Remessa N·pasta, medicamento | badge, data, responsável | lixeira), sem o card mobile", async ({
+      test("card fechado: linha única (nome, Ordem N·pasta, medicamento | badge, data, responsável | lixeira), sem o card mobile", async ({
         page,
       }) => {
         const id = ids!.robusto;
@@ -178,9 +178,9 @@ test.describe("/processos em lg+ — card e detalhe inalterados", () => {
         expect(lixeira.x).toBeGreaterThanOrEqual(direita(resp) - 1);
         expect(direita(lixeira)).toBeLessThanOrEqual(direita(linhaBox) + 1);
 
-        // Nº Remessa 2 (> 1): a linha mostra "Remessa 2" discreto, antes da pasta, na mesma fileira do nome.
+        // Nº Ordem 2 (> 1): a linha mostra "Ordem 2" discreto, antes da pasta, na mesma fileira do nome.
         const remessa = await box(page, `#remessa-${id}`);
-        await expect(page.locator(`#remessa-${id}`)).toHaveText("Remessa 2");
+        await expect(page.locator(`#remessa-${id}`)).toHaveText("Ordem 2");
         expect(Math.abs(centerY(remessa) - centerY(nome))).toBeLessThanOrEqual(14);
         expect(remessa.x).toBeGreaterThanOrEqual(direita(nome) - 1);
         expect(remessa.x + remessa.width).toBeLessThanOrEqual(badge.x + 1);
@@ -225,11 +225,11 @@ test.describe("/processos em lg+ — card e detalhe inalterados", () => {
           expect(estilo).toEqual({ colunas: 4, colGap: "16px", rowGap: "8px" });
         }
 
-        // 4 colunas de largura igual, cada uma um empilhado independente: Pasta/Nº Ordem/Nº Remessa,
+        // 4 colunas de largura igual, cada uma um empilhado independente: Pasta/PO/Nº Ordem,
         // Envio/Cia. aérea/Nº AWB, Fornecedor/Despachante/Nº do processo, Transportadora/Local de entrega.
         const pasta = (await celula(page, id, "Pasta").boundingBox())!;
         const empilhados = [
-          ["Pasta", "Nº Ordem", "Nº Remessa"],
+          ["Pasta", "PO", "Nº Ordem"],
           ["Envio", "Cia. aérea", "Nº AWB"],
           ["Fornecedor", "Despachante", "Nº do processo"],
           ["Transportadora", "Local de entrega"],

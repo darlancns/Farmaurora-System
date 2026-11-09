@@ -12,7 +12,7 @@ import { contarProcessosPorPasta } from "../../app/utils/remessaNaLinha";
 import { montarProcesso, type FollowUpRow } from "../../server/utils/processoMappers";
 import { linhaCompleta } from "./helpers/processoEdicaoFixtures";
 
-// "Remessa N" na linha (Andamento desktop/mobile e Entregues), "Nº Remessa" sempre no detalhe e o campo do
+// "Ordem N" na linha (Andamento desktop/mobile e Entregues), "Nº Ordem" sempre no detalhe e o campo do
 // formulário (id pf-numero-remessa). Componentes reais no happy-dom.
 
 function proc(id: string, pasta: string, numeroRemessa: number, extra: Partial<Processo> = {}): Processo {
@@ -62,28 +62,29 @@ describe("ProcessoRow — Em andamento", () => {
     );
   }
 
-  it("N > 1: mostra 'Remessa N' no desktop e no mobile", () => {
+  it("N > 1: mostra 'Ordem N' no desktop e no mobile", () => {
     const p = proc("a", "2026 - 100", 2);
     const el = linha(p, [p]);
-    expect(texto(el.querySelector("#remessa-a"))).toBe("Remessa 2");
-    expect(texto(el.querySelector("#mobile-ordem-pasta-a"))).toBe("Remessa 2 · Pasta 2026 - 100");
+    expect(texto(el.querySelector("#remessa-a"))).toBe("Ordem 2");
+    expect(texto(el.querySelector("#mobile-ordem-pasta-a"))).toBe("Ordem 2 · Pasta 2026 - 100");
   });
 
-  it("N = 1 com pasta única: nada de 'Remessa' em nenhum dos dois", () => {
+  it("N = 1 com pasta única: nada de 'Ordem N' (nem 'Remessa') em nenhum dos dois", () => {
     const p = proc("a", "2026 - 100", 1);
     const el = linha(p, [p]);
     expect(el.querySelector("#remessa-a")).toBeNull();
     expect(el.querySelector("#mobile-remessa-a")).toBeNull();
     expect(texto(el.querySelector("#mobile-ordem-pasta-a"))).toBe("Pasta 2026 - 100");
     expect(el.textContent).not.toContain("Remessa");
+    expect(el.textContent).not.toContain("Ordem");
   });
 
-  it("N = 1 com pasta repetida (nos outros processos carregados): mostra 'Remessa 1'", () => {
+  it("N = 1 com pasta repetida (nos outros processos carregados): mostra 'Ordem 1'", () => {
     const a = proc("a", "2026 - 409", 1);
     const b = proc("b", "2026 - 409", 2);
     const el = linha(a, [a, b]);
-    expect(texto(el.querySelector("#remessa-a"))).toBe("Remessa 1");
-    expect(texto(el.querySelector("#mobile-ordem-pasta-a"))).toBe("Remessa 1 · Pasta 2026 - 409");
+    expect(texto(el.querySelector("#remessa-a"))).toBe("Ordem 1");
+    expect(texto(el.querySelector("#mobile-ordem-pasta-a"))).toBe("Ordem 1 · Pasta 2026 - 409");
   });
 
   it("sem contagem (mapa vazio, o padrão): só aparece com N > 1", () => {
@@ -103,7 +104,7 @@ describe("ProcessoGroupList — repassa a contagem às linhas", () => {
           h(ProcessoGroupList, { processos: exibidos, flat: true, contagemPasta: contarProcessosPorPasta([a, b]) }),
       }),
     );
-    expect(texto(el.querySelector("#remessa-a"))).toBe("Remessa 1");
+    expect(texto(el.querySelector("#remessa-a"))).toBe("Ordem 1");
 
     const semContagemDeFora = montar(
       defineComponent({ render: () => h(ProcessoGroupList, { processos: exibidos, flat: true }) }),
@@ -121,9 +122,9 @@ describe("ProcessoDeliveredList — Entregues", () => {
     );
   }
 
-  it("N > 1 mostra 'Remessa N'", () => {
+  it("N > 1 mostra 'Ordem N'", () => {
     const e = proc("e", "2026 - 5", 3, { status: "entregue" });
-    expect(texto(lista([e], [e]).querySelector("#entregue-remessa-e"))).toBe("Remessa 3");
+    expect(texto(lista([e], [e]).querySelector("#entregue-remessa-e"))).toBe("Ordem 3");
   });
 
   it("N = 1 com pasta única não mostra", () => {
@@ -134,23 +135,23 @@ describe("ProcessoDeliveredList — Entregues", () => {
   it("N = 1 com a pasta repetida em OUTRA aba (Andamento): mostra", () => {
     const e = proc("e", "2026 - 409", 1, { status: "entregue" });
     const emAndamento = proc("a", "2026 - 409", 2);
-    expect(texto(lista([e], [e, emAndamento]).querySelector("#entregue-remessa-e"))).toBe("Remessa 1");
+    expect(texto(lista([e], [e, emAndamento]).querySelector("#entregue-remessa-e"))).toBe("Ordem 1");
   });
 
-  it("a linha de Entregues continua mostrando a empresa e o Nº Ordem (PO) ao lado da remessa", () => {
+  it("a linha de Entregues continua mostrando a empresa e o PO (PO) ao lado da remessa", () => {
     const e = proc("e", "2026 - 409", 2, { status: "entregue", numeroPo: "PO-25-2652" });
     const el = lista([e], [e]);
-    expect(texto(el.querySelector("#processo-delivered-e"))).toContain("FARMAURORA · Remessa 2 · PO-25-2652");
+    expect(texto(el.querySelector("#processo-delivered-e"))).toContain("FARMAURORA · Ordem 2 · PO-25-2652");
     expect(texto(el.querySelector("#entregue-numero-po-e"))).toBe("PO-25-2652");
   });
 });
 
-describe("ProcessoDetail — Nº Remessa sempre aparece", () => {
+describe("ProcessoDetail — Nº Ordem sempre aparece", () => {
   it("mostra o rótulo e o valor, mesmo com N = 1 e pasta única", () => {
     const p = proc("a", "2026 - 100", 1);
     const el = montar(defineComponent({ render: () => h(ProcessoDetail, { processo: p }) }));
     const celula = Array.from(el.querySelectorAll("#processo-detail-a div.flex-col")).find(
-      (c) => texto(c.querySelector("span")) === "Nº Remessa",
+      (c) => texto(c.querySelector("span")) === "Nº Ordem",
     )!;
     expect(celula).toBeTruthy();
     expect(texto(celula.querySelectorAll("span")[1] ?? null)).toBe("1");
@@ -159,26 +160,26 @@ describe("ProcessoDetail — Nº Remessa sempre aparece", () => {
   it("mostra N quando maior que 1", () => {
     const p = proc("a", "2026 - 100", 12);
     const el = montar(defineComponent({ render: () => h(ProcessoDetail, { processo: p }) }));
-    expect(el.textContent).toContain("Nº Remessa");
+    expect(el.textContent).toContain("Nº Ordem");
     const celula = Array.from(el.querySelectorAll("#processo-detail-a div.flex-col")).find(
-      (c) => texto(c.querySelector("span")) === "Nº Remessa",
+      (c) => texto(c.querySelector("span")) === "Nº Ordem",
     )!;
     expect(texto(celula.querySelectorAll("span")[1] ?? null)).toBe("12");
   });
 
-  it("fica na coluna 1, logo depois do Nº Ordem (a ordem completa das colunas está em processoDetalheColunas.spec.ts)", () => {
+  it("fica na coluna 1, logo depois do PO (a ordem completa das colunas está em processoDetalheColunas.spec.ts)", () => {
     const p = proc("a", "2026 - 100", 1);
     const el = montar(defineComponent({ render: () => h(ProcessoDetail, { processo: p }) }));
     const coluna1 = el.querySelector("#processo-detail-a > div.grid > div")!;
     expect(Array.from(coluna1.querySelectorAll(":scope > div > span:first-child")).map((c) => texto(c))).toEqual([
       "Pasta",
+      "PO",
       "Nº Ordem",
-      "Nº Remessa",
     ]);
   });
 });
 
-describe("Formulário — campo Nº Remessa (pf-numero-remessa)", () => {
+describe("Formulário — campo Nº Ordem (pf-numero-remessa)", () => {
   function abrirModal(editando: Processo | null) {
     return montar(defineComponent({ render: () => h(ProcessoFormModal, { editingProcesso: editando }) }));
   }
@@ -198,7 +199,7 @@ describe("Formulário — campo Nº Remessa (pf-numero-remessa)", () => {
     expect(campo.type).toBe("text");
     expect(campo.getAttribute("inputmode")).toBe("numeric");
     expect(campo.hasAttribute("data-sem-maiuscula")).toBe(true);
-    expect(texto(el.querySelector("label[for='pf-numero-remessa']"))).toBe("Nº Remessa");
+    expect(texto(el.querySelector("label[for='pf-numero-remessa']"))).toBe("Nº Ordem");
     expect(el.querySelector("#pf-ordem")).toBeNull();
   });
 
@@ -208,8 +209,8 @@ describe("Formulário — campo Nº Remessa (pf-numero-remessa)", () => {
     const menos = el.querySelector<HTMLButtonElement>("#pf-numero-remessa-menos")!;
     const mais = el.querySelector<HTMLButtonElement>("#pf-numero-remessa-mais")!;
     const campo = el.querySelector<HTMLInputElement>("#pf-numero-remessa")!;
-    expect(menos.getAttribute("aria-label")).toBe("Diminuir Nº Remessa");
-    expect(mais.getAttribute("aria-label")).toBe("Aumentar Nº Remessa");
+    expect(menos.getAttribute("aria-label")).toBe("Diminuir Nº Ordem");
+    expect(mais.getAttribute("aria-label")).toBe("Aumentar Nº Ordem");
     expect(menos.disabled).toBe(true);
 
     mais.click();
@@ -251,7 +252,7 @@ describe("Formulário — campo Nº Remessa (pf-numero-remessa)", () => {
     expect(campo.value).toBe("2147483647");
   });
 
-  it("edição: carrega o Nº Remessa do processo", async () => {
+  it("edição: carrega o Nº Ordem do processo", async () => {
     const processo = montarProcesso(linhaCompleta({ numero_remessa: 12 }) as unknown as FollowUpRow);
     const el = abrirModal(processo);
     await nextTick();
@@ -276,7 +277,7 @@ describe("Formulário — campo Nº Remessa (pf-numero-remessa)", () => {
     expect(r2.payload.numeroRemessa).toBe(9);
   });
 
-  it("composable: acima de 2147483647 o formulário recusa com a mensagem do Nº Remessa", () => {
+  it("composable: acima de 2147483647 o formulário recusa com a mensagem do Nº Ordem", () => {
     const novo = useProcessoForm(() => null);
     novo.form.paciente = "Fulano";
     novo.form.pasta = "2026 - 1";
@@ -284,7 +285,7 @@ describe("Formulário — campo Nº Remessa (pf-numero-remessa)", () => {
     novo.form.numeroRemessa = "2147483648";
     expect(novo.validar()).toEqual({
       valido: false,
-      erro: "Nº Remessa inválido. Use um número inteiro maior ou igual a 1.",
+      erro: "Nº Ordem inválido. Use um número inteiro maior ou igual a 1.",
     });
   });
 });

@@ -29,7 +29,7 @@ function montar(inicial = "1") {
             h(ProcessoRemessaStepper, {
               id: "pf-numero-remessa",
               modelValue: valor.value,
-              rotulo: "Nº Remessa",
+              rotulo: "Nº Ordem",
               "onUpdate:modelValue": (v: string) => (valor.value = v),
             }),
           ],
@@ -88,8 +88,8 @@ describe("ProcessoRemessaStepper", () => {
 
   it("atributos: ids, aria-labels, type, inputmode, data-sem-maiuscula; setas fora do Tab; sem spinner nativo", () => {
     const { campo, menos, mais } = montar();
-    expect(menos().getAttribute("aria-label")).toBe("Diminuir Nº Remessa");
-    expect(mais().getAttribute("aria-label")).toBe("Aumentar Nº Remessa");
+    expect(menos().getAttribute("aria-label")).toBe("Diminuir Nº Ordem");
+    expect(mais().getAttribute("aria-label")).toBe("Aumentar Nº Ordem");
     expect(menos().type).toBe("button");
     expect(mais().type).toBe("button");
     expect(menos().getAttribute("tabindex")).toBe("-1");
