@@ -51,7 +51,7 @@ const emit = defineEmits<{
   invalid: [message: string];
 }>();
 
-const { form, outros, onPoInput, validar, valorToggle } = useDirForm(() => props.editingDir);
+const { form, outros, onPoInput, onMedicamentoInput, validar, valorToggle } = useDirForm(() => props.editingDir);
 
 interface CampoLista {
   campo: CampoComOutro;
@@ -225,7 +225,14 @@ function confirmarExclusao(): void {
               </div>
               <div class="col-span-2">
                 <label for="df-medicamento" :class="LABEL_CLASS">Medicamento</label>
-                <input id="df-medicamento" v-model="form.medicamento" type="text" :class="INPUT_CLASS" />
+                <input
+                  id="df-medicamento"
+                  :value="form.medicamento"
+                  type="text"
+                  autocapitalize="characters"
+                  :class="INPUT_CLASS"
+                  @input="onMedicamentoInput"
+                />
               </div>
               <template v-for="c in CAMPOS_IDENTIFICACAO" :key="c.campo">
                 <div class="col-span-2 sm:col-span-1" :class="SELECT_CAMPO_CLASS">

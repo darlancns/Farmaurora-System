@@ -15,6 +15,7 @@ import type { ChecklistChaveDir, Dir, DirPatchDTO, NewDirDTO, StatusDir } from "
 import { hojeBrasilia } from "#shared/utils/dataBrasilia";
 import { NUMERO_PO_REGEX as PO_RE } from "#shared/utils/numeroPo";
 import { aplicarMascaraNumeroPo } from "../utils/aplicarMascaraNumeroPo";
+import { aplicarMaiusculasNoCampo } from "../utils/aplicarMaiusculasNoCampo";
 import { useOutroSentinel } from "./useOutroSentinel";
 
 // Estado e regras do formulário da DIR (DirFormModal.vue). O componente só liga os campos.
@@ -153,6 +154,12 @@ export function useDirForm(editando: () => Dir | null | undefined) {
     form.po = aplicarMascaraNumeroPo(event.target as HTMLInputElement, form.po);
   }
 
+  // Medicamento: tudo em MAIÚSCULAS ao digitar/colar (como o medicamento do Follow-Up). O valor antigo, já gravado
+  // em minúsculas, fica como está até a pessoa mexer no campo (o `validar` só faz `trim`, nunca converte).
+  function onMedicamentoInput(event: Event): void {
+    form.medicamento = aplicarMaiusculasNoCampo(event.target as HTMLInputElement);
+  }
+
   function validar(): ResultadoValidacaoDir {
     const po = form.po.trim().toUpperCase();
     if (!PO_RE.test(po)) return { valido: false, erro: "Informe o PO no padrão PO26-MM-NNNN." };
@@ -210,5 +217,5 @@ export function useDirForm(editando: () => Dir | null | undefined) {
     return vivo ? vivo[chave] : form[chave];
   }
 
-  return { form, outros, onPoInput, validar, valorToggle };
+  return { form, outros, onPoInput, onMedicamentoInput, validar, valorToggle };
 }

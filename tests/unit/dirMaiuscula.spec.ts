@@ -102,7 +102,7 @@ describe("DirFormModal — inventário dos campos de texto", () => {
     }
   });
 
-  it("paciente e medicamento: a 1ª letra vira maiúscula e o resto fica como digitado", async () => {
+  it("paciente: a 1ª letra vira maiúscula e o resto fica como digitado; medicamento: tudo em maiúsculas (ver dirMedicamentoMaiuscula.spec)", async () => {
     formulario();
     const paciente = document.getElementById("df-paciente") as HTMLInputElement;
     const medicamento = document.getElementById("df-medicamento") as HTMLInputElement;
@@ -110,7 +110,7 @@ describe("DirFormModal — inventário dos campos de texto", () => {
     digitar(medicamento, "keytruda 100mg");
     await nextTick();
     expect(paciente.value).toBe("Maria da Silva");
-    expect(medicamento.value).toBe("Keytruda 100mg");
+    expect(medicamento.value).toBe("KEYTRUDA 100MG");
   });
 
   it.each(CAMPOS_LISTA_COM_OUTRO)("texto do 'Outro' de %s: 1ª letra maiúscula", async (campo) => {
