@@ -26,6 +26,7 @@ import {
   SELECT_CAMPO_CLASS,
 } from "../../utils/processoFormClasses";
 import type { AppSelectOption } from "../../types/appSelect";
+import AppDatePicker from "../AppDatePicker.vue";
 import AppSelect from "../AppSelect.vue";
 import BaseModal from "../BaseModal.vue";
 import ConfirmDialog from "../ConfirmDialog.vue";
@@ -250,19 +251,47 @@ function confirmarExclusao(): void {
             <div class="grid grid-cols-2 gap-2.5">
               <div>
                 <label for="df-data-emissao" :class="LABEL_CLASS">Emissão</label>
-                <input id="df-data-emissao" v-model="form.dataEmissao" type="date" :class="INPUT_DATA_CLASS" />
+                <AppDatePicker
+                  id="df-data-emissao"
+                  v-model="form.dataEmissao"
+                  formato="iso"
+                  placeholder="Escolher"
+                  label="Emissão"
+                  :classe-campo="INPUT_DATA_CLASS"
+                />
               </div>
               <div>
                 <label for="df-data-cobranca" :class="LABEL_CLASS">Cobrança aos fornecedores</label>
-                <input id="df-data-cobranca" v-model="form.dataCobrancaFornecedores" type="date" :class="INPUT_DATA_CLASS" />
+                <AppDatePicker
+                  id="df-data-cobranca"
+                  v-model="form.dataCobrancaFornecedores"
+                  formato="iso"
+                  placeholder="Escolher"
+                  label="Cobrança aos fornecedores"
+                  :classe-campo="INPUT_DATA_CLASS"
+                />
               </div>
               <div>
                 <label for="df-data-entrega" :class="LABEL_CLASS">Entrega</label>
-                <input id="df-data-entrega" v-model="form.dataEntrega" type="date" :class="INPUT_DATA_CLASS" />
+                <AppDatePicker
+                  id="df-data-entrega"
+                  v-model="form.dataEntrega"
+                  formato="iso"
+                  placeholder="Escolher"
+                  label="Entrega"
+                  :classe-campo="INPUT_DATA_CLASS"
+                />
               </div>
               <div>
                 <label for="df-data-pagamento" :class="LABEL_CLASS">Pagamento</label>
-                <input id="df-data-pagamento" v-model="form.dataPagamento" type="date" :class="INPUT_DATA_CLASS" />
+                <AppDatePicker
+                  id="df-data-pagamento"
+                  v-model="form.dataPagamento"
+                  formato="iso"
+                  placeholder="Escolher"
+                  label="Pagamento"
+                  :classe-campo="INPUT_DATA_CLASS"
+                />
               </div>
             </div>
           </fieldset>

@@ -43,6 +43,24 @@ async function escolher(page: Page, idSelect: string, opcao: string): Promise<vo
   await page.locator(`#${idSelect}-listbox [role='option']`, { hasText: opcao }).first().click();
 }
 
+// Escolhe uma data (AAAA-MM-DD) no calendário próprio (AppDatePicker, formato "iso"): abre o campo, vai ao ano e
+// ao mês pelo título e clica no dia. Mesmo caminho de pagamentos-fluxo.spec.ts (data-acao / data-ano / data-mes / data-iso).
+async function escolherDataNoCalendario(page: Page, id: string, iso: string): Promise<void> {
+  const [ano, mes] = iso.split("-").map(Number) as [number, number];
+  await page.locator(`#${id}`).click();
+  const painel = page.locator(`#${id}-calendario`);
+  await painel.locator('[data-acao="ano"]').click();
+  const alvo = painel.locator(`[data-ano="${ano}"]`);
+  for (let i = 0; i < 10 && (await alvo.count()) === 0; i++) {
+    await painel.locator('[data-acao="anos-anteriores"]').click();
+  }
+  await alvo.click();
+  await painel.locator('[data-acao="mes"]').click();
+  await painel.locator(`[data-mes="${mes}"]`).click();
+  await painel.locator(`[data-iso="${iso}"]`).click();
+  await expect(painel).toHaveCount(0); // escolher fecha o painel
+}
+
 test.describe("DIR — acesso por cargo", () => {
   test.describe.configure({ retries: 2 });
 
@@ -193,7 +211,10 @@ test.describe("DIR — fluxo (cria, edita, grava na hora, filtra, exclui)", () =
     await expect(page.locator("#dir-check-logger")).not.toBeChecked();
 
     await escolher(page, "df-status", "Entregue");
-    await page.locator("#df-data-entrega").fill("2026-12-10");
+    // Datas pelo calendário próprio (nenhum <input type="date"> nativo no formulário).
+    await expect(page.locator("#dir-form input[type='date']")).toHaveCount(0);
+    await escolherDataNoCalendario(page, "df-data-entrega", "2026-12-10");
+    await expect(page.locator("#df-data-entrega")).toContainText("10/12/2026");
     await page.locator("#df-medicamento").fill("MEDICAMENTO E2E 2");
     await page.locator("#btn-save-dir").click();
     await expect(page.locator("#dir-form")).toHaveCount(0);
