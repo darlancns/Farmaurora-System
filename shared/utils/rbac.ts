@@ -23,7 +23,8 @@ export function isRole(value: unknown): value is Role {
 }
 
 /**
- * Áreas protegidas do sistema. "config" ainda não tem página/endpoint.
+ * Áreas protegidas do sistema. "config" cobre a página /configuracoes (todos os cargos leem; só o administrador
+ * escreve) e a API /api/cadastros (as listas de Cadastros: todos leem, só o administrador escreve).
  * "recados" é a única seção liberada pra TODOS os cargos, leitura e escrita —
  * Consultor e Sócio, read-only no resto do CRM, escrevem aqui (ver
  * docs/recados-spec.md seção 4). Cobre também GET /api/contas (seletor de
@@ -101,6 +102,9 @@ export function sectionForApiPath(path: string): Section | null {
   // Dispensas do aviso "chegou?" do sino: aberto a todos os cargos aqui; o handler restringe ao administrador.
   if (p === "/api/chegada-avisos" || p.startsWith("/api/chegada-avisos/")) return "recados";
   if (p === "/api/lembretes" || p.startsWith("/api/lembretes/")) return "recados";
+  // Cadastros (fornecedores, despachantes, temperaturas): seção "config" — todos os cargos leem (GET), só o
+  // administrador escreve; os handlers de POST e PATCH conferem o administrador de novo.
+  if (p === "/api/cadastros" || p.startsWith("/api/cadastros/")) return "config";
   return null;
 }
 
