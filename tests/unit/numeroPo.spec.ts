@@ -25,11 +25,18 @@ const lerFonte = (caminho: string): string =>
 
 describe("trava: o Follow-Up usa a fonte única do formato", () => {
   it("o Follow-Up (servidor e formulário) importa de numeroPo.ts e não define regex de PO própria", () => {
-    for (const arquivo of ["server/utils/processoValidation.ts", "app/utils/processoFormPayload.ts", "app/composables/useProcessoForm.ts"]) {
+    for (const arquivo of ["server/utils/processoValidation.ts", "app/utils/processoFormPayload.ts"]) {
       const fonte = lerFonte(arquivo);
       expect(fonte, arquivo).toMatch(/from "[^"]*numeroPo"/);
       expect(fonte, `${arquivo}: sem regex local de PO`).not.toMatch(/\/\^PO/);
     }
+    // A máscara do formulário (Follow-Up e DIR) entra pela função compartilhada aplicarMascaraNumeroPo (travada em dirPoMascara.spec.ts).
+    for (const arquivo of ["app/composables/useProcessoForm.ts", "app/composables/useDirForm.ts"]) {
+      const fonte = lerFonte(arquivo);
+      expect(fonte, arquivo).toContain("aplicarMascaraNumeroPo");
+      expect(fonte, `${arquivo}: sem regex local de PO`).not.toMatch(/\/\^PO/);
+    }
+    expect(lerFonte("app/utils/aplicarMascaraNumeroPo.ts")).toMatch(/from "[^"]*numeroPo"/);
   });
 
   it("o módulo antigo (formato PO-00-0000/n) não existe mais", () => {

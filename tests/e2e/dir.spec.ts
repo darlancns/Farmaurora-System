@@ -163,7 +163,10 @@ test.describe("DIR — fluxo (cria, edita, grava na hora, filtra, exclui)", () =
     await expect(page.locator("#toast-notice")).toContainText("PO26-MM-NNNN");
     await expect(page.locator("#dir-form")).toBeVisible();
 
-    await page.locator("#df-po").fill(PO.toLowerCase()); // vira maiúsculo
+    // A máscara do PO é a do Follow-Up: sem prefixo nem hífens vira PO26-12-9001 (maiúsculas e hífens automáticos).
+    await page.locator("#df-po").fill("26129001");
+    await expect(page.locator("#df-po")).toHaveValue(PO);
+    await page.locator("#df-po").fill(PO.toLowerCase());
     await expect(page.locator("#df-po")).toHaveValue(PO);
     await page.locator("#df-paciente").fill(PACIENTE);
     await page.locator("#btn-save-dir").click();

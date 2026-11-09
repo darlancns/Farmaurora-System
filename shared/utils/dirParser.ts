@@ -13,6 +13,7 @@
 import { VENDEDOR_CANONICO } from "../constants/dir.ts";
 import type { NewDirDTO, StatusDir } from "../types/dir";
 import { parseDataISO } from "./dataBrasilia.ts";
+import { NUMERO_PO_REGEX_PARTES as PO_RE } from "./numeroPo.ts";
 
 export type CodigoAvisoDir =
   | "PO_REPETIDO"
@@ -98,7 +99,6 @@ export interface OpcoesParseDir {
 
 type Resultado<T> = { ok: true; valor: T } | { ok: false; erro: string };
 
-const PO_RE = /^PO(\d{2})-(\d{2})-(\d{4})$/;
 const TAMANHO_MAXIMO_CAMPO = 300;
 
 const DIAS_SEMANA = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];

@@ -121,10 +121,13 @@ describe("DirFormModal — inventário dos campos de texto", () => {
     expect(entrada.value).toBe("Bradesco");
   });
 
-  it("PO: nenhuma regra do plugin (data-sem-maiuscula); só a própria — tudo em maiúsculas (onPoInput)", async () => {
+  it("PO: nenhuma regra do plugin (data-sem-maiuscula); só a máscara própria do PO (maiúsculas, hífens; ver dirPoMascara.spec)", async () => {
     formulario();
     const po = document.getElementById("df-po") as HTMLInputElement;
     digitar(po, "po26-10-0471");
+    await nextTick();
+    expect(po.value).toBe("PO26-10-0471");
+    digitar(po, "po26100471");
     await nextTick();
     expect(po.value).toBe("PO26-10-0471");
   });

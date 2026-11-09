@@ -1,11 +1,10 @@
 import { FECHAMENTO_RESTANTE_ENCERRADA_ERRO, STATUS_DIR_ORDER } from "../../shared/constants/dir";
 import type { DirPatchDTO, NewDirDTO, StatusDir } from "../../shared/types/dir";
 import { parseDataISO } from "../../shared/utils/dataBrasilia";
+import { NUMERO_PO_REGEX as PO_RE } from "../../shared/utils/numeroPo";
 
 // Tamanho máximo de qualquer campo de texto (mesmo limite do parser da importação).
 const TAMANHO_MAXIMO = 300;
-
-const PO_RE = /^PO\d{2}-\d{2}-\d{4}$/;
 
 function textoComTamanho(v: unknown): v is string {
   return typeof v === "string" && v.length <= TAMANHO_MAXIMO;

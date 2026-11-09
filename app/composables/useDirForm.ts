@@ -13,11 +13,11 @@ import {
 } from "#shared/constants/dir";
 import type { ChecklistChaveDir, Dir, DirPatchDTO, NewDirDTO, StatusDir } from "#shared/types/dir";
 import { hojeBrasilia } from "#shared/utils/dataBrasilia";
+import { NUMERO_PO_REGEX as PO_RE } from "#shared/utils/numeroPo";
+import { aplicarMascaraNumeroPo } from "../utils/aplicarMascaraNumeroPo";
 import { useOutroSentinel } from "./useOutroSentinel";
 
 // Estado e regras do formulário da DIR (DirFormModal.vue). O componente só liga os campos.
-
-const PO_RE = /^PO\d{2}-\d{2}-\d{4}$/;
 
 // Campos de lista com opção "Outro" digitável (o que se grava é o texto digitado).
 export type CampoComOutro =
@@ -147,8 +147,10 @@ export function useDirForm(editando: () => Dir | null | undefined) {
     for (const campo of CAMPOS_COM_OUTRO) outros[campo].load(dir[campo]);
   }
 
+  // PO: mesma máscara do PO do Follow-Up (PO26-10-0471: prefixo, hífens, 8 dígitos, maiúsculas, colar e cursor),
+  // pela mesma função (utils/aplicarMascaraNumeroPo.ts). A validação continua em `validar` (regex completa).
   function onPoInput(event: Event): void {
-    form.po = (event.target as HTMLInputElement).value.toUpperCase();
+    form.po = aplicarMascaraNumeroPo(event.target as HTMLInputElement, form.po);
   }
 
   function validar(): ResultadoValidacaoDir {

@@ -1,5 +1,6 @@
 import { BANCO_DIR_SEM_BANCO, CHECKLIST_DIR } from "#shared/constants/dir";
 import type { ChecklistChaveDir, Dir, StatusDir } from "#shared/types/dir";
+import { NUMERO_PO_REGEX_PARTES as PO_RE } from "#shared/utils/numeroPo";
 import { normalizarSemPontuacao, normalizeText } from "./search";
 
 // Lógica pura da lista da DIR (filtros, abas, ordenação, contagens, lista "Fechamentos restantes") —
@@ -46,8 +47,6 @@ export const FILTROS_DIR_VAZIOS: FiltrosDir = {
   checklistPendente: "",
   mes: "",
 };
-
-const PO_RE = /^PO(\d{2})-(\d{2})-\d{4}$/;
 
 /** Mês do registro: o da emissão ("YYYY-MM"); sem emissão, o do número do PO (PO26-03-… → 2026-03). */
 export function mesDoRegistro(dir: Pick<Dir, "dataEmissao" | "po">): string {
