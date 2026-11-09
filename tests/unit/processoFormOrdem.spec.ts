@@ -125,23 +125,29 @@ describe("Formulário de processo — ordem dos campos no DOM", () => {
     expect(linha2.compareDocumentPosition(el.querySelector("#pf-medicamento-nome-0")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("linha 1 em lg+: Paciente flexível, Pasta 7rem e Nº Ordem 8,125rem (cabe \"PO-NN-NNNN/NN\"); abaixo de lg, 2 colunas iguais", async () => {
+  it("linha 1 em lg+: Paciente flexível, Pasta e Nº Ordem com a MESMA largura (7rem); abaixo de lg, 2 colunas iguais", async () => {
     const el = abrir();
     await nextTick();
     const linha1 = el.querySelector("#pf-paciente")!.closest("#processo-form > div > div")!;
     const classes = (linha1.getAttribute("class") ?? "").split(/\s+/);
     expect(classes).toContain("grid-cols-2"); // abaixo de lg: Pasta | Nº Ordem iguais (o Paciente ocupa as 2)
-    expect(classes).toContain("lg:grid-cols-[minmax(0,1fr)_7rem_8.125rem]");
+    expect(classes).toContain("lg:grid-cols-[minmax(0,1fr)_7rem_7rem]");
     expect(classes.filter((c) => c.startsWith("lg:grid-cols-"))).toHaveLength(1);
-    // Largura mínima do Nº Ordem: 13 caracteres em JetBrains Mono 13,5px (0,6em) + padding 2×10px + borda 2×1px, com folga.
-    const larguraNecessaria = 13 * 0.6 * 13.5 + 2 * 10 + 2 * 1; // 127,3px
-    const colunasLg = classes.find((c) => c.startsWith("lg:grid-cols-"))!; // lida do elemento montado, não de uma cópia do texto
-    const rem = Number(/_(\d+(?:\.\d+)?)rem\]$/.exec(colunasLg)![1]);
-    expect(rem * 16 - larguraNecessaria).toBeGreaterThanOrEqual(2);
-    expect(rem * 16 - larguraNecessaria).toBeLessThan(4);
-    // Nº Ordem não leva largura própria no campo.
-    const po = linha1.querySelector("#pf-numero-po")!;
-    expect((po.getAttribute("class") ?? "").split(/\s+/).filter((c) => /(^|:)(max-w|w)-/.test(c) && c !== "w-full")).toEqual([]);
+    // As duas colunas estreitas (lidas do elemento montado) têm a mesma largura, e ela comporta a máscara de 10 caracteres
+    // ("2026 - 234" e "PO-00-0000": JetBrains Mono 13,5px = 0,6em por caractere, padding 2×10px, borda 2×1px) com a mesma sobra.
+    const colunasLg = classes.find((c) => c.startsWith("lg:grid-cols-"))!;
+    const [, pasta, po] = /_(\d+(?:\.\d+)?)rem_(\d+(?:\.\d+)?)rem\]$/.exec(colunasLg)!.slice(0, 3).map(Number) as [number, number, number];
+    expect(po).toBe(pasta);
+    const necessaria = 10 * 0.6 * 13.5 + 2 * 10 + 2 * 1; // 103px
+    const sobra = pasta * 16 - necessaria; // 9px depois do texto, nos dois campos
+    expect(sobra).toBeGreaterThanOrEqual(8);
+    expect(sobra).toBeLessThan(10);
+    // Nenhum dos dois leva largura própria no campo.
+    for (const id of ["pf-pasta", "pf-numero-po"]) {
+      const cls = (linha1.querySelector(`#${id}`)!.getAttribute("class") ?? "").split(/\s+/);
+      expect(cls.filter((c) => /(^|:)(max-w|w)-/.test(c) && c !== "w-full"), id).toEqual([]);
+      expect(cls.filter((c) => /(^|:)px-/.test(c)), `${id}: padding só o de sempre (px-2.5)`).toEqual(["px-2.5"]);
+    }
   });
 
   it("linha 2: Nº Remessa com 5rem e Nº do processo com TODO o resto da linha (sem teto de largura em nenhuma faixa)", async () => {
