@@ -146,11 +146,3 @@ export function instalarPrimeiraMaiuscula(doc: Document, opcoes: OpcoesPrimeiraM
     doc.removeEventListener("compositionend", aoFinalizarComposicao, true);
   };
 }
-
-/**
- * A tela fica FORA da regra? Hoje só a DIR (trabalho ainda sem commit).
- * TODO: remover (e o `ignorar` do plugin) depois que a DIR for commitada.
- */
-export function rotaForaDaRegra(pathname: string): boolean {
-  return pathname === "/dir" || pathname.startsWith("/dir/");
-}

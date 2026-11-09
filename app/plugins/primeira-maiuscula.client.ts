@@ -1,5 +1,5 @@
 import { defineNuxtPlugin } from "#app";
-import { instalarPrimeiraMaiuscula, rotaForaDaRegra } from "../utils/primeiraMaiuscula";
+import { instalarPrimeiraMaiuscula } from "../utils/primeiraMaiuscula";
 
 /**
  * Todo campo de texto começa com letra maiúscula (só a primeira letra; ver utils/primeiraMaiuscula.ts).
@@ -7,11 +7,8 @@ import { instalarPrimeiraMaiuscula, rotaForaDaRegra } from "../utils/primeiraMai
  * sem tocar em cada um. Campos que não podem ser alterados (códigos, chaves, senhas em type="text"...)
  * levam `data-sem-maiuscula`; tipos e atributos sensíveis são ignorados automaticamente.
  *
- * Só no cliente (precisa de `document`). A DIR fica de fora enquanto o trabalho dela estiver sem commit.
+ * Só no cliente (precisa de `document`). Vale para todas as telas, inclusive a DIR.
  */
 export default defineNuxtPlugin(() => {
-  instalarPrimeiraMaiuscula(document, {
-    // TODO: remover esta guarda temporária depois que a DIR (/dir) for commitada.
-    ignorar: () => rotaForaDaRegra(window.location.pathname),
-  });
+  instalarPrimeiraMaiuscula(document);
 });

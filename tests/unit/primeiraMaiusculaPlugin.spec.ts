@@ -303,36 +303,36 @@ describe("composição de texto (IME, teclas mortas)", () => {
   });
 });
 
-describe("guarda temporária da DIR", () => {
-  it("em /dir (e subrotas) o plugin NÃO age", async () => {
+describe("a DIR está DENTRO da regra", () => {
+  it("em /dir (e subrotas) o plugin age como em qualquer outra tela", async () => {
     const texto = ref("");
     const el = montar('<input v-model="texto" />', () => ({ texto }));
     const campo = el.querySelector("input")!;
-    const setURL = irPara;
 
-    setURL("http://localhost/dir");
+    irPara("http://localhost/dir");
     digitar(campo, "maria");
     await nextTick();
-    expect(texto.value).toBe("maria");
+    expect(texto.value).toBe("Maria");
 
-    setURL("http://localhost/dir/x");
-    digitar(campo, "joana");
-    await nextTick();
-    expect(texto.value).toBe("joana");
-  });
-
-  it("fora da DIR volta a agir (a guarda é avaliada a cada evento, navegação SPA incluída)", async () => {
-    const texto = ref("");
-    const el = montar('<input v-model="texto" />', () => ({ texto }));
-    const campo = el.querySelector("input")!;
-    const setURL = irPara;
-
-    setURL("http://localhost/dir");
-    digitar(campo, "maria");
-    setURL("http://localhost/processos");
+    irPara("http://localhost/dir/x");
     digitar(campo, "joana");
     await nextTick();
     expect(texto.value).toBe("Joana");
+  });
+
+  it("campos com data-sem-maiuscula (PO, AWB, contrato) não são tocados na DIR", async () => {
+    const po = ref("");
+    const awb = ref("");
+    const el = montar(
+      '<div><input id="po" data-sem-maiuscula v-model="po" /><input id="awb" data-sem-maiuscula v-model="awb" /></div>',
+      () => ({ po, awb }),
+    );
+    irPara("http://localhost/dir");
+    digitar(el.querySelector<HTMLInputElement>("#po")!, "po26-10-0471");
+    digitar(el.querySelector<HTMLInputElement>("#awb")!, "lufthansa: 020-1");
+    await nextTick();
+    expect(po.value).toBe("po26-10-0471");
+    expect(awb.value).toBe("lufthansa: 020-1");
   });
 });
 

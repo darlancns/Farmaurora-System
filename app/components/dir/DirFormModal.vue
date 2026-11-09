@@ -211,6 +211,7 @@ function confirmarExclusao(): void {
                   type="text"
                   placeholder="PO26-10-0471"
                   autocapitalize="characters"
+                  data-sem-maiuscula
                   :class="INPUT_MONO_CLASS"
                   @input="onPoInput"
                 />
@@ -318,7 +319,14 @@ function confirmarExclusao(): void {
               </template>
               <div class="col-span-2">
                 <label for="df-awb" :class="LABEL_CLASS">AWB</label>
-                <input id="df-awb" v-model="form.awb" type="text" placeholder="Lufthansa: 020-00000000" :class="INPUT_MONO_CLASS" />
+                <input
+                  id="df-awb"
+                  v-model="form.awb"
+                  type="text"
+                  placeholder="Lufthansa: 020-00000000"
+                  data-sem-maiuscula
+                  :class="INPUT_MONO_CLASS"
+                />
               </div>
             </div>
           </fieldset>
@@ -329,7 +337,7 @@ function confirmarExclusao(): void {
             <div class="grid grid-cols-2 gap-2.5">
               <div class="col-span-2 sm:col-span-1">
                 <label for="df-contrato" :class="LABEL_CLASS">Contrato de câmbio</label>
-                <input id="df-contrato" v-model="form.contratoCambio" type="text" :class="INPUT_MONO_CLASS" />
+                <input id="df-contrato" v-model="form.contratoCambio" type="text" data-sem-maiuscula :class="INPUT_MONO_CLASS" />
               </div>
               <template v-for="c in CAMPOS_FINANCEIRO" :key="c.campo">
                 <div class="col-span-2 sm:col-span-1" :class="SELECT_CAMPO_CLASS">

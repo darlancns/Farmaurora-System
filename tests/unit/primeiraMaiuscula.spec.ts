@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { capitalizarPrimeiraLetra, rotaForaDaRegra } from "../../app/utils/primeiraMaiuscula";
+import * as regra from "../../app/utils/primeiraMaiuscula";
+import { capitalizarPrimeiraLetra } from "../../app/utils/primeiraMaiuscula";
 
 // Função pura da regra global "todo campo de texto começa com letra maiúscula".
 
@@ -58,16 +59,8 @@ describe("capitalizarPrimeiraLetra", () => {
   });
 });
 
-describe("rotaForaDaRegra (guarda temporária da DIR)", () => {
-  it("a DIR e suas subrotas ficam fora", () => {
-    expect(rotaForaDaRegra("/dir")).toBe(true);
-    expect(rotaForaDaRegra("/dir/")).toBe(true);
-    expect(rotaForaDaRegra("/dir/qualquer")).toBe(true);
-  });
-
-  it("as demais telas entram na regra (inclusive caminhos que só começam com 'dir')", () => {
-    for (const rota of ["/", "/processos", "/prestacao", "/pagamentos", "/recados", "/configuracoes", "/login", "/direcao"]) {
-      expect(rotaForaDaRegra(rota), rota).toBe(false);
-    }
+describe("nenhuma tela fica fora da regra (a guarda temporária da DIR saiu)", () => {
+  it("não existe mais exceção por rota: o módulo não exporta `rotaForaDaRegra`", () => {
+    expect("rotaForaDaRegra" in regra).toBe(false);
   });
 });
