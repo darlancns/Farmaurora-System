@@ -15,7 +15,7 @@ import { useAuth } from "../composables/useAuth";
 import { useToast } from "../composables/useToast";
 import { getErrorMessage } from "../utils/errorMessages";
 import { filtrarPorBusca } from "../utils/processoBusca";
-import { filtrarPorStatus, separarAbas } from "../utils/processoListas";
+import { filtrarPorCotacao, filtrarPorStatus, separarAbas, type FiltroCotacao } from "../utils/processoListas";
 import { contarProcessosPorPasta } from "../utils/remessaNaLinha";
 import {
   DESTAQUE_PROCESSO_MS,
@@ -23,7 +23,12 @@ import {
   processoIdDaQuery,
   QUERY_PROCESSO,
 } from "../utils/processoFoco";
-import { EMPRESA_FILTER_OPTIONS, RESPONSAVEL_FILTER_OPTIONS, STATUS_FILTER_OPTIONS } from "../utils/processoOptions";
+import {
+  COTACAO_FILTER_OPTIONS,
+  EMPRESA_FILTER_OPTIONS,
+  RESPONSAVEL_FILTER_OPTIONS,
+  STATUS_FILTER_OPTIONS,
+} from "../utils/processoOptions";
 import AppSelect from "../components/AppSelect.vue";
 import FloatingAddButton from "../components/FloatingAddButton.vue";
 import GlobalHeader from "../components/GlobalHeader.vue";
@@ -52,12 +57,13 @@ const searchQuery = ref("");
 const statusFilter = ref<StatusProcesso | "">("");
 const empresaFilter = ref<EmpresaProcesso | "">("");
 const responsavelFilter = ref("");
+const cotacaoFilter = ref<FiltroCotacao>("");
 
-// Abaixo de lg os 3 selects moram no bottom sheet (ProcessoFiltrosSheet), aberto
+// Abaixo de lg os 4 selects moram no bottom sheet (ProcessoFiltrosSheet), aberto
 // pelo ícone ao lado da busca; a bolinha do ícone conta quantos estão ativos.
 const showFiltros = ref(false);
 const filtrosAtivos = computed<number>(
-  () => [statusFilter.value, empresaFilter.value, responsavelFilter.value].filter(Boolean).length,
+  () => [statusFilter.value, empresaFilter.value, responsavelFilter.value, cotacaoFilter.value].filter(Boolean).length,
 );
 
 const filteredProcessos = computed<Processo[]>(() => {
@@ -76,6 +82,8 @@ const filteredProcessos = computed<Processo[]>(() => {
   if (responsavelFilter.value) {
     list = list.filter((p) => p.responsavelOperacional === responsavelFilter.value);
   }
+  // "Cotações ASD": sem a cotação da transportadora nacional (nunca Entregues nem Courier Simples).
+  list = filtrarPorCotacao(list, cotacaoFilter.value);
   // Paciente, pasta OU Nº Ordem. A pasta ignora espaços e hífens ("2026-375", "2026 375" e "375" acham "2026 - 375");
   // o Nº Ordem também ignora pontuação e maiúsculas ("po-25-0123", "PO250123" e "25-0123" acham "PO-25-0123/XYZ").
   return filtrarPorBusca(list, searchQuery.value);
@@ -129,6 +137,7 @@ async function irParaProcesso(id: string): Promise<void> {
     statusFilter.value = "";
     empresaFilter.value = "";
     responsavelFilter.value = "";
+    cotacaoFilter.value = "";
   }
   activeTab.value = plano.aba;
 
@@ -340,6 +349,11 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
             <AppSelect id="filtro-responsavel" v-model="responsavelFilter" :options="RESPONSAVEL_FILTER_OPTIONS" />
           </div>
 
+          <!-- Só em Em andamento (como o status): quem está em Entregues nunca entra em "Cotações ASD". -->
+          <div v-if="activeTab === 'andamento'" class="hidden shrink-0 lg:block lg:w-fit">
+            <AppSelect id="filtro-cotacao" v-model="cotacaoFilter" :options="COTACAO_FILTER_OPTIONS" />
+          </div>
+
           <!-- Abaixo de lg: só o "+" flutuante (FloatingAddButton) acima do BottomNav. Em lg+ o botão
                com texto volta pra linha de filtros, à direita, igual a antes. -->
           <FloatingAddButton v-if="canWriteProcessos" id="fab-novo-processo" label="Novo processo" @click="openCreateForm" />
@@ -407,7 +421,9 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
       v-model:status="statusFilter"
       v-model:empresa="empresaFilter"
       v-model:responsavel="responsavelFilter"
+      v-model:cotacao="cotacaoFilter"
       :show-status="activeTab === 'andamento'"
+      :show-cotacao="activeTab === 'andamento'"
       @close="showFiltros = false"
     />
 

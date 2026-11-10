@@ -3,18 +3,25 @@ import { onBeforeUnmount, onMounted } from "vue";
 import type { EmpresaProcesso, StatusProcesso } from "#shared/types/processo";
 import { useEscapeToClose } from "../../composables/useEscapeToClose";
 import { useLockBodyScroll } from "../../composables/useLockBodyScroll";
-import { EMPRESA_FILTER_OPTIONS, RESPONSAVEL_FILTER_OPTIONS, STATUS_FILTER_OPTIONS } from "../../utils/processoOptions";
+import type { FiltroCotacao } from "../../utils/processoListas";
+import {
+  COTACAO_FILTER_OPTIONS,
+  EMPRESA_FILTER_OPTIONS,
+  RESPONSAVEL_FILTER_OPTIONS,
+  STATUS_FILTER_OPTIONS,
+} from "../../utils/processoOptions";
 import AppSelect from "../AppSelect.vue";
 
 // Bottom sheet dos filtros de /processos abaixo de lg (mesmo casco do
-// NavMoreSheet.vue). Não guarda estado de filtro: os 3 v-model são os MESMOS
+// NavMoreSheet.vue). Não guarda estado de filtro: os 4 v-model são os MESMOS
 // refs de processos.vue, então cada troca de select já filtra a lista na hora
-// ("Aplicar" só fecha o painel; "Limpar" devolve os 3 a "todos").
-defineProps<{ showStatus: boolean }>();
+// ("Aplicar" só fecha o painel; "Limpar" devolve os 4 a "todos").
+defineProps<{ showStatus: boolean; showCotacao: boolean }>();
 
 const status = defineModel<StatusProcesso | "">("status", { required: true });
 const empresa = defineModel<EmpresaProcesso | "">("empresa", { required: true });
 const responsavel = defineModel<string>("responsavel", { required: true });
+const cotacao = defineModel<FiltroCotacao>("cotacao", { required: true });
 
 const emit = defineEmits<{ close: [] }>();
 
@@ -30,6 +37,7 @@ function limpar(): void {
   status.value = "";
   empresa.value = "";
   responsavel.value = "";
+  cotacao.value = "";
 }
 
 // Em lg+ os filtros ficam inline na página e este painel some via CSS
@@ -87,6 +95,7 @@ onBeforeUnmount(() => {
           :options="RESPONSAVEL_FILTER_OPTIONS"
           drop-up
         />
+        <AppSelect v-if="showCotacao" id="sheet-filtro-cotacao" v-model="cotacao" :options="COTACAO_FILTER_OPTIONS" drop-up />
 
         <button
           id="btn-filtros-aplicar"

@@ -9,7 +9,7 @@ import type {
   StatusProcesso,
   TransportadoraNacional,
 } from "#shared/types/processo";
-import { CAMPOS_PROCESSO_LIMPAVEIS } from "#shared/constants/processos";
+import { CAMPOS_PROCESSO_LIMPAVEIS, precisaDespachanteTransportadora } from "#shared/constants/processos";
 import { normalizarNumeroOrdem } from "#shared/utils/numeroOrdem";
 import { NUMERO_REMESSA_ERRO, NUMERO_REMESSA_PADRAO, normalizarNumeroRemessa } from "#shared/utils/numeroRemessa";
 
@@ -52,13 +52,9 @@ export interface ProcessoFormState {
   statusPagamento: StatusPagamentoProcesso | "";
 }
 
-// Air Cargo e Courier Formal exigem Despachante e Transportadora; Courier
-// Simples esconde os dois. Qualquer outro valor (vazio, ou o legado "Courier"
-// de registros migrados) cai no comportamento padrão de mostrar os campos —
-// nunca esconde dado já preenchido por causa de um valor que não reconhecemos.
-export function precisaDespachanteTransportadora(modalEnvio: string): boolean {
-  return modalEnvio !== "Courier Simples";
-}
+// Air Cargo e Courier Formal exigem Despachante e Transportadora; Courier Simples esconde os dois (regra em
+// shared/constants/processos.ts, a mesma do filtro "Cotações ASD"). Reexportada aqui: os imports existentes continuam.
+export { precisaDespachanteTransportadora };
 
 export function buildDatas(form: ProcessoFormState): ProcessoDatas {
   return {

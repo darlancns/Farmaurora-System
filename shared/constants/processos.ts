@@ -39,6 +39,14 @@ export const MODAL_COURIER_FORMAL = "Courier Formal" satisfies ModalEnvio;
 export const MODAL_COURIER_SIMPLES = "Courier Simples" satisfies ModalEnvio;
 export const MODAIS_ENVIO: ModalEnvio[] = [MODAL_AIR_CARGO, MODAL_COURIER_FORMAL, MODAL_COURIER_SIMPLES];
 
+// Air Cargo e Courier Formal exigem Despachante e Transportadora; Courier Simples esconde os dois. Qualquer outro
+// valor (vazio, undefined, ou o legado "Courier" de registros migrados) cai no comportamento padrão de mostrar os
+// campos — nunca esconde dado já preenchido por causa de um valor que não reconhecemos. Fonte única da regra: o
+// formulário (showDespachanteTransportadora), a validação e o filtro "Cotações ASD" usam esta função.
+export function precisaDespachanteTransportadora(modalEnvio: string | null | undefined): boolean {
+  return modalEnvio !== MODAL_COURIER_SIMPLES;
+}
+
 const CIAS_COURIER: readonly string[] = ["DHL", "FedEx"];
 
 // Cia. aérea depende do modal de envio (em ordem alfabética, como os demais selects). A cia continua OPCIONAL (pode

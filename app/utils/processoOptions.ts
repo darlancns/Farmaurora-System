@@ -10,6 +10,7 @@ import {
   STATUS_PROCESSO_ORDER,
 } from "#shared/constants/processos";
 import { STATUS_PROCESSO_META } from "./processoStatus";
+import type { FiltroCotacao } from "./processoListas";
 import type { AppSelectOption } from "../types/appSelect";
 import type {
   ConsultorProcesso,
@@ -97,4 +98,11 @@ export const EMPRESA_FILTER_OPTIONS: AppSelectOption<EmpresaProcesso | "">[] = [
 export const RESPONSAVEL_FILTER_OPTIONS: AppSelectOption<string>[] = [
   { value: "", label: "Todos os responsáveis" },
   ...RESPONSAVEIS_PROCESSO.map((nome) => ({ value: nome, label: nome })),
+];
+
+// Fica depois dos outros três: não segue a ordem alfabética de nomes/entidades (não é uma lista de nomes), e sim
+// "todas" primeiro e o recorte "Cotações ASD" depois.
+export const COTACAO_FILTER_OPTIONS: AppSelectOption<FiltroCotacao>[] = [
+  { value: "", label: "Todas as cotações" },
+  { value: "asd", label: "Cotações ASD" },
 ];

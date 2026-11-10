@@ -1,4 +1,5 @@
 import type { Processo, StatusProcesso } from "#shared/types/processo";
+import { cotacaoAsd } from "#shared/utils/cotacaoAsd";
 
 // Regras de lista de /processos extraídas de app/pages/processos.vue (puras,
 // testáveis em tests/unit/statusOutro.spec.ts).
@@ -14,4 +15,11 @@ export function separarAbas(processos: Processo[]): { andamento: Processo[]; ent
     andamento: processos.filter((p) => p.status !== "entregue"),
     entregues: processos.filter((p) => p.status === "entregue"),
   };
+}
+
+/** Filtro "Cotações" da toolbar: "" = todos; "asd" = só os processos sem a cotação da transportadora (shared/utils/cotacaoAsd). */
+export type FiltroCotacao = "" | "asd";
+
+export function filtrarPorCotacao(processos: Processo[], filtro: FiltroCotacao): Processo[] {
+  return filtro === "asd" ? processos.filter(cotacaoAsd) : processos;
 }

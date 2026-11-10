@@ -477,4 +477,79 @@ test.describe.serial("Follow-Up de processos", () => {
 
     expect(pageErrors).toEqual([]);
   });
+
+  test("17 · filtro 'Cotações ASD' lista só os em andamento sem a cotação da transportadora (fora Entregues e Courier Simples), e combina com a busca", async ({ page }) => {
+    const base = {
+      empresa: "FARMAURORA",
+      consultor: "Vinícius Alves",
+      medicamentos: [],
+      status: "em_transito",
+      datas: {},
+      pendencias: [],
+      atualizacoes: [],
+    };
+    const nomes = {
+      sem: `Paciente ${RUN} Asd Sem`,
+      com: `Paciente ${RUN} Asd Com`,
+      simples: `Paciente ${RUN} Asd Simples`,
+      entregue: `Paciente ${RUN} Asd Entregue`,
+    };
+    const criar = async (data: Record<string, unknown>) => {
+      const res = await page.request.post("/api/processos", { data: { ...base, ...data } });
+      expect(res.ok()).toBe(true);
+    };
+    await criar({ paciente: nomes.sem, pasta: "2026 - 971", modalEnvio: "Air Cargo", despachante: "Bruno Lopes" });
+    await criar({
+      paciente: nomes.com,
+      pasta: "2026 - 972",
+      modalEnvio: "Air Cargo",
+      despachante: "Bruno Lopes",
+      transportadoraNacional: { nome: "AJC", cotacao: "COT-123" },
+    });
+    await criar({ paciente: nomes.simples, pasta: "2026 - 973", modalEnvio: "Courier Simples" });
+    await criar({
+      paciente: nomes.entregue,
+      pasta: "2026 - 974",
+      modalEnvio: "Air Cargo",
+      despachante: "Bruno Lopes",
+      status: "entregue",
+    });
+
+    await page.goto("/processos", { waitUntil: "networkidle" });
+    // A busca abre os grupos com resultado (só os 4 desta rodada casam com "<RUN> Asd").
+    await page.locator("#processo-search").fill(`${RUN} Asd`);
+    const lista = page.locator("#processo-group-list");
+    await expect(lista).toContainText(nomes.sem);
+    await expect(lista).toContainText(nomes.com);
+    await expect(lista).toContainText(nomes.simples);
+
+    // Mesmo lugar e estilo dos outros selects; começa em "Todas as cotações".
+    await expect(page.locator("#filtro-cotacao")).toContainText("Todas as cotações");
+    await selectOption(page, "filtro-cotacao", "Cotações ASD");
+    await expect(page.locator("#filtro-cotacao")).toContainText("Cotações ASD");
+
+    await expect(lista).toContainText(nomes.sem);
+    await expect(lista).not.toContainText(nomes.com); // tem cotação
+    await expect(lista).not.toContainText(nomes.simples); // Courier Simples: o bloco nem aparece
+    await expect(page.locator("#tab-andamento")).toContainText("Em andamento (1)");
+    await expect(page.locator("#tab-entregues")).toContainText("Entregues (0)"); // Entregue nunca entra
+
+    // E com a busca: a busca só enxerga o que o filtro deixou.
+    await page.locator("#processo-search").fill(`${RUN} Asd Com`);
+    await expect(lista).not.toContainText(nomes.com);
+    await expect(lista).not.toContainText(nomes.sem);
+
+    // Aba Entregues: o filtro some, como o de status.
+    await page.locator("#tab-entregues").click();
+    await expect(page.locator("#filtro-cotacao")).toHaveCount(0);
+    await page.locator("#tab-andamento").click();
+
+    // Voltar a "Todas as cotações" mostra tudo de novo.
+    await page.locator("#processo-search").fill(`${RUN} Asd`);
+    await selectOption(page, "filtro-cotacao", "Todas as cotações");
+    await expect(lista).toContainText(nomes.sem);
+    await expect(lista).toContainText(nomes.com);
+    await expect(lista).toContainText(nomes.simples);
+    await expect(page.locator("#tab-entregues")).toContainText("Entregues (1)");
+  });
 });

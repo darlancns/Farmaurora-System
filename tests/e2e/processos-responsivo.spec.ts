@@ -116,7 +116,7 @@ test.describe("Responsividade de /processos", () => {
     expect(icone!.x).toBeGreaterThanOrEqual(busca!.x - 1);
     expect(icone!.x + icone!.width).toBeLessThanOrEqual(busca!.x + busca!.width + 1);
     expect(busca!.width).toBeGreaterThan(375 * 0.7);
-    for (const id of ["#filtro-status", "#filtro-empresa", "#filtro-responsavel"]) {
+    for (const id of ["#filtro-status", "#filtro-empresa", "#filtro-responsavel", "#filtro-cotacao"]) {
       expect(await page.locator(id).boundingBox(), id).toBeNull();
     }
   });

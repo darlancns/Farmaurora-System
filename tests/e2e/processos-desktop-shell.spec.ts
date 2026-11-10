@@ -68,7 +68,7 @@ test.describe("/processos em lg+ — desktop inalterado", () => {
         expect(await page.locator("#processos-page").evaluate((el) => getComputedStyle(el).paddingBottom)).toBe("0px");
       });
 
-      test("filtros em linha: busca 216px + 3 selects lado a lado, sem ícone de filtro nem painel", async ({ page }) => {
+      test("filtros em linha: busca 216px + 4 selects lado a lado, sem ícone de filtro nem painel", async ({ page }) => {
         const linha = await page.locator("#processo-filtros").evaluate((el) => {
           const cs = getComputedStyle(el);
           return { display: cs.display, flexDirection: cs.flexDirection, flexWrap: cs.flexWrap, alignItems: cs.alignItems };
@@ -79,6 +79,7 @@ test.describe("/processos em lg+ — desktop inalterado", () => {
         const status = await box(page, "#filtro-status");
         const empresa = await box(page, "#filtro-empresa");
         const responsavel = await box(page, "#filtro-responsavel");
+        const cotacao = await box(page, "#filtro-cotacao");
 
         expect(Math.round(busca.width)).toBe(216);
         // Mesma linha (centros alinhados) e na ordem busca → status → empresa → responsável.
@@ -88,6 +89,14 @@ test.describe("/processos em lg+ — desktop inalterado", () => {
         expect(status.x).toBeGreaterThanOrEqual(busca.x + busca.width);
         expect(empresa.x).toBeGreaterThanOrEqual(status.x + status.width);
         expect(responsavel.x).toBeGreaterThanOrEqual(empresa.x + empresa.width);
+        // "Cotações" é o 4º select, sempre depois do responsável. Com folga fica na mesma linha; em 1024px (main de
+        // ~784px) a linha pode quebrar (flex-wrap) e ele cai pra linha de baixo — nunca fica antes nem por cima.
+        const naMesmaLinha = Math.abs(centerY(cotacao) - centerY(busca)) <= 2;
+        if (naMesmaLinha) {
+          expect(cotacao.x).toBeGreaterThanOrEqual(responsavel.x + responsavel.width);
+        } else {
+          expect(cotacao.y).toBeGreaterThanOrEqual(busca.y + busca.height - 1);
+        }
         // Gap de 10px (gap-2.5) entre os itens, igual a antes.
         expect(Math.round(status.x - (busca.x + busca.width))).toBe(10);
 

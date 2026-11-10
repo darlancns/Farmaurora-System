@@ -172,10 +172,10 @@ test.describe("/processos abaixo de lg — shell mobile/tablet", () => {
         await expect(page.locator('img[alt="Farmaurora"]:visible')).toHaveCount(0);
       });
 
-      test("busca na largura toda com o botão de filtros DENTRO dela (≥44x44, sem caixa ao lado); os 3 selects saem da tela", async ({
+      test("busca na largura toda com o botão de filtros DENTRO dela (≥44x44, sem caixa ao lado); os 4 selects saem da tela", async ({
         page,
       }) => {
-        for (const id of ["#filtro-status", "#filtro-empresa", "#filtro-responsavel"]) {
+        for (const id of ["#filtro-status", "#filtro-empresa", "#filtro-responsavel", "#filtro-cotacao"]) {
           await expect(page.locator(id), id).toBeHidden();
           expect(await page.locator(id).boundingBox(), `${id} ocupando espaço`).toBeNull();
         }
@@ -274,7 +274,7 @@ test.describe("/processos abaixo de lg — shell mobile/tablet", () => {
         expect(await hasHorizontalOverflow(page)).toBe(false);
       });
 
-      test("ícone abre o painel (bottom sheet) com os 3 selects empilhados em largura total, Limpar e Aplicar", async ({
+      test("ícone abre o painel (bottom sheet) com os 4 selects empilhados em largura total, Limpar e Aplicar", async ({
         page,
       }) => {
         await expect(page.locator("#processo-filtros-sheet")).toHaveCount(0);
@@ -288,11 +288,14 @@ test.describe("/processos abaixo de lg — shell mobile/tablet", () => {
         const status = await box(page, "#sheet-filtro-status");
         const empresa = await box(page, "#sheet-filtro-empresa");
         const responsavel = await box(page, "#sheet-filtro-responsavel");
+        const cotacao = await box(page, "#sheet-filtro-cotacao");
         // Empilhados na vertical, mesma largura, todos dentro do painel.
         expect(empresa.y).toBeGreaterThanOrEqual(status.y + status.height - 1);
         expect(responsavel.y).toBeGreaterThanOrEqual(empresa.y + empresa.height - 1);
+        expect(cotacao.y).toBeGreaterThanOrEqual(responsavel.y + responsavel.height - 1);
         expect(Math.abs(status.width - empresa.width)).toBeLessThanOrEqual(1);
         expect(Math.abs(empresa.width - responsavel.width)).toBeLessThanOrEqual(1);
+        expect(Math.abs(responsavel.width - cotacao.width)).toBeLessThanOrEqual(1);
         expect(status.x).toBeGreaterThanOrEqual(sheet.x);
         expect(status.x + status.width).toBeLessThanOrEqual(sheet.x + sheet.width);
         // "Largura total": o select só perde o padding horizontal do painel (16px de cada lado).
@@ -301,7 +304,7 @@ test.describe("/processos abaixo de lg — shell mobile/tablet", () => {
         const limpar = page.locator("#btn-filtros-limpar");
         const aplicar = await box(page, "#btn-filtros-aplicar");
         await expect(limpar).toBeVisible();
-        expect(aplicar.y).toBeGreaterThanOrEqual(responsavel.y + responsavel.height - 1);
+        expect(aplicar.y).toBeGreaterThanOrEqual(cotacao.y + cotacao.height - 1);
         expect(aplicar.width).toBeGreaterThanOrEqual(sheet.width - 34);
         expect(await page.locator("#btn-filtros-aplicar").evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(
           ACCENT_DARK_RGB,
@@ -367,12 +370,17 @@ test.describe("/processos abaixo de lg — shell mobile/tablet", () => {
         await selectOption(page, "sheet-filtro-status", "Em trânsito");
         await expect(page.locator("#badge-filtros-ativos")).toHaveText("3");
 
-        // "Limpar" restaura os 3 pra "todos" sem fechar o painel; a contagem volta ao total.
+        // Cotações ASD entra na conta também (aba "Em andamento") e filtra na hora.
+        await selectOption(page, "sheet-filtro-cotacao", "Cotações ASD");
+        await expect(page.locator("#badge-filtros-ativos")).toHaveText("4");
+
+        // "Limpar" restaura os 4 pra "todos" sem fechar o painel; a contagem volta ao total.
         await page.locator("#btn-filtros-limpar").click();
         await expect(page.locator("#processo-filtros-sheet")).toBeVisible();
         await expect(page.locator("#sheet-filtro-status")).toContainText("Todos os status");
         await expect(page.locator("#sheet-filtro-empresa")).toContainText("Todas as empresas");
         await expect(page.locator("#sheet-filtro-responsavel")).toContainText("Todos os responsáveis");
+        await expect(page.locator("#sheet-filtro-cotacao")).toContainText("Todas as cotações");
         await expect(page.locator("#badge-filtros-ativos")).toHaveCount(0);
         expect(await countNaAba(page, "#tab-andamento")).toBe(totalAntes);
       });
@@ -384,6 +392,7 @@ test.describe("/processos abaixo de lg — shell mobile/tablet", () => {
         await page.locator("#btn-filtros-processo").click();
         await expect(page.locator("#sheet-filtro-empresa")).toBeVisible();
         await expect(page.locator("#sheet-filtro-status")).toHaveCount(0);
+        await expect(page.locator("#sheet-filtro-cotacao")).toHaveCount(0);
       });
 
       test("lista suspensa de um select abre pra cima e fica dentro da viewport; Esc fecha só a lista", async ({
