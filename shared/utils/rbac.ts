@@ -6,9 +6,8 @@
  * Cargos (strings exatas, minúsculas, sem acento):
  * - consultor    → só Follow-up, somente leitura, filtrado pelo próprio nome.
  * - socio        → leitura + escrita de Patients, Processos e Pagamentos (tudo,
- *                  sem filtro). Configurações e a lista de contas (seção
- *                  "admin") são só leitura — criar/editar/excluir conta e
- *                  redefinir senha continuam exclusivos de administrador.
+ *                  sem filtro). Em Configurações só tem "Minha conta": a lista
+ *                  de contas (seção "admin") é só do administrador.
  * - operacional  → leitura + escrita de Processos e de Pagamentos (todos).
  * - administrador → acesso total (comportamento legado).
  */
@@ -34,9 +33,8 @@ const READ_ACCESS: Record<Section, readonly Role[]> = {
   patients: ["socio", "administrador"],
   processos: ["consultor", "socio", "operacional", "administrador"],
   pagamentos: ["socio", "operacional", "administrador"],
-  // "admin" cobre GET /api/admin/users (lista de contas) — socio só lê, nunca
-  // escreve (ver WRITE_ACCESS.admin abaixo).
-  admin: ["socio", "administrador"],
+  // "admin" cobre /api/admin/** (contas): leitura e escrita SÓ do administrador (o sócio não lê nem a lista).
+  admin: ["administrador"],
   // "config" (página /configuracoes) abre pra TODOS os cargos: "Minha conta" é de todo mundo. O que é de
   // gestão (aba Contas, /api/admin/**) continua atrás da seção "admin" acima, não desta.
   config: ROLES,

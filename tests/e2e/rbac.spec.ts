@@ -58,7 +58,7 @@ test.describe("RBAC", () => {
   // em pagamentos-fluxo.spec.ts. Uma re-execução limpa recupera.
   test.describe.configure({ retries: 2 });
 
-  test("socio: lê e escreve em Patients/Processos/Pagamentos; Configurações e admin só leitura", async ({
+  test("socio: lê e escreve em Patients/Processos/Pagamentos; Configurações só 'Minha conta' e /api/admin/** bloqueada", async ({
     page,
   }) => {
     test.skip(!hasSocio, "defina E2E_SOCIO_EMAIL / E2E_SOCIO_PASSWORD");
@@ -81,18 +81,18 @@ test.describe("RBAC", () => {
     await page.goto("/pagamentos", { waitUntil: "networkidle" });
     await expect(page.locator("#btn-novo-pagamento-banco")).toBeVisible();
 
-    // Configurações — acessa a página e vê a lista de contas, sem controles de gestão.
+    // Configurações — a página abre, mas o sócio vê SÓ "Minha conta": Contas (lista incluída) é do administrador.
     await page.goto("/configuracoes?aba=contas", { waitUntil: "networkidle" });
-    await expect(page).toHaveURL(/\/configuracoes\?aba=contas$/);
-    await expect(page.locator("#contas-tab")).toBeVisible();
+    await expect(page.locator("#minha-conta-tab")).toBeVisible();
+    await expect(page.locator("#tab-contas")).toHaveCount(0);
+    await expect(page.locator("#contas-tab")).toHaveCount(0);
     await expect(page.locator("#btn-nova-conta")).toHaveCount(0);
-    await expect(page.locator("[id^='btn-acoes-conta-']")).toHaveCount(0);
 
-    // API: leitura ok em tudo; escrita ok em patients/processos/pagamentos; bloqueada em admin.
+    // API: leitura ok em Pagamentos; escrita ok em patients/processos/pagamentos; /api/admin/** bloqueada, até a leitura.
     const getPag = await page.request.get("/api/pagamentos/banco");
     expect(getPag.ok()).toBeTruthy();
     const getAdmin = await page.request.get("/api/admin/users");
-    expect(getAdmin.ok()).toBeTruthy();
+    expect(getAdmin.status()).toBe(403);
 
     const postPatient = await page.request.post("/api/patients", { data: {} });
     expect(postPatient.status()).not.toBe(403);

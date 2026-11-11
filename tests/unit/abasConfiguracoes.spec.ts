@@ -4,18 +4,26 @@ import { rotaParaContas } from "../../app/utils/contaFoco";
 import { ROLES, type Role } from "../../shared/utils/rbac";
 
 // Abas de /configuracoes por cargo, ordem, aba padrão e leitura de ?aba=.
-// "Minha conta" é a PRIMEIRA aba e a aba padrão de todos os cargos; "Contas" vem depois, só pra
-// sócio e administrador.
+// "Minha conta" é a PRIMEIRA aba e a aba padrão de todos os cargos; "Contas" vem depois, SÓ do administrador —
+// o sócio, que antes lia a lista de contas, agora vê só "Minha conta".
 
 const chaves = (role: Role | null) => abasParaCargo(role).map((a) => a.key);
 
 describe("abasParaCargo", () => {
-  it("sócio e administrador: Minha conta + Contas, nessa ordem (Minha conta primeiro)", () => {
-    expect(chaves("socio")).toEqual(["minha-conta", "contas"]);
+  it("administrador: Minha conta + Contas, nessa ordem (Minha conta primeiro)", () => {
     expect(chaves("administrador")).toEqual(["minha-conta", "contas"]);
   });
 
-  it("consultor e operacional: SÓ Minha conta", () => {
+  it("sócio: SÓ Minha conta (Contas é do administrador)", () => {
+    expect(chaves("socio")).toEqual(["minha-conta"]);
+  });
+
+  it("Contas só aparece para quem LÊ a seção admin (hoje só o administrador)", () => {
+    expect(ROLES.filter((r) => chaves(r).includes("contas"))).toEqual(["administrador"]);
+  });
+
+  it("sócio, consultor e operacional: SÓ Minha conta", () => {
+    expect(chaves("socio")).toEqual(["minha-conta"]);
     expect(chaves("consultor")).toEqual(["minha-conta"]);
     expect(chaves("operacional")).toEqual(["minha-conta"]);
   });
@@ -60,15 +68,15 @@ describe("resolverAba (?aba=)", () => {
     }
   });
 
-  it("valor válido E permitido ao cargo → esse valor (?aba=contas continua abrindo Contas pra quem a vê)", () => {
+  it("valor válido E permitido ao cargo → esse valor (?aba=contas abre Contas só para o administrador)", () => {
     expect(resolverAba("administrador", "contas")).toBe("contas");
-    expect(resolverAba("socio", "contas")).toBe("contas");
     expect(resolverAba("administrador", "minha-conta")).toBe("minha-conta");
     expect(resolverAba("operacional", "minha-conta")).toBe("minha-conta");
     expect(resolverAba("consultor", "minha-conta")).toBe("minha-conta");
   });
 
   it("valor válido mas NÃO permitido ao cargo → aba padrão, sem erro", () => {
+    expect(resolverAba("socio", "contas")).toBe("minha-conta");
     expect(resolverAba("consultor", "contas")).toBe("minha-conta");
     expect(resolverAba("operacional", "contas")).toBe("minha-conta");
   });
@@ -91,9 +99,9 @@ describe("resolverAba (?aba=)", () => {
     expect(resolverAba(null, "contas")).toBe("minha-conta");
   });
 
-  it("o link do sino (?aba=contas) abre Contas para sócio e administrador", () => {
+  it("o link do sino (?aba=contas, aviso que só chega ao administrador) abre Contas para ele; o sócio cai em Minha conta", () => {
     const { query } = rotaParaContas();
     expect(resolverAba("administrador", query.aba)).toBe("contas");
-    expect(resolverAba("socio", query.aba)).toBe("contas");
+    expect(resolverAba("socio", query.aba)).toBe("minha-conta");
   });
 });

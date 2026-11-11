@@ -38,8 +38,8 @@ describe("rbac — leitura por seção", () => {
   it("config: todos os cargos leem (a página /configuracoes abre pra todos — aba 'Minha conta')", () => {
     expect(ALL.filter((r) => canReadSection(r, "config"))).toEqual(ALL);
   });
-  it("admin: socio e administrador leem (lista de contas)", () => {
-    expect(ALL.filter((r) => canReadSection(r, "admin"))).toEqual(["socio", "administrador"]);
+  it("admin: só o administrador lê (lista de contas — o sócio deixou de ler)", () => {
+    expect(ALL.filter((r) => canReadSection(r, "admin"))).toEqual(["administrador"]);
   });
 });
 

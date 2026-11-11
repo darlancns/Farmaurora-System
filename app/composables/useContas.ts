@@ -2,6 +2,7 @@ import { useState } from "#app";
 import type { AdminUserSummary, UpdateUserRoleDTO } from "#shared/types/auth";
 import type { Role } from "#shared/utils/rbac";
 import type { ConsultorProcesso } from "#shared/types/processo";
+import type { Permissoes } from "#shared/utils/permissoesPagina";
 import { apiFetch, deleteTolerant } from "../utils/apiFetch";
 
 export interface NovaContaDTO {
@@ -10,6 +11,8 @@ export interface NovaContaDTO {
   role: Role;
   consultorNome?: ConsultorProcesso;
   nome: string;
+  /** Só socio/operacional. Omitido: a conta nasce com todas as seções "nenhum" (decisão do servidor). */
+  permissoes?: Permissoes;
 }
 
 export function useContas() {

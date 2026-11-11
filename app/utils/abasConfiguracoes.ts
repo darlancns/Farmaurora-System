@@ -4,8 +4,8 @@ import { canReadSection, type Role } from "#shared/utils/rbac";
 
 // Abas de /configuracoes por cargo (regra pura, sem Vue/router — testada em tests/unit/abasConfiguracoes.spec.ts).
 //
-// - "contas": gestão das contas da equipe. Só quem LÊ a seção "admin" (sócio e administrador); o que cada
-//   um pode escrever lá é decidido dentro do ContasTab (canWrite("admin")), como sempre foi.
+// - "contas": gestão das contas da equipe. Só quem LÊ a seção "admin" (hoje só o administrador); o ContasTab ainda
+//   confere canWrite("admin") para os botões de gestão.
 // - "minha-conta": nome, e-mail e senha da PRÓPRIA conta — todos os cargos.
 //
 // Ordem: "Minha conta" é SEMPRE a primeira aba e a aba padrão de todos os cargos; "Contas" vem depois,

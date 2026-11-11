@@ -12,8 +12,8 @@ import type { AdminUserSummary } from "#shared/types/auth";
 
 const { user, canWrite } = useAuth();
 const { showToast } = useToast();
-// socio lê a lista de contas mas não gerencia — só administrador cria/edita/
-// exclui/redefine senha (seção "admin", ver shared/utils/rbac.ts).
+// A aba só abre para quem lê a seção "admin" (hoje só o administrador); o canWrite("admin") segue como a mesma
+// regra do servidor para criar/editar/excluir/redefinir senha (ver shared/utils/rbac.ts).
 const podeGerenciar = computed<boolean>(() => canWrite("admin"));
 const {
   contas,

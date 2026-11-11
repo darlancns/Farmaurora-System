@@ -40,6 +40,11 @@ export interface AdminUserSummary {
   role: Role;
   consultorNome?: ConsultorProcesso;
   nome?: string;
+  /**
+   * Mapa de permissões por página gravado na conta (socio e operacional), completo e sanitizado; `null` quando a
+   * conta não tem mapa (vale a regra do cargo) ou o cargo não usa mapa.
+   */
+  permissoes: Permissoes | null;
   createdAt: string;
   lastSignInAt: string | null;
 }
@@ -49,6 +54,11 @@ export interface UpdateUserRoleDTO {
   role: Role;
   consultorNome?: ConsultorProcesso;
   nome?: string;
+  /**
+   * Só socio/operacional. AUSENTE = não mexe nas permissões da conta; `null` = apaga o mapa (volta ao padrão do
+   * cargo); objeto = grava o mapa completo (seção ausente = "nenhum"). Para os demais cargos, só ausente ou null.
+   */
+  permissoes?: Permissoes | null;
 }
 
 /**

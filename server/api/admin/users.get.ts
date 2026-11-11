@@ -7,11 +7,9 @@ import type { AuthUser, AdminUserSummary } from "#shared/types/auth";
 /**
  * Lista todas as contas para a tela de Configurações → Contas.
  *
- * Leitura liberada pra administrador e socio (seção `admin` no middleware +
- * checagem redundante aqui — igual à do middleware, não `user.isAdmin`, pra
- * não travar o socio que só pode LER). Escrita (criar/editar/excluir/resetar
- * senha) continua exclusiva de administrador nos outros endpoints de
- * server/api/admin/. Pagina o `listUsers` até o fim (ver `listAllAuthUsers`) —
+ * Só o administrador lê (seção `admin` no middleware + checagem redundante aqui, a mesma regra) — o sócio
+ * leva 403. Escrita (criar/editar/excluir/resetar senha) também é exclusiva de administrador nos outros
+ * endpoints de server/api/admin/. Devolve também `permissoes` (mapa por página, ou null). Pagina o `listUsers` até o fim (ver `listAllAuthUsers`) —
  * nunca assume que cabe tudo numa página. Devolve só campos não sensíveis (ver
  * `toAdminUserSummary`): sem hash de senha, tokens ou identities.
  */

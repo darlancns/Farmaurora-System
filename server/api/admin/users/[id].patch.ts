@@ -1,11 +1,12 @@
 import { defineEventHandler, readBody, getRouterParam, createError } from "h3";
 import { createSupabaseAdminClient } from "../../../utils/supabaseServerClient";
 import {
-  parseRoleInput,
+  parseContaInput,
   parseNomeInput,
   roleAppMetadataEdicao,
   toAdminUserSummary,
   assertNotLastAdmin,
+  valorPermissoesNoMetadata,
 } from "../../../utils/authUser";
 import type { AuthUser, AdminUserSummary } from "#shared/types/auth";
 
@@ -13,6 +14,7 @@ interface PatchBody {
   role?: unknown;
   consultorNome?: unknown;
   nome?: unknown;
+  permissoes?: unknown;
 }
 
 /**
@@ -24,6 +26,12 @@ interface PatchBody {
  * Trava anti-lockout: não permite demover (tirar o cargo `administrador` de)
  * a ÚNICA conta administrador restante — vale para qualquer conta, inclusive
  * a própria.
+ *
+ * Permissões por página (`permissoes`, só socio/operacional): campo AUSENTE não mexe nas permissões da conta
+ * (preserva o que estiver gravado, inclusive "sem mapa"); `null` apaga o mapa (volta ao padrão do cargo); objeto
+ * grava o mapa completo, validado com rigor (400 com seção desconhecida ou valor inválido; seção ausente =
+ * "nenhum"). Trocar o cargo para fora de socio/operacional apaga o mapa (null); trocar entre socio e operacional
+ * mantém o mapa, a menos que venha outro. Para esses cargos, um `permissoes` de verdade no corpo é 400.
  */
 export default defineEventHandler(async (event): Promise<AdminUserSummary> => {
   const user: AuthUser | null = event.context.user;
@@ -37,7 +45,7 @@ export default defineEventHandler(async (event): Promise<AdminUserSummary> => {
   }
 
   const body = (await readBody(event)) as PatchBody;
-  const { role, consultorNome } = parseRoleInput(body);
+  const { role, consultorNome, permissoes } = parseContaInput(body, "edicao");
   // Nome não é obrigatório na edição — contas antigas podem ficar sem nome até serem preenchidas
   // manualmente pela mesma tela. Omitido, o nome atual da conta é PRESERVADO (roleAppMetadataEdicao).
   const nome = parseNomeInput(body, { required: false });
@@ -50,7 +58,7 @@ export default defineEventHandler(async (event): Promise<AdminUserSummary> => {
   }
 
   const { data, error } = await admin.auth.admin.updateUserById(id, {
-    app_metadata: roleAppMetadataEdicao(role, consultorNome, nome),
+    app_metadata: roleAppMetadataEdicao(role, consultorNome, nome, valorPermissoesNoMetadata(permissoes)),
   });
 
   if (error || !data.user) {

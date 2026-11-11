@@ -4,10 +4,8 @@ import { test, expect, type Page } from "@playwright/test";
 // CSS/layout, nenhuma lógica de RBAC/permissões/CRUD de conta tocada). Roda
 // contra dados reais já existentes na conta de teste.
 //
-//   E2E_ADMIN_EMAIL / E2E_ADMIN_PASSWORD (preferido)
-//   E2E_SOCIO_EMAIL / E2E_SOCIO_PASSWORD (fallback — só socio e administrador
-//   leem "admin" e, por isso, veem a aba Contas medida aqui; os demais cargos abrem
-//   /configuracoes só com "Minha conta", coberta em minha-conta.spec.ts)
+//   E2E_ADMIN_EMAIL / E2E_ADMIN_PASSWORD (só o administrador lê "admin" e vê a aba Contas medida aqui; os demais
+//   cargos, sócio incluído, abrem /configuracoes só com "Minha conta", coberta em minha-conta.spec.ts)
 //
 // A tabela de contas (ContasTab.vue) e a lista de cards equivalente
 // coexistem no DOM (mesmo esquema de SidebarNav/BottomNav da Rodada 1) —
@@ -15,8 +13,8 @@ import { test, expect, type Page } from "@playwright/test";
 // os testes verificam explicitamente qual das duas está com display:none.
 
 const writer = {
-  email: process.env.E2E_ADMIN_EMAIL ?? process.env.E2E_SOCIO_EMAIL ?? "",
-  password: process.env.E2E_ADMIN_PASSWORD ?? process.env.E2E_SOCIO_PASSWORD ?? "",
+  email: process.env.E2E_ADMIN_EMAIL ?? "",
+  password: process.env.E2E_ADMIN_PASSWORD ?? "",
 };
 const hasWriter = Boolean(writer.email && writer.password);
 
@@ -91,7 +89,7 @@ test.describe("Responsividade de /configuracoes", () => {
   ]) {
     test.describe(viewport.name, () => {
       test.beforeEach(async ({ page }) => {
-        test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD ou E2E_SOCIO_EMAIL/PASSWORD");
+        test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD");
         await gotoConfiguracoes(page, viewport);
       });
 
@@ -162,7 +160,7 @@ test.describe("Responsividade de /configuracoes", () => {
     { name: "1023x768", width: 1023, height: 768 },
   ]) {
     test(`${viewport.name}: aba 'Contas' com toque >= 44px e respiro igual acima e abaixo do texto`, async ({ page }) => {
-      test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD ou E2E_SOCIO_EMAIL/PASSWORD");
+      test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD");
       await gotoConfiguracoes(page, viewport);
       await expect(page.locator("#tab-contas")).toBeVisible();
       await verificarRespiroAba(page, "#tab-contas");
@@ -175,7 +173,7 @@ test.describe("Responsividade de /configuracoes", () => {
   // volta ao tamanho compacto de sempre por design (`md:h-7 md:w-7`). A
   // asserção de toque ≥44px só faz sentido abaixo de `md`.
   test("abaixo de md (375px): botão de ações (⋮) tem toque de pelo menos 44px", async ({ page }) => {
-    test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD ou E2E_SOCIO_EMAIL/PASSWORD");
+    test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD");
     await gotoConfiguracoes(page, { width: 375, height: 900 });
 
     const btn = page.locator("[id^='btn-acoes-conta-card-']").first();
@@ -191,7 +189,7 @@ test.describe("Responsividade de /configuracoes", () => {
   test("md+ (1440px): tabela visível (cards ocultos), botão de ações no tamanho compacto de sempre (28px)", async ({
     page,
   }) => {
-    test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD ou E2E_SOCIO_EMAIL/PASSWORD");
+    test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD");
     await gotoConfiguracoes(page, { width: 1440, height: 900 });
 
     await expect(page.locator("#contas-tab table")).toBeVisible();

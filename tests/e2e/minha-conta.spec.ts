@@ -45,7 +45,8 @@ async function abrirConfiguracoes(page: Page, query = ""): Promise<void> {
 test.describe("Minha conta — abas por cargo", () => {
   test.describe.configure({ retries: 2 });
 
-  for (const cargo of ["administrador", "socio"] as const) {
+  // Contas é só do administrador (o sócio, que antes lia a lista de contas, vê só Minha conta).
+  for (const cargo of ["administrador"] as const) {
     test(`${cargo}: vê Minha conta + Contas (Minha conta PRIMEIRO e padrão) e respeita ?aba=`, async ({ page }) => {
       test.skip(!tem(cargo), `defina as credenciais E2E de ${cargo}`);
       await login(page, credenciais[cargo].email, credenciais[cargo].password);
@@ -94,8 +95,8 @@ test.describe("Minha conta — abas por cargo", () => {
     });
   }
 
-  for (const cargo of ["operacional", "consultor"] as const) {
-    test(`${cargo}: a página abre e mostra SÓ Minha conta; ?aba=contas cai nela; /api/admin segue 403`, async ({ page }) => {
+  for (const cargo of ["socio", "operacional", "consultor"] as const) {
+    test(`${cargo}: a página abre e mostra SÓ Minha conta; ?aba=contas cai nela; /api/admin é 403 (leitura incluída)`, async ({ page }) => {
       test.skip(!tem(cargo), `defina as credenciais E2E de ${cargo}`);
       await login(page, credenciais[cargo].email, credenciais[cargo].password);
 
@@ -117,7 +118,9 @@ test.describe("Minha conta — abas por cargo", () => {
       });
       expect(criar.status()).toBe(403);
     });
+  }
 
+  for (const cargo of ["operacional", "consultor"] as const) {
     test(`${cargo}: o campo Nome vem desabilitado com a orientação de pedir ao administrador`, async ({ page }) => {
       test.skip(!tem(cargo), `defina as credenciais E2E de ${cargo}`);
       await login(page, credenciais[cargo].email, credenciais[cargo].password);

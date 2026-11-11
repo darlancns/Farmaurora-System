@@ -349,24 +349,21 @@ test.describe("Configurações → Contas", () => {
     }
   });
 
-  test("8. socio em /configuracoes vê a lista de contas, sem controles de gestão", async ({ page }) => {
+  test("8. socio em /configuracoes vê SÓ 'Minha conta': sem Contas e sem a lista de contas na API", async ({ page }) => {
     test.skip(!hasSocio, "defina E2E_SOCIO_EMAIL / E2E_SOCIO_PASSWORD");
 
     await login(page, socio.email, socio.password);
+    // ?aba=contas não é permitida ao sócio: cai em "Minha conta", sem erro.
     await page.goto("/configuracoes?aba=contas", { waitUntil: "networkidle" });
-
-    await expect(page).toHaveURL(/\/configuracoes\?aba=contas$/);
-    await expect(page.locator("#contas-tab")).toBeVisible();
-    // .first(): mesma ambiguidade de tabela+cards em paralelo explicada no
-    // teste 1 acima.
-    await expect(page.getByText(admin.email, { exact: false }).first()).toBeVisible();
-    // Só leitura: nem "Nova conta" nem o menu de ações de nenhuma linha.
+    await expect(page.locator("#minha-conta-tab")).toBeVisible();
+    await expect(page.locator("#tab-contas")).toHaveCount(0);
+    await expect(page.locator("#contas-tab")).toHaveCount(0);
     await expect(page.locator("#btn-nova-conta")).toHaveCount(0);
     await expect(page.locator("[id^='btn-acoes-conta-']")).toHaveCount(0);
 
-    // API: leitura ok, escrita (criação de conta) segue bloqueada.
+    // API: nem a leitura da lista de contas (antes liberada ao sócio) nem a criação passam.
     const get = await page.request.get("/api/admin/users");
-    expect(get.ok()).toBeTruthy();
+    expect(get.status()).toBe(403);
     const post = await apiCreate(page.request, {
       email: `e2e+socio-bloqueado-${Date.now()}@farmaurora.com.br`,
       password: "senha-super-forte-123",

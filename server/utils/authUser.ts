@@ -3,7 +3,13 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { AuthUser, AdminUserSummary, ContaSummary } from "#shared/types/auth";
 import type { ConsultorProcesso } from "#shared/types/processo";
 import { isRole, type Role } from "#shared/utils/rbac";
-import { ROLES_COM_PERMISSAO, sanitizarPermissoes } from "#shared/utils/permissoesPagina";
+import {
+  ROLES_COM_PERMISSAO,
+  permissoesTudoNenhum,
+  sanitizarPermissoes,
+  validarPermissoesEstrito,
+  type Permissoes,
+} from "#shared/utils/permissoesPagina";
 import { CONSULTORES_PROCESSO } from "#shared/constants/processos";
 
 export function parseAdminEmails(raw: unknown): string[] {
@@ -52,32 +58,114 @@ export function parseRoleInput(body: { role?: unknown; consultorNome?: unknown }
 }
 
 /**
+ * O que fazer com `app_metadata.permissoes` ao criar/editar uma conta:
+ * - "manter": não mexe (a chave nem entra no app_metadata; na edição o GoTrue preserva o que estiver gravado,
+ *   inclusive "sem mapa");
+ * - "apagar": grava `permissoes: null` (o GoTrue remove a chave: volta ao padrão do cargo);
+ * - "gravar": grava o mapa completo (seção ausente = "nenhum").
+ */
+export type AcaoPermissoes =
+  | { acao: "manter" }
+  | { acao: "apagar" }
+  | { acao: "gravar"; permissoes: Permissoes };
+
+/** AcaoPermissoes -> valor para roleAppMetadata/roleAppMetadataEdicao (undefined = omitir a chave). */
+export function valorPermissoesNoMetadata(acao: AcaoPermissoes): Permissoes | null | undefined {
+  if (acao.acao === "gravar") return acao.permissoes;
+  return acao.acao === "apagar" ? null : undefined;
+}
+
+/**
+ * Valida o campo `permissoes` do corpo de POST (criação) ou PATCH (edição) de conta, conforme o cargo JÁ validado:
+ * - socio/operacional, criação: ausente ou null = conta nova nasce com TODAS as seções "nenhum"; objeto = validado
+ *   com rigor (ver validarPermissoesEstrito) e gravado;
+ * - socio/operacional, edição: ausente = "manter"; null = "apagar" (padrão do cargo); objeto = validado e gravado;
+ * - demais cargos (consultor, administrador): nunca têm mapa. Ausente ou null é aceito (criação: nada a gravar;
+ *   edição: "apagar", para limpar o mapa de um cargo anterior); um valor DE VERDADE é recusado com 400 — não é
+ *   ignorado em silêncio, para não esconder do administrador que o mapa que ele enviou não vale.
+ * Lança 400 (h3) em qualquer valor inválido; nada é gravado.
+ */
+export function parsePermissoesInput(
+  body: { permissoes?: unknown },
+  role: Role,
+  modo: "criacao" | "edicao",
+): AcaoPermissoes {
+  const bruto = body.permissoes;
+
+  if (!ROLES_COM_PERMISSAO.includes(role)) {
+    if (bruto !== undefined && bruto !== null) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: `O cargo "${role}" não usa permissões por página: não envie "permissoes" (ou envie null).`,
+      });
+    }
+    return modo === "criacao" ? { acao: "manter" } : { acao: "apagar" };
+  }
+
+  if (bruto === undefined) {
+    return modo === "criacao" ? { acao: "gravar", permissoes: permissoesTudoNenhum() } : { acao: "manter" };
+  }
+  if (bruto === null) {
+    return modo === "criacao" ? { acao: "gravar", permissoes: permissoesTudoNenhum() } : { acao: "apagar" };
+  }
+
+  const resultado = validarPermissoesEstrito(bruto);
+  if (!resultado.ok) throw createError({ statusCode: 400, statusMessage: resultado.erro });
+  return { acao: "gravar", permissoes: resultado.permissoes };
+}
+
+/**
+ * Cargo, consultorNome e permissões de um corpo de POST/PATCH de conta, numa chamada só:
+ * `parseRoleInput` (inalterada) + `parsePermissoesInput` (depois do cargo, que decide se a conta usa mapa).
+ */
+export function parseContaInput(
+  body: { role?: unknown; consultorNome?: unknown; permissoes?: unknown },
+  modo: "criacao" | "edicao",
+): { role: Role; consultorNome?: ConsultorProcesso; permissoes: AcaoPermissoes } {
+  const { role, consultorNome } = parseRoleInput(body);
+  return { role, consultorNome, permissoes: parsePermissoesInput(body, role, modo) };
+}
+
+/**
  * app_metadata a gravar para um cargo (+ nome genérico da conta, opcional).
  * `consultorNome: null` quando não é consultor — remove qualquer valor órfão
  * de um cargo anterior (o GoTrue faz merge raso de app_metadata e apaga
  * chaves nulas). `nome: null` quando omitido, pelo mesmo motivo.
+ * `permissoes` (só conta nova de socio/operacional, já validadas): quando informadas, entram no app_metadata;
+ * omitidas, a chave nem existe.
  */
 export function roleAppMetadata(
   role: Role,
   consultorNome?: ConsultorProcesso,
   nome?: string,
+  permissoes?: Permissoes,
 ): Record<string, unknown> {
-  return { role, consultorNome: role === "consultor" ? consultorNome : null, nome: nome ?? null };
+  return {
+    role,
+    consultorNome: role === "consultor" ? consultorNome : null,
+    nome: nome ?? null,
+    ...(permissoes ? { permissoes } : {}),
+  };
 }
 
 /**
  * app_metadata da EDIÇÃO de uma conta existente (PATCH do administrador). Igual a `roleAppMetadata`,
  * exceto que `nome` omitido NÃO entra no objeto: o GoTrue faz merge raso e preserva a chave ausente.
  * Com `nome: null` (o que `roleAppMetadata` faz) o nome que a própria pessoa editou em "Minha conta"
- * seria apagado sempre que o PATCH viesse sem nome.
+ * seria apagado sempre que o PATCH viesse sem nome. O mesmo vale para `permissoes` (4º parâmetro): omitido,
+ * a conta mantém o que tem — inclusive "sem mapa" —, de modo que abrir "Editar" e salvar não converte ninguém.
  */
 export function roleAppMetadataEdicao(
   role: Role,
   consultorNome?: ConsultorProcesso,
   nome?: string,
+  permissoes?: Permissoes | null,
 ): Record<string, unknown> {
   const { nome: _ignorado, ...semNome } = roleAppMetadata(role, consultorNome, nome);
-  return nome === undefined ? semNome : { ...semNome, nome };
+  const base = nome === undefined ? semNome : { ...semNome, nome };
+  // permissoes: undefined = preserva o que está gravado (a chave fica de fora, o GoTrue faz merge raso);
+  // null = apaga o mapa (volta ao padrão do cargo); objeto = grava o mapa completo.
+  return permissoes === undefined ? base : { ...base, permissoes };
 }
 
 /**
@@ -170,6 +258,8 @@ export function toAdminUserSummary(user: User): AdminUserSummary {
   const consultorNome =
     role === "consultor" && isConsultorNome(meta.consultorNome) ? meta.consultorNome : undefined;
   const nome = typeof meta.nome === "string" && meta.nome.trim() ? meta.nome : undefined;
+  // Só socio e operacional usam o mapa; sem a chave (ou para os outros cargos) a conta aparece com `null`.
+  const permissoes = ROLES_COM_PERMISSAO.includes(role) ? (sanitizarPermissoes(meta.permissoes) ?? null) : null;
 
   return {
     id: user.id,
@@ -177,6 +267,7 @@ export function toAdminUserSummary(user: User): AdminUserSummary {
     role,
     consultorNome,
     nome,
+    permissoes,
     createdAt: user.created_at ?? "",
     lastSignInAt: user.last_sign_in_at ?? null,
   };

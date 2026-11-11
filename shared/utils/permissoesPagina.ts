@@ -83,6 +83,50 @@ export function sanitizarPermissoes(bruto: unknown): Permissoes | undefined {
   return mapa;
 }
 
+/** Mapa com TODAS as seções controladas em "nenhum": o ponto de partida de uma conta nova de socio/operacional. */
+export function permissoesTudoNenhum(): Permissoes {
+  const mapa: Permissoes = {};
+  for (const secao of SECOES_COM_PERMISSAO) mapa[secao] = "nenhum";
+  return mapa;
+}
+
+export type ResultadoPermissoesEstrito = { ok: true; permissoes: Permissoes } | { ok: false; erro: string };
+
+/**
+ * Validação ESTRITA do que o administrador ENVIA ao criar/editar uma conta (diferente de `sanitizarPermissoes`, que é
+ * a leitura tolerante do que já está gravado): tem de ser um objeto simples; só chaves de SECOES_COM_PERMISSAO; só
+ * os valores "nenhum", "ver" e "editar". Qualquer outra coisa é erro (a mensagem diz o quê) e nada deve ser gravado.
+ * Seção ausente é aceita e vale "nenhum" — o mapa devolvido é sempre completo.
+ */
+export function validarPermissoesEstrito(bruto: unknown): ResultadoPermissoesEstrito {
+  const secoes = SECOES_COM_PERMISSAO.join(", ");
+  if (bruto === null || typeof bruto !== "object" || Array.isArray(bruto)) {
+    return {
+      ok: false,
+      erro: `Permissões inválidas: envie um objeto { seção: "nenhum" | "ver" | "editar" } com as seções ${secoes}.`,
+    };
+  }
+  const origem = bruto as Record<string, unknown>;
+  for (const chave of Object.keys(origem)) {
+    if (!(SECOES_COM_PERMISSAO as readonly string[]).includes(chave)) {
+      return { ok: false, erro: `Permissões inválidas: a seção "${chave}" não existe. Seções aceitas: ${secoes}.` };
+    }
+  }
+  const mapa = permissoesTudoNenhum();
+  for (const secao of SECOES_COM_PERMISSAO) {
+    if (!Object.prototype.hasOwnProperty.call(origem, secao)) continue;
+    const valor = origem[secao];
+    if (!isNivelPermissao(valor)) {
+      return {
+        ok: false,
+        erro: `Permissões inválidas: o valor de "${secao}" deve ser "nenhum", "ver" ou "editar".`,
+      };
+    }
+    mapa[secao] = valor;
+  }
+  return { ok: true, permissoes: mapa };
+}
+
 /**
  * Nível do usuário na seção quando o MAPA decide; null quando quem decide é a regra do cargo (sem mapa,
  * cargo que não usa mapa, ou seção fora de SECOES_COM_PERMISSAO).

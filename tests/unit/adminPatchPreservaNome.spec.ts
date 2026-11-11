@@ -4,7 +4,10 @@ import type { AuthUser } from "../../shared/types/auth";
 
 // PATCH /api/admin/users/:id não pode apagar o `nome` que a própria pessoa editou em "Minha conta"
 // quando o corpo vem sem `nome`. roleAppMetadata (usado na CRIAÇÃO, onde o nome é obrigatório) continua
-// como era — tests/unit/rbac.spec.ts cobre o contrato dele.
+// como era — tests/unit/rbac.spec.ts cobre o contrato dele. Com as permissões por página, o PATCH de um cargo que
+// NÃO usa mapa (administrador, consultor) passa a gravar `permissoes: null` (limpa o mapa de um cargo anterior,
+// como já se faz com consultorNome); para socio/operacional, sem o campo, a chave nem entra (preserva) —
+// tests/unit/contasPermissoesApi.spec.ts cobre isso.
 const h = vi.hoisted(() => ({ body: {} as unknown, updateUserById: vi.fn(), listUsers: vi.fn() }));
 
 vi.mock("h3", async (importOriginal) => {
@@ -57,7 +60,7 @@ describe("PATCH /api/admin/users/:id", () => {
   it("sem `nome` no corpo → app_metadata enviado NÃO traz `nome` (não apaga o nome da pessoa)", async () => {
     await chamar({ role: "administrador" });
     const { app_metadata } = h.updateUserById.mock.calls[0]![1] as { app_metadata: Record<string, unknown> };
-    expect(app_metadata).toEqual({ role: "administrador", consultorNome: null });
+    expect(app_metadata).toEqual({ role: "administrador", consultorNome: null, permissoes: null });
     expect(app_metadata).not.toHaveProperty("nome");
   });
 
@@ -70,7 +73,7 @@ describe("PATCH /api/admin/users/:id", () => {
   it("com `nome` no corpo → grava o nome (comportamento de sempre)", async () => {
     await chamar({ role: "administrador", nome: " Novo Nome " });
     expect(h.updateUserById).toHaveBeenCalledWith("alvo", {
-      app_metadata: { role: "administrador", consultorNome: null, nome: "Novo Nome" },
+      app_metadata: { role: "administrador", consultorNome: null, nome: "Novo Nome", permissoes: null },
     });
   });
 });

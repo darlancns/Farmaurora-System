@@ -196,7 +196,8 @@ describe("middleware — conta SEM mapa: mesma matriz de antes (cargo × path ×
     "/api/pagamentos/banco": { ler: ["socio", "operacional", "administrador"], escrever: ["socio", "operacional", "administrador"] },
     "/api/patients": { ler: ["socio", "administrador"], escrever: ["socio", "administrador"] },
     "/api/attachments/signed-urls": { ler: ["socio", "administrador"], escrever: ["socio", "administrador"] },
-    "/api/admin/users": { ler: ["socio", "administrador"], escrever: ["administrador"] },
+    // Contas: só o administrador, inclusive a leitura (antes o sócio também lia).
+    "/api/admin/users": { ler: ["administrador"], escrever: ["administrador"] },
     "/api/recados": { ler: ["consultor", "socio", "operacional", "administrador"], escrever: ["consultor", "socio", "operacional", "administrador"] },
     "/api/contas": { ler: ["consultor", "socio", "operacional", "administrador"], escrever: ["consultor", "socio", "operacional", "administrador"] },
     "/api/lembretes": { ler: ["consultor", "socio", "operacional", "administrador"], escrever: ["consultor", "socio", "operacional", "administrador"] },

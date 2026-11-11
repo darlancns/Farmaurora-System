@@ -1,7 +1,5 @@
 import { computed, ref } from "vue";
-import type { AdminUserSummary } from "#shared/types/auth";
-import type { Role } from "#shared/utils/rbac";
-import type { ConsultorProcesso } from "#shared/types/processo";
+import type { AdminUserSummary, UpdateUserRoleDTO } from "#shared/types/auth";
 import { useContas, type NovaContaDTO } from "./useContas";
 import { useToast } from "./useToast";
 import { getErrorMessage } from "../utils/errorMessages";
@@ -57,10 +55,7 @@ export function useContasAdmin() {
     }
   }
 
-  async function handleUpdate(
-    id: string,
-    payload: { role: Role; consultorNome?: ConsultorProcesso; nome?: string },
-  ): Promise<void> {
+  async function handleUpdate(id: string, payload: UpdateUserRoleDTO): Promise<void> {
     formBusy.value = true;
     try {
       await atualizarConta(id, payload);
