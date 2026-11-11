@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, reactive } from "vue";
-import type { AdminUserSummary } from "#shared/types/auth";
+import { computed, reactive, ref, watch } from "vue";
+import type { AdminUserSummary, UpdateUserRoleDTO } from "#shared/types/auth";
 import type { Role } from "#shared/utils/rbac";
 import type { ConsultorProcesso } from "#shared/types/processo";
+import type { NivelPermissao, SecaoComPermissao } from "#shared/utils/permissoesPagina";
 import { ROLE_OPTIONS } from "#shared/constants/roles";
 import { CONSULTORES_PROCESSO } from "#shared/constants/processos";
 import AppSelect from "../AppSelect.vue";
@@ -11,6 +12,15 @@ import type { AppSelectOption } from "../../types/appSelect";
 import { generatePassword } from "../../utils/generatePassword";
 import { useTitleCaseInput } from "../../composables/useTitleCaseInput";
 import type { NovaContaDTO } from "../../composables/useContas";
+import {
+  padraoDoCargo,
+  permissoesParaEnvio,
+  usaMapaDePermissoes,
+  valoresDoMapa,
+  valoresTudoNenhum,
+  type ValoresPermissoes,
+} from "../../utils/contaPermissoesForm";
+import PermissoesContaTabela from "./PermissoesContaTabela.vue";
 
 const props = withDefaults(
   defineProps<{
@@ -25,7 +35,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   create: [payload: NovaContaDTO];
-  update: [id: string, payload: { role: Role; consultorNome?: ConsultorProcesso; nome?: string }];
+  update: [id: string, payload: UpdateUserRoleDTO];
   close: [];
   invalid: [message: string];
 }>();
@@ -46,6 +56,63 @@ const consultorOptions: AppSelectOption<ConsultorProcesso | "">[] = CONSULTORES_
 }));
 
 const showConsultor = computed(() => form.role === "consultor");
+
+// ── Permissões por página (só sócio e operacional) ──────────────────────────────────────────────────
+// Conta NOVA: a tabela abre com tudo "Nenhum" e o POST leva sempre o mapa completo.
+// Conta EXISTENTE: com mapa gravado, mostra o mapa; sem mapa, mostra o padrão do cargo ("Padrão do cargo") e a tabela
+// só conta como mexida se a pessoa mudar uma linha — sem mexer, o PATCH nem leva o campo (o servidor preserva, então
+// abrir "Editar" numa conta sem mapa e salvar não grava mapa nela). Cargo que não usa mapa nunca envia o campo.
+const mostraPermissoes = computed(() => usaMapaDePermissoes(form.role));
+const contaTemMapa = props.editingConta?.permissoes != null;
+const valores = reactive<ValoresPermissoes>(valoresIniciais());
+const tocada = ref(false);
+// Edição de conta com mapa: "Restaurar padrão do cargo" foi clicado (o PATCH leva permissoes: null).
+const restaurar = ref(false);
+
+function valoresIniciais(): ValoresPermissoes {
+  const conta = props.editingConta;
+  if (!conta) return valoresTudoNenhum();
+  if (conta.permissoes) return valoresDoMapa(conta.permissoes);
+  return usaMapaDePermissoes(conta.role) ? padraoDoCargo(conta.role) : valoresTudoNenhum();
+}
+
+function aplicarValores(novos: ValoresPermissoes): void {
+  Object.assign(valores, novos);
+}
+
+// Rótulo "Padrão do cargo": edição, nada mexido, e a tabela mostra o padrão (conta sem mapa ou já restaurada).
+const mostraPadrao = computed(() => isEdit.value && !tocada.value && (!contaTemMapa || restaurar.value));
+const podeRestaurar = computed(() => isEdit.value && (contaTemMapa || tocada.value));
+
+function aoAlterarPermissao(secao: SecaoComPermissao, nivel: NivelPermissao): void {
+  valores[secao] = nivel;
+  tocada.value = true;
+  restaurar.value = false;
+}
+
+function aoRestaurarPadrao(): void {
+  aplicarValores(padraoDoCargo(form.role));
+  tocada.value = false;
+  restaurar.value = contaTemMapa;
+}
+
+// Trocar o cargo: sócio <-> operacional mantém o que está na tabela (se ela ainda mostra o padrão do cargo, mostra o
+// do cargo novo); vindo de consultor/administrador na edição, a tabela abre "não mexida" — com o mapa que a conta já
+// tem, ou com o padrão do cargo novo. Para consultor/administrador a tabela some e o campo não é enviado.
+watch(
+  () => form.role,
+  (novo, antigo) => {
+    if (!usaMapaDePermissoes(novo) || !isEdit.value) return;
+    const veioDeCargoSemMapa = !usaMapaDePermissoes(antigo);
+    if (veioDeCargoSemMapa) {
+      aplicarValores(contaTemMapa ? valoresDoMapa(props.editingConta?.permissoes) : padraoDoCargo(novo));
+      tocada.value = false;
+      restaurar.value = false;
+    } else if (!contaTemMapa && !tocada.value) {
+      aplicarValores(padraoDoCargo(novo));
+    }
+  },
+);
 
 // Aviso (não bloqueia): nomes já vinculados a outra conta.
 const nomesEmUso = computed<string[]>(() =>
@@ -95,10 +162,30 @@ function handleSubmit(): void {
   const consultorNome =
     form.role === "consultor" ? (form.consultorNome as ConsultorProcesso) : undefined;
 
+  const envio = permissoesParaEnvio({
+    modo: isEdit.value ? "edicao" : "criacao",
+    role: form.role,
+    valores,
+    tocada: tocada.value,
+    restaurar: restaurar.value,
+  });
+
   if (isEdit.value && props.editingConta) {
-    emit("update", props.editingConta.id, { role: form.role, consultorNome, nome });
+    emit("update", props.editingConta.id, {
+      role: form.role,
+      consultorNome,
+      nome,
+      ...(envio.incluir ? { permissoes: envio.valor } : {}),
+    });
   } else {
-    emit("create", { email, password: form.password, role: form.role, consultorNome, nome });
+    emit("create", {
+      email,
+      password: form.password,
+      role: form.role,
+      consultorNome,
+      nome,
+      ...(envio.incluir && envio.valor ? { permissoes: envio.valor } : {}),
+    });
   }
 }
 
@@ -106,7 +193,11 @@ function handleSubmit(): void {
 
 <template>
   <BaseModal id="conta-form-overlay" @close="emit('close')">
-    <div class="w-full max-w-[440px] rounded-[10px] border border-hairline bg-paper-raised p-5">
+    <!-- max-h + overflow-y: com a tabela de permissões o formulário pode passar da altura da tela (celular). -->
+    <div
+      id="conta-form-modal"
+      class="max-h-[calc(100dvh-3rem)] w-full max-w-[440px] overflow-y-auto rounded-[10px] border border-hairline bg-paper-raised p-5"
+    >
       <h2 class="mb-4 font-display text-[16px] font-semibold text-ink">
         {{ isEdit ? "Editar conta" : "Nova conta" }}
       </h2>
@@ -164,6 +255,15 @@ function handleSubmit(): void {
           <label for="conta-role" class="mb-1.5 block text-[10.5px] text-ink-soft">Cargo</label>
           <AppSelect id="conta-role" v-model="form.role" :options="ROLE_OPTIONS" />
         </div>
+
+        <PermissoesContaTabela
+          v-if="mostraPermissoes"
+          :valores="valores"
+          :padrao-do-cargo="mostraPadrao"
+          :pode-restaurar="podeRestaurar"
+          @alterar="aoAlterarPermissao"
+          @restaurar="aoRestaurarPadrao"
+        />
 
         <div v-if="showConsultor">
           <label for="conta-consultor" class="mb-1.5 block text-[10.5px] text-ink-soft">

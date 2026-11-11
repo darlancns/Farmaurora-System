@@ -160,7 +160,16 @@ function itemsPara(conta: AdminUserSummary): ActionsMenuItem[] {
               {{ conta.email }}
               <span v-if="conta.id === meuId" class="ml-1 text-[11px] text-ink-soft">(você)</span>
             </td>
-            <td class="px-3.5 py-2.5">{{ ROLE_LABEL[conta.role] }}</td>
+            <td class="px-3.5 py-2.5">
+              {{ ROLE_LABEL[conta.role] }}
+              <span
+                v-if="conta.permissoes"
+                :id="`conta-perm-${conta.id}`"
+                class="ml-1.5 rounded-full bg-paper px-2 py-0.5 text-[10.5px] font-semibold text-accent-dark"
+                title="Esta conta tem permissões por página gravadas"
+                >Permissões personalizadas</span
+              >
+            </td>
             <td class="px-3.5 py-2.5 text-ink-soft">{{ conta.consultorNome ?? "—" }}</td>
             <td class="px-3.5 py-2.5 text-right">
               <ActionsMenu
@@ -202,6 +211,12 @@ function itemsPara(conta: AdminUserSummary): ActionsMenuItem[] {
 
           <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-ink-soft">
             <span class="rounded-full bg-paper px-2 py-0.5">{{ ROLE_LABEL[conta.role] }}</span>
+            <span
+              v-if="conta.permissoes"
+              :id="`conta-card-perm-${conta.id}`"
+              class="rounded-full bg-paper px-2 py-0.5 text-[10.5px] font-semibold text-accent-dark"
+              >Permissões personalizadas</span
+            >
             <span v-if="conta.consultorNome">{{ conta.consultorNome }}</span>
           </div>
         </div>

@@ -3,11 +3,12 @@ import type { AdminUserSummary, UpdateUserRoleDTO } from "#shared/types/auth";
 import { useContas, type NovaContaDTO } from "./useContas";
 import { useToast } from "./useToast";
 import { getErrorMessage } from "../utils/errorMessages";
+import { MENSAGEM_PERMISSAO_SALVA } from "../utils/contaPermissoesForm";
 
 export function useContasAdmin() {
   const { contas, loading, error, fetchContas, criarConta, atualizarConta, excluirConta, redefinirSenha } =
     useContas();
-  const { showToast } = useToast();
+  const { showToast, showAviso } = useToast();
 
   // nome do consultor -> e-mail da conta que já o usa (aviso, não bloqueio)
   const consultoresEmUso = computed<Record<string, string>>(() => {
@@ -59,7 +60,10 @@ export function useContasAdmin() {
     formBusy.value = true;
     try {
       await atualizarConta(id, payload);
-      showToast("Conta atualizada");
+      // Mudou permissões (mapa ou "restaurar padrão"): o servidor passa a valer em instantes, mas o menu da pessoa só
+      // atualiza quando ela recarrega a página. Aviso protegido (dura mais) para dar tempo de ler.
+      if (payload.permissoes !== undefined) showAviso(`Conta atualizada. ${MENSAGEM_PERMISSAO_SALVA}`);
+      else showToast("Conta atualizada");
       fecharFormModal();
     } catch (e) {
       showToast(getErrorMessage(e, "Erro ao atualizar conta"));
