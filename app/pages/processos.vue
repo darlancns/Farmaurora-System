@@ -221,6 +221,7 @@ function handleUnchanged(): void {
 }
 
 async function handleSubmit(payload: NewProcessoDTO): Promise<void> {
+  if (!canWriteProcessos.value) return;
   try {
     await addProcesso(payload);
     showToast("Processo adicionado");
@@ -231,6 +232,7 @@ async function handleSubmit(payload: NewProcessoDTO): Promise<void> {
 }
 
 async function handleUpdate(id: string, payload: ProcessoFormPatchPayload): Promise<void> {
+  if (!canWriteProcessos.value) return;
   try {
     const resultado = await salvarEdicao(id, payload);
     // Conflito: o modal segue aberto com o aviso (nada foi gravado); a pessoa decide recarregar.
@@ -257,6 +259,7 @@ async function handleRecarregarEdicao(): Promise<void> {
 }
 
 async function handleDelete(id: string): Promise<void> {
+  if (!canWriteProcessos.value) return;
   try {
     await removeProcesso(id);
     showToast("Processo removido");
@@ -266,6 +269,7 @@ async function handleDelete(id: string): Promise<void> {
 }
 
 async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<void> {
+  if (!canWriteProcessos.value) return;
   try {
     await patchProcesso(id, patch);
   } catch (e) {

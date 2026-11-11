@@ -17,7 +17,8 @@ import AppDatePicker from "./AppDatePicker.vue";
  * IDs fixos por processo (aviso-chegada-<id>, btn-chegada-sim-<id> ...).
  */
 
-const props = defineProps<{ aviso: AvisoChegadaSino }>();
+// `somenteLeitura`: quem só "vê" Processos lê o aviso, sem nenhum botão (nem [Sim, chegou], [Ainda não], calendário ou olhinho).
+const props = withDefaults(defineProps<{ aviso: AvisoChegadaSino; somenteLeitura?: boolean }>(), { somenteLeitura: false });
 const emit = defineEmits<{ abrir: [] }>();
 
 const { confirmarChegada, adiarChegada, marcarVisto } = useChegadaAvisos();
@@ -46,7 +47,7 @@ function mensagemDe(e: unknown, padrao: string): string {
 
 // Executa a ação mostrando "enviando"; em falha deixa a mensagem no item (e marca o 409).
 async function executar(acao: () => Promise<void>, padrao: string): Promise<boolean> {
-  if (enviando.value) return false;
+  if (props.somenteLeitura || enviando.value) return false;
   enviando.value = true;
   erro.value = null;
   try {
@@ -66,6 +67,7 @@ function simChegou(): Promise<boolean> {
 }
 
 async function aindaNao(): Promise<void> {
+  if (props.somenteLeitura) return;
   erro.value = null;
   minimoNovaData.value = somarDiasISO(hojeBrasilia(), 1);
   novaData.value = "";
@@ -132,7 +134,7 @@ function visto(): Promise<boolean> {
 
       <!-- Administrador: só visualiza. O olhinho dispensa o aviso (gravado para ele, por processo + data prevista). -->
       <button
-        v-if="!ehOperacional"
+        v-if="!ehOperacional && !somenteLeitura"
         :id="`btn-chegada-visto-${aviso.processoId}`"
         type="button"
         title="Marcar como visto"
@@ -153,7 +155,7 @@ function visto(): Promise<boolean> {
     </div>
 
     <!-- Operacional responsável: pergunta -> (Ainda não) calendário -> confirmação -->
-    <template v-if="ehOperacional">
+    <template v-if="ehOperacional && !somenteLeitura">
       <div v-if="etapa === 'pergunta'" class="mt-2 flex gap-2">
         <button
           :id="`btn-chegada-sim-${aviso.processoId}`"

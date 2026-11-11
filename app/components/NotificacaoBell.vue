@@ -8,6 +8,7 @@ import { calcularNotificacoesMandadoDoUsuario, type NotificacaoMandado } from ".
 import { calcularAvisosChegada, type AvisoChegadaSino } from "../utils/avisosChegada";
 import { totalDoBadgeSino } from "../utils/notificacoesPorTipo";
 import { criarAcoesSino } from "../utils/acoesSino";
+import { modoAlertasProcesso } from "../utils/modoAlertasProcesso";
 import { useAuth } from "../composables/useAuth";
 import { useProcessos } from "../composables/useProcessos";
 import { useNotificacoes } from "../composables/useNotificacoes";
@@ -23,7 +24,8 @@ import { getErrorMessage } from "../utils/errorMessages";
  * isoladas por baixo do capô (ver docs/recados-spec.md seção 7):
  *  - Fornecedor: alertas de SLA calculados on-the-fly a partir de
  *    Processo[] (calcularNotificacoesFornecedor, inalterada) — só aparece
- *    pra quem tem escrita em Processos.
+ *    pra quem LÊ Processos (consultor não recebe). Quem só lê (permissão "ver") vê o alerta sem o botão
+ *    de resolver e fora do badge; quem escreve, como sempre (ver utils/modoAlertasProcesso.ts).
  *  - Mandado de Segurança: 7 dias após o registro do LPCO, calculado a partir
  *    de Processo[] (calcularNotificacoesMandadoDoUsuario). Administrador vê
  *    todos; operacional só os seus (vínculo pelo primeiro nome); consultor e
@@ -45,8 +47,12 @@ import { getErrorMessage } from "../utils/errorMessages";
  * combinados; renomear quebraria esse spec sem necessidade.
  */
 
-const { canWrite, user } = useAuth();
-const canWriteProcessos = computed<boolean>(() => canWrite("processos"));
+const { user } = useAuth();
+// Alertas derivados de Processo[] (Fornecedor, Mandado, Chegada): quem LÊ Processos os vê na lista; só quem ESCREVE
+// tem os botões de ação e os conta no badge. Quem só "vê" lê de verdade: nenhuma ação, nenhuma contagem.
+const modoAlertas = computed(() => modoAlertasProcesso(user.value));
+const mostraAlertasProcesso = computed<boolean>(() => modoAlertas.value !== "nenhum");
+const podeAgirNosAlertas = computed<boolean>(() => modoAlertas.value === "editar");
 
 const { processos, patchProcesso, fetchProcessos } = useProcessos();
 const { fetchNotificacoes, marcarComoLida, recadosNaoLidos, contasNaoLidas, processosNaoLidos } = useNotificacoes();
@@ -57,13 +63,18 @@ const { vistos: chegadaVistos, vistosCarregados: chegadaVistosCarregados, fetchV
 const agora = useRelogioMinuto();
 
 onMounted(() => {
-  // Busca a lista completa de processos só quando a seção Fornecedor pode
-  // aparecer — evita um fetch inútil pra Consultor/Sócio, que nunca veem
-  // essa seção. Dedup de in-flight fica dentro de fetchProcessos().
-  if (canWriteProcessos.value) fetchProcessos();
+  // Busca a lista completa de processos só quando algum alerta de processo pode
+  // aparecer (quem lê Processos e não é consultor) — evita um fetch inútil pra
+  // quem nunca vê essas seções. Dedup de in-flight fica dentro de fetchProcessos().
+  if (mostraAlertasProcesso.value) fetchProcessos();
   fetchNotificacoes();
   // As dispensas ("olhinho") são só do administrador.
   if (user.value?.role === "administrador") void fetchChegadaVistos();
+});
+
+// Permissão que passa a valer depois do carregamento inicial: começa a buscar os processos dos alertas.
+watch(mostraAlertasProcesso, (mostra) => {
+  if (mostra) void fetchProcessos();
 });
 
 // Cargo que chega depois do carregamento inicial (a conta é resolvida de forma assíncrona).
@@ -85,7 +96,7 @@ const buttonRef = ref<HTMLButtonElement | null>(null);
 const dismissedIds = reactive(new Set<string>());
 
 const notificacoesFornecedor = computed<NotificacaoFornecedor[]>(() =>
-  canWriteProcessos.value ? calcularNotificacoesFornecedor(processos.value) : [],
+  mostraAlertasProcesso.value ? calcularNotificacoesFornecedor(processos.value) : [],
 );
 const notificacoesFornecedorVisiveis = computed(() =>
   notificacoesFornecedor.value.filter((n) => !dismissedIds.has(n.processoId)),
@@ -96,7 +107,7 @@ const notificacoesFornecedorVisiveis = computed(() =>
 const dismissedMandadoIds = reactive(new Set<string>());
 
 const notificacoesMandado = computed<NotificacaoMandado[]>(() =>
-  canWriteProcessos.value
+  mostraAlertasProcesso.value
     ? calcularNotificacoesMandadoDoUsuario(processos.value, { role: user.value?.role, nome: user.value?.nome })
     : [],
 );
@@ -104,12 +115,12 @@ const notificacoesMandadoVisiveis = computed(() =>
   notificacoesMandado.value.filter((n) => !dismissedMandadoIds.has(n.processoId)),
 );
 
-// Chegada ("chegou?"): derivado de Processo[] + usuário + relógio. Fica de fora quem não escreve em Processos
+// Chegada ("chegou?"): derivado de Processo[] + usuário + relógio. Fica de fora quem não lê Processos
 // (os processos nem são carregados) e, para o administrador, até as dispensas dele chegarem (senão avisos já
 // dispensados piscariam na tela). Quem resolve é o operacional (muda o processo) ou o administrador (olhinho):
 // em ambos o item some porque o aviso deixa de valer — sem estado otimista aqui.
 const avisosChegada = computed<AvisoChegadaSino[]>(() => {
-  if (!canWriteProcessos.value) return [];
+  if (!mostraAlertasProcesso.value) return [];
   const role = user.value?.role;
   if (role === "administrador" && !chegadaVistosCarregados.value) return [];
   return calcularAvisosChegada(
@@ -128,11 +139,12 @@ const notificacoesContasVisiveis = contasNaoLidas;
 // Processos: nova pendência / nova atualização num processo do consultor (pendencia_nova, atualizacao_nova).
 const notificacoesProcessosVisiveis = processosNaoLidos;
 
+// Os alertas de processo só contam no badge para quem pode AGIR neles (quem só "vê" os lê na lista, sem contagem).
 const badgeCount = computed(() =>
   totalDoBadgeSino({
-    fornecedor: notificacoesFornecedorVisiveis.value.length,
-    mandado: notificacoesMandadoVisiveis.value.length,
-    chegada: avisosChegada.value.length,
+    fornecedor: podeAgirNosAlertas.value ? notificacoesFornecedorVisiveis.value.length : 0,
+    mandado: podeAgirNosAlertas.value ? notificacoesMandadoVisiveis.value.length : 0,
+    chegada: podeAgirNosAlertas.value ? avisosChegada.value.length : 0,
     recados: notificacoesRecadosVisiveis.value.length,
     contas: notificacoesContasVisiveis.value.length,
     processos: notificacoesProcessosVisiveis.value.length,
@@ -149,6 +161,7 @@ function closePanel(focusButton = false): void {
 }
 
 async function resolverNotificacaoFornecedor(notificacao: NotificacaoFornecedor): Promise<void> {
+  if (!podeAgirNosAlertas.value) return;
   dismissedIds.add(notificacao.processoId);
   try {
     await patchProcesso(notificacao.processoId, { alertaFornecedorResolvido: true });
@@ -159,6 +172,7 @@ async function resolverNotificacaoFornecedor(notificacao: NotificacaoFornecedor)
 }
 
 async function resolverNotificacaoMandado(notificacao: NotificacaoMandado): Promise<void> {
+  if (!podeAgirNosAlertas.value) return;
   dismissedMandadoIds.add(notificacao.processoId);
   try {
     await patchProcesso(notificacao.processoId, { alertaMandadoResolvido: true });
@@ -305,6 +319,7 @@ onBeforeUnmount(() => {
             </span>
           </button>
           <button
+            v-if="podeAgirNosAlertas"
             :id="`btn-resolver-notificacao-${notificacao.processoId}`"
             type="button"
             title="Marcar como resolvido"
@@ -341,7 +356,7 @@ onBeforeUnmount(() => {
             {{ notificacao.diasDecorridos === 1 ? "dia" : "dias" }}.
           </button>
           <button
-            v-if="podeResolverMandado(notificacao)"
+            v-if="podeAgirNosAlertas && podeResolverMandado(notificacao)"
             :id="`btn-resolver-mandado-${notificacao.processoId}`"
             type="button"
             title="Marcar como resolvido"
@@ -367,6 +382,7 @@ onBeforeUnmount(() => {
           v-for="aviso in avisosChegada"
           :key="aviso.chave"
           :aviso="aviso"
+          :somente-leitura="!podeAgirNosAlertas"
           @abrir="abrirProcessoDoAlerta(aviso)"
         />
       </template>
