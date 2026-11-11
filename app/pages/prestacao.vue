@@ -91,6 +91,7 @@ function closeForm(): void {
 }
 
 async function handleSubmit(payload: NewPatientDTO, attachments: Record<string, Blob>): Promise<void> {
+  if (!canWritePatients.value) return;
   await executarEnvio(async () => {
     try {
       const created = await addPatient(payload);
@@ -128,11 +129,13 @@ function handleInvalid(message: string): void {
 }
 
 function handleEdit(patient: PatientComputed): void {
+  if (!canWritePatients.value) return;
   editingPatientId.value = patient.id;
   showForm.value = true;
 }
 
 async function handleUpdate(id: string, payload: NewPatientDTO): Promise<void> {
+  if (!canWritePatients.value) return;
   await executarEnvio(async () => {
     try {
       await updatePatient(id, payload);
@@ -145,6 +148,7 @@ async function handleUpdate(id: string, payload: NewPatientDTO): Promise<void> {
 }
 
 async function handleDelete(id: string): Promise<void> {
+  if (!canWritePatients.value) return;
   try {
     await removePatient(id);
     showToast("Prestação removida");
