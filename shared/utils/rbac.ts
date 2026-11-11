@@ -68,7 +68,11 @@ export function isRowScopedToOwnConsultor(role: Role): boolean {
   return role === "consultor";
 }
 
-/** Rota de entrada padrão depois do login — igual pra todos os cargos. */
+/**
+ * Rota de entrada padrão do CARGO (sem considerar permissões por página) — igual pra todos os cargos.
+ * Ninguém na aplicação a usa mais: login, "/" e redirecionamentos usam `paginaInicial(user)`
+ * (shared/utils/permissoesPagina.ts), que respeita o mapa de permissões e nunca aponta pra página proibida.
+ */
 export function defaultRouteForRole(_role: Role): string {
   return "/processos";
 }

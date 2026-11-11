@@ -1,6 +1,7 @@
 import { defineNuxtRouteMiddleware, navigateTo, useRequestEvent } from "#app";
 import { useAuth } from "../composables/useAuth";
-import { sectionForPageRoute, canReadSection, defaultRouteForRole } from "#shared/utils/rbac";
+import { sectionForPageRoute } from "#shared/utils/rbac";
+import { paginaInicial, podeLer } from "#shared/utils/permissoesPagina";
 import { redirectForRemovedPage } from "#shared/utils/legacyRoutes";
 import type { AuthUser } from "#shared/types/auth";
 
@@ -17,22 +18,24 @@ import type { AuthUser } from "#shared/types/auth";
  *
  * Roda depois de `auth.global.ts` (ordem alfabética) — quando chega aqui a
  * sessão já foi validada (ou, no SSR, `auth.global.ts` já redirecionou pra
- * /login). Redireciona quem tenta abrir uma página fora do seu cargo, e leva
- * `consultor`/`operacional` direto pro Follow-up.
+ * /login). Redireciona quem tenta abrir uma página fora do seu cargo (ou do seu
+ * mapa de permissões por página) para a página inicial DO USUÁRIO — a primeira
+ * legível, ou /recados — que nunca é uma página que ele não possa abrir, então
+ * não há loop de redirecionamento.
  */
 function redirectForRole(to: { path: string }, user: AuthUser): ReturnType<typeof navigateTo> | void {
   // Páginas removidas (ex.: /inicio) vão pro destino padrão em vez de 404.
-  const removedTarget = redirectForRemovedPage(to.path, user.role);
+  const removedTarget = redirectForRemovedPage(to.path, user);
   if (removedTarget) return navigateTo(removedTarget, { replace: true });
 
   const section = sectionForPageRoute(to.path);
-  if (section && !canReadSection(user.role, section)) {
-    return navigateTo(defaultRouteForRole(user.role));
+  if (section && !podeLer(user, section)) {
+    return navigateTo(paginaInicial(user));
   }
 
-  // "/" é a landing — todo mundo cai em Follow-up.
+  // "/" é a landing — cada um cai na sua página inicial (Follow-up, salvo mapa que o impeça).
   if (to.path === "/") {
-    return navigateTo(defaultRouteForRole(user.role));
+    return navigateTo(paginaInicial(user));
   }
 }
 

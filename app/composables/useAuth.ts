@@ -2,18 +2,17 @@ import { computed, type ComputedRef } from "vue";
 import { useState } from "#app";
 import type { AuthUser } from "#shared/types/auth";
 import type { ConsultorProcesso } from "#shared/types/processo";
-import {
-  canReadSection,
-  canWriteSection,
-  defaultRouteForRole,
-  type Role,
-  type Section,
-} from "#shared/utils/rbac";
+import type { Role, Section } from "#shared/utils/rbac";
+import { paginaInicial, podeEscrever, podeLer } from "#shared/utils/permissoesPagina";
 
 /**
  * Estado de autenticação/cargo no client. A fonte de verdade é `/api/auth/me`
  * (resolvido pelo server, incluindo o fallback admin-email), nunca o JWT
  * decodificado localmente.
+ *
+ * `canRead`/`canWrite`/`homeRoute` seguem o mapa de permissões por página da conta (`user.permissoes`, só
+ * socio e operacional) e, sem mapa, a regra do cargo — a mesma decisão do servidor (shared/utils/permissoesPagina.ts).
+ * Todo ponto da UI que usa `canWrite(secao)` para esconder botões ou virar somente leitura acompanha o mapa.
  */
 export function useAuth() {
   const user = useState<AuthUser | null>("auth-user", () => null);
@@ -44,15 +43,15 @@ export function useAuth() {
   const isAdmin: ComputedRef<boolean> = computed(() => user.value?.role === "administrador");
 
   function canRead(section: Section): boolean {
-    return role.value ? canReadSection(role.value, section) : false;
+    return user.value ? podeLer(user.value, section) : false;
   }
 
   function canWrite(section: Section): boolean {
-    return role.value ? canWriteSection(role.value, section) : false;
+    return user.value ? podeEscrever(user.value, section) : false;
   }
 
   function homeRoute(): string {
-    return role.value ? defaultRouteForRole(role.value) : "/processos";
+    return user.value ? paginaInicial(user.value) : "/processos";
   }
 
   return { user, loaded, load, clear, role, consultorNome, isAdmin, canRead, canWrite, homeRoute };
