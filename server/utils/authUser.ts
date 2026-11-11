@@ -3,6 +3,7 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { AuthUser, AdminUserSummary, ContaSummary } from "#shared/types/auth";
 import type { ConsultorProcesso } from "#shared/types/processo";
 import { isRole, type Role } from "#shared/utils/rbac";
+import { ROLES_COM_PERMISSAO, sanitizarPermissoes } from "#shared/utils/permissoesPagina";
 import { CONSULTORES_PROCESSO } from "#shared/constants/processos";
 
 export function parseAdminEmails(raw: unknown): string[] {
@@ -211,12 +212,17 @@ export function resolveAuthUser(user: User, adminEmails: string[]): AuthUser {
 
   const nome = typeof meta.nome === "string" && meta.nome.trim() ? meta.nome : undefined;
 
+  // Permissão por página: só socio e operacional usam o mapa (os outros cargos ignoram a chave). Sem a chave
+  // (null/undefined) a propriedade nem entra no objeto — o cargo decide, como sempre foi.
+  const permissoes = ROLES_COM_PERMISSAO.includes(role) ? sanitizarPermissoes(meta.permissoes) : undefined;
+
   return {
     id: user.id,
     email,
     role,
     consultorNome,
     nome,
+    ...(permissoes ? { permissoes } : {}),
     isAdmin: role === "administrador",
   };
 }

@@ -1,5 +1,6 @@
 import type { ConsultorProcesso } from "./processo";
 import type { Role } from "../utils/rbac";
+import type { Permissoes } from "../utils/permissoesPagina";
 
 /**
  * Usuário autenticado, normalizado a partir da sessão do Supabase Auth.
@@ -20,6 +21,11 @@ export interface AuthUser {
   consultorNome?: ConsultorProcesso;
   /** Nome genérico de exibição da conta. Contas antigas podem não ter. */
   nome?: string;
+  /**
+   * Permissão por página (`app_metadata.permissoes`), já sanitizada. Só existe para os cargos socio e
+   * operacional que tenham o mapa gravado; ausente = vale a regra do cargo. Ver shared/utils/permissoesPagina.ts.
+   */
+  permissoes?: Permissoes;
   /** Derivado de `role === "administrador"` — mantido para checks legados. */
   isAdmin: boolean;
 }
