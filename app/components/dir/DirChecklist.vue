@@ -5,9 +5,14 @@ import DirCheckbox from "./DirCheckbox.vue";
 
 // Os 8 itens do checklist da DIR (DACTES … Termômetro). Controlado: o pai decide o valor de
 // cada item e grava (PATCH na hora quando o PO já existe).
-defineProps<{
-  values: ChecklistDir;
-}>();
+withDefaults(
+  defineProps<{
+    values: ChecklistDir;
+    // Somente leitura: os itens aparecem marcados/desmarcados, mas não clicam.
+    desabilitado?: boolean;
+  }>(),
+  { desabilitado: false },
+);
 
 const emit = defineEmits<{ toggle: [chave: ChecklistChaveDir] }>();
 </script>
@@ -21,6 +26,7 @@ const emit = defineEmits<{ toggle: [chave: ChecklistChaveDir] }>();
       :model-value="values[item.chave]"
       :label="item.rotulo"
       mostrar-rotulo
+      :desabilitado="desabilitado"
       @toggle="emit('toggle', item.chave)"
     />
   </div>

@@ -5,11 +5,16 @@ import DirRow from "./DirRow.vue";
 
 // Lista da DIR: tabela em lg+ (rola na horizontal só se faltar largura) e cartões abaixo de lg.
 // Recebe a página já fatiada ("Mostrar mais" fica na página).
-defineProps<{
-  registros: Dir[];
-  // Quantos registros existem por PO (> 1 = PO repetido).
-  contagemPorPo: ReadonlyMap<string, number>;
-}>();
+withDefaults(
+  defineProps<{
+    registros: Dir[];
+    // Quantos registros existem por PO (> 1 = PO repetido).
+    contagemPorPo: ReadonlyMap<string, number>;
+    // Somente leitura (permissão "ver" na DIR): sem toggles que gravam.
+    readonly?: boolean;
+  }>(),
+  { readonly: false },
+);
 
 const emit = defineEmits<{
   edit: [dir: Dir];
@@ -54,6 +59,7 @@ const emit = defineEmits<{
             :key="dir.id"
             :dir="dir"
             :po-repetido="(contagemPorPo.get(dir.po) ?? 0) > 1"
+            :readonly="readonly"
             @edit="emit('edit', $event)"
             @patch="(id, patch) => emit('patch', id, patch)"
           />

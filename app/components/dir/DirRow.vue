@@ -9,11 +9,16 @@ import { STATUS_DIR_BADGE_CLASS, STATUS_DIR_VAZIO_BADGE_CLASS } from "../../util
 import DirBancoChip from "./DirBancoChip.vue";
 import DirCheckbox from "./DirCheckbox.vue";
 
-const props = defineProps<{
-  dir: Dir;
-  // PO que aparece em mais de um registro (permitido; só avisa).
-  poRepetido: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    dir: Dir;
+    // PO que aparece em mais de um registro (permitido; só avisa).
+    poRepetido: boolean;
+    // Somente leitura (permissão "ver" na DIR): o "Conferido" aparece, mas não clica; abrir o PO segue valendo.
+    readonly?: boolean;
+  }>(),
+  { readonly: false },
+);
 
 const emit = defineEmits<{
   edit: [dir: Dir];
@@ -39,6 +44,7 @@ const chipTitulo = computed<string>(
 );
 
 function alternarConferido(): void {
+  if (props.readonly) return;
   emit("patch", props.dir.id, { conferido: !props.dir.conferido });
 }
 </script>
@@ -71,6 +77,7 @@ function alternarConferido(): void {
           class="-my-2.5 -mr-2.5"
           :model-value="dir.conferido"
           label="Conferido"
+          :desabilitado="readonly"
           @toggle="alternarConferido"
         />
       </div>
@@ -102,6 +109,7 @@ function alternarConferido(): void {
         :id="`dir-conferido-${dir.id}`"
         :model-value="dir.conferido"
         label="Conferido"
+        :desabilitado="readonly"
         @toggle="alternarConferido"
       />
       <span class="flex items-center gap-1 font-mono text-[12px] font-semibold text-accent-dark">

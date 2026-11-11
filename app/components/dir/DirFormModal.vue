@@ -34,12 +34,17 @@ import DirBancoChip from "./DirBancoChip.vue";
 import DirCheckbox from "./DirCheckbox.vue";
 import DirChecklist from "./DirChecklist.vue";
 
-const props = defineProps<{
-  // Registro VIVO da store (muda quando um PATCH dá certo); null = criando um novo.
-  editingDir: Dir | null;
-  // Quantos registros existem por PO — alimenta o aviso de PO repetido.
-  contagemPorPo: ReadonlyMap<string, number>;
-}>();
+const props = withDefaults(
+  defineProps<{
+    // Registro VIVO da store (muda quando um PATCH dá certo); null = criando um novo.
+    editingDir: Dir | null;
+    // Quantos registros existem por PO — alimenta o aviso de PO repetido.
+    contagemPorPo: ReadonlyMap<string, number>;
+    // Somente consulta (permissão "ver" na DIR): todos os campos e toggles desabilitados, sem salvar nem excluir.
+    readonly?: boolean;
+  }>(),
+  { readonly: false },
+);
 
 const emit = defineEmits<{
   submit: [payload: NewDirDTO];
@@ -111,6 +116,7 @@ const fechamentoNota = computed<string>(() => {
 
 // Na edição o toggle grava na hora (PATCH); na criação só vira parte do payload do "Adicionar".
 function alternar(chave: ChaveInstantanea | ChecklistChaveDir): void {
+  if (props.readonly) return;
   const dir = props.editingDir;
   if (dir) {
     emit("patch", dir.id, { [chave]: !dir[chave] });
@@ -155,6 +161,7 @@ function aoFecharPeloModal(): void {
 }
 
 function handleSubmit(): void {
+  if (props.readonly) return;
   const resultado = validar();
   if (!resultado.valido) {
     emit("invalid", resultado.erro);
@@ -171,6 +178,7 @@ function handleSubmit(): void {
 
 function confirmarExclusao(): void {
   showDeleteConfirm.value = false;
+  if (props.readonly) return;
   if (props.editingDir) emit("delete", props.editingDir.id);
 }
 </script>
@@ -189,7 +197,7 @@ function confirmarExclusao(): void {
           <p class="mb-1 font-mono text-[11px] tracking-wider text-accent-dark uppercase">DIR</p>
           <div class="flex flex-wrap items-center gap-2">
             <h2 class="font-display text-[18px] font-semibold text-ink">
-              {{ editingDir ? `Editar ${editingDir.po}` : "Novo PO" }}
+              {{ editingDir ? `${readonly ? "Consultar" : "Editar"} ${editingDir.po}` : "Novo PO" }}
             </h2>
             <DirBancoChip v-if="bancoAtual" id="dir-form-banco-chip" :banco="bancoAtual" />
           </div>
@@ -211,6 +219,13 @@ function confirmarExclusao(): void {
         @submit.prevent="handleSubmit"
       >
         <div class="flex flex-col gap-3.5 py-4 lg:contents" :class="MODAL_PAD_X_CLASS">
+          <p
+            v-if="readonly"
+            id="dir-form-somente-leitura"
+            class="rounded-md border border-hairline bg-paper px-3 py-2 text-[12.5px] text-ink-soft"
+          >
+            Somente consulta: você não tem permissão para alterar a DIR.
+          </p>
           <!-- Identificação -->
           <fieldset id="dir-secao-identificacao" class="min-w-0 rounded-md border border-hairline p-3">
             <legend class="px-1 text-[11px] font-semibold text-ink-soft uppercase">Identificação</legend>
@@ -220,6 +235,7 @@ function confirmarExclusao(): void {
                 <input
                   id="df-po"
                   :value="form.po"
+                  :readonly="readonly"
                   type="text"
                   placeholder="PO26-10-0471"
                   autocapitalize="characters"
@@ -233,13 +249,14 @@ function confirmarExclusao(): void {
               </div>
               <div class="col-span-2 sm:col-span-1">
                 <label for="df-paciente" :class="LABEL_CLASS">Paciente</label>
-                <input id="df-paciente" v-model="form.paciente" type="text" :class="INPUT_CLASS" />
+                <input id="df-paciente" v-model="form.paciente" :readonly="readonly" type="text" :class="INPUT_CLASS" />
               </div>
               <div class="col-span-2">
                 <label for="df-medicamento" :class="LABEL_CLASS">Medicamento</label>
                 <input
                   id="df-medicamento"
                   :value="form.medicamento"
+                  :readonly="readonly"
                   type="text"
                   autocapitalize="characters"
                   :class="INPUT_CLASS"
@@ -249,11 +266,12 @@ function confirmarExclusao(): void {
               <template v-for="c in CAMPOS_IDENTIFICACAO" :key="c.campo">
                 <div class="col-span-2 sm:col-span-1" :class="SELECT_CAMPO_CLASS">
                   <label :for="`df-${c.campo}`" :class="LABEL_CLASS">{{ c.rotulo }}</label>
-                  <AppSelect :id="`df-${c.campo}`" v-model="outros[c.campo].state.select" :options="c.opcoes" />
+                  <AppSelect :id="`df-${c.campo}`" v-model="outros[c.campo].state.select" :options="c.opcoes" :disabled="readonly" />
                   <input
                     v-if="outros[c.campo].state.select === 'Outro'"
                     :id="`df-${c.campo}-outro`"
                     v-model="outros[c.campo].state.outroTexto"
+                    :readonly="readonly"
                     type="text"
                     :aria-label="`${c.rotulo} (outro)`"
                     placeholder="Digite"
@@ -275,6 +293,7 @@ function confirmarExclusao(): void {
                   id="df-data-emissao"
                   v-model="form.dataEmissao"
                   formato="iso"
+                  :disabled="readonly"
                   placeholder="Escolher"
                   label="Emissão"
                   :classe-campo="INPUT_DATA_CLASS"
@@ -286,6 +305,7 @@ function confirmarExclusao(): void {
                   id="df-data-cobranca"
                   v-model="form.dataCobrancaFornecedores"
                   formato="iso"
+                  :disabled="readonly"
                   placeholder="Escolher"
                   label="Cobrança aos fornecedores"
                   :classe-campo="INPUT_DATA_CLASS"
@@ -297,6 +317,7 @@ function confirmarExclusao(): void {
                   id="df-data-entrega"
                   v-model="form.dataEntrega"
                   formato="iso"
+                  :disabled="readonly"
                   placeholder="Escolher"
                   label="Entrega"
                   :classe-campo="INPUT_DATA_CLASS"
@@ -308,6 +329,7 @@ function confirmarExclusao(): void {
                   id="df-data-pagamento"
                   v-model="form.dataPagamento"
                   formato="iso"
+                  :disabled="readonly"
                   placeholder="Escolher"
                   label="Pagamento"
                   :classe-campo="INPUT_DATA_CLASS"
@@ -323,11 +345,12 @@ function confirmarExclusao(): void {
               <template v-for="c in CAMPOS_LOGISTICA" :key="c.campo">
                 <div :class="[c.larguraTotal ? 'col-span-2' : 'col-span-2 sm:col-span-1', SELECT_CAMPO_CLASS]">
                   <label :for="`df-${c.campo}`" :class="LABEL_CLASS">{{ c.rotulo }}</label>
-                  <AppSelect :id="`df-${c.campo}`" v-model="outros[c.campo].state.select" :options="c.opcoes" />
+                  <AppSelect :id="`df-${c.campo}`" v-model="outros[c.campo].state.select" :options="c.opcoes" :disabled="readonly" />
                   <input
                     v-if="outros[c.campo].state.select === 'Outro'"
                     :id="`df-${c.campo}-outro`"
                     v-model="outros[c.campo].state.outroTexto"
+                    :readonly="readonly"
                     type="text"
                     :aria-label="`${c.rotulo} (outro)`"
                     placeholder="Digite"
@@ -339,16 +362,17 @@ function confirmarExclusao(): void {
               <!-- Envio: as opções do Follow-Up (Air Cargo, Courier Formal, Courier Simples), sem "Outro". -->
               <div class="col-span-2 sm:col-span-1" :class="SELECT_CAMPO_CLASS">
                 <label for="df-envio" :class="LABEL_CLASS">Envio</label>
-                <AppSelect id="df-envio" v-model="form.envio" :options="envioOptions" />
+                <AppSelect id="df-envio" v-model="form.envio" :options="envioOptions" :disabled="readonly" />
               </div>
               <template v-for="c in CAMPOS_DESPACHANTE" :key="c.campo">
                 <div :class="[c.larguraTotal ? 'col-span-2' : 'col-span-2 sm:col-span-1', SELECT_CAMPO_CLASS]">
                   <label :for="`df-${c.campo}`" :class="LABEL_CLASS">{{ c.rotulo }}</label>
-                  <AppSelect :id="`df-${c.campo}`" v-model="outros[c.campo].state.select" :options="c.opcoes" />
+                  <AppSelect :id="`df-${c.campo}`" v-model="outros[c.campo].state.select" :options="c.opcoes" :disabled="readonly" />
                   <input
                     v-if="outros[c.campo].state.select === 'Outro'"
                     :id="`df-${c.campo}-outro`"
                     v-model="outros[c.campo].state.outroTexto"
+                    :readonly="readonly"
                     type="text"
                     :aria-label="`${c.rotulo} (outro)`"
                     placeholder="Digite"
@@ -359,7 +383,7 @@ function confirmarExclusao(): void {
               </template>
               <div class="col-span-2 sm:col-span-1" :class="SELECT_CAMPO_CLASS">
                 <label for="df-companhia-aerea" :class="LABEL_CLASS">Cia aérea</label>
-                <AppSelect id="df-companhia-aerea" v-model="form.companhiaAerea" :options="ciaAereaOptions" />
+                <AppSelect id="df-companhia-aerea" v-model="form.companhiaAerea" :options="ciaAereaOptions" :disabled="readonly" />
               </div>
               <!-- Cia aérea e AWB lado a lado (meia largura cada) a partir de sm; abaixo de sm, um embaixo do outro em largura total. -->
               <div class="col-span-2 sm:col-span-1">
@@ -367,6 +391,7 @@ function confirmarExclusao(): void {
                 <input
                   id="df-awb"
                   v-model="form.awb"
+                  :readonly="readonly"
                   type="text"
                   placeholder="020-00000000"
                   data-sem-maiuscula
@@ -385,6 +410,7 @@ function confirmarExclusao(): void {
                 <input
                   id="df-contrato"
                   :value="form.contratoCambio"
+                  :readonly="readonly"
                   type="text"
                   inputmode="numeric"
                   placeholder="123456 789012"
@@ -396,11 +422,12 @@ function confirmarExclusao(): void {
               <template v-for="c in CAMPOS_FINANCEIRO" :key="c.campo">
                 <div class="col-span-2 sm:col-span-1" :class="SELECT_CAMPO_CLASS">
                   <label :for="`df-${c.campo}`" :class="LABEL_CLASS">{{ c.rotulo }}</label>
-                  <AppSelect :id="`df-${c.campo}`" v-model="outros[c.campo].state.select" :options="c.opcoes" />
+                  <AppSelect :id="`df-${c.campo}`" v-model="outros[c.campo].state.select" :options="c.opcoes" :disabled="readonly" />
                   <input
                     v-if="outros[c.campo].state.select === 'Outro'"
                     :id="`df-${c.campo}-outro`"
                     v-model="outros[c.campo].state.outroTexto"
+                    :readonly="readonly"
                     type="text"
                     :aria-label="`${c.rotulo} (outro)`"
                     placeholder="Digite"
@@ -418,16 +445,17 @@ function confirmarExclusao(): void {
             <div class="grid grid-cols-2 gap-2.5">
               <div class="col-span-2 sm:col-span-1" :class="SELECT_CAMPO_CLASS">
                 <label for="df-status" :class="LABEL_CLASS">Status</label>
-                <AppSelect id="df-status" v-model="form.status" :options="STATUS_DIR_OPTIONS" />
+                <AppSelect id="df-status" v-model="form.status" :options="STATUS_DIR_OPTIONS" :disabled="readonly" />
               </div>
               <template v-for="c in CAMPOS_OBSERVACAO" :key="c.campo">
                 <div class="col-span-2 sm:col-span-1" :class="SELECT_CAMPO_CLASS">
                   <label :for="`df-${c.campo}`" :class="LABEL_CLASS">{{ c.rotulo }}</label>
-                  <AppSelect :id="`df-${c.campo}`" v-model="outros[c.campo].state.select" :options="c.opcoes" />
+                  <AppSelect :id="`df-${c.campo}`" v-model="outros[c.campo].state.select" :options="c.opcoes" :disabled="readonly" />
                   <input
                     v-if="outros[c.campo].state.select === 'Outro'"
                     :id="`df-${c.campo}-outro`"
                     v-model="outros[c.campo].state.outroTexto"
+                    :readonly="readonly"
                     type="text"
                     :aria-label="`${c.rotulo} (outro)`"
                     placeholder="Digite"
@@ -438,7 +466,13 @@ function confirmarExclusao(): void {
               </template>
               <div class="col-span-2 flex flex-col gap-0.5 sm:flex-row sm:gap-6">
                 <label class="inline-flex min-h-11 cursor-pointer items-center gap-2 lg:min-h-0">
-                  <input id="df-exigencia" v-model="form.exigencia" type="checkbox" class="h-[18px] w-[18px] accent-accent-dark" />
+                  <input
+                    id="df-exigencia"
+                    v-model="form.exigencia"
+                    type="checkbox"
+                    :disabled="readonly"
+                    class="h-[18px] w-[18px] accent-accent-dark"
+                  />
                   <span class="text-[14px] text-ink lg:text-[13px]">Exigência</span>
                 </label>
                 <DirCheckbox
@@ -446,6 +480,7 @@ function confirmarExclusao(): void {
                   :model-value="valorToggle('conferido')"
                   label="Conferido"
                   mostrar-rotulo
+                  :desabilitado="readonly"
                   @toggle="alternar('conferido')"
                 />
                 <DirCheckbox
@@ -453,6 +488,7 @@ function confirmarExclusao(): void {
                   :model-value="valorToggle('operacaoEncerrada')"
                   label="Operação encerrada"
                   mostrar-rotulo
+                  :desabilitado="readonly"
                   @toggle="alternar('operacaoEncerrada')"
                 />
               </div>
@@ -462,7 +498,7 @@ function confirmarExclusao(): void {
                   :model-value="fechamentoMarcado"
                   label="Em fechamento restante"
                   mostrar-rotulo
-                  :desabilitado="fechamentoDesabilitado"
+                  :desabilitado="fechamentoDesabilitado || readonly"
                   @toggle="alternar('fechamentoRestante')"
                 />
                 <span
@@ -472,7 +508,7 @@ function confirmarExclusao(): void {
                   :class="fechamentoDesabilitado ? 'font-semibold text-danger' : 'text-ink-soft'"
                 >{{ fechamentoNota }}</span>
               </div>
-              <p v-if="editingDir" class="col-span-2 text-[11.5px] text-ink-soft">
+              <p v-if="editingDir && !readonly" class="col-span-2 text-[11.5px] text-ink-soft">
                 Conferido, operação encerrada, fechamento restante e checklist gravam na hora; os demais campos, em "Salvar alterações".
               </p>
             </div>
@@ -481,11 +517,11 @@ function confirmarExclusao(): void {
           <!-- Checklist -->
           <fieldset id="dir-secao-checklist" class="min-w-0 rounded-md border border-hairline p-3">
             <legend class="px-1 text-[11px] font-semibold text-ink-soft uppercase">Checklist</legend>
-            <DirChecklist :values="checklistValues" @toggle="alternar($event)" />
+            <DirChecklist :values="checklistValues" :desabilitado="readonly" @toggle="alternar($event)" />
           </fieldset>
 
           <button
-            v-if="editingDir"
+            v-if="editingDir && !readonly"
             id="btn-excluir-dir"
             type="button"
             class="min-h-11 rounded-md border border-danger/40 px-3 py-2 text-[14px] font-semibold text-danger transition-colors hover:bg-danger/5 lg:min-h-0 lg:self-start lg:text-[13px]"
@@ -505,9 +541,10 @@ function confirmarExclusao(): void {
             class="min-h-11 flex-1 rounded-lg border border-hairline bg-paper px-4 py-2.5 text-[14px] font-semibold text-ink transition-colors hover:bg-white lg:hidden"
             @click="emit('close')"
           >
-            Cancelar
+            {{ readonly ? "Fechar" : "Cancelar" }}
           </button>
           <button
+            v-if="!readonly"
             id="btn-save-dir"
             type="submit"
             class="min-h-11 flex-[2] rounded-lg bg-accent-dark px-4 py-2.5 text-[14px] font-semibold text-white transition-colors lg:mt-1 lg:min-h-auto lg:w-full lg:flex-[0_1_auto] lg:text-[13px]"
@@ -520,7 +557,7 @@ function confirmarExclusao(): void {
   </BaseModal>
 
   <ConfirmDialog
-    v-if="showDeleteConfirm && editingDir"
+    v-if="showDeleteConfirm && editingDir && !readonly"
     :message="`Excluir o registro do ${editingDir.po}? Essa ação não pode ser desfeita.`"
     confirm-label="Excluir"
     danger

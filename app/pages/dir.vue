@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { DIR_TAMANHO_PAGINA } from "#shared/constants/dir";
 import type { Dir, DirPatchDTO, NewDirDTO } from "#shared/types/dir";
+import { useAuth } from "../composables/useAuth";
 import { useDir } from "../composables/useDir";
 import { useToast } from "../composables/useToast";
 import { getErrorMessage } from "../utils/errorMessages";
@@ -31,8 +32,12 @@ import DirList from "../components/dir/DirList.vue";
 import FloatingAddButton from "../components/FloatingAddButton.vue";
 import GlobalHeader from "../components/GlobalHeader.vue";
 
-// Acesso: operacional e administrador (seção "dir" em shared/utils/rbac.ts), leitura e escrita —
-// quem consegue abrir esta página também escreve, então não há ramo somente-leitura.
+// Acesso (seção "dir"): sem mapa de permissões, operacional e administrador leem e escrevem; com mapa na conta
+// (socio/operacional), "ver" abre a página SÓ PARA CONSULTA e "editar" escreve. O modo vem de canWrite("dir")
+// (a mesma decisão do servidor), nunca do cargo: sem escrita não há botão de criar, toggle, incluir, remover
+// nem salvar, e as funções que gravam também se recusam (defesa em profundidade; o servidor devolve 403).
+const { canWrite } = useAuth();
+const podeEditar = computed<boolean>(() => canWrite("dir"));
 const { registros, loading, error, fetchDir, addDir, patchDir, removeDir } = useDir();
 const { showToast } = useToast();
 
@@ -109,6 +114,7 @@ const editingId = ref<string | null>(null);
 const editingDir = computed<Dir | null>(() => registros.value.find((d) => d.id === editingId.value) ?? null);
 
 function openCreateForm(): void {
+  if (!podeEditar.value) return;
   editingId.value = null;
   showFormModal.value = true;
 }
@@ -128,6 +134,7 @@ function handleInvalid(message: string): void {
 }
 
 async function handleSubmit(payload: NewDirDTO): Promise<void> {
+  if (!podeEditar.value) return;
   try {
     await addDir(payload);
     showToast("PO adicionado");
@@ -138,6 +145,7 @@ async function handleSubmit(payload: NewDirDTO): Promise<void> {
 }
 
 async function handleUpdate(id: string, payload: DirPatchDTO): Promise<void> {
+  if (!podeEditar.value) return;
   try {
     await patchDir(id, payload);
     showToast("PO atualizado");
@@ -149,6 +157,7 @@ async function handleUpdate(id: string, payload: DirPatchDTO): Promise<void> {
 
 // Toggles que gravam na hora (conferido, operação encerrada, checklist): sucesso silencioso.
 async function handlePatch(id: string, patch: DirPatchDTO): Promise<void> {
+  if (!podeEditar.value) return;
   try {
     await patchDir(id, patch);
   } catch (e) {
@@ -163,6 +172,7 @@ const remocaoDesktop = ref<Dir | null>(null);
 const acoesMobile = ref<Dir | null>(null);
 
 async function incluirFechamento(dir: Dir): Promise<void> {
+  if (!podeEditar.value) return;
   try {
     await patchDir(dir.id, { fechamentoRestante: true });
     showToast(`${dir.po} incluído nos fechamentos restantes`);
@@ -174,6 +184,7 @@ async function incluirFechamento(dir: Dir): Promise<void> {
 async function removerFechamento(dir: Dir): Promise<void> {
   remocaoDesktop.value = null;
   acoesMobile.value = null;
+  if (!podeEditar.value) return;
   try {
     await patchDir(dir.id, { fechamentoRestante: false });
     showToast(`${dir.po} removido dos fechamentos restantes`);
@@ -183,6 +194,7 @@ async function removerFechamento(dir: Dir): Promise<void> {
 }
 
 async function handleDelete(id: string): Promise<void> {
+  if (!podeEditar.value) return;
   try {
     await removeDir(id);
     showToast("PO removido");
@@ -258,17 +270,19 @@ async function handleDelete(id: string): Promise<void> {
           </div>
 
           <!-- Abaixo de lg: só o "+" flutuante acima do BottomNav. Em lg+ o botão com texto fica à direita. -->
-          <FloatingAddButton v-if="!naAbaFechamentos" id="fab-novo-dir" label="Novo PO" @click="openCreateForm" />
-          <!-- Na aba Fechamentos restantes o "+" flutuante inclui um paciente na lista (sheet em tela cheia). -->
-          <FloatingAddButton v-else id="fab-incluir-fechamento" label="Incluir paciente" @click="showIncluir = true" />
-          <button
-            id="btn-novo-dir"
-            type="button"
-            class="hidden rounded-lg bg-accent-dark px-4 py-2.5 text-[13px] font-semibold text-white transition-colors hover:opacity-90 lg:ml-auto lg:block lg:shrink-0"
-            @click="openCreateForm"
-          >
-            + Novo PO
-          </button>
+          <template v-if="podeEditar">
+            <FloatingAddButton v-if="!naAbaFechamentos" id="fab-novo-dir" label="Novo PO" @click="openCreateForm" />
+            <!-- Na aba Fechamentos restantes o "+" flutuante inclui um paciente na lista (sheet em tela cheia). -->
+            <FloatingAddButton v-else id="fab-incluir-fechamento" label="Incluir paciente" @click="showIncluir = true" />
+            <button
+              id="btn-novo-dir"
+              type="button"
+              class="hidden rounded-lg bg-accent-dark px-4 py-2.5 text-[13px] font-semibold text-white transition-colors hover:opacity-90 lg:ml-auto lg:block lg:shrink-0"
+              @click="openCreateForm"
+            >
+              + Novo PO
+            </button>
+          </template>
         </div>
       </template>
 
@@ -323,6 +337,7 @@ async function handleDelete(id: string): Promise<void> {
       :grupos="gruposFechamentos"
       :contagens-banco="contagensBanco"
       :banco-ativo="filtros.banco"
+      :readonly="!podeEditar"
       @filtrar-banco="atualizarFiltro('banco', $event)"
       @edit="openEditForm"
       @remover-desktop="remocaoDesktop = $event"
@@ -333,6 +348,7 @@ async function handleDelete(id: string): Promise<void> {
       <DirList
         :registros="visiveis"
         :contagem-por-po="contagemPorPo"
+        :readonly="!podeEditar"
         @edit="openEditForm"
         @patch="handlePatch"
       />
@@ -352,21 +368,21 @@ async function handleDelete(id: string): Promise<void> {
     <DirFiltrosSheet v-if="showFiltros" v-model:filtros="filtros" :campos="camposVisiveis" @close="showFiltros = false" />
 
     <DirIncluirFechamento
-      v-if="showIncluir"
+      v-if="showIncluir && podeEditar"
       :registros="registros"
       @incluir="incluirFechamento"
       @close="showIncluir = false"
     />
 
     <DirFechamentoAcoesSheet
-      v-if="acoesMobile"
+      v-if="acoesMobile && podeEditar"
       :dir="acoesMobile"
       @remover="removerFechamento"
       @close="acoesMobile = null"
     />
 
     <ConfirmDialog
-      v-if="remocaoDesktop"
+      v-if="remocaoDesktop && podeEditar"
       :message="`Remover o ${remocaoDesktop.po} da lista de fechamentos restantes? O PO não é excluído; só deixa a lista.`"
       confirm-label="Remover"
       danger
@@ -376,9 +392,10 @@ async function handleDelete(id: string): Promise<void> {
     />
 
     <DirFormModal
-      v-if="showFormModal"
+      v-if="showFormModal && (podeEditar || editingDir)"
       :editing-dir="editingDir"
       :contagem-por-po="contagemPorPo"
+      :readonly="!podeEditar"
       @submit="handleSubmit"
       @update="handleUpdate"
       @patch="handlePatch"

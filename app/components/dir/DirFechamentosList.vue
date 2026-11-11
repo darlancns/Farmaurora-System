@@ -17,13 +17,18 @@ import DirBancoChip from "./DirBancoChip.vue";
 // Aba "Fechamentos restantes": VISÃO dos POs marcados (e com a operação em andamento), agrupada por
 // paciente. Uma linha por PO; o "(N)" aparece como está escrito no nome; nada de campo de ordem.
 // Em lg+ é uma tabela agrupada (grupos recolhíveis); abaixo de lg, cartões agrupados.
-const props = defineProps<{
-  grupos: GrupoPacienteDir[];
-  // Contagem por banco da visão (sem o próprio filtro de banco, para os chips não sumirem ao filtrar).
-  contagensBanco: ContagemBancoDir[];
-  // Valor atual do filtro de banco ("" = todos).
-  bancoAtivo: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    grupos: GrupoPacienteDir[];
+    // Contagem por banco da visão (sem o próprio filtro de banco, para os chips não sumirem ao filtrar).
+    contagensBanco: ContagemBancoDir[];
+    // Valor atual do filtro de banco ("" = todos).
+    bancoAtivo: string;
+    // Somente leitura (permissão "ver" na DIR): sem "Incluir paciente", sem "Remover" e sem o menu "⋯".
+    readonly?: boolean;
+  }>(),
+  { readonly: false },
+);
 
 const emit = defineEmits<{
   "filtrar-banco": [valorFiltro: string];
@@ -108,6 +113,7 @@ function bordaBanco(dir: Dir): Record<string, string> {
         </button>
         <!-- Desktop: o botão fica aqui; no mobile é o "+" flutuante da página (fab-incluir-fechamento). -->
         <button
+          v-if="!readonly"
           id="btn-dir-incluir-fechamento"
           type="button"
           class="hidden rounded-lg bg-accent-dark px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:opacity-90 lg:block"
@@ -196,6 +202,7 @@ function bordaBanco(dir: Dir): Record<string, string> {
                       <span class="font-mono text-[12.5px] font-semibold text-accent-dark">{{ dir.po }}</span>
                     </p>
                     <button
+                      v-if="!readonly"
                       :id="`btn-dir-fech-acoes-${dir.id}`"
                       type="button"
                       class="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-[20px] leading-none text-ink-soft transition-colors hover:text-ink"
@@ -248,6 +255,7 @@ function bordaBanco(dir: Dir): Record<string, string> {
                     {{ dir.exigencia ? "! " : "" }}{{ marcados(dir) }}/{{ CHECKLIST_DIR.length }}
                   </span>
                   <button
+                    v-if="!readonly"
                     :id="`btn-dir-fech-remover-${dir.id}`"
                     type="button"
                     class="justify-self-end rounded-md border border-hairline px-2.5 py-1 text-[12px] font-semibold text-danger transition-colors hover:bg-danger/5"
