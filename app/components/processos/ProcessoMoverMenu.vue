@@ -40,6 +40,7 @@ const CLASSE_TRIGGER =
     :aria-label="`Mover ${processo.paciente} para…`"
     :trigger-class="CLASSE_TRIGGER"
     menu-z-class="z-[890]"
+    itens-toque
     :disabled="disabled"
   >
     <template #trigger>

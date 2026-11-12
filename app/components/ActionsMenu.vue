@@ -24,6 +24,9 @@ const props = defineProps<{
   triggerClass?: string;
   menuZClass?: string;
   disabled?: boolean;
+  // - itensToque: itens com 44px de altura e fonte de 14px abaixo de lg (alvo de toque confortável). Padrão false =
+  //   os itens de sempre (py-1.5, 12.5px), como na tela de Contas. Ligado pelo "Mover para…" do painel do Kanban.
+  itensToque?: boolean;
 }>();
 
 const CLASSE_TRIGGER_PADRAO =
@@ -175,8 +178,11 @@ onBeforeUnmount(() => {
           type="button"
           data-actions-menu-item
           role="menuitem"
-          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px] transition-colors max-lg:min-h-11 max-lg:text-[14px]"
-          :class="item.danger ? 'text-danger hover:bg-danger/10' : 'text-ink-soft hover:bg-paper hover:text-ink'"
+          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px] transition-colors"
+          :class="[
+            item.danger ? 'text-danger hover:bg-danger/10' : 'text-ink-soft hover:bg-paper hover:text-ink',
+            itensToque ? 'max-lg:min-h-11 max-lg:text-[14px]' : '',
+          ]"
           @click="selectItem(item)"
         >
           <component :is="item.icon" v-if="item.icon" class="h-3.5 w-3.5 shrink-0" />
