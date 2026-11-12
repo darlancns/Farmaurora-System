@@ -1,6 +1,13 @@
 import { test, expect, type Page } from "@playwright/test";
 import { assertSupabaseLocal } from "./_guards/supabaseLocal";
 import { fixarVisao } from "./_helpers/visaoProcessos";
+import {
+  TETO_FLUIDA,
+  VIEWPORT_ANTES_TELAS_GRANDES,
+  VIEWPORTS_TELAS_GRANDES,
+  tetoEsperado,
+  verificarTetoCentralizado,
+} from "./_helpers/viewports";
 
 // Kanban do Follow-Up (Etapas B–F): visão padrão de quem pode editar, 5 colunas, painel lateral, mover de coluna
 // com confirmação (menu e arrastar) e conflito de versão (409). Cria processos de teste via API (com um RUN no
@@ -300,6 +307,47 @@ test.describe("/processos — Kanban", () => {
       await expect(page).not.toHaveURL(/processo=/);
     });
   });
+
+  // Telas grandes: o quadro segue a página (teto de 2200px, centralizado). Até 2440px de janela ele continua ocupando a
+  // largura toda, como antes; a partir daí fica em 2200px, onde as 5 colunas (mín. 312px + 4 × 12px = 1608px) sempre
+  // cabem — então o quadro centralizado nunca tem o que rolar: sem ‹ › e sem rolagem lateral. Em 1639px (antes das
+  // telas grandes) não cabem, e o › aparece dentro do quadro, como em 1280px.
+  for (const viewport of [VIEWPORT_ANTES_TELAS_GRANDES, ...VIEWPORTS_TELAS_GRANDES]) {
+    test(`telas grandes ${viewport.name}: quadro no teto, centralizado; ‹ › só quando as colunas não cabem`, async ({ page }) => {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await login(page);
+      await fixarVisao(page, "kanban");
+      await abrirKanban(page);
+      await verificarTetoCentralizado(page, "#processos-page", tetoEsperado(viewport, TETO_FLUIDA));
+
+      const quadro = page.locator("#processo-kanban");
+      const q = await quadro.evaluate((el) => ({
+        rola: el.scrollWidth > el.clientWidth + 1,
+        x: el.getBoundingClientRect().left,
+        w: el.getBoundingClientRect().width,
+      }));
+      const larguras = await page.locator("section[id^='kanban-coluna-']").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().width));
+      for (const w of larguras) expect(w).toBeGreaterThanOrEqual(312 - 0.5);
+
+      // cabem quando o quadro tem ao menos 5 × 312px + 4 × 12px (1608px): nas telas grandes testadas (quadro de 2200px)
+      if (q.w >= 5 * 312 + 4 * 12) {
+        expect(q.rola, "as 5 colunas cabem no quadro").toBe(false);
+        // colunas iguais, dividindo o quadro (4 espaços de 12px)
+        for (const w of larguras) expect(Math.abs(w - (q.w - 4 * 12) / 5)).toBeLessThanOrEqual(1);
+        await expect(page.locator("#btn-kanban-rolar-esquerda")).toHaveCount(0);
+        await expect(page.locator("#btn-kanban-rolar-direita")).toHaveCount(0);
+      } else {
+        expect(viewport.width, "só a janela de 1639px tem quadro estreito aqui").toBeLessThan(1640);
+        expect(q.rola, "em 1639px as 5 colunas não cabem").toBe(true);
+        await expect(page.locator("#btn-kanban-rolar-esquerda")).toHaveCount(0);
+        const seta = await page.locator("#btn-kanban-rolar-direita").boundingBox();
+        expect(seta).not.toBeNull();
+        // o › fica dentro do quadro (na borda direita dele), não solto na janela
+        expect(seta!.x).toBeGreaterThanOrEqual(q.x);
+        expect(Math.abs(seta!.x + seta!.width - (q.x + q.w))).toBeLessThanOrEqual(1);
+      }
+    });
+  }
 
   test.describe("celular (390x844)", () => {
     test.beforeEach(async ({ page }) => {

@@ -1,5 +1,12 @@
 import { test, expect, type Page } from "@playwright/test";
 import { fixarVisaoLista } from "./_helpers/visaoProcessos";
+import {
+  TETO_FLUIDA,
+  VIEWPORT_ANTES_TELAS_GRANDES,
+  VIEWPORTS_TELAS_GRANDES,
+  tetoEsperado,
+  verificarTetoCentralizado,
+} from "./_helpers/viewports";
 
 // /processos de lg (1024px) pra cima — regra crítica do refino do breakpoint lg: o desktop NÃO
 // muda. Este spec trava o layout de sempre: sidebar visível, BottomNav oculto,
@@ -22,6 +29,8 @@ const VIEWPORTS = [
   { name: "1024x768 (limite inferior de lg)", width: 1024, height: 768 },
   { name: "1280x800", width: 1280, height: 800 },
   { name: "1920x1080", width: 1920, height: 1080 },
+  // Telas grandes: o mesmo desktop de sempre (filtros à esquerda, "+ Novo processo" à direita), só mais largo.
+  ...VIEWPORTS_TELAS_GRANDES,
 ];
 
 async function login(page: Page): Promise<void> {
@@ -201,6 +210,25 @@ test.describe("/processos em lg+ — desktop inalterado", () => {
           await expect(page.locator("#btn-filtros-processo")).toBeHidden();
         }
       });
+    });
+  }
+});
+
+test.describe("/processos (Lista) — telas grandes", () => {
+  test.describe.configure({ retries: 2 });
+
+  for (const viewport of [VIEWPORT_ANTES_TELAS_GRANDES, ...VIEWPORTS_TELAS_GRANDES]) {
+    test(`${viewport.name}: Lista no teto de 2200px, centralizada, sem rolagem horizontal; abas e entregues idem`, async ({
+      page,
+    }) => {
+      test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD ou E2E_OPERACIONAL_EMAIL/PASSWORD");
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await login(page);
+      await page.goto("/processos", { waitUntil: "networkidle" });
+      await expect(page.locator("#tab-andamento")).toBeVisible();
+      await verificarTetoCentralizado(page, "#processos-page", tetoEsperado(viewport, TETO_FLUIDA));
+      await page.locator("#tab-entregues").click();
+      await verificarTetoCentralizado(page, "#processos-page", tetoEsperado(viewport, TETO_FLUIDA));
     });
   }
 });

@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { fixarVisaoLista } from "./_helpers/visaoProcessos";
+import { VIEWPORT_ANTES_TELAS_GRANDES, VIEWPORTS_TELAS_GRANDES } from "./_helpers/viewports";
 
 // Card de processo e detalhe de /processos de lg (1024px) pra cima — regra crítica do refino
 // mobile: o DESKTOP NÃO MUDA. Este spec trava o layout de sempre (linha em uma fileira com
@@ -58,6 +59,9 @@ const VIEWPORTS = [
   { name: "1024x768 (limite inferior de lg)", width: 1024, height: 768 },
   { name: "1280x800", width: 1280, height: 800 },
   { name: "1920x1080", width: 1920, height: 1080 },
+  // Último pixel antes das telas grandes (linha < 1400px: igual a sempre) e as telas grandes (degrau @[1400px]).
+  VIEWPORT_ANTES_TELAS_GRANDES,
+  ...VIEWPORTS_TELAS_GRANDES,
 ];
 
 type Ids = { robusto: string; adversarial: string };
@@ -187,11 +191,32 @@ test.describe("/processos em lg+ — card e detalhe inalterados", () => {
         expect(remessa.x).toBeGreaterThanOrEqual(direita(nome) - 1);
         expect(remessa.x + remessa.width).toBeLessThanOrEqual(badge.x + 1);
 
-        // Colunas fixas de lg+ (data 92px, responsável 110px) e lixeira compacta de 28px.
-        expect(Math.round(data.width)).toBe(92);
-        expect(Math.round(resp.width)).toBe(110);
+        // Colunas de lg+: até 1400px de linha, data 92px e responsável 110px. Com a linha em 1400px ou mais (telas
+        // grandes — a 1920 a Lista já passa disso, pelo teto de 2200px), data 110px e responsável entre 110 e 180px
+        // (8% da linha, clamp(110px,8cqw,180px)). Lixeira compacta de 28px sempre.
+        const largas = linhaBox.width >= 1400;
+        expect(Math.round(data.width)).toBe(largas ? 110 : 92);
+        const respEsperado = largas ? Math.min(180, Math.max(110, linhaBox.width * 0.08)) : 110;
+        expect(Math.abs(resp.width - respEsperado), `responsável ${resp.width}px x ${respEsperado}px`).toBeLessThanOrEqual(1);
         expect(Math.round(lixeira.width)).toBe(28);
         expect(Math.round(lixeira.height)).toBe(28);
+
+        // Medicamento: abaixo de 1400px de linha fica na 2ª linha (a coluna própria não existe na tela); acima, vira
+        // coluna própria entre a identificação e o badge, numa linha com reticências e o texto completo no title.
+        const colunaMed = page.locator(`#medicamento-coluna-${id}`);
+        if (largas) {
+          const med = await box(page, `#medicamento-coluna-${id}`);
+          expect(Math.abs(centerY(med) - centerY(nome))).toBeLessThanOrEqual(14);
+          expect(med.x).toBeGreaterThanOrEqual(direita(nome) - 1);
+          expect(direita(med)).toBeLessThanOrEqual(badge.x + 1);
+          const texto = (await colunaMed.textContent())!.trim();
+          expect(texto.length).toBeGreaterThan(0);
+          await expect(colunaMed).toHaveAttribute("title", texto);
+          expect(await colunaMed.evaluate((el) => getComputedStyle(el).whiteSpace)).toBe("nowrap");
+        } else {
+          await expect(colunaMed).toBeHidden();
+          expect(await colunaMed.boundingBox()).toBeNull();
+        }
 
         // Badge de status limitado como sempre (max-w-[200px] + reticências).
         const badgeOutro = await box(page, `#badge-status-${ids!.adversarial}`);

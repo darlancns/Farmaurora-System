@@ -7,6 +7,7 @@ import AppSelect from "../AppSelect.vue";
 import type { AppSelectOption } from "../../types/appSelect";
 import { ordenarPorPrevisaoEntrega } from "../../utils/ordenarPorPrevisao";
 import { remessaVisivelNaLinha, type ContagemPorPasta } from "../../utils/remessaNaLinha";
+import { resumoMedicamentos } from "../../utils/processoFormatters";
 import ConfirmDialog from "../ConfirmDialog.vue";
 import ProcessoDetail from "./ProcessoDetail.vue";
 
@@ -118,6 +119,15 @@ function confirmDelete(): void {
           </div>
         </div>
 
+        <!-- Telas grandes (linha com 1400px ou mais — container query, como no ProcessoRow): o medicamento aparece como
+             coluna própria e flexível, numa linha com reticências e o texto completo no title. Abaixo disso não aparece. -->
+        <span
+          :id="`entregue-medicamento-${processo.id}`"
+          :title="resumoMedicamentos(processo.medicamentos)"
+          class="hidden min-w-0 flex-1 truncate text-[12px] text-ink-soft @[1400px]:block"
+          >{{ resumoMedicamentos(processo.medicamentos) }}</span
+        >
+
         <!--
           Transportadora é texto livre (nome de empresa) — ao contrário de
           data/status abaixo, pode ser longo o bastante pra estourar a linha
@@ -129,13 +139,13 @@ function confirmDelete(): void {
           navegador não mostra reticências, só deixa vazar.
         -->
         <span
-          class="block min-w-0 text-[12px] break-words text-ink-soft @[760px]:w-[160px] @[760px]:shrink-0 @[760px]:truncate @[760px]:break-normal @[760px]:whitespace-nowrap"
+          class="block min-w-0 text-[12px] break-words text-ink-soft @[760px]:w-[160px] @[760px]:shrink-0 @[760px]:truncate @[760px]:break-normal @[760px]:whitespace-nowrap @[1400px]:w-[clamp(160px,11cqw,260px)]"
         >
           {{ processo.transportadoraNacional?.nome || "—" }}
         </span>
 
         <div class="flex flex-wrap items-center gap-x-4 gap-y-1 @[760px]:flex-nowrap @[760px]:gap-3">
-          <span class="shrink-0 text-right font-mono text-[12px] text-ink-soft @[760px]:w-[92px]">
+          <span class="shrink-0 text-right font-mono text-[12px] text-ink-soft @[760px]:w-[92px] @[1400px]:w-[110px]">
             {{ processo.datas.previsaoEntrega || "—" }}
           </span>
 

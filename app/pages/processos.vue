@@ -401,11 +401,9 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
     a única rolagem vertical é a do <main>. A classe do Kanban só entra DEPOIS de montar (mostrarKanban é false no SSR
     e na hidratação), então não há atributo divergente entre servidor e cliente.
   -->
-  <div
-    id="processos-page"
-    class="mx-auto pb-20 lg:pb-0"
-    :class="mostrarKanban ? 'max-w-none' : 'max-w-[1400px]'"
-  >
+  <!-- Teto de 2200px (max-w-fluida), centralizado, para Lista, Entregues e Kanban. Abaixo de 1640px de janela a Lista
+       fica como sempre (o conteúdo nem chega a 1400px); o Kanban continua usando a janela inteira até 2440px. -->
+  <div id="processos-page" class="mx-auto max-w-fluida pb-20 lg:pb-0">
     <GlobalHeader title="Follow-Up" subtitle="Acompanhamento dos processos de importação em andamento.">
       <template #filters>
         <!-- mb-[3px] abaixo de lg: com o botão de aba de 44px (texto centrado), o texto fica com o mesmo respiro

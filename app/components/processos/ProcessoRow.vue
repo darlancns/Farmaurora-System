@@ -204,15 +204,25 @@ function confirmDelete(): void {
                 <span
                   :id="`numero-po-${processo.id}`"
                   :title="processo.numeroPo"
-                  class="min-w-0 max-w-[11rem] truncate font-mono text-[11.5px] text-ink-soft"
+                  class="min-w-0 max-w-[11rem] truncate font-mono text-[11.5px] text-ink-soft @[1400px]:max-w-none"
                   >{{ processo.numeroPo }}</span
                 >
               </template>
             </div>
           </div>
-          <span class="block truncate text-[12px] text-ink-soft">{{ medicamentoResumo }}</span>
+          <span class="block truncate text-[12px] text-ink-soft @[1400px]:hidden">{{ medicamentoResumo }}</span>
         </div>
       </div>
+
+      <!-- Telas grandes (linha com 1400px ou mais — container query, não janela, porque a sidebar e o painel mudam a
+           largura real): o medicamento sai da 2ª linha e vira uma coluna própria e flexível, numa linha só com
+           reticências e o texto completo no title. Abaixo de 1400px este span não aparece e a linha é a de sempre. -->
+      <span
+        :id="`medicamento-coluna-${processo.id}`"
+        :title="medicamentoResumo"
+        class="hidden min-w-0 flex-1 truncate text-[12px] text-ink-soft @[1400px]:block"
+        >{{ medicamentoResumo }}</span
+      >
 
       <div class="flex flex-wrap items-center gap-2 @[700px]:flex-nowrap @[700px]:gap-3">
         <span
@@ -224,11 +234,14 @@ function confirmDelete(): void {
           {{ statusLabel }}
         </span>
 
-        <span class="shrink-0 text-right font-mono text-[12px] text-ink-soft @[700px]:w-[92px]">
+        <span class="shrink-0 text-right font-mono text-[12px] text-ink-soft @[700px]:w-[92px] @[1400px]:w-[110px]">
           {{ processo.datas.previsaoEntrega || "—" }}
         </span>
 
-        <span class="shrink-0 text-right text-[12px] text-ink-soft @[700px]:w-[110px] @[700px]:truncate">
+        <!-- Responsável: 110px até 1400px de linha; acima, entre 110 e 180px (8% da linha), igual em todas as linhas. -->
+        <span
+          class="shrink-0 text-right text-[12px] text-ink-soft @[700px]:w-[110px] @[700px]:truncate @[1400px]:w-[clamp(110px,8cqw,180px)]"
+        >
           {{ processo.responsavelOperacional || "—" }}
         </span>
       </div>
