@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import type { Processo } from "#shared/types/processo";
-import { STATUS_PROCESSO_META, rotuloStatusProcesso } from "../../utils/processoStatus";
+import { metaDoStatus, rotuloStatusProcesso } from "../../utils/processoStatus";
 import { remessaVisivelNaLinha, type ContagemPorPasta } from "../../utils/remessaNaLinha";
 import ConfirmDialog from "../ConfirmDialog.vue";
 import ProcessoDetail from "./ProcessoDetail.vue";
@@ -31,8 +31,7 @@ const deleteConfirmMessage = computed(
   () => `Excluir o processo de ${props.processo.paciente}? Essa ação não pode ser desfeita.`
 );
 
-const statusMeta = computed(() => STATUS_PROCESSO_META[props.processo.status]);
-// Pro status "Outro" o badge mostra o texto digitado (truncado, com tooltip).
+const statusMeta = computed(() => metaDoStatus(props.processo.status));
 const statusLabel = computed(() => rotuloStatusProcesso(props.processo));
 const hasPendencias = computed(() => props.processo.pendencias.length > 0);
 // "Remessa N" só quando N > 1 ou a pasta se repete entre TODOS os processos (a contagem vem da página).

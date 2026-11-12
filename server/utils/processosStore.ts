@@ -2,7 +2,7 @@ import type { NewProcessoDTO, Processo, ProcessoPatchDTO } from "../../shared/ty
 import { NUMERO_REMESSA_PADRAO, normalizarNumeroRemessa } from "../../shared/utils/numeroRemessa";
 import { createSupabaseAdminClient } from "./supabaseServerClient";
 import { erro, randomId } from "./storeKit";
-import { colunasDeDTO, montarProcesso, statusOutroDe, type FollowUpRow } from "./processoMappers";
+import { colunasDeDTO, montarProcesso, type FollowUpRow } from "./processoMappers";
 
 /**
  * Persistência de Processo (Follow-Up) no Supabase — tabela ÚNICA `follow_up`.
@@ -58,18 +58,16 @@ export async function createProcesso(input: NewProcessoDTO): Promise<Processo> {
   });
   if (error) throw erro("criar processo", error);
 
-  // statusOutro só vale com status "outro" (mesma regra gravada em colunasDeDTO).
-  // `codigoRastreio` (campo removido) pode chegar de uma aba antiga: nem grava (colunasDeDTO o ignora) nem volta no retorno.
-  // `ordem` (campo antigo, coluna congelada) idem: nunca grava e não volta no retorno.
+  // `statusOutro` (campo removido: o status "Outro" saiu), `codigoRastreio` (campo removido) e `ordem` (campo antigo,
+  // coluna congelada) podem chegar de uma aba antiga: nenhum é gravado (colunasDeDTO os ignora) nem volta no retorno.
   const {
-    statusOutro: _bruto,
+    statusOutro: _statusOutroLegado,
     codigoRastreio: _rastreioLegado,
     ordem: _ordemLegada,
     ...resto
-  } = input as NewProcessoDTO & { codigoRastreio?: unknown; ordem?: unknown };
-  const statusOutro = statusOutroDe(input.status, input.statusOutro);
+  } = input as NewProcessoDTO & { statusOutro?: unknown; codigoRastreio?: unknown; ordem?: unknown };
   const numeroRemessa = normalizarNumeroRemessa(input.numeroRemessa) ?? NUMERO_REMESSA_PADRAO;
-  return { ...resto, numeroRemessa, ...(statusOutro ? { statusOutro } : {}), id, createdAt: now, updatedAt: now };
+  return { ...resto, numeroRemessa, id, createdAt: now, updatedAt: now };
 }
 
 export async function patchProcesso(

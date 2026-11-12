@@ -135,7 +135,8 @@ describe("POST /api/processos/:id/chegada — permissões", () => {
 
 describe("POST /api/processos/:id/chegada — pré-condição de status", () => {
   it("409 com mensagem clara quando já não está em_transito; nada é gravado", async () => {
-    for (const status of ["desembaraco", "liberado", "entregue", "aguardando_inicio"]) {
+    // Inclui linhas com status LEGADO no banco (lidas como Na origem / Desembaraço): também não estão em trânsito.
+    for (const status of ["desembaraco", "liberado", "entregue", "aguardando_inicio", "outro", "liberado_parcial"]) {
       fake.tabelas[T] = [linha({ status })];
       fake.chamadas.length = 0;
       const erro = await erroDe(chamar(responder, bruno, { acao: "confirmar" }));

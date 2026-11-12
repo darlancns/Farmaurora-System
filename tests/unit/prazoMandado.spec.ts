@@ -119,8 +119,8 @@ describe("calcularNotificacoesMandado", () => {
   });
 
   it("status diferente de desembaraco nunca alerta", () => {
-    for (const status of ["elaboracao_fornecedores", "aguardando_inicio", "em_transito", "liberado", "liberado_parcial", "entregue", "outro"] as const) {
-      const processo = comLpco("01/08", { status, ...(status === "outro" ? { statusOutro: "x" } : {}) });
+    for (const status of ["elaboracao_fornecedores", "em_transito", "liberado", "entregue"] as const) {
+      const processo = comLpco("01/08", { status });
       expect(calcularNotificacoesMandado([processo], HOJE), status).toHaveLength(0);
     }
   });

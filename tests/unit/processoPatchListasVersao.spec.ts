@@ -199,10 +199,35 @@ describe("sem listas: continua SEM exigir versão", () => {
     expect((await chamar({ alertaFornecedorResolvido: true })).alertaFornecedorResolvido).toBe(true);
   });
 
-  it("`versao` solta (sem listas) é ignorada: não confere e não grava coluna", async () => {
-    const res = await chamar({ localEntrega: "Outro lugar", versao: VERSAO_VELHA, parcial: true });
+  it("`versao` sem listas TAMBÉM é conferida: desatualizada → 409 e nada gravado; certa → grava (e nunca vira coluna)", async () => {
+    const erro = await erroDe(chamar({ localEntrega: "Outro lugar", versao: VERSAO_VELHA, parcial: true }));
+    expect(erro.status).toBe(409);
+    expect(row().local_entrega).toBe("Clínica X");
+    expect(row().updated_at).toBe(VERSAO);
+
+    const res = await chamar({ localEntrega: "Outro lugar", versao: VERSAO, parcial: true });
     expect(res.localEntrega).toBe("Outro lugar");
     expect(row()).not.toHaveProperty("versao");
+    expect(row().updated_at).not.toBe(VERSAO);
+  });
+
+  it("patch simples SEM `versao` continua sem conferência (ex.: select de pagamento da lista Entregues)", async () => {
+    const res = await chamar({ statusPagamento: "pago" });
+    expect(res.statusPagamento).toBe("pago");
+  });
+
+  it("status legado no PATCH → 400 com mensagem própria; status_outro nunca é gravado", async () => {
+    for (const status of ["aguardando_inicio", "liberado_parcial", "outro"]) {
+      const erro = await erroDe(chamar({ status, statusOutro: "x" }));
+      expect(erro.status).toBe(400);
+      expect(erro.msg).toContain("não é mais usado");
+    }
+    fake.tabelas[T] = [linhaCompleta({ status: "outro", status_outro: "INDEFERIDO" })];
+    const res = await chamar({ status: "liberado", statusOutro: "Texto de aba antiga" });
+    expect(res.status).toBe("liberado");
+    expect(res).not.toHaveProperty("statusOutro");
+    expect(row().status).toBe("liberado");
+    expect(row().status_outro).toBe("INDEFERIDO"); // coluna legada intocada
   });
 
   it("patchExigeVersao: só as três listas exigem", () => {

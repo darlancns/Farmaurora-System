@@ -70,7 +70,6 @@ export function formCompleto(): ProcessoFormState {
     companhiaAerea: "Lufthansa",
     numeroAwb: "957-12345678",
     status: "em_transito",
-    statusOutro: "",
     dataCompraPO: "01/09",
     dataEmbarque: "05/09",
     aberturaThread: "06/09",

@@ -15,17 +15,13 @@ export interface TransportadoraNacional {
   valor?: number;
 }
 
-export type StatusProcesso =
-  | "elaboracao_fornecedores"
-  | "aguardando_inicio" // pagamento pendente
-  | "em_transito"
-  | "desembaraco"
-  | "liberado"
-  | "liberado_parcial"
-  | "entregue"
-  // Sentinela, no mesmo padrão do Fornecedor "Outro": o que se exibe é o texto
-  // livre em Processo.statusOutro (obrigatório quando status === "outro").
-  | "outro";
+// Os 5 status do fluxo (a ordem e os rótulos ficam em shared/constants/processos.ts). `elaboracao_fornecedores`
+// é o valor gravado de "Na origem" (o nome interno não muda: é o valor do enum no Postgres).
+export type StatusProcesso = "elaboracao_fornecedores" | "em_transito" | "desembaraco" | "liberado" | "entregue";
+
+// Valores que ainda existem no enum do Postgres (valor de enum não se remove), mas SAÍRAM do app: nunca são
+// gravados (o servidor recusa com 400) e, na leitura, viram um dos 5 (ver normalizarStatusProcesso).
+export type StatusProcessoLegado = "aguardando_inicio" | "liberado_parcial" | "outro";
 
 export type EmpresaProcesso = "FARMAURORA" | "MAINZFARMA";
 
@@ -108,10 +104,9 @@ export interface Processo {
   companhiaAerea?: string;
   numeroAwb?: string;
   medicamentos: Medicamento[];
+  // Sempre um dos 5 (o servidor normaliza o legado na leitura). O antigo texto livre do status "Outro"
+  // (coluna status_outro) saiu do app: a coluna fica intocada no banco e nada a lê ou grava.
   status: StatusProcesso;
-  // Texto livre exibido no lugar do rótulo quando status === "outro". Só existe
-  // nesse caso: com qualquer outro status o servidor ignora e grava NULL.
-  statusOutro?: string;
   datas: ProcessoDatas;
   localEntrega?: string;
   numeroProcesso?: string;

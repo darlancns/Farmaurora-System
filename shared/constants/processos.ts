@@ -7,6 +7,7 @@ import type {
   ModalEnvio,
   StatusPagamentoProcesso,
   StatusProcesso,
+  StatusProcessoLegado,
 } from "../types/processo";
 
 // Lista canônica de consultores do Follow-Up (e das contas com cargo consultor).
@@ -89,27 +90,57 @@ export const RESPONSAVEIS_PROCESSO: string[] = ["Bruno", "Rebeca"];
 
 export const STATUS_PAGAMENTO_PROCESSO: StatusPagamentoProcesso[] = ["pago", "pendente"];
 
+// Os 5 status, na ordem do fluxo (é também a ordem das colunas do Kanban e das opções dos selects).
 export const STATUS_PROCESSO_ORDER: StatusProcesso[] = [
   "elaboracao_fornecedores",
-  "aguardando_inicio",
   "em_transito",
   "desembaraco",
   "liberado",
-  "liberado_parcial",
   "entregue",
-  "outro", // sempre por último (fora do pipeline), como o "Outro" do fornecedor
 ];
 
 export const STATUS_PROCESSO_LABELS: Record<StatusProcesso, string> = {
-  elaboracao_fornecedores: "Elaboração / Fornecedores",
-  aguardando_inicio: "Aguardando início",
+  elaboracao_fornecedores: "Na origem",
   em_transito: "Em trânsito",
   desembaraco: "Desembaraço",
   liberado: "Liberado",
-  liberado_parcial: "Liberado parcial",
   entregue: "Entregue",
-  outro: "Outro",
 };
+
+// Status que saíram do app mas continuam no enum do Postgres (valor de enum não se remove). Ver
+// normalizarStatusProcesso: é para qual dos 5 cada um vai na LEITURA, até os dados serem ajustados.
+export const STATUS_PROCESSO_LEGADO_PARA: Record<StatusProcessoLegado, StatusProcesso> = {
+  aguardando_inicio: "elaboracao_fornecedores",
+  liberado_parcial: "desembaraco",
+  outro: "desembaraco",
+};
+
+export function isStatusProcesso(valor: unknown): valor is StatusProcesso {
+  return typeof valor === "string" && (STATUS_PROCESSO_ORDER as readonly string[]).includes(valor);
+}
+
+export function isStatusProcessoLegado(valor: unknown): valor is StatusProcessoLegado {
+  return typeof valor === "string" && Object.prototype.hasOwnProperty.call(STATUS_PROCESSO_LEGADO_PARA, valor);
+}
+
+/**
+ * Status como o app o enxerga: um dos 5. Legado vira o equivalente (aguardando_inicio → Na origem; liberado_parcial e
+ * outro → Desembaraço). Qualquer outra coisa (não deveria existir: a coluna é um enum) cai em "Na origem", o começo do
+ * fluxo, para nenhuma tela quebrar num Record<StatusProcesso, …>. O servidor aplica isto ao montar o Processo
+ * (server/utils/processoMappers.ts, montarProcesso); a tela usa de novo só como defesa.
+ */
+export function normalizarStatusProcesso(valor: unknown): StatusProcesso {
+  if (isStatusProcesso(valor)) return valor;
+  if (isStatusProcessoLegado(valor)) return STATUS_PROCESSO_LEGADO_PARA[valor];
+  return "elaboracao_fornecedores";
+}
+
+// Mensagem do 400 quando alguém tenta GRAVAR um status que saiu (aba antiga, script).
+export function mensagemStatusLegado(valor: string): string {
+  return `O status "${valor}" não é mais usado. Escolha um destes: ${STATUS_PROCESSO_ORDER.map(
+    (s) => STATUS_PROCESSO_LABELS[s],
+  ).join(", ")}.`;
+}
 
 // Limites das atualizações (timeline) de um processo. Escolhidos com folga sobre a produção
 // (medido em 2026-11-06, só SELECT): maior texto = 296 caracteres, maior data = 5, mais itens num

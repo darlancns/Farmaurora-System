@@ -178,11 +178,12 @@ describe("Formulário de processo — ordem dos campos no DOM", () => {
     expect(el.querySelector("#btn-add-pendencia")!.compareDocumentPosition(salvar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("condicionais: 'Qual fornecedor?' logo depois do Fornecedor e 'Qual status?' logo depois do Pagamento", async () => {
+  it("condicional: 'Qual fornecedor?' logo depois do Fornecedor; 'Qual status?' não existe mais (nem com linha legada 'outro')", async () => {
     const el = abrir({ fornecedor: "Fornecedor Que Não Existe", status: "outro", status_outro: "Aguardando" });
     await nextTick();
-    const ids = ["pf-fornecedor", "pf-fornecedor-outro", "pf-status", "pf-status-pagamento", "pf-status-outro", "pf-modal"];
+    const ids = ["pf-fornecedor", "pf-fornecedor-outro", "pf-status", "pf-status-pagamento", "pf-modal"];
     expect(idsNaOrdemDoDom(el, ids)).toEqual(ids);
+    expect(el.querySelector("#pf-status-outro")).toBeNull();
   });
 
   it("Envio 'Courier Simples': Despachante e Transportadora nacional somem; o resto mantém a ordem", async () => {

@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 
 // Card de processo (ProcessoRow) e detalhe (ProcessoDetail) de /processos abaixo de lg
 // (mobile e tablet). Cria 3 processos de teste via API (um normal, um com dados
-// adversariais — nome, transportadora, medicamento, nº de processo, status "outro" e
+// adversariais — nome, transportadora, medicamento, nº de processo e
 // textos longos —, e um sem nenhum dado opcional) e SEMPRE apaga no afterAll, também via
 // API. A página é filtrada pela busca com o RUN deste spec, então só os processos de
 // teste aparecem e o resultado não depende dos dados reais da conta.
@@ -86,8 +86,7 @@ const ADVERSARIAL = {
     { nome: "Pembrolizumabe com excipiente estendido para teste de truncamento", dosagem: "100mg/4mL", quantidade: "10 cx" },
     { nome: "Ipilimumabe", dosagem: "50mg", quantidade: "1 cx" },
   ],
-  status: "outro",
-  statusOutro: "Aguardando liberação da ANVISA e da Receita Federal",
+  status: "desembaraco",
   datas: { previsaoEntrega: "30/09", supostaEstimativa: "Sem estimativa confiável até a liberação alfandegária" },
   localEntrega: "Avenida Governador Agamenon Magalhães, 1500, Boa Viagem, Recife - PE",
   numeroProcesso: "25BR00009876543-2/2026-ADM/0001.2345.6789",
@@ -105,7 +104,7 @@ const VAZIO = {
   pasta: "2026 - 9",
   empresa: "FARMAURORA",
   consultor: "Dani",
-  status: "aguardando_inicio",
+  status: "elaboracao_fornecedores",
   medicamentos: [],
   datas: {},
   pendencias: [],
@@ -270,7 +269,8 @@ test.describe("/processos abaixo de lg — card e detalhe do processo", () => {
         const robusto = page.locator(`#mobile-paciente-${ids!.robusto}`);
         expect(await robusto.evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
 
-        // Selo "Outro" longo: limitado em largura, com reticências e título com o texto completo.
+        // Selo de status: limitado em largura, com reticências se precisar e título com o rótulo completo (o status "Outro",
+        // de texto livre longo, saiu do app; o selo agora é sempre um dos 5 rótulos curtos).
         const selo = page.locator(`#mobile-badge-status-${ids!.adversarial}`);
         const estiloSelo = await selo.evaluate((el) => {
           const cs = getComputedStyle(el);
@@ -278,9 +278,8 @@ test.describe("/processos abaixo de lg — card e detalhe do processo", () => {
         });
         expect(estiloSelo.textOverflow).toBe("ellipsis");
         expect(estiloSelo.whiteSpace).toBe("nowrap");
-        // Em tablet (>= 640px) o texto cabe inteiro; abaixo disso é cortado com reticências.
-        if (viewport.width < 640) expect(estiloSelo.cortado).toBe(true);
-        await expect(selo).toHaveAttribute("title", "Aguardando liberação da ANVISA e da Receita Federal");
+        expect(estiloSelo.cortado).toBe(false);
+        await expect(selo).toHaveAttribute("title", "Desembaraço");
         const seloBox = await box(page, `#mobile-badge-status-${ids!.adversarial}`);
         const cardBox = await box(page, linha(ids!.adversarial));
         expect(seloBox.width).toBeLessThanOrEqual(cardBox.width * 0.46);

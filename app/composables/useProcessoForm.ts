@@ -53,7 +53,6 @@ export interface FormState {
   companhiaAerea: string;
   numeroAwb: string;
   status: StatusProcesso;
-  statusOutro: string; // texto livre do status "Outro"
   dataCompraPO: string;
   dataEmbarque: string;
   aberturaThread: string;
@@ -100,7 +99,6 @@ function emptyForm(): FormState {
     companhiaAerea: "",
     numeroAwb: "",
     status: STATUS_OPTIONS[0]!.value,
-    statusOutro: "",
     dataCompraPO: "",
     dataEmbarque: "",
     aberturaThread: "",
@@ -221,7 +219,6 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     form.companhiaAerea = processo.companhiaAerea ?? "";
     form.numeroAwb = processo.numeroAwb ?? "";
     form.status = processo.status;
-    form.statusOutro = processo.statusOutro ?? "";
     form.dataCompraPO = processo.datas.dataCompraPO ?? "";
     form.dataEmbarque = processo.datas.dataEmbarque ?? "";
     form.aberturaThread = processo.datas.aberturaThread ?? "";

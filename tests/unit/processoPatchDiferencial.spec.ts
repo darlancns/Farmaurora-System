@@ -330,52 +330,27 @@ describe("transportadora por chave", () => {
 });
 
 // ───────────────────────────────────────────────────────────────────────────────────────────────
-// (f) status + statusOutro
+// (f) status (sem o antigo statusOutro)
 // ───────────────────────────────────────────────────────────────────────────────────────────────
-describe("status + statusOutro viajam juntos", () => {
-  function emOutro(texto: string): ReturnType<typeof estadoCompleto> {
-    const e = estadoCompleto();
-    e.form.status = "outro";
-    e.form.statusOutro = texto;
-    return e;
-  }
+describe("status: vai só quando muda; o antigo 'Outro' (statusOutro) saiu do formulário e do payload", () => {
+  it("mudar o status envia só o status", async () => {
+    const atual = estadoCompleto();
+    atual.form.status = "liberado";
 
-  it("mudar só o texto do status 'Outro' envia status + statusOutro", async () => {
-    fake.tabelas[T] = [linhaCompleta({ status: "outro", status_outro: "Aguardando X" })];
-    const inicial = emOutro("Aguardando X");
-    const atual = emOutro("Aguardando Y");
-
-    const patch = montarPatchDiferencial(inicial, atual);
-    expect(patch).toEqual({ status: "outro", statusOutro: "Aguardando Y", parcial: true });
+    const patch = montarPatchDiferencial(estadoCompleto(), atual);
+    expect(patch).toEqual({ status: "liberado", parcial: true });
     expect(isValidProcessoPatch(JSON.parse(JSON.stringify(patch)))).toBe(true);
 
     await enviar(patch);
-    expect(row().status).toBe("outro");
-    expect(row().status_outro).toBe("Aguardando Y");
+    expect(row().status).toBe("liberado");
   });
 
-  it("ir para 'Outro' com texto envia os dois", () => {
-    const patch = montarPatchDiferencial(estadoCompleto(), emOutro("Novo"));
-    expect(patch).toEqual({ status: "outro", statusOutro: "Novo", parcial: true });
-  });
-
-  it("sair de 'Outro' envia só o status — o servidor zera o texto", async () => {
+  it("linha legada 'outro' (lida como Desembaraço): mudar OUTRO campo não manda status e a coluna status_outro fica intacta", async () => {
     fake.tabelas[T] = [linhaCompleta({ status: "outro", status_outro: "Aguardando X" })];
+    const inicial = estadoCompleto();
+    inicial.form.status = "desembaraco";
     const atual = estadoCompleto();
-    atual.form.status = "entregue";
-
-    const patch = montarPatchDiferencial(emOutro("Aguardando X"), atual);
-    expect(patch).toEqual({ status: "entregue", parcial: true });
-
-    await enviar(patch);
-    expect(row().status).toBe("entregue");
-    expect(row().status_outro).toBeNull();
-  });
-
-  it("mudar OUTRO campo não manda status nem statusOutro (o texto do 'Outro' fica intacto)", async () => {
-    fake.tabelas[T] = [linhaCompleta({ status: "outro", status_outro: "Aguardando X" })];
-    const inicial = emOutro("Aguardando X");
-    const atual = emOutro("Aguardando X");
+    atual.form.status = "desembaraco";
     atual.form.localEntrega = "Outro lugar";
 
     const patch = montarPatchDiferencial(inicial, atual);
@@ -386,8 +361,23 @@ describe("status + statusOutro viajam juntos", () => {
     expect(row().status_outro).toBe("Aguardando X");
   });
 
-  it("o servidor continua recusando statusOutro sozinho (sem status)", () => {
-    expect(isValidProcessoPatch({ statusOutro: "x", parcial: true })).toBe(false);
+  it("linha legada 'outro' mudando de status: grava o status novo e NÃO regrava status_outro", async () => {
+    fake.tabelas[T] = [linhaCompleta({ status: "outro", status_outro: "Aguardando X" })];
+    const inicial = estadoCompleto();
+    inicial.form.status = "desembaraco";
+    const atual = estadoCompleto();
+    atual.form.status = "entregue";
+
+    const patch = montarPatchDiferencial(inicial, atual);
+    expect(patch).toEqual({ status: "entregue", parcial: true });
+
+    await enviar(patch);
+    expect(row().status).toBe("entregue");
+    expect(row().status_outro).toBe("Aguardando X");
+  });
+
+  it("statusOutro de uma aba antiga é ignorado pelo servidor (válido, sem erro e nunca gravado)", () => {
+    expect(isValidProcessoPatch({ statusOutro: "x", parcial: true })).toBe(true);
   });
 });
 

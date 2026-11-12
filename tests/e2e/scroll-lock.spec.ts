@@ -60,7 +60,7 @@ const PROCESSOS = Array.from({ length: 36 }, (_, n) => ({
   id: `proc-${n}`, paciente: `${NOMES[n % NOMES.length]} ${n}`, pasta: `2026 - ${200 + n}`, empresa: n % 2 ? "MAINZFARMA" : "FARMAURORA",
   consultor: ["Alessandra", "Bolívar", "Dani", "Paulinho"][n % 4], responsavelOperacional: "Bruno", despachante: "Bruno Lopes",
   fornecedor: "Poros - Turquia", modalEnvio: "Air Cargo", medicamentos: [{ nome: "Medicamento X", dosagem: "10mg", quantidade: "2" }],
-  status: ["elaboracao_fornecedores", "aguardando_inicio", "em_transito", "desembaraco", "liberado"][n % 5],
+  status: ["elaboracao_fornecedores", "em_transito", "desembaraco", "liberado", "entregue"][n % 5],
   datas: { dataCompraPO: "2026-09-01", previsaoEntrega: "2026-11-10" }, pendencias: [], statusPagamento: "pendente",
   alertaFornecedorResolvido: true, atualizacoes: [{ data: "10/10", texto: "Em andamento." }],
   createdAt: "2026-09-01T10:00:00Z", updatedAt: "2026-10-10T10:00:00Z",

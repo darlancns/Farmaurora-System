@@ -5,6 +5,7 @@ import {
   erroModalCiaNoPost,
   erroNumeroPo,
   erroNumeroRemessa,
+  erroStatusLegado,
   isValidProcessoPayload,
   numeroPoCanonico,
   numeroRemessaCanonico,
@@ -16,6 +17,12 @@ import type { Processo } from "../../../shared/types/processo";
 
 export default defineEventHandler(async (event): Promise<Processo> => {
   const body = await readBody(event);
+
+  // Status que saiu do app (aguardando_inicio, liberado_parcial, outro): 400 com mensagem própria.
+  const erroStatus = erroStatusLegado(body);
+  if (erroStatus) {
+    throw createError({ statusCode: 400, statusMessage: erroStatus });
+  }
 
   if (!isValidProcessoPayload(body)) {
     throw createError({

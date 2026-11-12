@@ -30,7 +30,6 @@ function emptyForm(): ProcessoFormState {
     companhiaAerea: "",
     numeroAwb: "",
     status: "elaboracao_fornecedores",
-    statusOutro: "",
     dataCompraPO: "",
     dataEmbarque: "",
     aberturaThread: "",

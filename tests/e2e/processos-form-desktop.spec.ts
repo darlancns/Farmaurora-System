@@ -37,8 +37,7 @@ const EDITAR = {
     { nome: "Pembrolizumabe", dosagem: "100mg", quantidade: "4 cx" },
     { nome: "Nivolumabe", dosagem: "40mg", quantidade: "2 cx" },
   ],
-  status: "outro",
-  statusOutro: "Aguardando liberação da ANVISA",
+  status: "desembaraco",
   datas: {
     dataCompraPO: "05/08",
     dataEmbarque: "12/08",
@@ -386,13 +385,10 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
             "border-top-left-radius": "6px",
           });
 
-          // Condicionais (só no modo Editar): largura total, abaixo da linha do select. "Qual fornecedor?" fica logo abaixo da
-          // grade 2x2 (antes de Status | Pagamento) e "Qual status?" logo abaixo de Status | Pagamento (antes do Envio internacional).
+          // Condicional (só no modo Editar): largura total, abaixo da linha do select. "Qual fornecedor?" fica logo abaixo da
+          // grade 2x2 (antes de Status | Pagamento). "Qual status?" saiu do formulário.
           if (modo === "editar") {
-            const statusOutro = await b("pf-status-outro");
-            expect(statusOutro.width).toBeCloseTo(util, 0);
-            expect(statusOutro.y).toBeGreaterThan(embaixo(await b("pf-status-pagamento")) - 1);
-            expect(statusOutro.y + statusOutro.height).toBeLessThanOrEqual((await b("pf-modal")).y);
+            expect(await page.locator("#pf-status-outro").count()).toBe(0);
             const fornOutro = await b("pf-fornecedor-outro");
             expect(fornOutro.width).toBeCloseTo(util, 0);
             expect(fornOutro.x, "sem pular pro lado").toBeLessThanOrEqual(empresa.x + 1);

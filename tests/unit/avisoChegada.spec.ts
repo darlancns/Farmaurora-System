@@ -149,15 +149,7 @@ describe("avisoChegadaDevido — datas vencidas, futuras e status", () => {
   });
 
   it("status diferente de em_transito: nunca devido", () => {
-    const outros: StatusProcesso[] = [
-      "elaboracao_fornecedores",
-      "aguardando_inicio",
-      "desembaraco",
-      "liberado",
-      "liberado_parcial",
-      "entregue",
-      "outro",
-    ];
+    const outros: StatusProcesso[] = ["elaboracao_fornecedores", "desembaraco", "liberado", "entregue"];
     for (const status of outros) {
       expect(avisoChegadaDevido(proc("01/11", status), BRT("2026-11-08", "15:00")).devido).toBe(false);
     }

@@ -117,16 +117,8 @@ describe("cotacaoAsd — Entregues", () => {
     expect(cotacaoAsd(proc({ status: "entregue", modalEnvio: "Air Cargo" }))).toBe(false);
   });
 
-  it("os demais status entram (inclusive 'outro' e 'liberado_parcial', que ficam em Em andamento)", () => {
-    const status: StatusProcesso[] = [
-      "elaboracao_fornecedores",
-      "aguardando_inicio",
-      "em_transito",
-      "desembaraco",
-      "liberado",
-      "liberado_parcial",
-      "outro",
-    ];
+  it("os demais status (os 4 de Em andamento) entram", () => {
+    const status: StatusProcesso[] = ["elaboracao_fornecedores", "em_transito", "desembaraco", "liberado"];
     for (const s of status) expect(cotacaoAsd(proc({ status: s, modalEnvio: "Air Cargo" })), s).toBe(true);
   });
 

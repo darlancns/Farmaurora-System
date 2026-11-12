@@ -156,8 +156,12 @@ describe("PATCH com atualizacoes — conferência de versão", () => {
     expect(res2.alertaFornecedorResolvido).toBe(true);
   });
 
-  it("PATCH sem atualizacoes que traga `versao` ignora a versão (não confere, não grava)", async () => {
-    const res = await chamar({ statusPagamento: "pago", versao: "qualquer" });
+  it("PATCH sem atualizacoes que traga `versao` TAMBÉM confere a versão (desatualizada → 409); sem `versao`, grava", async () => {
+    const erro = await erroDe(chamar({ statusPagamento: "pago", versao: "qualquer" }));
+    expect(erro.status).toBe(409);
+    expect(row()).not.toHaveProperty("versao");
+
+    const res = await chamar({ statusPagamento: "pago" });
     expect(res.statusPagamento).toBe("pago");
     expect(row()).not.toHaveProperty("versao");
   });

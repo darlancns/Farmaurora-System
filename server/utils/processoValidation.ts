@@ -6,6 +6,8 @@ import {
   LIMITE_ATUALIZACAO_DATA,
   LIMITE_ATUALIZACAO_TEXTO,
   LIMITE_ATUALIZACOES_POR_PROCESSO,
+  isStatusProcessoLegado,
+  mensagemStatusLegado,
   STATUS_PROCESSO_ORDER,
 } from "../../shared/constants/processos";
 import type {
@@ -101,10 +103,16 @@ function isValidTransportadora(value: unknown): boolean {
   );
 }
 
-// Status "outro" exige o texto livre (statusOutro não vazio). Com qualquer outro
-// status o campo é IGNORADO (o servidor grava NULL), então não é validado.
-function statusOutroValido(status: unknown, statusOutro: unknown): boolean {
-  return status !== "outro" || isNonEmptyString(statusOutro);
+// ── Status ──────────────────────────────────────────────────────────────────────────────────────
+// Só os 5 (STATUS_PROCESSO_ORDER). Um status que saiu do app (aguardando_inicio, liberado_parcial, outro) tem
+// mensagem própria, para quem vier de uma aba antiga entender o 400. `statusOutro` não existe mais: se chegar, é
+// ignorado (nunca é gravado), sem erro.
+
+// Mensagem do 400 para um status legado no corpo (POST ou PATCH), ou null.
+export function erroStatusLegado(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+  const status = (body as Record<string, unknown>).status;
+  return isStatusProcessoLegado(status) ? mensagemStatusLegado(status) : null;
 }
 
 // ── Cia. aérea × modal de envio ─────────────────────────────────────────────────────────────────
@@ -222,7 +230,6 @@ export function isValidProcessoPayload(body: unknown): body is NewProcessoDTO {
     EMPRESAS_PROCESSO.includes(b.empresa as EmpresaProcesso) &&
     CONSULTORES_PROCESSO.includes(b.consultor as ConsultorProcesso) &&
     STATUS_PROCESSO_ORDER.includes(b.status as StatusProcesso) &&
-    statusOutroValido(b.status, b.statusOutro) &&
     Array.isArray(b.medicamentos) &&
     b.medicamentos.every(isMedicamento) &&
     Array.isArray(b.pendencias) &&
@@ -242,10 +249,6 @@ export function isValidProcessoPatch(body: unknown): body is ProcessoPatchDTO {
   if (b.empresa !== undefined && !EMPRESAS_PROCESSO.includes(b.empresa as EmpresaProcesso)) return false;
   if (b.consultor !== undefined && !CONSULTORES_PROCESSO.includes(b.consultor as ConsultorProcesso)) return false;
   if (b.status !== undefined && !STATUS_PROCESSO_ORDER.includes(b.status as StatusProcesso)) return false;
-  if (b.status === "outro" && !isNonEmptyString(b.statusOutro)) return false;
-  // statusOutro sozinho (sem status no patch) é ambíguo — o servidor não sabe o
-  // status resultante —, então só vale junto com `status`.
-  if (b.statusOutro !== undefined && b.status === undefined) return false;
   if (b.medicamentos !== undefined && (!Array.isArray(b.medicamentos) || !b.medicamentos.every(isMedicamento))) {
     return false;
   }

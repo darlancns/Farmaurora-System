@@ -9,9 +9,11 @@ import type {
   ProcessoPatchDTO,
   StatusPagamentoProcesso,
   StatusProcesso,
+  StatusProcessoLegado,
   TransportadoraNacional,
   TransportadoraNacionalPatch,
 } from "../../shared/types/processo";
+import { normalizarStatusProcesso } from "../../shared/constants/processos";
 import { NUMERO_REMESSA_PADRAO, normalizarNumeroRemessa } from "../../shared/utils/numeroRemessa";
 import { num } from "./storeKit";
 
@@ -53,8 +55,10 @@ export interface FollowUpRow {
   companhia_aerea: string | null;
   numero_awb: string | null;
   medicamentos: Medicamento[] | null;
-  status: StatusProcesso;
-  status_outro: string | null;
+  // Valor cru do enum: pode ser um dos 5 ou um legado (aguardando_inicio, liberado_parcial, outro). montarProcesso
+  // normaliza. `status_outro` é coluna legada: continua no banco, mas nada daqui a lê ou grava.
+  status: StatusProcesso | StatusProcessoLegado;
+  status_outro?: string | null;
   data_compra_po: string | null;
   data_embarque: string | null;
   abertura_thread: string | null;
@@ -73,13 +77,6 @@ export interface FollowUpRow {
   atualizacoes: AtualizacaoProcesso[] | null;
   created_at: string;
   updated_at: string;
-}
-
-// Texto livre do status "outro": só existe (aparado) quando status === "outro";
-// com qualquer outro status o servidor IGNORA o que vier e grava NULL.
-export function statusOutroDe(status: StatusProcesso | undefined, statusOutro: string | undefined): string | null {
-  if (status !== "outro") return null;
-  return statusOutro?.trim() || null;
 }
 
 // As 9 datas do processo: chave do DTO → coluna (texto livre no banco).
@@ -114,10 +111,8 @@ export function colunasDeDTO(src: ProcessoPatchDTO, opcoes: { parcial?: boolean 
   if ("pasta" in src) col.pasta = src.pasta;
   if ("empresa" in src) col.empresa = src.empresa;
   if ("consultor" in src) col.consultor = src.consultor;
-  if ("status" in src) {
-    col.status = src.status;
-    col.status_outro = statusOutroDe(src.status, src.statusOutro);
-  }
+  // Só o status. A coluna legada status_outro NUNCA é gravada (fica como está no banco).
+  if ("status" in src) col.status = src.status;
 
   // Nº Remessa: sempre um inteiro >= 1 (nulo/vazio/0 viram 1). Nunca grava a coluna antiga `ordem` (congelada).
   if ("numeroRemessa" in src) col.numero_remessa = normalizarNumeroRemessa(src.numeroRemessa) ?? NUMERO_REMESSA_PADRAO;
@@ -194,7 +189,9 @@ export function montarProcesso(row: FollowUpRow): Processo {
     empresa: row.empresa,
     consultor: row.consultor,
     medicamentos: (row.medicamentos ?? []).map((m) => ({ ...m })),
-    status: row.status,
+    // PONTO ÚNICO da normalização do status legado: toda leitura do servidor (lista, um processo, retorno de
+    // PATCH, /chegada, /mover) passa por aqui, então nenhuma tela nem regra do servidor vê um valor fora dos 5.
+    status: normalizarStatusProcesso(row.status),
     datas,
     pendencias: row.pendencias ?? [],
     atualizacoes: (row.atualizacoes ?? []).map((a) => ({ ...a })),
@@ -202,7 +199,6 @@ export function montarProcesso(row: FollowUpRow): Processo {
     updatedAt: row.updated_at,
   };
 
-  if (row.status === "outro" && row.status_outro != null) processo.statusOutro = row.status_outro;
   if (row.numero_po != null) processo.numeroPo = row.numero_po;
   if (row.responsavel_operacional != null) processo.responsavelOperacional = row.responsavel_operacional;
   if (row.despachante != null) processo.despachante = row.despachante;

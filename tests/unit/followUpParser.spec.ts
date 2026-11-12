@@ -477,7 +477,8 @@ describe("parser do Follow-Up — formato novo (seção de grupo, rótulos por m
 import { COLUNAS_FOLLOW_UP, idCarga, registroParaLinha } from "../../scripts/migration/followUpRows.mjs";
 import { existsSync, readFileSync } from "node:fs";
 import { colunasDeDTO } from "../../server/utils/processoMappers";
-import { isValidProcessoPayload } from "../../server/utils/processoValidation";
+import { erroStatusLegado, isValidProcessoPayload } from "../../server/utils/processoValidation";
+import { isStatusProcessoLegado, normalizarStatusProcesso } from "#shared/constants/processos";
 import type { NewProcessoDTO } from "#shared/types/processo";
 
 // Fontes reais (dados de pacientes, podem não existir na máquina): cada uma entra só se o arquivo existir.
@@ -531,8 +532,18 @@ describe.each([
     }
   });
 
-  it("registros passam na validação do servidor (API)", () => {
-    for (const { rec } of pares) expect(isValidProcessoPayload(rec), rec.pasta).toBe(true);
+  // A carga é histórica (já aplicada): o parser ainda produz os status que saíram do app (aguardando_inicio, outro). Hoje
+  // o servidor recusa GRAVAR um desses (400 com mensagem própria); com o status normalizado (o que a leitura faz), o
+  // registro passa na validação como os demais.
+  it("registros passam na validação do servidor (API); status legado é recusado com mensagem própria", () => {
+    for (const { rec } of pares) {
+      if (isStatusProcessoLegado(rec.status)) {
+        expect(erroStatusLegado(rec), rec.pasta).toContain("não é mais usado");
+        expect(isValidProcessoPayload({ ...rec, status: normalizarStatusProcesso(rec.status) }), rec.pasta).toBe(true);
+      } else {
+        expect(isValidProcessoPayload(rec), rec.pasta).toBe(true);
+      }
+    }
   });
 
   it("as duas flags de alerta começam false; created_at = updated_at; ids únicos", () => {

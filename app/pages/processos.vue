@@ -43,8 +43,9 @@ const router = useRouter();
 const { role, consultorNome, canWrite } = useAuth();
 const { showToast } = useToast();
 
-// socio, operacional e administrador escrevem em Processos (WRITE_ACCESS.processos no RBAC);
-// só o consultor é somente leitura.
+// Pode editar processos? Segue o mapa de permissões por página da conta (socio e operacional: "editar" escreve,
+// "ver" é só leitura) e, sem mapa, a regra do cargo (WRITE_ACCESS.processos: socio, operacional e administrador).
+// Consultor é sempre somente leitura. A mesma decisão vale no servidor (autorizarApi no middleware).
 const canWriteProcessos = computed<boolean>(() => canWrite("processos"));
 // consultor vê a própria lista direto, sem o agrupamento por consultor.
 const flatList = computed<boolean>(() => role.value === "consultor");

@@ -100,7 +100,7 @@ test.describe.serial("Follow-Up de processos", () => {
     await page.locator("#pf-paciente").fill(P1);
     await page.locator("#pf-pasta").fill("2026 - 001");
     await selectOption(page, "pf-consultor", "André Vitório");
-    // empresa (FARMAURORA) e status (Elaboração / Fornecedores) ficam no default
+    // empresa (FARMAURORA) e status (Na origem) ficam no default
     await page.locator("#btn-save-processo").click();
 
     await expect(page.locator("#toast-notice")).toContainText("Processo adicionado");

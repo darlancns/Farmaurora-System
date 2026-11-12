@@ -43,8 +43,7 @@ const EDITAR = {
     { nome: "Pembrolizumabe", dosagem: "100mg", quantidade: "4 cx" },
     { nome: "Nivolumabe", dosagem: "40mg/10mL", quantidade: "2 cx" },
   ],
-  status: "outro",
-  statusOutro: "Aguardando liberação da ANVISA",
+  status: "desembaraco",
   datas: {
     dataCompraPO: "05/08",
     dataEmbarque: "12/08",
@@ -125,16 +124,14 @@ const CAMPOS_NOVO = [
   "pf-transp-valor",
   ...DATAS,
 ];
-// Editar: 2º medicamento (entra depois do 1º) e os dois condicionais (Qual fornecedor?, Qual status?).
+// Editar: 2º medicamento (entra depois do 1º) e o condicional Qual fornecedor? ("Qual status?" saiu do formulário).
 const CAMPOS_EDITAR = [
   ...CAMPOS_NOVO.slice(0, 10),
   "pf-medicamento-quantidade-1",
   "pf-medicamento-nome-1",
   ...CAMPOS_NOVO.slice(10, 15),
   "pf-fornecedor-outro",
-  ...CAMPOS_NOVO.slice(15, 17),
-  "pf-status-outro",
-  ...CAMPOS_NOVO.slice(17),
+  ...CAMPOS_NOVO.slice(15),
 ];
 
 let processoId: string | null = null;
@@ -422,7 +419,7 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
 
         test("nenhum select/input com valor realista fica truncado", async ({ page }) => {
           // Cada select com TODAS as opções reais (inclui as longas: "Gabriela Santana",
-          // "Elaboração / Fornecedores", "Beldimed - Bélgica", "Speciality - Índia",
+          // "Na origem", "Desembaraço", "Beldimed - Bélgica", "Speciality - Índia",
           // "Courier Simples", "Andreza Faconi", "Marcelo Lima", "FARMAURORA"...).
           // O despachante/transportadora some com modal "Courier Simples" — por isso o
           // modal é o último a varrer, e volta pra uma opção que mantém despachante.
@@ -620,12 +617,7 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
             expect(status.width).toBeCloseTo(col2, 0);
             expect(pag.width).toBeCloseTo(col2, 0);
           }
-          if (modo === "editar") {
-            const outro = await b("pf-status-outro");
-            expect(outro.width, "Qual status? em largura total").toBeCloseTo(util, 0);
-            abaixoDe(outro, pag, "Qual status?");
-            expect(outro.y - embaixo(pag), "Qual status? logo abaixo do select").toBeLessThanOrEqual(48);
-          }
+          expect(await page.locator("#pf-status-outro").count(), "Qual status? saiu do formulário").toBe(0);
 
           // Envio internacional (fieldset): celular, Modal em linha inteira do bloco e Cia. aérea | Nº AWB lado a lado
           // (2 colunas iguais, sem Rastreio e sem buraco); tablet, os três em 3 colunas iguais.

@@ -286,11 +286,6 @@ function handleSubmit(): void {
             </div>
           </div>
 
-          <div v-if="form.status === 'outro'">
-            <label for="pf-status-outro" :class="LABEL_CLASS">Qual status?</label>
-            <input id="pf-status-outro" v-model="form.statusOutro" type="text" :class="INPUT_CLASS" />
-          </div>
-
           <!-- Envio internacional: Envio (campo pf-modal) / Cia. aérea / Nº AWB. A Cia. depende do Envio (opções e desabilitada sem Envio). -->
           <fieldset :class="FIELDSET_CLASS">
             <legend :class="LEGEND_CLASS">Envio internacional</legend>

@@ -18,7 +18,7 @@ const PRAZO_DIAS_POR_FORNECEDOR: Partial<Record<FornecedorProcesso, number>> = {
 
 // Só processos nestes status geram o alerta de prazo do fornecedor (cobrar o fornecedor só faz sentido
 // enquanto a compra ainda está sendo encaminhada). Fácil de alterar: é a única lista.
-export const STATUS_ALERTAVEIS_FORNECEDOR: readonly StatusProcesso[] = ["elaboracao_fornecedores", "aguardando_inicio"];
+export const STATUS_ALERTAVEIS_FORNECEDOR: readonly StatusProcesso[] = ["elaboracao_fornecedores"]; // só Na origem
 
 // Primeira data NO INÍCIO do texto livre (DD/MM ou DD/MM/AAAA); o resto é ignorado. O lookahead recusa
 // continuações como "04/11/26" ou "04/112": melhor não suprimir o alerta do que assumir uma data errada.

@@ -5,6 +5,7 @@ import {
   erroModalCiaNoPatch,
   erroNumeroPo,
   erroNumeroRemessa,
+  erroStatusLegado,
   isValidProcessoPatch,
   isVersaoValida,
   MENSAGEM_VERSAO_AUSENTE,
@@ -27,6 +28,12 @@ export default defineEventHandler(async (event): Promise<Processo> => {
   }
 
   const body = await readBody(event);
+
+  // Status que saiu do app (aguardando_inicio, liberado_parcial, outro): 400 com mensagem própria.
+  const erroStatus = erroStatusLegado(body);
+  if (erroStatus) {
+    throw createError({ statusCode: 400, statusMessage: erroStatus });
+  }
 
   if (!isValidProcessoPatch(body)) {
     // Listas (atualizações, pendências, medicamentos) sem a versão: mensagem própria (o cliente sempre a envia;
@@ -103,8 +110,10 @@ export default defineEventHandler(async (event): Promise<Processo> => {
     else patch.numeroRemessa = remessa;
   }
 
-  // `ordem` (campo antigo; a coluna está congelada) pode chegar de uma aba antiga: ignorado, sem erro e sem gravar.
+  // `ordem` (campo antigo; a coluna está congelada) e `statusOutro` (o status "Outro" saiu; a coluna status_outro nunca
+  // mais é gravada) podem chegar de uma aba antiga: ignorados, sem erro e sem gravar.
   delete (patch as Record<string, unknown>).ordem;
+  delete (patch as Record<string, unknown>).statusOutro;
 
   // Aviso ao consultor: só quando o patch mexe em pendências/atualizações. Lê a linha ANTES de gravar (a de
   // depois vem da gravação) para saber o que é novo. Se essa leitura falhar, a gravação segue sem aviso.
@@ -129,9 +138,11 @@ export default defineEventHandler(async (event): Promise<Processo> => {
     });
   }
 
-  // Com `atualizacoes`, `pendencias` ou `medicamentos`: grava só se o updated_at da linha ainda for a versão que
-  // o cliente viu. `parcial` segue junto (senão datas/transportadora ausentes virariam NULL).
-  if (patchExigeVersao(body) && versao !== undefined) {
+  // Com `versao` (obrigatória quando há `atualizacoes`, `pendencias` ou `medicamentos`; opcional nos demais): grava só
+  // se o updated_at da linha ainda for a versão que o cliente viu, com ou sem listas. Patch simples SEM `versao` (ex.:
+  // select de pagamento da lista Entregues) segue sem conferência, como sempre. `parcial` segue junto (senão
+  // datas/transportadora ausentes virariam NULL).
+  if (versao !== undefined) {
     const resultado = await patchProcessoVersionado(id, patch, versao, { parcial: parcial === true });
     if (resultado.tipo === "nao_encontrado") {
       throw createError({ statusCode: 404, statusMessage: "Processo não encontrado." });

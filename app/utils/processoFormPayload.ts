@@ -37,7 +37,6 @@ export interface ProcessoFormState {
   companhiaAerea: string;
   numeroAwb: string;
   status: StatusProcesso;
-  statusOutro: string; // texto livre; só vale (e é obrigatório) com status "outro"
   dataCompraPO: string;
   dataEmbarque: string;
   aberturaThread: string;
@@ -117,7 +116,6 @@ export function buildBasePayload(
         quantidade: item.quantidade?.trim() || undefined,
       })),
     status: form.status,
-    statusOutro: form.status === "outro" ? form.statusOutro.trim() || undefined : undefined,
     datas: buildDatas(form),
     localEntrega: form.localEntrega.trim() || undefined,
     numeroProcesso: form.numeroProcesso.trim() || undefined,
@@ -149,7 +147,7 @@ const CAMPOS_DATA: ReadonlyArray<keyof ProcessoDatas> = [
 
 // Obrigatórios e opcionais de valor único: vão no patch SÓ se o valor mudou. Opcionais esvaziados vão
 // como `null` (CAMPOS_PROCESSO_LIMPAVEIS). `transportadoraNacional`, `datas`, medicamentos, pendências
-// e o par status/statusOutro têm tratamento próprio abaixo.
+// e o status têm tratamento próprio abaixo.
 const CAMPOS_ESCALARES = [
   "paciente",
   "pasta",
@@ -182,7 +180,7 @@ const LIMPAVEIS = new Set<string>(CAMPOS_PROCESSO_LIMPAVEIS);
 // para salvar: trim, vazio → undefined, Nº Remessa → inteiro >= 1). Campo que o usuário não tocou é idêntico
 // nos dois e não vai, seja ou não representável. Retorna `null` quando nada mudou.
 //
-// - status + statusOutro viajam juntos (o servidor deriva status_outro do status).
+// - status: vai só se mudou (o antigo texto livre do "Outro" saiu do formulário e do payload).
 // - medicamentos e pendências: se mudaram, vai a lista inteira (substitui, como sempre).
 // - datas: só as chaves alteradas (null limpa). Transportadora: só as chaves alteradas; nome esvaziado
 //   = `transportadoraNacional: null` (limpa nome, cotação e valor).
@@ -209,10 +207,7 @@ export function montarPatchDiferencial(
     patch[campo] = depois === undefined && LIMPAVEIS.has(campo) ? null : depois;
   }
 
-  if (p0.status !== p1.status || p0.statusOutro !== p1.statusOutro) {
-    patch.status = p1.status;
-    if (p1.statusOutro !== undefined) patch.statusOutro = p1.statusOutro;
-  }
+  if (p0.status !== p1.status) patch.status = p1.status;
 
   if (JSON.stringify(p0.medicamentos) !== JSON.stringify(p1.medicamentos)) patch.medicamentos = p1.medicamentos;
   if (JSON.stringify(p0.pendencias) !== JSON.stringify(p1.pendencias)) patch.pendencias = p1.pendencias;
@@ -278,7 +273,7 @@ function transportadoraSemNome(form: ProcessoFormState): boolean {
 // Validação de handleSubmit, reformulada como função pura: decide só
 // valido/inválido + payload ou mensagem de erro. O componente decide o que
 // fazer com o resultado (emitir "invalid", ou "update"/"submit" com o
-// payload). Ordem de checagem: paciente, pasta, consultor, status "outro",
+// payload). Ordem de checagem: paciente, pasta, consultor, Nº Remessa,
 // despachante (condicionado ao modalEnvio) e, por último, a transportadora
 // (opcional, mas cotação/valor exigem o nome).
 //
@@ -301,9 +296,6 @@ export function validarProcessoForm(
   }
   if (form.consultor === "") {
     return { valido: false, erro: "Selecione o consultor responsável." };
-  }
-  if (form.status === "outro" && !form.statusOutro.trim()) {
-    return { valido: false, erro: 'Informe qual é o status (opção "Outro").' };
   }
   // Nº Remessa: vazio vale 1; o campo só aceita dígitos, então só falha acima de 2147483647.
   if (normalizarNumeroRemessa(form.numeroRemessa) === undefined) {

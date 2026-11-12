@@ -49,8 +49,7 @@ const ADVERSARIAL = {
   consultor: "Bolívar",
   transportadoraNacional: { nome: "Transportadora Rápido Nordeste Logística Integrada e Armazenagem Ltda", valor: 98765.43 },
   numeroProcesso: "25BR00009876543-2/2026-ADM/0001.2345.6789",
-  status: "outro",
-  statusOutro: "Aguardando liberação da ANVISA e da Receita Federal",
+  status: "desembaraco",
   pendencias: [],
 };
 
@@ -191,9 +190,10 @@ test.describe("/processos em lg+ — card e detalhe inalterados", () => {
         expect(Math.round(lixeira.width)).toBe(28);
         expect(Math.round(lixeira.height)).toBe(28);
 
-        // Badge e nome do status "Outro" truncam como sempre (max-w-[200px] + reticências).
+        // Badge de status limitado como sempre (max-w-[200px] + reticências).
         const badgeOutro = await box(page, `#badge-status-${ids!.adversarial}`);
         expect(Math.round(badgeOutro.width)).toBeLessThanOrEqual(200);
+        await expect(page.locator(`#badge-status-${ids!.adversarial}`)).toHaveText("Desembaraço");
       });
 
       test("detalhe: 4 colunas, 'Editar processo' no cabeçalho, sem rodapé Editar/lixeira, valores monoespaçados", async ({

@@ -191,15 +191,15 @@ describe("calcularNotificacoesFornecedor — status que alertam", () => {
   const comStatus = (status: Processo["status"]) =>
     buildProcesso({ status, fornecedor: "Poros - Turquia", datas: { dataCompraPO: "01/09" } });
 
-  it("a lista de status alertáveis é uma constante nomeada (inicial: elaboração e aguardando início)", () => {
-    expect([...STATUS_ALERTAVEIS_FORNECEDOR]).toEqual(["elaboracao_fornecedores", "aguardando_inicio"]);
+  it("a lista de status alertáveis é uma constante nomeada: só Na origem (elaboracao_fornecedores)", () => {
+    expect([...STATUS_ALERTAVEIS_FORNECEDOR]).toEqual(["elaboracao_fornecedores"]);
   });
 
-  it.each(["elaboracao_fornecedores", "aguardando_inicio"] as const)("status %s alerta", (status) => {
-    expect(calcularNotificacoesFornecedor([comStatus(status)], HOJE)).toHaveLength(1);
+  it("status Na origem (elaboracao_fornecedores) alerta", () => {
+    expect(calcularNotificacoesFornecedor([comStatus("elaboracao_fornecedores")], HOJE)).toHaveLength(1);
   });
 
-  it.each(["desembaraco", "em_transito", "liberado", "liberado_parcial", "entregue", "outro"] as const)(
+  it.each(["desembaraco", "em_transito", "liberado", "entregue"] as const)(
     "status %s NÃO alerta, mesmo com prazo estourado e sem abertura de thread",
     (status) => {
       expect(calcularNotificacoesFornecedor([comStatus(status)], HOJE)).toHaveLength(0);
