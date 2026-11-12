@@ -5,7 +5,13 @@ import {
   criarGravadorAtualizacoes,
   type AlteracaoAtualizacoes,
 } from "../utils/gravadorAtualizacoes";
-import type { AtualizacaoProcesso, NewProcessoDTO, Processo, ProcessoPatchDTO } from "#shared/types/processo";
+import type {
+  AtualizacaoProcesso,
+  NewProcessoDTO,
+  Processo,
+  ProcessoPatchDTO,
+  StatusProcesso,
+} from "#shared/types/processo";
 
 // Módulo é singleton no bundle client — mesmo efeito de um useState, mas não
 // precisa ser serializado no payload SSR. Só é populado a partir de
@@ -91,6 +97,25 @@ export function useProcessos() {
     return updated;
   }
 
+  // Muda o status pelo Kanban (POST /api/processos/:id/mover): o servidor confere a versão (409 se a linha mudou),
+  // grava o status e a atualização "Status alterado de …" num único UPDATE e devolve o processo. Sucesso substitui o
+  // processo na lista (o card muda de coluna). Erros (inclusive o 409, como ApiError com status 409) vão para quem
+  // chamou; nada é alterado aqui antes da resposta (sem atualização otimista).
+  async function moverProcesso(id: string, status: StatusProcesso, versao: string): Promise<Processo> {
+    const atualizado = await apiFetch<Processo>(
+      `/api/processos/${id}/mover`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status, versao }),
+      },
+      "Erro ao mover processo."
+    );
+    const index = processos.value.findIndex((p) => p.id === id);
+    if (index !== -1) processos.value[index] = atualizado;
+    return atualizado;
+  }
+
   // Recarrega UM processo do servidor (usado após um 409). Se ele sumiu (404), tira da lista local.
   async function recarregarProcesso(id: string): Promise<void> {
     try {
@@ -153,6 +178,7 @@ export function useProcessos() {
     addProcesso,
     patchProcesso,
     alterarAtualizacoes,
+    moverProcesso,
     recarregarProcesso,
     removeProcesso,
   };

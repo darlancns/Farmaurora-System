@@ -15,7 +15,19 @@ const props = defineProps<{
   triggerId?: string;
   menuId?: string;
   ariaLabel?: string;
+  // Opcionais (sem eles, o menu é exatamente o de sempre):
+  // - triggerClass: troca as classes do botão (ex.: botão com texto "Mover para…" no painel do Kanban);
+  // - menuZClass: camada da lista aberta (padrão z-50). Dentro do painel lateral do Kanban (z-880) a lista precisa
+  //   ficar acima dele, senão abre por trás do overlay;
+  // - disabled: botão desabilitado (ex.: processo sendo movido).
+  // O conteúdo do botão pode vir no slot `trigger` (padrão: os três pontinhos).
+  triggerClass?: string;
+  menuZClass?: string;
+  disabled?: boolean;
 }>();
+
+const CLASSE_TRIGGER_PADRAO =
+  "flex h-11 w-11 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-paper hover:text-ink md:h-7 md:w-7";
 
 const generatedId = useId();
 const resolvedTriggerId = computed(() => props.triggerId ?? `actions-menu-trigger-${generatedId}`);
@@ -129,14 +141,19 @@ onBeforeUnmount(() => {
       :aria-label="ariaLabel ?? 'Mais ações'"
       aria-haspopup="true"
       :aria-expanded="open"
-      class="flex h-11 w-11 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-paper hover:text-ink md:h-7 md:w-7"
+      :aria-controls="open ? resolvedMenuId : undefined"
+      :disabled="disabled"
+      :class="triggerClass ?? CLASSE_TRIGGER_PADRAO"
+      class="disabled:cursor-not-allowed disabled:opacity-50"
       @click="toggleMenu"
     >
-      <svg viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor" aria-hidden="true">
-        <circle cx="12" cy="5" r="1.5" />
-        <circle cx="12" cy="12" r="1.5" />
-        <circle cx="12" cy="19" r="1.5" />
-      </svg>
+      <slot name="trigger">
+        <svg viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor" aria-hidden="true">
+          <circle cx="12" cy="5" r="1.5" />
+          <circle cx="12" cy="12" r="1.5" />
+          <circle cx="12" cy="19" r="1.5" />
+        </svg>
+      </slot>
     </button>
 
     <Teleport to="body">
@@ -145,7 +162,9 @@ onBeforeUnmount(() => {
         :id="resolvedMenuId"
         ref="menuRef"
         role="menu"
-        class="fixed z-50 w-44 rounded-md border border-hairline bg-paper-raised py-1.5 shadow-lg"
+        :aria-labelledby="resolvedTriggerId"
+        class="fixed w-44 rounded-md border border-hairline bg-paper-raised py-1.5 shadow-lg"
+        :class="menuZClass ?? 'z-50'"
         :style="menuStyle"
         @keydown="handleMenuKeydown"
       >

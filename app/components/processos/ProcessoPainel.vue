@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
-import type { Processo } from "#shared/types/processo";
+import type { Processo, StatusProcesso } from "#shared/types/processo";
 import { useEscapeToClose } from "../../composables/useEscapeToClose";
+import { metaDoStatus } from "../../utils/processoStatus";
+import ProcessoMoverMenu from "./ProcessoMoverMenu.vue";
 import { useLockBodyScroll } from "../../composables/useLockBodyScroll";
 import {
   camposDatas,
@@ -26,15 +28,21 @@ const props = withDefaults(
   defineProps<{
     processo: Processo;
     contagemPasta?: ContagemPorPasta;
+    // A mudança de coluna deste processo está gravando (o menu some e aparece "Movendo…").
+    movendo?: boolean;
   }>(),
-  { contagemPasta: () => new Map() },
+  { contagemPasta: () => new Map(), movendo: false },
 );
 
 const emit = defineEmits<{
   close: [];
   edit: [processo: Processo];
   delete: [id: string];
+  // "Mover para…": só pede; a página confirma e grava (o mesmo fluxo do arrastar).
+  mover: [processo: Processo, para: StatusProcesso];
 }>();
+
+const statusMeta = computed(() => metaDoStatus(props.processo.status));
 
 const painelRef = ref<HTMLElement | null>(null);
 const showDeleteConfirm = ref(false);
@@ -133,8 +141,9 @@ const BLOCO = "border-b border-hairline px-5 py-4";
       class="flex h-dvh w-full max-w-[100vw] flex-col overflow-y-auto overscroll-contain bg-paper-raised lg:w-[480px] lg:border-l lg:border-hairline"
       @keydown="onKeydown"
     >
-      <!-- 1. Cabeçalho -->
-      <header id="painel-bloco-cabecalho" :class="BLOCO" class="flex items-center gap-3">
+      <!-- 1. Cabeçalho: ícone, nome, editar e fechar; embaixo, a etiqueta do status atual e o "Mover para…". -->
+      <header id="painel-bloco-cabecalho" :class="BLOCO" class="flex flex-col gap-2.5">
+      <div class="flex items-center gap-3">
         <span
           class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-farm-blue-soft text-accent-dark"
           aria-hidden="true"
@@ -177,6 +186,22 @@ const BLOCO = "border-b border-hairline px-5 py-4";
         >
           ✕
         </button>
+      </div>
+      <div class="flex flex-wrap items-center gap-2 pl-[52px]">
+        <span
+          id="painel-status"
+          class="rounded-full px-2.5 py-1 text-[11px] font-semibold"
+          :class="statusMeta.badgeClass"
+          >{{ statusMeta.label }}</span
+        >
+        <span v-if="movendo" id="painel-movendo" class="text-[12px] font-semibold text-accent-dark">Movendo…</span>
+        <ProcessoMoverMenu
+          v-else
+          :processo="processo"
+          contexto="painel"
+          @mover="(para) => emit('mover', processo, para)"
+        />
+      </div>
       </header>
 
       <!-- 2. Pasta · PO; Ordem N (só quando N > 1 ou pasta repetida, como na Lista) · Responsável -->

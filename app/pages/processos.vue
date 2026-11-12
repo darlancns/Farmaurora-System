@@ -12,6 +12,7 @@ import { useAberturaPorBusca } from "../composables/useAberturaPorBusca";
 import { useConflitoEdicaoProcesso } from "../composables/useConflitoEdicaoProcesso";
 import { useProcessos } from "../composables/useProcessos";
 import { useAuth } from "../composables/useAuth";
+import { useMoverProcesso } from "../composables/useMoverProcesso";
 import { useRecarregarAoVoltar } from "../composables/useRecarregarAoVoltar";
 import { useToast } from "../composables/useToast";
 import { useVisaoProcessos } from "../composables/useVisaoProcessos";
@@ -36,6 +37,7 @@ import {
 import AppSelect from "../components/AppSelect.vue";
 import FloatingAddButton from "../components/FloatingAddButton.vue";
 import GlobalHeader from "../components/GlobalHeader.vue";
+import ConfirmDialog from "../components/ConfirmDialog.vue";
 import SegmentedControl from "../components/SegmentedControl.vue";
 import ProcessoGroupList from "../components/processos/ProcessoGroupList.vue";
 import ProcessoKanban from "../components/processos/ProcessoKanban.vue";
@@ -44,7 +46,16 @@ import ProcessoDeliveredList from "../components/processos/ProcessoDeliveredList
 import ProcessoFiltrosSheet from "../components/processos/ProcessoFiltrosSheet.vue";
 import ProcessoFormModal from "../components/processos/ProcessoFormModal.vue";
 
-const { processos, error, fetchProcessos, addProcesso, patchProcesso, removeProcesso } = useProcessos();
+const {
+  processos,
+  error,
+  fetchProcessos,
+  addProcesso,
+  patchProcesso,
+  removeProcesso,
+  moverProcesso,
+  recarregarProcesso,
+} = useProcessos();
 const route = useRoute();
 const router = useRouter();
 const { role, consultorNome, canWrite } = useAuth();
@@ -285,6 +296,23 @@ function fecharPainel(): void {
   painelId.value = "";
 }
 
+// ── Mudar de coluna (arrastar e "Mover para…") ────────────────────────────────────────────────────────
+// Fluxo único (useMoverProcesso): confirmação → POST /mover com a versão → card travado até a resposta.
+const {
+  pedido: pedidoMover,
+  movendo,
+  anuncio: anuncioMover,
+  pedir: pedirMover,
+  cancelar: cancelarMover,
+  confirmar: confirmarMover,
+} = useMoverProcesso({
+  podeEditar: () => canWriteProcessos.value && mostrarKanban.value,
+  obter: (id) => processos.value.find((p) => p.id === id),
+  mover: moverProcesso,
+  recarregar: recarregarProcesso,
+  toast: (texto) => showToast(texto),
+});
+
 function closeForm(): void {
   showFormModal.value = false;
   editingProcesso.value = null;
@@ -498,7 +526,9 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
       class="mt-3.5"
       :processos="filteredProcessos"
       :foco-id="focoId"
+      :movendo="movendo"
       @abrir="abrirPainel"
+      @mover="pedirMover"
     />
     <ProcessoGroupList
       v-else-if="activeTab === 'andamento'"
@@ -529,10 +559,26 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
       :key="painelProcesso.id"
       :processo="painelProcesso"
       :contagem-pasta="contagemPasta"
+      :movendo="movendo.has(painelProcesso.id)"
       @close="fecharPainel"
       @edit="openEditForm"
       @delete="handleDelete"
+      @mover="pedirMover"
     />
+
+    <!-- Confirmação de mudança de coluna (arrastar e menu): BaseModal z-900, por cima do painel. -->
+    <ConfirmDialog
+      v-if="pedidoMover"
+      title="Mover processo"
+      :message="pedidoMover.mensagem"
+      confirm-label="Mover"
+      cancel-label="Cancelar"
+      reforcado
+      @confirm="confirmarMover"
+      @close="cancelarMover"
+    />
+    <!-- Resultado da mudança de coluna para leitor de tela. -->
+    <p id="kanban-anuncio" class="sr-only" aria-live="polite" role="status">{{ anuncioMover }}</p>
 
     <ProcessoFiltrosSheet
       v-if="showFiltros"

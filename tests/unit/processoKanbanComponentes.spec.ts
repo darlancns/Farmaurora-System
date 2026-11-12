@@ -64,14 +64,14 @@ describe("ProcessoKanbanCard", () => {
     return montar(defineComponent({ setup: () => () => h(ProcessoKanbanCard, { processo: p, onAbrir }) }));
   }
 
-  it("<article id=processo-card-<id>> com UM botão (sem botão dentro de botão) que emite abrir", async () => {
+  it("<article id=processo-card-<id>> com o botão de abrir e o de 'Mover para…' (irmãos, nada de botão dentro de botão)", async () => {
     const abrir = vi.fn();
     const el = card(proc("p1"), abrir);
     const art = el.querySelector("article#processo-card-p1")!;
     expect(art.getAttribute("data-testid")).toBe("processo-card-p1");
-    expect(art.querySelectorAll("button")).toHaveLength(1);
+    expect(art.querySelectorAll("button")).toHaveLength(2);
     expect(art.querySelector("button button")).toBeNull();
-    art.querySelector("button")!.click();
+    art.querySelector<HTMLButtonElement>("#btn-abrir-processo-p1")!.click();
     expect(abrir).toHaveBeenCalledWith(expect.objectContaining({ id: "p1" }));
   });
 

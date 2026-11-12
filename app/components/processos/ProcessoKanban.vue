@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import type { Processo } from "#shared/types/processo";
+import { computed, ref } from "vue";
+import type { Processo, StatusProcesso } from "#shared/types/processo";
+import { useArrastarKanban } from "../../composables/useArrastarKanban";
 import { agruparPorColuna, COLUNAS_KANBAN } from "../../utils/processoKanban";
 import { STATUS_PROCESSO_META } from "../../utils/processoStatus";
 import ProcessoKanbanCard from "./ProcessoKanbanCard.vue";
@@ -9,26 +10,40 @@ import ProcessoKanbanCard from "./ProcessoKanbanCard.vue";
 // (busca, Empresa, Responsável, Cotações ASD) e agrupa uma vez só; cada coluna vem ordenada por Pasta (o mais antigo
 // em cima). O contador de cada coluna reflete os filtros e a busca.
 //
+// Mudar de coluna: arrastar o card (mouse) ou o menu "Mover para…" do card. As duas formas só PEDEM a mudança
+// (`mover`); a página confirma e grava (useMoverProcesso). `movendo` = ids travados enquanto gravam.
+//
 // Layout: em lg+ colunas de 226px com rolagem horizontal do quadro e rolagem vertical por coluna; abaixo de lg
 // rolagem horizontal com snap (~85vw por coluna) e a página rola na vertical.
 const props = withDefaults(
   defineProps<{
     processos: Processo[];
     focoId?: string;
+    movendo?: ReadonlySet<string>;
   }>(),
-  { focoId: "" },
+  { focoId: "", movendo: () => new Set<string>() },
 );
 
 const emit = defineEmits<{
   abrir: [processo: Processo];
+  mover: [processo: Processo, para: StatusProcesso];
 }>();
 
 const grupos = computed(() => agruparPorColuna(props.processos));
+const quadro = ref<HTMLElement | null>(null);
+
+const arrasto = useArrastarKanban({
+  processos: () => props.processos,
+  quadro,
+  podeArrastar: (p) => !props.movendo.has(p.id),
+  aoSoltar: (p, destino) => emit("mover", p, destino),
+});
 </script>
 
 <template>
   <div
     id="processo-kanban"
+    ref="quadro"
     class="-mx-6 flex snap-x snap-mandatory gap-3 overflow-x-auto px-6 pb-3 lg:mx-0 lg:snap-none lg:px-0"
     aria-label="Processos por status"
   >
@@ -38,7 +53,16 @@ const grupos = computed(() => agruparPorColuna(props.processos));
       :key="coluna.id"
       :data-testid="`kanban-coluna-${coluna.id}`"
       :aria-labelledby="`kanban-titulo-${coluna.id}`"
-      class="flex w-[85vw] max-w-[340px] shrink-0 snap-start flex-col rounded-lg bg-hairline/25 lg:w-[226px] lg:max-w-none"
+      class="flex w-[85vw] max-w-[340px] shrink-0 snap-start flex-col rounded-lg transition-colors lg:w-[226px] lg:max-w-none"
+      :class="
+        arrasto.destacada(coluna.status)
+          ? 'bg-farm-blue-soft outline-2 -outline-offset-2 outline-accent-dark'
+          : 'bg-hairline/25'
+      "
+      @dragenter="arrasto.onDragEnter($event, coluna.status)"
+      @dragover="arrasto.onDragOver($event, coluna.status)"
+      @dragleave="arrasto.onDragLeave(coluna.status)"
+      @drop="arrasto.onDrop($event, coluna.status)"
     >
       <header class="flex items-center justify-between gap-2 px-2.5 pt-2.5 pb-2">
         <span
@@ -64,7 +88,12 @@ const grupos = computed(() => agruparPorColuna(props.processos));
           :key="processo.id"
           :processo="processo"
           :destaque="processo.id === focoId"
+          :arrastavel="arrasto.habilitado.value"
+          :movendo="movendo.has(processo.id)"
           @abrir="emit('abrir', $event)"
+          @mover="(p, para) => emit('mover', p, para)"
+          @arrastar="arrasto.onDragStart"
+          @soltar-arrasto="arrasto.onDragEnd"
         />
         <p
           v-if="!grupos[coluna.status].length"

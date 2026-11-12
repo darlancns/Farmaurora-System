@@ -1,22 +1,32 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import type { Processo } from "#shared/types/processo";
+import type { Processo, StatusProcesso } from "#shared/types/processo";
 import { resumoMedicamentos } from "../../utils/processoFormatters";
+import ProcessoMoverMenu from "./ProcessoMoverMenu.vue";
 
-// Card de um processo no Kanban do Follow-Up. <article> com UM <button> (abre o painel); a etiqueta de pagamento é
-// só indicador (span), nada de botão dentro de botão. Linhas: (1) Pasta · PO e, à direita, Pago/Pendente (só com
-// valor); (2) paciente; (3) medicamento; (4) consultor e, à direita, o alerta de pendências com a quantidade.
+// Card de um processo no Kanban do Follow-Up. <article> com DOIS botões irmãos: o que abre o painel (o card todo) e
+// o "Mover para…" (menu), à direita — nada de botão dentro de botão. A etiqueta de pagamento é só indicador (span).
+// Linhas: (1) Pasta · PO e, à direita, Pago/Pendente (só com valor); (2) paciente; (3) medicamento; (4) consultor e,
+// à direita, o alerta de pendências com a quantidade.
+//
+// Arrastar: o <article> é `draggable` só quando `arrastavel` (mouse/caneta; desligado em toque e enquanto move).
+// `movendo`: a mudança de coluna foi confirmada e está gravando — o card fica travado até a resposta.
 const props = withDefaults(
   defineProps<{
     processo: Processo;
     // Realce temporário (chegou aqui por ?processo=<id>).
     destaque?: boolean;
+    arrastavel?: boolean;
+    movendo?: boolean;
   }>(),
-  { destaque: false },
+  { destaque: false, arrastavel: false, movendo: false },
 );
 
 const emit = defineEmits<{
   abrir: [processo: Processo];
+  mover: [processo: Processo, para: StatusProcesso];
+  arrastar: [event: DragEvent, processo: Processo];
+  soltarArrasto: [];
 }>();
 
 const pastaPo = computed(() =>
@@ -38,13 +48,22 @@ const qtdPendencias = computed(() => props.processo.pendencias.length);
   <article
     :id="`processo-card-${processo.id}`"
     :data-testid="`processo-card-${processo.id}`"
-    class="rounded-lg border bg-paper-raised transition-colors hover:border-accent-dark"
-    :class="destaque ? 'border-accent-dark bg-accent-dark/10 outline-2 -outline-offset-2 outline-accent-dark' : 'border-hairline'"
+    class="flex items-start rounded-lg border bg-paper-raised transition-colors hover:border-accent-dark"
+    :class="[
+      destaque ? 'border-accent-dark bg-accent-dark/10 outline-2 -outline-offset-2 outline-accent-dark' : 'border-hairline',
+      movendo ? 'pointer-events-none opacity-60' : '',
+      arrastavel && !movendo ? 'cursor-grab active:cursor-grabbing' : '',
+    ]"
+    :draggable="arrastavel && !movendo ? 'true' : undefined"
+    :aria-busy="movendo ? 'true' : undefined"
+    @dragstart="emit('arrastar', $event, processo)"
+    @dragend="emit('soltarArrasto')"
   >
     <button
       :id="`btn-abrir-processo-${processo.id}`"
       type="button"
-      class="flex w-full flex-col gap-1 rounded-lg px-3 py-2.5 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-dark"
+      :disabled="movendo"
+      class="flex min-h-11 min-w-0 flex-1 flex-col gap-1 rounded-lg py-2.5 pr-1 pl-3 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-dark"
       :aria-label="`Abrir processo de ${processo.paciente}`"
       @click="emit('abrir', processo)"
     >
@@ -102,6 +121,16 @@ const qtdPendencias = computed(() => props.processo.pendencias.length);
           <span class="sr-only">{{ qtdPendencias === 1 ? " pendência" : " pendências" }}</span>
         </span>
       </span>
+      <span v-if="movendo" :id="`card-movendo-${processo.id}`" class="text-[11.5px] font-semibold text-accent-dark">Movendo…</span>
     </button>
+
+    <div class="shrink-0 pt-1 pr-1">
+      <ProcessoMoverMenu
+        :processo="processo"
+        contexto="card"
+        :disabled="movendo"
+        @mover="(para) => emit('mover', processo, para)"
+      />
+    </div>
   </article>
 </template>

@@ -71,6 +71,24 @@ export function compararPorPasta(a: Pick<Processo, "pasta" | "id">, b: Pick<Proc
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
+// ── Mover de coluna (arrastar e menu "Mover para…") ──────────────────────────────────────────────────────────
+
+/** O destino é um dos 5 status e DIFERENTE da coluna atual? (soltar na mesma coluna não faz nada) */
+export function alvoDeMovimentoValido(processo: Pick<Processo, "status">, destino: unknown): destino is StatusProcesso {
+  return COLUNAS_KANBAN.some((c) => c.status === destino) && destino !== colunaDoProcesso(processo);
+}
+
+/** As OUTRAS 4 colunas, na ordem do fluxo: as opções do menu "Mover para…". */
+export function opcoesMoverPara(processo: Pick<Processo, "status">): ColunaKanban[] {
+  const atual = colunaDoProcesso(processo);
+  return COLUNAS_KANBAN.filter((c) => c.status !== atual);
+}
+
+/** Texto da confirmação (o mesmo para arrastar e para o menu). */
+export function textoConfirmacaoMover(paciente: string, de: StatusProcesso, para: StatusProcesso): string {
+  return `Mover «${paciente}» de ${STATUS_PROCESSO_LABELS[de]} para ${STATUS_PROCESSO_LABELS[para]}? A mudança fica registrada nas atualizações e o consultor é avisado.`;
+}
+
 export type ProcessosPorColuna = Record<StatusProcesso, Processo[]>;
 
 /**
