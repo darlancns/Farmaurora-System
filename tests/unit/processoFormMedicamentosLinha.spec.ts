@@ -126,9 +126,9 @@ describe("linha do medicamento: Qtd. / Medicamento / botões (✕ e depois +, co
     }
     expect(el.querySelector("[id*='dosagem']")).toBeNull();
     expect(el.querySelector("[for*='dosagem']")).toBeNull();
-    // Só os rótulos do bloco de medicamentos (o Local de entrega foi para o bloco "Transportadora e entrega").
+    // Só os rótulos do bloco de medicamentos (o "Nome" que existe no formulário é o da Transportadora nacional).
     const bloco = el.querySelector("#pf-medicamento-nome-0")!.closest("fieldset")!;
-    expect([...bloco.querySelectorAll("label")].map(texto)).toEqual(["Qtd.", "Medicamento", "Qtd.", "Medicamento", "Qtd.", "Medicamento"]);
+    expect([...bloco.querySelectorAll("label")].map(texto)).toEqual(["Qtd.", "Medicamento", "Qtd.", "Medicamento", "Qtd.", "Medicamento", "Local de entrega"]);
     const rotulosForm = [...el.querySelectorAll("#processo-form label")].map(texto);
     expect(rotulosForm).not.toContain("Dosagem");
     expect(rotulosForm).not.toContain("Quantidade");

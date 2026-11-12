@@ -53,13 +53,11 @@ export const SELECT_CAMPO_CLASS = [
 export const BOTAO_REMOVER_CLASS =
   "flex min-h-11 min-w-11 items-center justify-center rounded-md px-4 py-2.5 text-ink-soft transition-colors hover:text-danger md:px-1.5 md:py-2 lg:block lg:min-h-auto lg:min-w-auto";
 
-// Blocos do formulário, na linguagem do painel lateral do Kanban: sem moldura, separados por uma linha fina em cima
-// (border-t border-hairline) e com um rótulo pequeno em caixa alta. Continua <fieldset> + <legend> (agrupamento
-// acessível). A legenda é float-left w-full: assim ela não "corta" a linha do fieldset (comportamento padrão de uma
-// legend) e fica como um título comum, com o conteúdo logo abaixo. A caixa alta vem do CSS (uppercase); no código
-// o texto fica normal. min-w-0 impede o fieldset de estourar a largura em 360px.
-export const FIELDSET_CLASS = "min-w-0 border-t border-hairline pt-3.5 lg:min-w-min";
-export const LEGEND_CLASS = "float-left mb-2.5 w-full text-[11px] font-semibold tracking-wide text-ink-soft uppercase";
+// Blocos com moldura do formulário (Medicamentos e local de entrega, Envio internacional, Transportadora nacional e
+// Datas): o <fieldset> e a <legend>. A caixa alta da legenda vem do CSS (uppercase); no código ela fica em texto normal.
+// min-w-0 impede o fieldset de estourar a largura em 360px (o min-width padrão de um fieldset é o conteúdo).
+export const FIELDSET_CLASS = "min-w-0 rounded-md border border-hairline p-3 lg:min-w-min";
+export const LEGEND_CLASS = "px-1 text-[11px] font-semibold text-ink-soft uppercase";
 
 // Margem lateral do casco em tela cheia: 16px no celular e, no tablet, o
 // conteúdo fica numa coluna de no máximo 720px (a mesma largura do modal no
