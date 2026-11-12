@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import type { Processo } from "#shared/types/processo";
 import { metaDoStatus, rotuloStatusProcesso } from "../../utils/processoStatus";
+import { resumoMedicamentos } from "../../utils/processoFormatters";
 import { remessaVisivelNaLinha, type ContagemPorPasta } from "../../utils/remessaNaLinha";
 import ConfirmDialog from "../ConfirmDialog.vue";
 import ProcessoDetail from "./ProcessoDetail.vue";
@@ -36,12 +37,7 @@ const statusLabel = computed(() => rotuloStatusProcesso(props.processo));
 const hasPendencias = computed(() => props.processo.pendencias.length > 0);
 // "Remessa N" só quando N > 1 ou a pasta se repete entre TODOS os processos (a contagem vem da página).
 const mostrarRemessa = computed(() => remessaVisivelNaLinha(props.processo, props.contagemPasta));
-const medicamentoResumo = computed(() => {
-  const [first, ...rest] = props.processo.medicamentos;
-  if (!first) return "—";
-  const label = [first.nome, first.dosagem].filter(Boolean).join(" ");
-  return rest.length ? `${label} +${rest.length}` : label;
-});
+const medicamentoResumo = computed(() => resumoMedicamentos(props.processo.medicamentos));
 
 function toggleExpand(): void {
   expandido.value = !expandido.value;

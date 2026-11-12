@@ -12,7 +12,11 @@ import { useAberturaPorBusca } from "../composables/useAberturaPorBusca";
 import { useConflitoEdicaoProcesso } from "../composables/useConflitoEdicaoProcesso";
 import { useProcessos } from "../composables/useProcessos";
 import { useAuth } from "../composables/useAuth";
+import { useRecarregarAoVoltar } from "../composables/useRecarregarAoVoltar";
 import { useToast } from "../composables/useToast";
+import { useVisaoProcessos } from "../composables/useVisaoProcessos";
+import type { VisaoProcessos } from "../utils/processoVisao";
+import type { AppSelectOption } from "../types/appSelect";
 import { getErrorMessage } from "../utils/errorMessages";
 import { filtrarPorBusca } from "../utils/processoBusca";
 import { filtrarPorCotacao, filtrarPorStatus, separarAbas, type FiltroCotacao } from "../utils/processoListas";
@@ -32,7 +36,9 @@ import {
 import AppSelect from "../components/AppSelect.vue";
 import FloatingAddButton from "../components/FloatingAddButton.vue";
 import GlobalHeader from "../components/GlobalHeader.vue";
+import SegmentedControl from "../components/SegmentedControl.vue";
 import ProcessoGroupList from "../components/processos/ProcessoGroupList.vue";
+import ProcessoKanban from "../components/processos/ProcessoKanban.vue";
 import ProcessoDeliveredList from "../components/processos/ProcessoDeliveredList.vue";
 import ProcessoFiltrosSheet from "../components/processos/ProcessoFiltrosSheet.vue";
 import ProcessoFormModal from "../components/processos/ProcessoFormModal.vue";
@@ -50,6 +56,16 @@ const canWriteProcessos = computed<boolean>(() => canWrite("processos"));
 // consultor vê a própria lista direto, sem o agrupamento por consultor.
 const flatList = computed<boolean>(() => role.value === "consultor");
 
+// Kanban | Lista: só para quem pode editar processos, e só no cliente depois de montar (ver useVisaoProcessos).
+// Consultor e conta só-leitura nunca veem a alternância nem o Kanban.
+const { visao, mostrarAlternancia, mostrarKanban, escolher: escolherVisao } = useVisaoProcessos(
+  () => canWriteProcessos.value,
+);
+const VISAO_OPTIONS: AppSelectOption<VisaoProcessos>[] = [
+  { value: "kanban", label: "Kanban" },
+  { value: "lista", label: "Lista" },
+];
+
 
 type Tab = "andamento" | "entregues";
 const activeTab = ref<Tab>("andamento");
@@ -63,8 +79,12 @@ const cotacaoFilter = ref<FiltroCotacao>("");
 // Abaixo de lg os 4 selects moram no bottom sheet (ProcessoFiltrosSheet), aberto
 // pelo ícone ao lado da busca; a bolinha do ícone conta quantos estão ativos.
 const showFiltros = ref(false);
+// No Kanban o filtro Status não existe (cada status é uma coluna): não aparece, não conta na bolinha e não filtra.
 const filtrosAtivos = computed<number>(
-  () => [statusFilter.value, empresaFilter.value, responsavelFilter.value, cotacaoFilter.value].filter(Boolean).length,
+  () =>
+    [mostrarKanban.value ? "" : statusFilter.value, empresaFilter.value, responsavelFilter.value, cotacaoFilter.value].filter(
+      Boolean,
+    ).length,
 );
 
 const filteredProcessos = computed<Processo[]>(() => {
@@ -76,7 +96,7 @@ const filteredProcessos = computed<Processo[]>(() => {
     list = list.filter((p) => p.consultor === consultorNome.value);
   }
 
-  list = filtrarPorStatus(list, statusFilter.value);
+  if (!mostrarKanban.value) list = filtrarPorStatus(list, statusFilter.value);
   if (empresaFilter.value) {
     list = list.filter((p) => p.empresa === empresaFilter.value);
   }
@@ -125,7 +145,42 @@ function limparQueryProcesso(): void {
   router.replace({ path: route.path, query: resto });
 }
 
+function limparBuscaEFiltros(): void {
+  searchQuery.value = "";
+  statusFilter.value = "";
+  empresaFilter.value = "";
+  responsavelFilter.value = "";
+  cotacaoFilter.value = "";
+}
+
+function destacarPorUmTempo(id: string): void {
+  if (timerDestaque) clearTimeout(timerDestaque);
+  timerDestaque = setTimeout(() => {
+    if (focoId.value === id) focoId.value = "";
+    timerDestaque = null;
+  }, DESTAQUE_PROCESSO_MS);
+}
+
+// Kanban: caminho PARALELO ao da Lista. Limpa a busca/filtros só se escondem o processo, destaca o card e rola a
+// coluna (e o quadro) até ele. O painel lateral abre aqui também (etapa C).
+async function irParaProcessoNoKanban(id: string): Promise<void> {
+  limparQueryProcesso();
+  if (!processos.value.some((p) => p.id === id)) {
+    if (!error.value) showToast("Processo não encontrado.");
+    return;
+  }
+  if (!filteredProcessos.value.some((p) => p.id === id)) limparBuscaEFiltros();
+
+  focoId.value = "";
+  await nextTick();
+  focoId.value = id;
+  await nextTick();
+  document.getElementById(`processo-card-${id}`)?.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+  destacarPorUmTempo(id);
+}
+
 async function irParaProcesso(id: string): Promise<void> {
+  if (mostrarKanban.value) return irParaProcessoNoKanban(id);
   const plano = planejarFocoProcesso(processos.value, filteredProcessos.value, id);
   limparQueryProcesso();
   if (!plano) {
@@ -182,6 +237,12 @@ onBeforeUnmount(() => {
 const showFormModal = ref(false);
 const editingProcesso = ref<Processo | null>(null);
 
+// Volta para a aba do navegador: recarrega a lista (no máximo a cada 60s), nunca com o formulário aberto.
+useRecarregarAoVoltar({
+  recarregar: () => fetchProcessos(),
+  bloqueado: () => showFormModal.value,
+});
+
 // Conflito de versão na edição (outra pessoa gravou o processo com o formulário aberto): ver o composable.
 const {
   conflito: conflitoEdicao,
@@ -203,6 +264,11 @@ function openEditForm(processo: Processo): void {
   limparConflitoEdicao();
   editingProcesso.value = processo;
   showFormModal.value = true;
+}
+
+// Clique no card do Kanban. Provisório da etapa B: abre o formulário de edição; a etapa C troca pelo painel lateral.
+function abrirPainel(processo: Processo): void {
+  openEditForm(processo);
 }
 
 function closeForm(): void {
@@ -342,7 +408,20 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
             </div>
           </div>
 
-          <div v-if="activeTab === 'andamento'" class="hidden shrink-0 lg:block lg:w-fit">
+          <!-- Kanban | Lista: só para quem pode editar e só depois de montar (cliente). Abaixo de lg em linha própria,
+               largura total; em lg+ logo depois da busca. -->
+          <div v-if="mostrarAlternancia" id="processo-visao" class="shrink-0 lg:w-[176px]">
+            <SegmentedControl
+              id="processo-visao-toggle"
+              label="Visão do Follow-Up"
+              :model-value="visao"
+              :options="VISAO_OPTIONS"
+              @update:model-value="escolherVisao"
+            />
+          </div>
+
+          <!-- Status: só na Lista, aba Em andamento (no Kanban cada status é uma coluna). -->
+          <div v-if="!mostrarKanban && activeTab === 'andamento'" class="hidden shrink-0 lg:block lg:w-fit">
             <AppSelect id="filtro-status" v-model="statusFilter" :options="STATUS_FILTER_OPTIONS" />
           </div>
 
@@ -354,8 +433,9 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
             <AppSelect id="filtro-responsavel" v-model="responsavelFilter" :options="RESPONSAVEL_FILTER_OPTIONS" />
           </div>
 
-          <!-- Só em Em andamento (como o status): quem está em Entregues nunca entra em "Cotações ASD". -->
-          <div v-if="activeTab === 'andamento'" class="hidden shrink-0 lg:block lg:w-fit">
+          <!-- Lista: só em Em andamento (como o status): quem está em Entregues nunca entra em "Cotações ASD".
+               Kanban: sempre (a regra já deixa a coluna Entregue vazia com o filtro ligado). -->
+          <div v-if="mostrarKanban || activeTab === 'andamento'" class="hidden shrink-0 lg:block lg:w-fit">
             <AppSelect id="filtro-cotacao" v-model="cotacaoFilter" :options="COTACAO_FILTER_OPTIONS" />
           </div>
 
@@ -375,7 +455,8 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
       </template>
 
       <template #tabs>
-        <div class="mb-3.5 flex gap-0 border-b border-hairline lg:gap-1">
+        <!-- No Kanban não há abas: Entregue é uma coluna, com todos os entregues. -->
+        <div v-if="!mostrarKanban" class="mb-3.5 flex gap-0 border-b border-hairline lg:gap-1">
           <button
             id="tab-andamento"
             type="button"
@@ -398,8 +479,15 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
       </template>
     </GlobalHeader>
 
+    <ProcessoKanban
+      v-if="mostrarKanban"
+      class="mt-3.5"
+      :processos="filteredProcessos"
+      :foco-id="focoId"
+      @abrir="abrirPainel"
+    />
     <ProcessoGroupList
-      v-if="activeTab === 'andamento'"
+      v-else-if="activeTab === 'andamento'"
       :processos="andamentoList"
       :readonly="!canWriteProcessos"
       :flat="flatList"
@@ -427,8 +515,8 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
       v-model:empresa="empresaFilter"
       v-model:responsavel="responsavelFilter"
       v-model:cotacao="cotacaoFilter"
-      :show-status="activeTab === 'andamento'"
-      :show-cotacao="activeTab === 'andamento'"
+      :show-status="!mostrarKanban && activeTab === 'andamento'"
+      :show-cotacao="mostrarKanban || activeTab === 'andamento'"
       @close="showFiltros = false"
     />
 

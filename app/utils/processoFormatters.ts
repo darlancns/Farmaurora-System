@@ -18,6 +18,15 @@ export function formatOrdemLabel(numero: string): string | undefined {
   return trimmed ? `Ordem ${trimmed}` : undefined;
 }
 
+// Resumo dos medicamentos numa linha (linha da Lista e card do Kanban): "NOME DOSAGEM", mais "+N" quando há outros
+// itens; "—" quando não há nenhum.
+export function resumoMedicamentos(medicamentos: ReadonlyArray<{ nome: string; dosagem?: string }>): string {
+  const [first, ...rest] = medicamentos;
+  if (!first) return "—";
+  const label = [first.nome, first.dosagem].filter(Boolean).join(" ");
+  return rest.length ? `${label} +${rest.length}` : label;
+}
+
 // Capitaliza só a primeira letra da frase, sem tocar no resto do texto —
 // usado no campo de nova atualização do timeline (ProcessoDetail.vue).
 export function capitalizeFirstLetter(value: string): string {
