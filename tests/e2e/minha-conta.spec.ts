@@ -259,7 +259,7 @@ test.describe("Minha conta — responsividade", () => {
       const email = c["minha-conta-bloco-email"]!;
       const senha = c["minha-conta-bloco-senha"]!;
 
-      // Ocupa o contêiner padrão das páginas (mx-auto max-w-[1400px] dentro do main de 192px de sidebar + 24px de
+      // Ocupa o contêiner padrão das páginas (mx-auto max-w-pagina = 1400px dentro do main de 192px de sidebar + 24px de
       // padding de cada lado), não mais os 560px de antes.
       expect(aprox(tab.w, Math.min(1400, largura - 240), 1.5)).toBe(true);
       expect(nomeCartao.w).toBeCloseTo(tab.w, 0);

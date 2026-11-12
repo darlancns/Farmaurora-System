@@ -52,7 +52,7 @@ const subtitle = computed<string>(() =>
 </script>
 
 <template>
-  <div id="configuracoes-page" class="mx-auto max-w-[1400px]">
+  <div id="configuracoes-page" class="mx-auto max-w-pagina">
     <GlobalHeader title="Configurações" :subtitle="subtitle">
       <template v-if="showContent" #tabs>
         <!-- Abaixo de lg: -mt-3.5 desconta 14px do mb-4 do GlobalHeader (sobram 2px = a espessura do sublinhado) e a aba

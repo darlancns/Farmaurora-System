@@ -154,7 +154,7 @@ function handleFab(): void {
     Classe ESTÁTICA de propósito (condicionar por cargo/aba daria atributo divergente entre SSR
     e client): cargos somente-leitura e a aba Câmbio ficam com 80px de folga a mais, sem efeito visível.
   -->
-  <div id="pagamentos-page" class="mx-auto max-w-[1400px] pb-20 lg:pb-0">
+  <div id="pagamentos-page" class="mx-auto max-w-larga pb-20 lg:pb-0">
     <GlobalHeader title="Pagamentos" subtitle="Banco, cotação de câmbio, despachante e transportadora.">
       <template #tabs>
         <!-- Abaixo de lg: as 4 abas centralizadas, sem corte nem scroll, com toque >= 44px. O -mt-[13px] compensa o mb-4 do

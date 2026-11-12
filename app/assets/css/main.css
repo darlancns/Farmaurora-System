@@ -21,6 +21,13 @@
   --color-postit-informacao: #afdcea;
   --color-postit-geral: #e7dcc3;
 
+  /* Tetos de largura das páginas (namespace --container-* → classes max-w-pagina / max-w-larga / max-w-fluida).
+     Todos ficam acima de 1400px de conteúdo, então só fazem diferença em janelas de 1640px ou mais
+     (1400 + 192 da sidebar + 48 do padding do <main>): abaixo disso o layout é o mesmo de sempre. */
+  --container-pagina: 1400px; /* formulários e telas de leitura (Configurações) */
+  --container-larga: 1900px; /* tabelas/linhas (Pagamentos, Prestações) */
+  --container-fluida: 2200px; /* listas, Recados e Kanban */
+
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }

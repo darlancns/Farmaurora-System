@@ -1,4 +1,11 @@
 import { test, expect, type Page } from "@playwright/test";
+import {
+  VIEWPORT_ANTES_TELAS_GRANDES,
+  VIEWPORTS_TELAS_GRANDES,
+  tetoEsperado,
+  verificarTetoCentralizado,
+  TETO_LARGA,
+} from "./_helpers/viewports";
 
 // Responsividade de /prestacao (Rodada 4 do plano de responsividade — só
 // CSS/layout, nenhuma lógica de dados/cálculo tocada, SSR hydration não
@@ -155,4 +162,16 @@ test.describe("Responsividade de /prestacao", () => {
       expect(searchBox!.width).toBeGreaterThanOrEqual(240);
     }
   });
+});
+
+test.describe("/prestacao — telas grandes", () => {
+  test.describe.configure({ retries: 2 });
+
+  for (const viewport of [VIEWPORT_ANTES_TELAS_GRANDES, ...VIEWPORTS_TELAS_GRANDES]) {
+    test(`${viewport.name}: conteúdo no teto, centralizado e sem rolagem horizontal`, async ({ page }) => {
+      test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD ou E2E_SOCIO_EMAIL/PASSWORD");
+      await gotoPrestacao(page, viewport);
+      await verificarTetoCentralizado(page, "#dashboard-page", tetoEsperado(viewport, TETO_LARGA));
+    });
+  }
 });

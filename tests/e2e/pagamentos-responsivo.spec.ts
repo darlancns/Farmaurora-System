@@ -1,4 +1,11 @@
 import { test, expect, type Page } from "@playwright/test";
+import {
+  VIEWPORT_ANTES_TELAS_GRANDES,
+  VIEWPORTS_TELAS_GRANDES,
+  tetoEsperado,
+  verificarTetoCentralizado,
+  TETO_LARGA,
+} from "./_helpers/viewports";
 
 // Responsividade de /pagamentos (Rodada 2 do plano de responsividade — só
 // CSS/layout, nenhum cálculo/valor tocado). Roda contra dados reais já
@@ -294,6 +301,18 @@ test.describe("Responsividade de /pagamentos", () => {
       }
 
       expect(await hasHorizontalOverflow(page)).toBe(false);
+    });
+  }
+});
+
+test.describe("/pagamentos — telas grandes", () => {
+  test.describe.configure({ retries: 2 });
+
+  for (const viewport of [VIEWPORT_ANTES_TELAS_GRANDES, ...VIEWPORTS_TELAS_GRANDES]) {
+    test(`${viewport.name}: conteúdo no teto, centralizado e sem rolagem horizontal`, async ({ page }) => {
+      test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD ou E2E_OPERACIONAL_EMAIL/PASSWORD");
+      await gotoPagamentos(page, viewport);
+      await verificarTetoCentralizado(page, "#pagamentos-page", tetoEsperado(viewport, TETO_LARGA));
     });
   }
 });

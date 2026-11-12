@@ -209,7 +209,7 @@ async function handleCopyWhatsapp(patient: PatientComputed): Promise<void> {
        1º render do client: sem efeito na hydration. -->
   <div
     id="dashboard-page"
-    class="mx-auto max-w-[1400px] pb-20 lg:flex lg:h-full lg:flex-col lg:pb-0"
+    class="mx-auto max-w-larga pb-20 lg:flex lg:h-full lg:flex-col lg:pb-0"
     :class="{ 'max-lg:[&_#patient-table-scroll]:overflow-y-hidden': showFiltros || showForm }"
   >
     <GlobalHeader

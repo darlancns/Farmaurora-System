@@ -1,4 +1,11 @@
 import { test, expect, type Page } from "@playwright/test";
+import {
+  VIEWPORT_ANTES_TELAS_GRANDES,
+  VIEWPORTS_TELAS_GRANDES,
+  tetoEsperado,
+  verificarTetoCentralizado,
+  TETO_PAGINA,
+} from "./_helpers/viewports";
 
 // Responsividade de /configuracoes (Rodada 5 do plano de responsividade — só
 // CSS/layout, nenhuma lógica de RBAC/permissões/CRUD de conta tocada). Roda
@@ -207,4 +214,16 @@ test.describe("Responsividade de /configuracoes", () => {
     expect(Math.round(box!.width)).toBe(28);
     expect(Math.round(box!.height)).toBe(28);
   });
+});
+
+test.describe("/configuracoes — telas grandes", () => {
+  test.describe.configure({ retries: 2 });
+
+  for (const viewport of [VIEWPORT_ANTES_TELAS_GRANDES, ...VIEWPORTS_TELAS_GRANDES]) {
+    test(`${viewport.name}: conteúdo no teto, centralizado e sem rolagem horizontal`, async ({ page }) => {
+      test.skip(!hasWriter, "defina E2E_ADMIN_EMAIL/PASSWORD");
+      await gotoConfiguracoes(page, viewport);
+      await verificarTetoCentralizado(page, "#configuracoes-page", tetoEsperado(viewport, TETO_PAGINA));
+    });
+  }
 });

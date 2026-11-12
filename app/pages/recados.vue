@@ -230,7 +230,7 @@ async function handleConcluirLembrete(id: string): Promise<void> {
     Classe ESTÁTICA de propósito (mesmo motivo de processos.vue): nada condicionado a
     cargo/usuário num elemento renderizado pelo SSR.
   -->
-  <div id="recados-page" class="mx-auto max-w-[1400px] pb-20 lg:pb-0">
+  <div id="recados-page" class="mx-auto max-w-fluida pb-20 lg:pb-0">
     <GlobalHeader title="Recados" subtitle="Mural de comunicação da equipe.">
       <template #tabs>
         <!--
@@ -283,12 +283,16 @@ async function handleConcluirLembrete(id: string): Promise<void> {
       </template>
     </GlobalHeader>
 
+    <!-- Grades de post-its: até xl as classes de sempre (no máximo 5 colunas). A partir de 1640px de janela (telas
+         grandes, quando o teto da página passa de 1400px), colunas automáticas de no mínimo 272px. O "!" é
+         necessário: o Tailwind 4 emite variantes arbitrárias min-[…] ANTES das nomeadas (sm…xl), então sem ele o
+         xl:grid-cols-5 venceria pela ordem do CSS. Continua valendo só dentro da media query de 1640px. -->
     <template v-if="activeTab === 'meus'">
       <p v-if="!lembretesVisiveis.length" id="lembretes-vazio" class="py-10 text-center text-[13px] text-ink-soft">
         Nenhum lembrete por aqui.
       </p>
 
-      <div v-else id="lembretes-lista" class="grid grid-cols-1 items-start gap-2.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      <div v-else id="lembretes-lista" class="grid grid-cols-1 items-start gap-2.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 min-[1640px]:grid-cols-[repeat(auto-fill,minmax(272px,1fr))]!">
         <LembreteCard
           v-for="lembrete in lembretesVisiveis"
           :key="lembrete.id"
@@ -306,7 +310,7 @@ async function handleConcluirLembrete(id: string): Promise<void> {
         Nenhum recado por aqui.
       </p>
 
-      <div v-else id="recados-lista" class="grid grid-cols-1 items-start gap-2.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      <div v-else id="recados-lista" class="grid grid-cols-1 items-start gap-2.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 min-[1640px]:grid-cols-[repeat(auto-fill,minmax(272px,1fr))]!">
         <RecadoCard
           v-for="recado in listaAtiva"
           :key="recado.id"

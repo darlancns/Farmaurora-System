@@ -1,4 +1,11 @@
 import { test, expect, type Page } from "@playwright/test";
+import {
+  VIEWPORT_ANTES_TELAS_GRANDES,
+  VIEWPORTS_TELAS_GRANDES,
+  tetoEsperado,
+  verificarTetoCentralizado,
+  TETO_FLUIDA,
+} from "./_helpers/viewports";
 
 // /recados: abas centralizadas e botão flutuante "+" abaixo de lg, e desktop (>= lg)
 // como sempre foi (sem a aba "Todos", removida em todas as larguras). "recados" é a
@@ -323,6 +330,29 @@ test.describe("/recados — desktop (>= lg) como sempre", () => {
       // Aba Meus: o mesmo botão vira "+ Novo lembrete".
       await page.locator("#tab-meus").click();
       await expect(botao).toHaveText("+ Novo lembrete");
+    });
+  }
+});
+
+test.describe("/recados — telas grandes", () => {
+  test.describe.configure({ retries: 2 });
+
+  for (const viewport of [VIEWPORT_ANTES_TELAS_GRANDES, ...VIEWPORTS_TELAS_GRANDES]) {
+    test(`${viewport.name}: conteúdo no teto, centralizado e sem rolagem horizontal`, async ({ page }) => {
+      test.skip(!hasAccount, "defina E2E_ADMIN_EMAIL/PASSWORD, E2E_OPERACIONAL_EMAIL/PASSWORD ou E2E_USER_EMAIL/PASSWORD");
+      await gotoRecados(page, viewport);
+      await verificarTetoCentralizado(page, "#recados-page", tetoEsperado(viewport, TETO_FLUIDA));
+
+      // Grade de post-its: até 1639px continua parando em 5 colunas (xl); a partir de 1640px, colunas automáticas
+      // de no mínimo 272px (gap de 10px) — com o teto de 2200px, 7 colunas.
+      const lista = page.locator("#recados-lista");
+      test.skip((await lista.count()) === 0, "sem recados para medir a grade");
+      const g = await lista.evaluate((el) => ({
+        colunas: getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length,
+        largura: el.getBoundingClientRect().width,
+      }));
+      const esperadas = viewport.width < 1640 ? 5 : Math.floor((g.largura + 10) / (272 + 10));
+      expect(g.colunas, `colunas da grade em ${g.largura}px`).toBe(esperadas);
     });
   }
 });

@@ -110,7 +110,7 @@ onBeforeUnmount(() => {
 // Abaixo de lg o `main` já reserva o espaço da BottomNav fixa (main.css); `max-lg:pb-4` no contêiner dá um
 // respiro extra entre o último cartão e a barra. Inputs a 16px no mobile: o iOS não dá zoom ao focar.
 // Layout (só lg+; abaixo de lg nada mudou): coluna única até 720px entre lg e xl; a partir de xl o conteúdo
-// ocupa o contêiner padrão das páginas (mx-auto max-w-[1400px] em configuracoes.vue), com o Nome em largura
+// ocupa o contêiner padrão das páginas (mx-auto max-w-pagina em configuracoes.vue), com o Nome em largura
 // total e E-mail e Senha lado a lado, cartões da mesma altura e botão no rodapé de cada um.
 const CLASSE_INPUT =
   "w-full rounded-md border border-hairline bg-paper px-2.5 py-2 text-[13.5px] focus:bg-white focus:outline-2 focus:outline-accent-dark disabled:opacity-60 max-lg:min-h-11 max-lg:text-[16px]";
