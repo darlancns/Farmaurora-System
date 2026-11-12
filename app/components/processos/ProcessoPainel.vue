@@ -76,8 +76,8 @@ useEscapeToClose((event) => {
 });
 useLockBodyScroll();
 
-// Foco: entra no painel (botão fechar) e, ao fechar, volta para onde estava (o botão do card); se esse elemento
-// sumiu (ex.: aberto por ?processo= sem clique), volta para o botão do card pelo id.
+// Foco: entra no painel (botão fechar) e, ao fechar, volta para onde estava (o card, que é o controle); se esse
+// elemento sumiu (ex.: aberto por ?processo= sem clique), volta para o card pelo id.
 let origemFoco: HTMLElement | null = null;
 const idProcesso = props.processo.id;
 
@@ -90,7 +90,7 @@ onBeforeUnmount(() => {
   const destino =
     origemFoco && origemFoco.isConnected && origemFoco !== document.body
       ? origemFoco
-      : document.getElementById(`btn-abrir-processo-${idProcesso}`);
+      : document.getElementById(`processo-card-${idProcesso}`);
   // depois de desmontar (o painel some do DOM antes de o foco ir ao card)
   setTimeout(() => destino?.focus(), 0);
 });
@@ -199,7 +199,6 @@ const BLOCO = "border-b border-hairline px-5 py-4";
         <ProcessoMoverMenu
           v-else
           :processo="processo"
-          contexto="painel"
           @mover="(para) => emit('mover', processo, para)"
         />
       </div>

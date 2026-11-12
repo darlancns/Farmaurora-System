@@ -329,9 +329,10 @@ describe("foco e Esc", () => {
     expect(document.activeElement).toBe(ultimo);
   });
 
-  it("ao fechar, o foco volta para o botão do card que abriu", async () => {
-    const botaoCard = document.createElement("button");
-    botaoCard.id = "btn-abrir-processo-p1";
+  it("ao fechar, o foco volta para o card que abriu (o próprio card é o controle)", async () => {
+    const botaoCard = document.createElement("article");
+    botaoCard.id = "processo-card-p1";
+    botaoCard.tabIndex = 0;
     document.body.appendChild(botaoCard);
     botaoCard.focus();
 

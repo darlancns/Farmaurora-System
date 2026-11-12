@@ -64,14 +64,24 @@ describe("ProcessoKanbanCard", () => {
     return montar(defineComponent({ setup: () => () => h(ProcessoKanbanCard, { processo: p, onAbrir }) }));
   }
 
-  it("<article id=processo-card-<id>> com o botão de abrir e o de 'Mover para…' (irmãos, nada de botão dentro de botão)", async () => {
+  it("o <article> INTEIRO é o controle: role=button, tabindex=0, sem <button> dentro; clique, Enter e Espaço abrem", async () => {
     const abrir = vi.fn();
     const el = card(proc("p1"), abrir);
-    const art = el.querySelector("article#processo-card-p1")!;
+    const art = el.querySelector<HTMLElement>("article#processo-card-p1")!;
     expect(art.getAttribute("data-testid")).toBe("processo-card-p1");
-    expect(art.querySelectorAll("button")).toHaveLength(2);
-    expect(art.querySelector("button button")).toBeNull();
-    art.querySelector<HTMLButtonElement>("#btn-abrir-processo-p1")!.click();
+    expect(art.getAttribute("role")).toBe("button");
+    expect(art.getAttribute("tabindex")).toBe("0");
+    expect(art.getAttribute("aria-haspopup")).toBe("dialog");
+    expect(art.querySelectorAll("button")).toHaveLength(0); // nem o antigo "Mover para…" do card
+    expect(art.className).toContain("focus-visible:outline-accent-dark");
+    for (const key of ["Enter", " "]) {
+      const ev = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+      art.dispatchEvent(ev);
+      expect(ev.defaultPrevented, "a tecla não rola a página").toBe(true);
+    }
+    expect(abrir).toHaveBeenCalledTimes(2);
+    abrir.mockClear();
+    art.click();
     expect(abrir).toHaveBeenCalledWith(expect.objectContaining({ id: "p1" }));
   });
 
@@ -81,6 +91,7 @@ describe("ProcessoKanbanCard", () => {
     expect(el.querySelector("#card-pasta-po-p1")!.className).toContain("font-mono");
     expect(texto(el.querySelector("#card-paciente-p1"))).toBe("Maria");
     expect(texto(el.querySelector("#card-medicamento-p1"))).toBe("DROGA 10MG");
+    expect(el.querySelector("#card-medicamento-p1")!.className).toContain("line-clamp-2"); // até 2 linhas, não 1
     expect(texto(el.querySelector("#card-consultor-p1"))).toBe("Flávia");
   });
 
@@ -134,7 +145,7 @@ describe("ProcessoKanban (quadro)", () => {
     return montar(defineComponent({ setup: () => () => h(ProcessoKanban, { processos }) }));
   }
 
-  it("5 colunas na ordem do fluxo, com etiqueta na cor do status e contador", () => {
+  it("5 colunas na ordem do fluxo; cabeçalho em faixa accent-dark igual em todas: ícone + título + (número)", () => {
     const el = quadro([
       proc("a", { status: "entregue", pasta: "2026 - 2" }),
       proc("b", { status: "entregue", pasta: "2026 - 1" }),
@@ -148,8 +159,17 @@ describe("ProcessoKanban (quadro)", () => {
       "kanban-coluna-entregue",
     ]);
     expect(texto(el.querySelector("#kanban-titulo-na-origem"))).toBe("Na origem");
-    expect(el.querySelector("#kanban-titulo-na-origem")!.className).toContain("bg-gray-100");
-    expect(el.querySelector("#kanban-titulo-liberado")!.className).toContain("bg-green-100");
+    for (const id of ["na-origem", "em-transito", "desembaraco", "liberado", "entregue"]) {
+      const cab = el.querySelector("#kanban-cabecalho-" + id)!;
+      const cls = cab.className;
+      for (const c of ["bg-accent-dark", "text-white", "rounded-lg", "h-10", "px-3", "font-display", "text-[13.5px]", "font-medium", "w-full"]) {
+        expect(cls, id + ": " + c).toContain(c);
+      }
+      expect(cls).not.toMatch(/bg-(gray|blue|purple|green|amber)-100/); // sem cor por status
+      expect(cab.querySelector("svg")).not.toBeNull();
+    }
+    expect(texto(el.querySelector("#kanban-cabecalho-entregue"))).toBe("Entregue (2)");
+    expect(texto(el.querySelector("#kanban-cabecalho-em-transito"))).toBe("Em trânsito (0)");
     expect(contador(el, "entregue")).toBe("2");
     expect(contador(el, "na-origem")).toBe("1");
     expect(contador(el, "em-transito")).toBe("0");
@@ -188,8 +208,8 @@ describe("ProcessoKanban (quadro)", () => {
     const el = montar(
       defineComponent({ setup: () => () => h(ProcessoKanban, { processos: [proc("a"), proc("b")], focoId: "b" }) }),
     );
-    expect(el.querySelector("#processo-card-b")!.className).toContain("outline-accent-dark");
-    expect(el.querySelector("#processo-card-a")!.className).not.toContain("outline-accent-dark");
+    expect(el.querySelector("#processo-card-b")!.className).toContain("bg-accent-dark/10");
+    expect(el.querySelector("#processo-card-a")!.className).not.toContain("bg-accent-dark/10");
   });
 });
 

@@ -73,6 +73,14 @@ async function abrirKanban(page: Page): Promise<void> {
 
 const coluna = (page: Page, id: string) => page.locator(`#kanban-coluna-${id}`);
 
+// Mover pelo painel (o card não tem mais botão próprio): abre o card, "Mover para…" no cabeçalho do painel, escolhe.
+async function pedirMoverPeloPainel(page: Page, id: string, colunaDestino: string): Promise<void> {
+  await page.locator(`#processo-card-${id}`).click();
+  await expect(page.locator("[data-testid='processo-painel']")).toBeVisible();
+  await page.locator(`#btn-mover-painel-${id}`).click();
+  await page.locator(`#mover-painel-${id}-${colunaDestino}`).click();
+}
+
 let ids: { transito: string; origem: string; conflito: string; arrastar: string } | null = null;
 
 test.describe("/processos — Kanban", () => {
@@ -132,9 +140,39 @@ test.describe("/processos — Kanban", () => {
       await expect(page.locator(`#card-pagamento-${ids!.origem}`)).toHaveText("Pendente");
       await expect(page.locator(`#card-pendencias-${ids!.transito}`)).toContainText("1");
 
-      // Colunas ocupam o resto da tela (sem altura fixa) e rolam por dentro; o quadro não estoura a viewport.
-      const quadro = await page.locator("#processo-kanban").boundingBox();
-      expect(quadro!.y + quadro!.height).toBeLessThanOrEqual(800 + 1);
+      // Cabeçalho em faixa da cor do projeto, igual em todas: "[ícone] Em trânsito (1)".
+      await expect(page.locator("#kanban-cabecalho-em-transito")).toHaveText(/Em trânsito \(1\)/);
+      expect(await page.locator("#kanban-cabecalho-em-transito").evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(
+        "rgb(11, 57, 86)",
+      );
+
+      // Colunas com no mínimo 312px; só o QUADRO rola de lado (a página não); sem rolagem vertical própria do quadro.
+      const larguras = await page.locator("section[id^='kanban-coluna-']").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().width));
+      for (const w of larguras) expect(w).toBeGreaterThanOrEqual(312 - 0.5);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+      const main = await page.locator("#app-main-content").evaluate((el) => el.scrollWidth <= el.clientWidth + 1);
+      expect(main, "o <main> não rola de lado").toBe(true);
+      const quadroRola = await page.locator("#processo-kanban").evaluate((el) => ({
+        horizontal: el.scrollWidth > el.clientWidth,
+        vertical: el.scrollHeight > el.clientHeight + 1,
+      }));
+      expect(quadroRola.vertical, "o quadro não tem rolagem vertical própria").toBe(false);
+      for (const lista of await page.locator("[id^='kanban-lista-']").all()) {
+        expect(await lista.evaluate((el) => getComputedStyle(el).overflowY)).toBe("visible");
+      }
+
+      // Pior caso da linha 1 do card inteiro (sem reticências) com a etiqueta ao lado.
+      const pastaPo = page.locator(`#card-pasta-po-${ids!.origem}`);
+      expect(await pastaPo.evaluate((el) => el.scrollWidth <= el.clientWidth + 0.5)).toBe(true);
+
+      // Botões ‹ ›: em 1280px as 5 colunas não cabem → só o › no começo; rola ~1 coluna e aparece o ‹.
+      if (quadroRola.horizontal) {
+        await expect(page.locator("#btn-kanban-rolar-esquerda")).toHaveCount(0);
+        const antes = await page.locator("#processo-kanban").evaluate((el) => el.scrollLeft);
+        await page.getByRole("button", { name: "Rolar quadro para a direita" }).click();
+        await expect.poll(() => page.locator("#processo-kanban").evaluate((el) => el.scrollLeft)).toBeGreaterThan(antes + 200);
+        await expect(page.getByRole("button", { name: "Rolar quadro para a esquerda" })).toBeVisible();
+      }
 
       await page.locator("#processo-visao-toggle-lista").click();
       await expect(page.locator("#tab-andamento")).toBeVisible();
@@ -147,8 +185,12 @@ test.describe("/processos — Kanban", () => {
     test("painel: abre pelo card, blocos na ordem, Esc fecha e devolve o foco ao card", async ({ page }) => {
       await fixarVisao(page, "kanban");
       await abrirKanban(page);
-      const abrir = page.locator(`#btn-abrir-processo-${ids!.transito}`);
-      await abrir.click();
+      const abrir = page.locator(`#processo-card-${ids!.transito}`);
+      await expect(abrir).toHaveAttribute("role", "button");
+      expect(await abrir.locator("button").count(), "card sem botão dentro").toBe(0);
+      // Teclado: foco no card e Enter abre o painel.
+      await abrir.focus();
+      await page.keyboard.press("Enter");
       const painel = page.locator("[data-testid='processo-painel']");
       await expect(painel).toBeVisible();
       const blocos = await painel.locator("[id^='painel-bloco-']").evaluateAll((els) => els.map((e) => e.id.replace("painel-bloco-", "")));
@@ -167,22 +209,23 @@ test.describe("/processos — Kanban", () => {
       await expect(abrir).toBeFocused();
     });
 
-    test("Mover para… com confirmação: cancelar não grava; confirmar muda a coluna e registra a atualização", async ({ page }) => {
+    test("Mover para… (painel) com confirmação: cancelar não grava; confirmar muda a coluna e registra a atualização", async ({ page }) => {
       await fixarVisao(page, "kanban");
       await abrirKanban(page);
       const id = ids!.transito;
 
-      await page.locator(`#btn-mover-card-${id}`).click();
-      await page.locator(`#mover-card-${id}-desembaraco`).click();
+      await pedirMoverPeloPainel(page, id, "desembaraco");
       const dialogo = page.locator("[role='alertdialog']");
       await expect(dialogo).toContainText(`de Em trânsito para Desembaraço? A mudança fica registrada nas atualizações e o consultor é avisado.`);
       await dialogo.getByRole("button", { name: "Cancelar" }).click();
       expect((await buscar(page, id)).status).toBe("em_transito");
 
-      await page.locator(`#btn-mover-card-${id}`).click();
-      await page.locator(`#mover-card-${id}-desembaraco`).click();
+      await page.locator(`#btn-mover-painel-${id}`).click();
+      await page.locator(`#mover-painel-${id}-desembaraco`).click();
       await page.locator("[role='alertdialog']").getByRole("button", { name: "Mover" }).click();
       await expect(page.locator("#toast-notice")).toHaveText("Processo movido para Desembaraço");
+      await expect(page.locator("#painel-status")).toHaveText("Desembaraço");
+      await page.locator("#btn-painel-fechar").click();
       await expect(coluna(page, "desembaraco").locator(`#processo-card-${id}`)).toBeVisible();
       const depois = await buscar(page, id);
       expect(depois.status).toBe("desembaraco");
@@ -205,8 +248,7 @@ test.describe("/processos — Kanban", () => {
       await fixarVisao(page, "kanban");
       await abrirKanban(page);
       const id = ids!.conflito;
-      await page.locator(`#btn-mover-card-${id}`).click();
-      await page.locator(`#mover-card-${id}-entregue`).click();
+      await pedirMoverPeloPainel(page, id, "entregue");
       // Outra pessoa grava o processo agora (PATCH simples, sem versão): o updated_at muda.
       const patch = await page.request.patch(`/api/processos/${id}`, { data: { localEntrega: "Mudou no meio", parcial: true } });
       expect(patch.ok()).toBe(true);
@@ -230,7 +272,7 @@ test.describe("/processos — Kanban", () => {
       await login(page);
     });
 
-    test("Kanban com snap e gutter, sem arrastar; menu Mover para… e painel em tela cheia com fechar visível", async ({ page }) => {
+    test("Kanban com snap e gutter, sem arrastar; card inteiro abre o painel em tela cheia (fechar e Mover para… visíveis)", async ({ page }) => {
       await fixarVisao(page, "kanban");
       await abrirKanban(page);
       const card = page.locator(`#processo-card-${ids!.origem}`);
@@ -241,10 +283,11 @@ test.describe("/processos — Kanban", () => {
       expect(primeira!.width).toBeGreaterThan(390 * 0.8);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
 
-      const mover = await page.locator(`#btn-mover-card-${ids!.origem}`).boundingBox();
-      expect(mover!.height).toBeGreaterThanOrEqual(44);
+      const caixaCard = await card.boundingBox();
+      expect(caixaCard!.height).toBeGreaterThanOrEqual(44); // o card inteiro é a área de toque
+      expect(await card.locator("button").count(), "card sem botão de mover").toBe(0);
 
-      await page.locator(`#btn-abrir-processo-${ids!.origem}`).click();
+      await card.click();
       const painel = page.locator("[data-testid='processo-painel']");
       const caixa = await painel.boundingBox();
       expect(caixa!.width).toBeCloseTo(390, 0);
@@ -252,6 +295,9 @@ test.describe("/processos — Kanban", () => {
       const fechar = await page.locator("#btn-painel-fechar").boundingBox();
       expect(fechar!.y).toBeGreaterThanOrEqual(0);
       expect(fechar!.height).toBeGreaterThanOrEqual(44);
+      // Em toque, mover é pelo menu do painel.
+      const menuPainel = await page.locator(`#btn-mover-painel-${ids!.origem}`).boundingBox();
+      expect(menuPainel!.height).toBeGreaterThanOrEqual(44);
       await page.locator("#btn-painel-fechar").click();
       await expect(painel).toHaveCount(0);
     });

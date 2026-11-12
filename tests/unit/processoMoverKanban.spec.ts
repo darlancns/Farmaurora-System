@@ -135,11 +135,13 @@ describe("arrastar (HTML5 DnD) no quadro", () => {
     alvo.dispatchEvent(evento("dragenter", dt));
     alvo.dispatchEvent(evento("dragover", dt));
     await nextTick();
-    expect(alvo.className).toContain("bg-farm-blue-soft");
+    const corpo = el.querySelector<HTMLElement>("#kanban-lista-desembaraco")!;
+    expect(corpo.className).toContain("bg-farm-blue-soft");
+    expect(alvo.className).toContain("outline-accent-dark");
     alvo.dispatchEvent(evento("drop", dt));
     await nextTick();
     expect(mover).toHaveBeenCalledWith(expect.objectContaining({ id: "a" }), "desembaraco");
-    expect(alvo.className).not.toContain("bg-farm-blue-soft");
+    expect(corpo.className).not.toContain("bg-farm-blue-soft");
   });
 
   it("soltar na MESMA coluna não faz nada (e a coluna de origem nunca fica destacada)", async () => {
@@ -151,7 +153,7 @@ describe("arrastar (HTML5 DnD) no quadro", () => {
     const origem = el.querySelector<HTMLElement>("#kanban-coluna-em-transito")!;
     origem.dispatchEvent(evento("dragenter", dt));
     await nextTick();
-    expect(origem.className).not.toContain("bg-farm-blue-soft");
+    expect(el.querySelector("#kanban-lista-em-transito")!.className).not.toContain("bg-farm-blue-soft");
     origem.dispatchEvent(evento("drop", dt));
     expect(mover).not.toHaveBeenCalled();
   });
@@ -166,10 +168,11 @@ describe("arrastar (HTML5 DnD) no quadro", () => {
     el.querySelector("#processo-card-b")!.dispatchEvent(evento("dragenter", dt)); // entra no card (borbulha)
     alvo.dispatchEvent(new Event("dragleave", { bubbles: true })); // sai da coluna para o card
     await nextTick();
-    expect(alvo.className).toContain("bg-farm-blue-soft");
+    const corpo = el.querySelector("#kanban-lista-liberado")!;
+    expect(corpo.className).toContain("bg-farm-blue-soft");
     alvo.dispatchEvent(new Event("dragleave", { bubbles: true })); // sai de vez
     await nextTick();
-    expect(alvo.className).not.toContain("bg-farm-blue-soft");
+    expect(corpo.className).not.toContain("bg-farm-blue-soft");
   });
 
   it("card 'movendo' não arrasta e fica travado", async () => {
@@ -179,25 +182,30 @@ describe("arrastar (HTML5 DnD) no quadro", () => {
     expect(card.getAttribute("draggable")).toBeNull();
     expect(card.getAttribute("aria-busy")).toBe("true");
     expect(texto(el.querySelector("#card-movendo-a"))).toBe("Movendo…");
-    expect(el.querySelector<HTMLButtonElement>("#btn-mover-card-a")!.disabled).toBe(true);
+    expect(card.getAttribute("aria-disabled")).toBe("true");
   });
 
-  it("toque (sem ponteiro fino): o arrastar fica desligado; o menu continua", async () => {
+  it("toque (sem ponteiro fino): o arrastar fica desligado; o card continua abrindo o painel (onde está o menu)", async () => {
     mockPonteiro(false);
-    const el = quadro([proc("a")], vi.fn());
+    const abrir = vi.fn();
+    const el = montar(
+      defineComponent({ setup: () => () => h(ProcessoKanban, { processos: [proc("a")], onAbrir: abrir }) }),
+    );
     await nextTick();
-    expect(el.querySelector("#processo-card-a")!.getAttribute("draggable")).toBeNull();
-    expect(el.querySelector("#btn-mover-card-a")).not.toBeNull();
+    const card = el.querySelector<HTMLElement>("#processo-card-a")!;
+    expect(card.getAttribute("draggable")).toBeNull();
+    card.click();
+    expect(abrir).toHaveBeenCalledWith(expect.objectContaining({ id: "a" }));
   });
 
-  it("card: dois botões IRMÃOS (abrir e Mover para…), nenhum botão dentro de botão", async () => {
+  it("card: o próprio <article> é arrastável e é o controle (role=button); nenhum <button> dentro (Firefox arrasta)", async () => {
     const el = quadro([proc("a")], vi.fn());
     await nextTick();
     const art = el.querySelector("#processo-card-a")!;
-    expect(art.querySelectorAll("button")).toHaveLength(2);
-    expect(art.querySelector("button button")).toBeNull();
-    expect(art.querySelector("#btn-abrir-processo-a")).not.toBeNull();
-    expect(art.querySelector("#btn-mover-card-a")).not.toBeNull();
+    expect(art.getAttribute("draggable")).toBe("true");
+    expect(art.getAttribute("role")).toBe("button");
+    expect(art.querySelectorAll("button")).toHaveLength(0);
+    expect(el.querySelector("[id^='btn-mover-card-']")).toBeNull(); // o "Mover para…" saiu do card
   });
 });
 
@@ -206,15 +214,15 @@ describe("menu 'Mover para…'", () => {
   it("lista as outras 4 colunas como menuitems; setas movem o foco; escolher emite mover; Esc fecha e volta o foco", async () => {
     const mover = vi.fn();
     const el = montar(
-      defineComponent({ setup: () => () => h(ProcessoMoverMenu, { processo: proc("a"), contexto: "card", onMover: mover }) }),
+      defineComponent({ setup: () => () => h(ProcessoMoverMenu, { processo: proc("a"), onMover: mover }) }),
     );
-    const trigger = el.querySelector<HTMLButtonElement>("#btn-mover-card-a")!;
+    const trigger = el.querySelector<HTMLButtonElement>("#btn-mover-painel-a")!;
     expect(trigger.getAttribute("aria-label")).toBe("Mover Paciente a para…");
     expect(trigger.getAttribute("aria-haspopup")).toBe("true");
     trigger.click();
     await nextTick();
     await nextTick();
-    const menu = document.querySelector<HTMLElement>("#menu-mover-card-a")!;
+    const menu = document.querySelector<HTMLElement>("#menu-mover-painel-a")!;
     expect(menu.getAttribute("role")).toBe("menu");
     const itens = [...menu.querySelectorAll<HTMLButtonElement>("[role='menuitem']")];
     expect(itens.map(texto)).toEqual(["Na origem", "Desembaraço", "Liberado", "Entregue"]);
@@ -225,13 +233,13 @@ describe("menu 'Mover para…'", () => {
 
     menu.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
     await nextTick();
-    expect(document.querySelector("#menu-mover-card-a")).toBeNull();
+    expect(document.querySelector("#menu-mover-painel-a")).toBeNull();
     expect(document.activeElement).toBe(trigger);
 
     trigger.click();
     await nextTick();
     await nextTick();
-    document.querySelector<HTMLButtonElement>("#mover-card-a-liberado")!.click();
+    document.querySelector<HTMLButtonElement>("#mover-painel-a-liberado")!.click();
     expect(mover).toHaveBeenCalledWith("liberado");
   });
 
