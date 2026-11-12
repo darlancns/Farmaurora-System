@@ -12,7 +12,7 @@ function proc(extra: Partial<Processo> = {}): Processo {
     id: "a",
     paciente: "Paciente A",
     numeroRemessa: 2,
-    numeroPo: "PO-25-2652",
+    numeroPo: "PO26-10-0471",
     pasta: "2026 - 100",
     empresa: "FARMAURORA",
     consultor: "Dani",

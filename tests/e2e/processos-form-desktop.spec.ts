@@ -243,10 +243,10 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
           const util = 720 - 2 - 40; // largura do modal - bordas - padding do corpo
           const col2 = (util - 10) / 2;
           const col3 = (util - 2 * 10) / 3;
-          // Linha 1: Paciente (flexível) | Pasta (7rem = 112px) | PO (7rem = 112px) com 2 espaços de 10px.
+          // Linha 1: Paciente (flexível) | Pasta (7rem = 112px) | PO (8rem = 128px) com 2 espaços de 10px.
           const larguraPasta = 112;
-          const larguraPo = 112; // igual à Pasta: a máscara "PO-00-0000" (10 caracteres = 81px em mono 13,5px) + 22 de padding e borda = 103px; 9px de sobra
-          const larguraPaciente = util - larguraPasta - larguraPo - 2 * 10; // 434px
+          const larguraPo = 128; // a máscara "PO26-10-0471" (12 caracteres = 97px em mono 13,5px) + 22 de padding e borda = 119px; 9px de sobra, como a Pasta
+          const larguraPaciente = util - larguraPasta - larguraPo - 2 * 10; // 418px
           // Linha 2: Nº Ordem (5rem = 80px) | Nº do processo (TODO o resto da linha, sem teto: 678 − 80 − 10 = 588px).
           const larguraRemessa = 80;
           const larguraNumeroProcesso = util - larguraRemessa - 10;
@@ -271,15 +271,16 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
           expect(await page.locator("#pf-pasta").inputValue()).toBe("2026 - 234");
           expect(await page.locator("#pf-pasta").evaluate((el) => el.scrollWidth > el.clientWidth + 0.5), "Pasta cortada").toBe(false);
 
-          // O PO tem a mesma largura da Pasta (e a mesma sobra depois da máscara de 10 caracteres, "PO-00-0000"): comporta a
-          // máscara completa sem rolar; valores mais longos (até 30 caracteres) rolam DENTRO do campo, que não muda de largura.
-          expect(ordemPo.width, "PO com a mesma largura da Pasta").toBeCloseTo(pasta.width, 0);
-          await page.locator("#pf-numero-po").fill("PO-25-2652");
-          expect(await page.locator("#pf-numero-po").inputValue()).toBe("PO-25-2652");
-          expect(await page.locator("#pf-numero-po").evaluate((el) => el.scrollWidth > el.clientWidth + 0.5), "PO (10 caracteres) cortado").toBe(false);
-          await page.locator("#pf-numero-po").fill("PO-25-2652/12345678901234567");
-          expect((await b("pf-numero-po")).width, "PO mantém a largura com 30 caracteres").toBeCloseTo(larguraPo, 0);
-          expect(await page.locator("#pf-numero-po").evaluate((el) => el.scrollWidth > el.clientWidth + 0.5), "30 caracteres rolam dentro do campo").toBe(true);
+          // O PO é 1rem mais largo que a Pasta (8rem = 128px contra 7rem = 112px): comporta a máscara completa, PO26-10-0471
+          // (12 caracteres = 97px + 22 = 119px), com a mesma sobra de 9px da Pasta, sem cortar. O texto vem do `fill`, que passa
+          // pela máscara; dígitos a mais são descartados e o campo não muda de largura.
+          expect(ordemPo.width, "PO 1rem mais largo que a Pasta").toBeCloseTo(pasta.width + 16, 0);
+          await page.locator("#pf-numero-po").fill("po26100471");
+          expect(await page.locator("#pf-numero-po").inputValue()).toBe("PO26-10-0471");
+          expect(await page.locator("#pf-numero-po").evaluate((el) => el.scrollWidth > el.clientWidth + 0.5), "PO cortado").toBe(false);
+          await page.locator("#pf-numero-po").fill("PO26-10-0471999999");
+          expect(await page.locator("#pf-numero-po").inputValue()).toBe("PO26-10-0471");
+          expect((await b("pf-numero-po")).width, "PO mantém a largura").toBeCloseTo(larguraPo, 0);
 
           // Linha 2: Nº Ordem (estreito) | Nº do processo, abaixo da linha 1. O Nº Ordem sai da linha 1.
           const remessa = await b("pf-numero-remessa");

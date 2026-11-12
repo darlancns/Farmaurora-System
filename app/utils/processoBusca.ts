@@ -13,8 +13,8 @@ export function normalizarPasta(valor: string): string {
   return normalizeText(valor).replace(/[\s\-‐-―]+/g, "");
 }
 
-// Nº Ordem sem acento/maiúscula e SÓ com letras e números: "po-25-0123", "PO250123" e "25 0123" viram
-// "po250123"/"250123", e "PO-25-0123/XYZ" vira "po250123xyz".
+// PO sem acento/maiúscula e SÓ com letras e números: "PO26-10-0471", "po26100471" e "26 10 0471" viram
+// "po26100471"/"26100471".
 export function normalizarOrdem(valor: string): string {
   return normalizeText(valor).replace(/[^a-z0-9]+/g, "");
 }

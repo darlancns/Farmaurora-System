@@ -14,7 +14,7 @@ import {
   patchExigeVersao,
   patchTocaModalOuCia,
 } from "../../utils/processoValidation";
-import { normalizarNumeroOrdem } from "../../../shared/utils/numeroOrdem";
+import { normalizarNumeroPo } from "../../../shared/utils/numeroPo";
 import { assertPodeResolverMandado, patchTocaAlertaMandado } from "../../utils/processoMandadoAuth";
 import { avisarConsultorDeItensNovos } from "../../utils/notificacoesProcesso";
 import type { AuthUser } from "../../../shared/types/auth";
@@ -58,7 +58,7 @@ export default defineEventHandler(async (event): Promise<Processo> => {
     return armazenado;
   }
 
-  // Nº Ordem no patch (preenchido) precisa estar no formato PO-00-0000 (+ / e números; incompleto vale). Vazio/null
+  // PO no patch (preenchido) precisa ser o PO completo no formato da DIR, PO26-10-0471 (incompleto é recusado). Vazio/null
   // limpa; sem a chave, nada é conferido. Só valida se o valor MUDOU: um valor já gravado fora da regra (de antes
   // dela) reenviado igual não impede salvar os outros campos. A linha só é lida quando o formato falha.
   const erroPo = erroNumeroPo(body);
@@ -66,7 +66,7 @@ export default defineEventHandler(async (event): Promise<Processo> => {
     const atual = await linhaArmazenada();
     const enviado = (body as Record<string, unknown>).numeroPo;
     const igualAoGravado =
-      typeof enviado === "string" && numeroPoCanonico(enviado) === (normalizarNumeroOrdem(atual.numeroPo) ?? null);
+      typeof enviado === "string" && numeroPoCanonico(enviado) === (normalizarNumeroPo(atual.numeroPo) ?? null);
     if (!igualAoGravado) {
       throw createError({ statusCode: 400, statusMessage: erroPo });
     }
@@ -100,7 +100,7 @@ export default defineEventHandler(async (event): Promise<Processo> => {
   // Grava o valor canônico da cia (sem espaços nas pontas; vazia = null).
   if ("companhiaAerea" in patch) patch.companhiaAerea = ciaAereaCanonica(patch.companhiaAerea);
 
-  // Grava o Nº Ordem normalizado (maiúsculas, sem "/" final sem dígitos; vazio = null).
+  // Grava o PO normalizado (maiúsculas, sem espaços; vazio = null).
   if ("numeroPo" in patch) patch.numeroPo = numeroPoCanonico(patch.numeroPo);
 
   // Nº Remessa: inteiro >= 1 (null ou "" = 1). Sem a chave, a coluna não é tocada.

@@ -9,7 +9,7 @@ import type {
   StatusProcesso,
 } from "#shared/types/processo";
 import { ciaAereaValidaParaModal, EMPRESAS_PROCESSO, FORNECEDORES_PROCESSO } from "#shared/constants/processos";
-import { mascararNumeroOrdem } from "#shared/utils/numeroOrdem";
+import { mascararNumeroPo } from "#shared/utils/numeroPo";
 import { NUMERO_REMESSA_PADRAO } from "#shared/utils/numeroRemessa";
 import { maskPastaCode } from "../utils/processoFormatters";
 import {
@@ -33,7 +33,7 @@ import type { AppSelectOption } from "../types/appSelect";
 export interface FormState {
   paciente: string;
   numeroRemessa: string; // Nº Remessa: só dígitos (ex.: "2"); novo processo começa em "1"; vazio ao salvar vale 1
-  numeroPo: string; // Nº Ordem (PO), já mascarado: PO-00-0000[/números]
+  numeroPo: string; // PO, já mascarado: PO26-10-0471 (ou vazio; incompleto não salva)
   pasta: string;
   empresa: EmpresaProcesso;
   consultor: ConsultorProcesso | "";
@@ -277,13 +277,13 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     form.pasta = maskPastaCode(target.value);
   }
 
-  // Nº Ordem: a máscara cuida do prefixo, dos números, da barra e das MAIÚSCULAS. Incompleto salva normalmente. O input leva
+  // PO: a máscara cuida do prefixo, dos números, dos hífens e das MAIÚSCULAS (PO26-10-0471); só o PO completo (ou vazio) salva. O input leva
   // data-sem-maiuscula: o plugin global só capitaliza a 1ª letra e disputaria o valor). Roda em todo "input",
   // inclusive colar. O valor mascarado é escrito de volta no campo, com o cursor no lugar certo (nada de
   // pular para o fim ao digitar/apagar no meio).
   function onNumeroPoInput(event: Event): void {
     const target = event.target as HTMLInputElement;
-    const { valor, cursor } = mascararNumeroOrdem(target.value, {
+    const { valor, cursor } = mascararNumeroPo(target.value, {
       anterior: form.numeroPo,
       cursor: target.selectionStart,
     });

@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp, defineComponent, h, nextTick } from "vue";
 import type { Processo } from "#shared/types/processo";
+import { NUMERO_PO_EXEMPLO, NUMERO_PO_LIMITE } from "#shared/utils/numeroPo";
 import ProcessoFormMedicamentos from "../../app/components/processos/ProcessoFormMedicamentos.vue";
 import ProcessoFormModal from "../../app/components/processos/ProcessoFormModal.vue";
 import { montarProcesso, type FollowUpRow } from "../../server/utils/processoMappers";
@@ -125,23 +126,32 @@ describe("Formulário de processo — ordem dos campos no DOM", () => {
     expect(linha2.compareDocumentPosition(el.querySelector("#pf-medicamento-nome-0")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("linha 1 em lg+: Paciente flexível, Pasta e PO com a MESMA largura (7rem); abaixo de lg, 2 colunas iguais", async () => {
+  it("linha 1 em lg+: Paciente flexível, Pasta 7rem e PO 8rem (cada um com 9px de sobra); abaixo de lg, 2 colunas iguais", async () => {
     const el = abrir();
     await nextTick();
     const linha1 = el.querySelector("#pf-paciente")!.closest("#processo-form > div > div")!;
     const classes = (linha1.getAttribute("class") ?? "").split(/\s+/);
     expect(classes).toContain("grid-cols-2"); // abaixo de lg: Pasta | PO iguais (o Paciente ocupa as 2)
-    expect(classes).toContain("lg:grid-cols-[minmax(0,1fr)_7rem_7rem]");
+    expect(classes).toContain("lg:grid-cols-[minmax(0,1fr)_7rem_8rem]");
     expect(classes.filter((c) => c.startsWith("lg:grid-cols-"))).toHaveLength(1);
-    // As duas colunas estreitas (lidas do elemento montado) têm a mesma largura, e ela comporta a máscara de 10 caracteres
-    // ("2026 - 234" e "PO-00-0000": JetBrains Mono 13,5px = 0,6em por caractere, padding 2×10px, borda 2×1px) com a mesma sobra.
+    // As duas colunas estreitas (lidas do elemento montado): a Pasta (7rem) comporta a máscara dela, de 10 caracteres
+    // ("2026 - 234"), e o PO (8rem) comporta a dele, de 12 ("PO26-10-0471"): JetBrains Mono 13,5px = 0,6em por caractere,
+    // padding 2×10px, borda 2×1px. Cada um sobra os mesmos ~9px depois do texto (por isso o PO é 1rem mais largo).
     const colunasLg = classes.find((c) => c.startsWith("lg:grid-cols-"))!;
     const [, pasta, po] = /_(\d+(?:\.\d+)?)rem_(\d+(?:\.\d+)?)rem\]$/.exec(colunasLg)!.slice(0, 3).map(Number) as [number, number, number];
-    expect(po).toBe(pasta);
-    const necessaria = 10 * 0.6 * 13.5 + 2 * 10 + 2 * 1; // 103px
-    const sobra = pasta * 16 - necessaria; // 9px depois do texto, nos dois campos
-    expect(sobra).toBeGreaterThanOrEqual(8);
-    expect(sobra).toBeLessThan(10);
+    expect(pasta).toBe(7);
+    expect(po).toBe(8);
+    const necessariaPasta = 10 * 0.6 * 13.5 + 2 * 10 + 2 * 1; // 103px
+    const necessariaPo = NUMERO_PO_LIMITE * 0.6 * 13.5 + 2 * 10 + 2 * 1; // 119,2px
+    const sobraPasta = pasta * 16 - necessariaPasta; // 9px
+    const sobraPo = po * 16 - necessariaPo; // 8,8px
+    expect(sobraPasta).toBeGreaterThanOrEqual(8);
+    expect(sobraPasta).toBeLessThan(10);
+    expect(sobraPo, "o PO CABE (sobra depois do texto)").toBeGreaterThanOrEqual(8);
+    expect(sobraPo).toBeLessThan(10);
+    expect(Math.abs(sobraPo - sobraPasta), "PO e Pasta com a mesma sobra (±1px)").toBeLessThanOrEqual(1);
+    // O tamanho do texto vem do formato do PO (a máscara chega a 12 caracteres).
+    expect(NUMERO_PO_EXEMPLO.length).toBe(NUMERO_PO_LIMITE);
     // Nenhum dos dois leva largura própria no campo.
     for (const id of ["pf-pasta", "pf-numero-po"]) {
       const cls = (linha1.querySelector(`#${id}`)!.getAttribute("class") ?? "").split(/\s+/);

@@ -10,7 +10,7 @@ import ProcessoFormModal from "../../app/components/processos/ProcessoFormModal.
 import ProcessoRow from "../../app/components/processos/ProcessoRow.vue";
 import { contarProcessosPorPasta } from "../../app/utils/remessaNaLinha";
 import { montarTextoAvisoChegada } from "../../shared/utils/avisoChegada";
-import { NUMERO_ORDEM_ERRO } from "../../shared/utils/numeroOrdem";
+import { NUMERO_PO_ERRO } from "../../shared/utils/numeroPo";
 import { NUMERO_REMESSA_ERRO } from "../../shared/utils/numeroRemessa";
 
 // Troca de rótulos (user-visible), aplicada UMA vez:
@@ -24,7 +24,7 @@ function proc(extra: Partial<Processo> = {}): Processo {
     id: "a",
     paciente: "Paciente A",
     numeroRemessa: 3,
-    numeroPo: "PO-25-2652",
+    numeroPo: "PO26-10-0471",
     pasta: "2026 - 100",
     empresa: "FARMAURORA",
     consultor: "Dani",
@@ -109,7 +109,7 @@ describe("Detalhe (ProcessoDetail)", () => {
       )!;
       return texto(campo.querySelectorAll("span")[1]);
     };
-    expect(valor("PO")).toBe("PO-25-2652");
+    expect(valor("PO")).toBe("PO26-10-0471");
     expect(valor("Nº Ordem")).toBe("3");
   });
 
@@ -131,8 +131,8 @@ describe("Linha / card (ProcessoRow) e Entregues", () => {
     );
     expect(texto(el.querySelector("#remessa-a"))).toBe("Ordem 3");
     expect(texto(el.querySelector("#mobile-remessa-a"))).toBe("Ordem 3");
-    expect(texto(el.querySelector("#mobile-ordem-pasta-a"))).toBe("Ordem 3 · Pasta 2026 - 100 · PO-25-2652");
-    expect(texto(el.querySelector("#numero-po-a"))).toBe("PO-25-2652");
+    expect(texto(el.querySelector("#mobile-ordem-pasta-a"))).toBe("Ordem 3 · Pasta 2026 - 100 · PO26-10-0471");
+    expect(texto(el.querySelector("#numero-po-a"))).toBe("PO26-10-0471");
     expect(visivel(el)).not.toMatch(SEM_REMESSA);
   });
 
@@ -144,7 +144,7 @@ describe("Linha / card (ProcessoRow) e Entregues", () => {
       }),
     );
     expect(texto(el.querySelector("#entregue-remessa-a"))).toBe("Ordem 3");
-    expect(texto(el.querySelector("#processo-delivered-a"))).toContain("FARMAURORA · Ordem 3 · PO-25-2652");
+    expect(texto(el.querySelector("#processo-delivered-a"))).toContain("FARMAURORA · Ordem 3 · PO26-10-0471");
     expect(visivel(el)).not.toMatch(SEM_REMESSA);
   });
 });
@@ -189,9 +189,9 @@ describe("Busca e mensagens de validação", () => {
   });
 
   it("mensagens de erro (cliente e servidor usam as mesmas constantes): PO e Nº Ordem", () => {
-    expect(NUMERO_ORDEM_ERRO).toBe("PO inválido. Use o formato PO-00-0000 (opcionalmente seguido de / e números).");
+    expect(NUMERO_PO_ERRO).toBe("PO inválido. Use o formato PO26-10-0471 (PO, ano, mês e sequência de 4 números).");
     expect(NUMERO_REMESSA_ERRO).toBe("Nº Ordem inválido. Use um número inteiro maior ou igual a 1.");
-    expect(`${NUMERO_ORDEM_ERRO} ${NUMERO_REMESSA_ERRO}`).not.toMatch(SEM_REMESSA);
+    expect(`${NUMERO_PO_ERRO} ${NUMERO_REMESSA_ERRO}`).not.toMatch(SEM_REMESSA);
   });
 });
 

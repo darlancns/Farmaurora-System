@@ -515,9 +515,13 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
           await campo(page, "pf-pasta").fill("2026234");
           expect(await campo(page, "pf-pasta").inputValue()).toBe("2026 - 234");
           expect(await campo(page, "pf-pasta").evaluate((el) => el.scrollWidth > el.clientWidth + 0.5), "Pasta cortada").toBe(false);
-          // PO com 30 caracteres (o limite): o campo NÃO cresce nem estoura a coluna; o texto rola dentro dele.
-          await campo(page, "pf-numero-po").fill("PO-25-2652/12345678901234567");
-          expect((await campo(page, "pf-numero-po").inputValue()).length).toBeLessThanOrEqual(30);
+          // PO: a máscara PO26-10-0471 (12 caracteres, o máximo) cabe na coluna sem cortar (16px de fonte: ~115px de texto + 22
+          // em colunas de pelo menos 166px); dígitos a mais são descartados e o campo NÃO cresce nem estoura a coluna.
+          await campo(page, "pf-numero-po").fill("po26100471");
+          expect(await campo(page, "pf-numero-po").inputValue()).toBe("PO26-10-0471");
+          expect(await campo(page, "pf-numero-po").evaluate((el) => el.scrollWidth > el.clientWidth + 0.5), "PO cortado").toBe(false);
+          await campo(page, "pf-numero-po").fill("PO26-10-0471999999");
+          expect(await campo(page, "pf-numero-po").inputValue()).toBe("PO26-10-0471");
           const ordemPoCheio = await b("pf-numero-po");
           expect(ordemPoCheio.width, "PO mantém a largura da coluna").toBeCloseTo(col2, 0);
           expect(direita(ordemPoCheio), "PO dentro da coluna útil").toBeLessThanOrEqual(paciente.x + util + 0.5);

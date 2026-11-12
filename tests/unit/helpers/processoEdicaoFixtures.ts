@@ -14,7 +14,7 @@ export function linhaCompleta(extra: Record<string, unknown> = {}): Record<strin
     paciente: "Fulano",
     ordem: "Ordem 2", // coluna antiga, CONGELADA: continua na linha, mas o código novo não a lê nem a grava
     numero_remessa: 2,
-    numero_po: "PO-25-2652/3",
+    numero_po: "PO26-10-0471",
     pasta: "2026 - 1",
     empresa: "FARMAURORA",
     consultor: "Dani",
@@ -57,7 +57,7 @@ export function formCompleto(): ProcessoFormState {
   return {
     paciente: "Fulano",
     numeroRemessa: "2",
-    numeroPo: "PO-25-2652/3",
+    numeroPo: "PO26-10-0471",
     pasta: "2026 - 1",
     empresa: "FARMAURORA",
     consultor: "Dani",

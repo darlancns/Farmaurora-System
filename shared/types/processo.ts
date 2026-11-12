@@ -86,8 +86,8 @@ export interface Processo {
   // Nº Remessa (rótulo da tela "Nº Remessa"): inteiro >= 1, SEMPRE presente (processo novo = 1). Substitui o antigo
   // `ordem` ("Ordem 2"), cuja coluna ficou congelada no banco. Ver shared/utils/numeroRemessa.ts.
   numeroRemessa: number;
-  // Nº Ordem (PO), rótulo da tela "Nº Ordem". "PO-25-2652" ou "PO-25-2652/3" (incompleto, como "PO-25", também vale).
-  // Não confundir com o Nº Remessa. Ver shared/utils/numeroOrdem.ts.
+  // PO, rótulo da tela "PO". Só o PO completo no formato da DIR, ex.: "PO26-10-0471" (ou ausente).
+  // Não confundir com o Nº Remessa. Ver shared/utils/numeroPo.ts.
   numeroPo?: string;
   pasta: string; // ex: "2026 - 234" (renomeado de "codigo")
   empresa: EmpresaProcesso;

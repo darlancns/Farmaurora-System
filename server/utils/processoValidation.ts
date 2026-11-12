@@ -19,7 +19,7 @@ import type {
   ProcessoPatchDTO,
   StatusProcesso,
 } from "../../shared/types/processo";
-import { NUMERO_ORDEM_ERRO, normalizarNumeroOrdem, numeroOrdemValido } from "../../shared/utils/numeroOrdem";
+import { NUMERO_PO_ERRO, normalizarNumeroPo, numeroPoValido } from "../../shared/utils/numeroPo";
 import { NUMERO_REMESSA_ERRO, normalizarNumeroRemessa, numeroRemessaValido } from "../../shared/utils/numeroRemessa";
 
 function isNonEmptyString(value: unknown): value is string {
@@ -183,24 +183,24 @@ export function erroModalCiaNoPatch(body: unknown, armazenado: ModalCiaArmazenad
   return erroModalCia(modal, cia);
 }
 
-// ── Nº Ordem (PO) ───────────────────────────────────────────────────────────────────────────────
-// Opcional. Vazio/ausente/null é sempre válido; preenchido, é normalizado (maiúsculas, sem espaços nas
-// pontas, sem "/" final sem dígitos, "PO"/"PO-" viram null) e precisa casar com PO-00-0000[/números], aceitando
-// também o incompleto (ex.: "PO-25", "PO-25-1"). A regra vive em shared/utils/numeroOrdem.ts.
+// ── PO ───────────────────────────────────────────────────────────────────────────────
+// Opcional. Vazio/ausente/null é sempre válido; preenchido, é normalizado (maiúsculas, sem espaços; "PO" sozinho
+// vira null) e precisa ser o PO COMPLETO no formato da DIR, PO26-10-0471 (incompleto é recusado). A regra vive em
+// shared/utils/numeroPo.ts, a mesma da DIR.
 
-// Mensagem de erro do Nº Ordem do corpo (POST ou PATCH), ou null se válido/ausente. PATCH sem a chave não confere.
+// Mensagem de erro do PO do corpo (POST ou PATCH), ou null se válido/ausente. PATCH sem a chave não confere.
 export function erroNumeroPo(body: unknown): string | null {
   if (!body || typeof body !== "object" || !("numeroPo" in body)) return null;
   const valor = (body as Record<string, unknown>).numeroPo;
   if (valor === undefined || valor === null) return null;
-  if (typeof valor !== "string") return NUMERO_ORDEM_ERRO;
-  return numeroOrdemValido(valor) ? null : NUMERO_ORDEM_ERRO;
+  if (typeof valor !== "string") return NUMERO_PO_ERRO;
+  return numeroPoValido(valor) ? null : NUMERO_PO_ERRO;
 }
 
 // Valor para gravar: normalizado; vazio → null; chave ausente → undefined (não toca a coluna).
 export function numeroPoCanonico(valor: unknown): string | null | undefined {
   if (valor === undefined) return undefined;
-  return typeof valor === "string" ? normalizarNumeroOrdem(valor) : null;
+  return typeof valor === "string" ? normalizarNumeroPo(valor) : null;
 }
 
 // ── Nº Remessa ──────────────────────────────────────────────────────────────────────────────────

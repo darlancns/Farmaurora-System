@@ -37,7 +37,7 @@ export default defineEventHandler(async (event): Promise<Processo> => {
     throw createError({ statusCode: 400, statusMessage: erroCia });
   }
 
-  // Nº Ordem preenchido precisa estar no formato PO-00-0000 (+ / e números; incompleto vale).
+  // PO preenchido precisa ser o PO completo no formato da DIR, PO26-10-0471 (incompleto é recusado).
   const erroPo = erroNumeroPo(body);
   if (erroPo) {
     throw createError({ statusCode: 400, statusMessage: erroPo });
@@ -49,8 +49,8 @@ export default defineEventHandler(async (event): Promise<Processo> => {
     throw createError({ statusCode: 400, statusMessage: erroRemessa });
   }
 
-  // Grava o valor canônico da cia (sem espaços nas pontas; vazia = sem cia), do Nº Ordem (normalizado;
-  // vazio = sem Nº Ordem, a coluna nem entra no insert) e do Nº Remessa (sempre presente). `ordem` (campo
+  // Grava o valor canônico da cia (sem espaços nas pontas; vazia = sem cia), do PO (normalizado;
+  // vazio = sem PO, a coluna nem entra no insert) e do Nº Remessa (sempre presente). `ordem` (campo
   // antigo, coluna congelada) pode chegar de uma aba antiga: é descartado sem erro e nunca gravado.
   const cia = ciaAereaCanonica(body.companhiaAerea);
   const po = numeroPoCanonico(body.numeroPo);

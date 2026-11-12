@@ -139,10 +139,10 @@ describe("ProcessoDeliveredList — Entregues", () => {
   });
 
   it("a linha de Entregues continua mostrando a empresa e o PO (PO) ao lado da remessa", () => {
-    const e = proc("e", "2026 - 409", 2, { status: "entregue", numeroPo: "PO-25-2652" });
+    const e = proc("e", "2026 - 409", 2, { status: "entregue", numeroPo: "PO26-10-0471" });
     const el = lista([e], [e]);
-    expect(texto(el.querySelector("#processo-delivered-e"))).toContain("FARMAURORA · Ordem 2 · PO-25-2652");
-    expect(texto(el.querySelector("#entregue-numero-po-e"))).toBe("PO-25-2652");
+    expect(texto(el.querySelector("#processo-delivered-e"))).toContain("FARMAURORA · Ordem 2 · PO26-10-0471");
+    expect(texto(el.querySelector("#entregue-numero-po-e"))).toBe("PO26-10-0471");
   });
 });
 

@@ -118,7 +118,7 @@ const filteredProcessos = computed<Processo[]>(() => {
   // "Cotações ASD": sem a cotação da transportadora nacional (nunca Entregues nem Courier Simples).
   list = filtrarPorCotacao(list, cotacaoFilter.value);
   // Paciente, pasta OU Nº Ordem. A pasta ignora espaços e hífens ("2026-375", "2026 375" e "375" acham "2026 - 375");
-  // o Nº Ordem também ignora pontuação e maiúsculas ("po-25-0123", "PO250123" e "25-0123" acham "PO-25-0123/XYZ").
+  // o PO também ignora pontuação e maiúsculas ("po26100471", "PO26-10-0471" e "26-10-0471" acham "PO26-10-0471").
   return filtrarPorBusca(list, searchQuery.value);
 });
 
