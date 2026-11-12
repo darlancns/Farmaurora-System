@@ -17,7 +17,9 @@ useLockBodyScroll();
 </script>
 
 <template>
-  <div class="fixed inset-0 z-[900] flex items-center justify-center bg-ink/40 p-6" @click.self="emit('close')">
+  <!-- data-overlay="modal": marca um modal aberto. O painel lateral do Follow-Up (ProcessoPainel) ignora o Esc
+       enquanto existir um, para o Esc fechar só o que está por cima (o formulário ou o ConfirmDialog). -->
+  <div data-overlay="modal" class="fixed inset-0 z-[900] flex items-center justify-center bg-ink/40 p-6" @click.self="emit('close')">
     <slot />
   </div>
 </template>

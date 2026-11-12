@@ -39,6 +39,7 @@ import GlobalHeader from "../components/GlobalHeader.vue";
 import SegmentedControl from "../components/SegmentedControl.vue";
 import ProcessoGroupList from "../components/processos/ProcessoGroupList.vue";
 import ProcessoKanban from "../components/processos/ProcessoKanban.vue";
+import ProcessoPainel from "../components/processos/ProcessoPainel.vue";
 import ProcessoDeliveredList from "../components/processos/ProcessoDeliveredList.vue";
 import ProcessoFiltrosSheet from "../components/processos/ProcessoFiltrosSheet.vue";
 import ProcessoFormModal from "../components/processos/ProcessoFormModal.vue";
@@ -161,8 +162,8 @@ function destacarPorUmTempo(id: string): void {
   }, DESTAQUE_PROCESSO_MS);
 }
 
-// Kanban: caminho PARALELO ao da Lista. Limpa a busca/filtros só se escondem o processo, destaca o card e rola a
-// coluna (e o quadro) até ele. O painel lateral abre aqui também (etapa C).
+// Kanban: caminho PARALELO ao da Lista. Limpa a busca/filtros só se escondem o processo, destaca o card, rola a
+// coluna (e o quadro) até ele e abre o painel lateral.
 async function irParaProcessoNoKanban(id: string): Promise<void> {
   limparQueryProcesso();
   if (!processos.value.some((p) => p.id === id)) {
@@ -177,6 +178,7 @@ async function irParaProcessoNoKanban(id: string): Promise<void> {
   await nextTick();
   document.getElementById(`processo-card-${id}`)?.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
   destacarPorUmTempo(id);
+  if (canWriteProcessos.value) painelId.value = id;
 }
 
 async function irParaProcesso(id: string): Promise<void> {
@@ -266,9 +268,21 @@ function openEditForm(processo: Processo): void {
   showFormModal.value = true;
 }
 
-// Clique no card do Kanban. Provisório da etapa B: abre o formulário de edição; a etapa C troca pelo painel lateral.
+// ── Painel lateral do Kanban ──────────────────────────────────────────────────────────────────────────
+// Guarda só o id; o processo vem do store (reativo): salvar no formulário ou nas atualizações já aparece no
+// painel. Se o processo some (excluído, ou a recarga não o trouxe), o painel fecha sozinho.
+const painelId = ref("");
+const painelProcesso = computed<Processo | null>(
+  () => (painelId.value && processos.value.find((p) => p.id === painelId.value)) || null,
+);
+
 function abrirPainel(processo: Processo): void {
-  openEditForm(processo);
+  if (!canWriteProcessos.value) return;
+  painelId.value = processo.id;
+}
+
+function fecharPainel(): void {
+  painelId.value = "";
 }
 
 function closeForm(): void {
@@ -507,6 +521,17 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
       @edit="openEditForm"
       @delete="handleDelete"
       @patch="handlePatch"
+    />
+
+    <!-- Painel lateral: só no Kanban e só para quem pode editar (z-880, abaixo do formulário e dos ConfirmDialog). -->
+    <ProcessoPainel
+      v-if="painelProcesso && mostrarKanban && canWriteProcessos"
+      :key="painelProcesso.id"
+      :processo="painelProcesso"
+      :contagem-pasta="contagemPasta"
+      @close="fecharPainel"
+      @edit="openEditForm"
+      @delete="handleDelete"
     />
 
     <ProcessoFiltrosSheet
