@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { fixarVisaoLista } from "./_helpers/visaoProcessos";
 
 // Card de processo (ProcessoRow) e detalhe (ProcessoDetail) de /processos abaixo de lg
 // (mobile e tablet). Cria 3 processos de teste via API (um normal, um com dados
@@ -123,6 +124,8 @@ type Ids = { robusto: string; adversarial: string; vazio: string };
 let ids: Ids | null = null;
 
 async function login(page: Page): Promise<void> {
+  // A Lista não é mais a visão padrão de quem edita (Kanban, Etapa F): este spec testa a Lista.
+  await fixarVisaoLista(page);
   await page.context().clearCookies();
   await page.goto("/login", { waitUntil: "domcontentloaded" });
   await expect(async () => {

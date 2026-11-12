@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { assertSupabaseLocal } from "./_guards/supabaseLocal";
 import { lerEnv } from "./_guards/supabaseEnv";
+import { fixarVisaoLista } from "./_helpers/visaoProcessos";
 
 // Atualizações (timeline) de um processo: adicionar, editar, cancelar, excluir com confirmação, falha
 // de salvamento, conflito de versão (409), cargo somente-leitura e aba Entregues.
@@ -70,6 +71,8 @@ async function atualizacoesNoBanco(id: string): Promise<Array<{ data: string; te
 }
 
 async function login(page: Page, email: string, password: string): Promise<void> {
+  // A Lista não é mais a visão padrão de quem edita (Kanban, Etapa F): este spec testa a Lista.
+  await fixarVisaoLista(page);
   await page.context().clearCookies();
   await page.goto("/login", { waitUntil: "domcontentloaded" });
   await expect(async () => {

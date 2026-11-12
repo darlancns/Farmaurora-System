@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { fixarVisaoLista } from "./_helpers/visaoProcessos";
 
 // RBAC end-to-end. Depende de contas de teste já criadas no Supabase, cada uma
 // com `app_metadata.role` (e `consultorNome` para o cargo consultor), passadas
@@ -30,6 +31,8 @@ const hasOperacional = Boolean(operacional.email && operacional.password);
 const hasAdmin = Boolean(admin.email && admin.password);
 
 async function login(page: Page, email: string, password: string): Promise<void> {
+  // A Lista não é mais a visão padrão de quem edita (Kanban, Etapa F): este spec testa a Lista.
+  await fixarVisaoLista(page);
   // domcontentloaded, não networkidle: o cliente Supabase mantém timers de
   // refresh de token em segundo plano que podem nunca deixar a rede "idle";
   // o DOM pronto basta, a hidratação é tratada pelo retry abaixo.

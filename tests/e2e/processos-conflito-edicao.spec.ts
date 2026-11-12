@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { assertSupabaseLocal } from "./_guards/supabaseLocal";
 import { lerEnv } from "./_guards/supabaseEnv";
+import { fixarVisaoLista } from "./_helpers/visaoProcessos";
 
 // Item 12 — conflito de versão na EDIÇÃO do processo (pendências e medicamentos). Duas pessoas abrem o
 // mesmo processo; uma grava; a outra salva e o servidor responde 409 SEM gravar. O modal fica aberto, avisa,
@@ -72,6 +73,8 @@ async function outraPessoaGrava(extra: Record<string, unknown>): Promise<void> {
 }
 
 async function login(page: Page, email: string, password: string): Promise<void> {
+  // A Lista não é mais a visão padrão de quem edita (Kanban, Etapa F): este spec testa a Lista.
+  await fixarVisaoLista(page);
   await page.context().clearCookies();
   await page.goto("/login", { waitUntil: "domcontentloaded" });
   await expect(async () => {

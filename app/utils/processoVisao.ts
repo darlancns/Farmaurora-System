@@ -3,8 +3,11 @@
 
 export type VisaoProcessos = "kanban" | "lista";
 
-/** Visão padrão. Constante ÚNICA: a etapa F do Kanban troca para "kanban" aqui. */
-export const DEFAULT_VISAO: VisaoProcessos = "lista";
+/**
+ * Visão padrão de quem PODE EDITAR processos (Etapa F do Kanban: "kanban"). Constante única. A Lista continua a um
+ * clique e a escolha fica lembrada no navegador. Consultor e conta só-leitura nunca veem o Kanban (useVisaoProcessos).
+ */
+export const DEFAULT_VISAO: VisaoProcessos = "kanban";
 
 /** Chave da preferência no localStorage (por navegador). */
 export const CHAVE_VISAO_PROCESSOS = "followup-visao";

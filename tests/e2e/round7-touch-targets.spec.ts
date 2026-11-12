@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { fixarVisaoLista } from "./_helpers/visaoProcessos";
 
 // Rodada 7 — CSS/layout only, duas partes:
 //   Parte 1: ProcessoDeliveredList.vue (mesmo problema estrutural de
@@ -15,6 +16,8 @@ const writer = {
 const hasWriter = Boolean(writer.email && writer.password);
 
 async function login(page: Page): Promise<void> {
+  // A Lista não é mais a visão padrão de quem edita (Kanban, Etapa F): este spec testa a Lista.
+  await fixarVisaoLista(page);
   await page.context().clearCookies();
   await page.goto("/login", { waitUntil: "domcontentloaded" });
   await expect(async () => {

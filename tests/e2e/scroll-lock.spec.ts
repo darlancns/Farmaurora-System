@@ -1,4 +1,5 @@
 import { test, expect, type CDPSession, type Locator, type Page } from "@playwright/test";
+import { fixarVisaoLista } from "./_helpers/visaoProcessos";
 
 // Trava de scroll dos painéis (useLockBodyScroll): abaixo de lg quem rola a página é o
 // #app-main-content, não o body — então, com um sheet/modal aberto, roda, toque e teclado NÃO
@@ -83,6 +84,8 @@ async function mockDados(page: Page): Promise<void> {
 }
 
 async function login(page: Page): Promise<void> {
+  // A Lista não é mais a visão padrão de quem edita (Kanban, Etapa F): este spec testa a Lista.
+  await fixarVisaoLista(page);
   await page.context().clearCookies();
   await page.goto("/login", { waitUntil: "domcontentloaded" });
   await expect(async () => {

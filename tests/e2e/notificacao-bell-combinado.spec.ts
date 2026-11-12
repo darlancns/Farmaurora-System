@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { assertSupabaseLocal } from "./_guards/supabaseLocal";
 import { lerEnv } from "./_guards/supabaseEnv";
+import { fixarVisaoLista } from "./_helpers/visaoProcessos";
 
 // Sino global combinado (Fase C2): confirma que Fornecedor (calculado
 // on-the-fly a partir de Processo[]) e Recados (tabela `notificacoes`)
@@ -37,6 +38,8 @@ function dataBRDiasAtras(dias: number): string {
 }
 
 async function login(page: Page): Promise<void> {
+  // A Lista não é mais a visão padrão de quem edita (Kanban, Etapa F): este spec testa a Lista.
+  await fixarVisaoLista(page);
   await page.context().clearCookies();
   await page.goto("/login", { waitUntil: "domcontentloaded" });
   await expect(async () => {

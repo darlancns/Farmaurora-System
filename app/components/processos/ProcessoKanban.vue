@@ -13,8 +13,12 @@ import ProcessoKanbanCard from "./ProcessoKanbanCard.vue";
 // Mudar de coluna: arrastar o card (mouse) ou o menu "Mover para…" do card. As duas formas só PEDEM a mudança
 // (`mover`); a página confirma e grava (useMoverProcesso). `movendo` = ids travados enquanto gravam.
 //
-// Layout: em lg+ colunas de 226px com rolagem horizontal do quadro e rolagem vertical por coluna; abaixo de lg
-// rolagem horizontal com snap (~85vw por coluna) e a página rola na vertical.
+// Layout:
+// - lg+: o quadro ocupa o RESTO da altura da tela (a página vira flex-col com h-full no Kanban e o quadro é flex-1 com
+//   min-h-0 — sem altura estimada). Colunas de 226px esticam até o fim do quadro; cada uma rola na vertical por
+//   dentro (o cabeçalho com o contador fica sempre visível) e o quadro rola na horizontal.
+// - abaixo de lg: a página rola na vertical e o quadro na horizontal, com snap (~85vw por coluna) e gutter de 16px
+//   (o quadro sai do padding de 24px do <main> e volta com 16px; scroll-padding igual, para o snap respeitar).
 const props = withDefaults(
   defineProps<{
     processos: Processo[];
@@ -44,7 +48,7 @@ const arrasto = useArrastarKanban({
   <div
     id="processo-kanban"
     ref="quadro"
-    class="-mx-6 flex snap-x snap-mandatory gap-3 overflow-x-auto px-6 pb-3 lg:mx-0 lg:snap-none lg:px-0"
+    class="-mx-6 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-3 lg:mx-0 lg:min-h-0 lg:flex-1 lg:snap-none lg:scroll-px-0 lg:px-0"
     aria-label="Processos por status"
   >
     <section
@@ -64,7 +68,7 @@ const arrasto = useArrastarKanban({
       @dragleave="arrasto.onDragLeave(coluna.status)"
       @drop="arrasto.onDrop($event, coluna.status)"
     >
-      <header class="flex items-center justify-between gap-2 px-2.5 pt-2.5 pb-2">
+      <header class="flex shrink-0 items-center justify-between gap-2 px-2.5 pt-2.5 pb-2">
         <span
           :id="`kanban-titulo-${coluna.id}`"
           class="truncate rounded-full px-2.5 py-1 text-[11px] font-semibold"
@@ -81,7 +85,7 @@ const arrasto = useArrastarKanban({
 
       <div
         :id="`kanban-lista-${coluna.id}`"
-        class="flex flex-col gap-2 px-2 pb-2 lg:max-h-[calc(100dvh-14rem)] lg:overflow-y-auto lg:overscroll-contain"
+        class="flex flex-col gap-2 px-2 pb-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain"
       >
         <ProcessoKanbanCard
           v-for="processo in grupos[coluna.status]"

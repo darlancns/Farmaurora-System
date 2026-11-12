@@ -1,4 +1,5 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
+import { fixarVisaoLista } from "./_helpers/visaoProcessos";
 
 // Formulário "Novo processo" / "Editar processo" em lg+ (>= 1024px): o refino mobile/tablet
 // (tela cheia, rodapé fixo, campos de 44px/16px) não pode ter mexido em NADA aqui. Este spec
@@ -66,6 +67,8 @@ type Modo = (typeof MODOS)[number];
 let processoId: string | null = null;
 
 async function login(page: Page): Promise<void> {
+  // A Lista não é mais a visão padrão de quem edita (Kanban, Etapa F): este spec testa a Lista.
+  await fixarVisaoLista(page);
   await page.context().clearCookies();
   await page.goto("/login", { waitUntil: "domcontentloaded" });
   await expect(async () => {

@@ -395,7 +395,16 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
     atributos no hydration e a folga nunca seria aplicada. Cargos somente-leitura ficam com
     80px de folga a mais, sem efeito visível.
   -->
-  <div id="processos-page" class="mx-auto max-w-[1400px] pb-20 lg:pb-0">
+  <!--
+    Kanban em lg+: a página vira flex-col com a altura do <main> (h-full) e o quadro (flex-1, min-h-0) ocupa o resto da
+    tela, com rolagem por coluna. A classe só entra DEPOIS de montar (mostrarKanban é false no SSR e na hidratação),
+    então não há atributo divergente entre servidor e cliente.
+  -->
+  <div
+    id="processos-page"
+    class="mx-auto max-w-[1400px] pb-20 lg:pb-0"
+    :class="mostrarKanban ? 'lg:flex lg:h-full lg:min-h-0 lg:flex-col' : ''"
+  >
     <GlobalHeader title="Follow-Up" subtitle="Acompanhamento dos processos de importação em andamento.">
       <template #filters>
         <!-- mb-[3px] abaixo de lg: com o botão de aba de 44px (texto centrado), o texto fica com o mesmo respiro
@@ -523,7 +532,7 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
 
     <ProcessoKanban
       v-if="mostrarKanban"
-      class="mt-3.5"
+      class="mt-1 lg:mt-0"
       :processos="filteredProcessos"
       :foco-id="focoId"
       :movendo="movendo"

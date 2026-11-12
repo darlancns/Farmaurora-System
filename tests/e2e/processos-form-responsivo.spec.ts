@@ -1,4 +1,5 @@
 import { test, expect, type Locator, type Page, type Request } from "@playwright/test";
+import { fixarVisaoLista } from "./_helpers/visaoProcessos";
 
 // Formulário "Novo processo" / "Editar processo" (ProcessoFormModal.vue e filhos)
 // abaixo de lg (celular e tablet): tela cheia por cima do BottomNav, cabeçalho e
@@ -138,6 +139,8 @@ const CAMPOS_EDITAR = [
 let processoId: string | null = null;
 
 async function login(page: Page): Promise<void> {
+  // A Lista não é mais a visão padrão de quem edita (Kanban, Etapa F): este spec testa a Lista.
+  await fixarVisaoLista(page);
   await page.context().clearCookies();
   await page.goto("/login", { waitUntil: "domcontentloaded" });
   await expect(async () => {

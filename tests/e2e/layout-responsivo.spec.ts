@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { fixarVisaoLista } from "./_helpers/visaoProcessos";
 
 // Shell de navegação responsivo (sidebar <-> BottomNav). O ponto de troca é lg
 // (1024px): abaixo dele (mobile e tablet) vale o BottomNav; de 1024px pra cima,
@@ -14,6 +15,8 @@ const USER_PASSWORD = process.env.E2E_USER_PASSWORD ?? "";
 const hasUser = Boolean(USER_EMAIL && USER_PASSWORD);
 
 async function login(page: Page): Promise<void> {
+  // A Lista não é mais a visão padrão de quem edita (Kanban, Etapa F): este spec testa a Lista.
+  await fixarVisaoLista(page);
   // Mesmo motivo do retry em auth.spec.ts/rbac.spec.ts: o Nuxt pode ainda
   // estar hidratando quando o Playwright interage, e sem hidratação o
   // @submit.prevent não roda (o form faz um GET nativo pra /login?, que

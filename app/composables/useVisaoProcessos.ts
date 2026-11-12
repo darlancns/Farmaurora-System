@@ -33,6 +33,8 @@ export interface VisaoProcessosControle {
  */
 export function useVisaoProcessos(podeEditar: () => boolean): VisaoProcessosControle {
   const montado = ref(false);
+  // Mesmo com DEFAULT_VISAO = "kanban", o primeiro render (SSR e hidratação) é sempre a Lista: `mostrarKanban`
+  // depende de `montado`, que só vira true no onMounted. O Kanban entra logo depois de montar, sem divergência.
   const visao = ref<VisaoProcessos>(DEFAULT_VISAO);
 
   onMounted(() => {

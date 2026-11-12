@@ -142,7 +142,8 @@ const BLOCO = "border-b border-hairline px-5 py-4";
       @keydown="onKeydown"
     >
       <!-- 1. Cabeçalho: ícone, nome, editar e fechar; embaixo, a etiqueta do status atual e o "Mover para…". -->
-      <header id="painel-bloco-cabecalho" :class="BLOCO" class="flex flex-col gap-2.5">
+      <!-- sticky: o botão de fechar (e o editar/mover) fica sempre visível ao rolar, também em tela cheia no celular. -->
+      <header id="painel-bloco-cabecalho" :class="BLOCO" class="sticky top-0 z-10 flex flex-col gap-2.5 bg-paper-raised">
       <div class="flex items-center gap-3">
         <span
           class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-farm-blue-soft text-accent-dark"

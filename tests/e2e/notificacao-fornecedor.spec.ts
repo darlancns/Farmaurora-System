@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { assertSupabaseLocal } from "./_guards/supabaseLocal";
 import { lerEnv } from "./_guards/supabaseEnv";
+import { fixarVisaoLista } from "./_helpers/visaoProcessos";
 
 // Alerta de prazo de fornecedor (sino em /processos). Portado de
 // tests/e2e/_aposentados/notificacaoFornecedor.skip.ts.
@@ -42,6 +43,8 @@ function dataBRDiasAtras(dias: number): string {
 }
 
 async function login(page: Page): Promise<void> {
+  // A Lista não é mais a visão padrão de quem edita (Kanban, Etapa F): este spec testa a Lista.
+  await fixarVisaoLista(page);
   // domcontentloaded, não networkidle: o cliente Supabase mantém timers de
   // refresh de token em segundo plano que podem nunca deixar a rede "idle";
   // o DOM pronto basta, a hidratação é tratada pelo retry abaixo.

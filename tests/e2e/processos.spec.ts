@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { assertSupabaseLocal } from "./_guards/supabaseLocal";
 import { lerEnv } from "./_guards/supabaseEnv";
 import { hojeBrasilia } from "../../shared/utils/dataBrasilia";
+import { fixarVisaoLista } from "./_helpers/visaoProcessos";
 
 // Follow-Up de processos — e2e contra o dev server real.
 // Portado de tests/e2e/_aposentados/processos.skip.ts.
@@ -37,6 +38,8 @@ const P1 = `Paciente ${RUN} Processo Um`;
 const P2 = `Paciente ${RUN} Processo Dois`;
 
 async function login(page: Page): Promise<void> {
+  // A Lista não é mais a visão padrão de quem edita (Kanban, Etapa F): este spec testa a Lista.
+  await fixarVisaoLista(page);
   // domcontentloaded, não networkidle: o cliente Supabase mantém timers de
   // refresh de token em segundo plano que podem nunca deixar a rede "idle";
   // o DOM pronto basta, a hidratação é tratada pelo retry abaixo.

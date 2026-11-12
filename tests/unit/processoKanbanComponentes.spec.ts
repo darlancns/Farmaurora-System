@@ -205,6 +205,7 @@ describe("alternância Kanban | Lista (useVisaoProcessos)", () => {
           const api = useVisaoProcessos(podeEditar);
           estado.api = api;
           estado.alternancia.push(api.mostrarAlternancia.value); // primeiro render (igual ao SSR)
+          estado.kanban.push(api.mostrarKanban.value);
           return () => h("div", { id: "sonda" }, String(api.mostrarAlternancia.value));
         },
       }),
@@ -221,28 +222,32 @@ describe("alternância Kanban | Lista (useVisaoProcessos)", () => {
     localStorage.removeItem(CHAVE_VISAO_PROCESSOS);
   });
 
-  it("quem pode editar: nada no primeiro render (= SSR); depois de montar, alternância visível e padrão Lista", async () => {
+  it("quem pode editar: nada no primeiro render (= SSR, sempre a Lista); depois de montar, alternância e Kanban (padrão)", async () => {
     localStorage.removeItem(CHAVE_VISAO_PROCESSOS);
     const s = sonda(() => true);
     expect(s.alternancia[0]).toBe(false);
+    expect(s.kanban[0]).toBe(false); // primeiro render: Lista, como no SSR
     await nextTick();
     expect(s.api!.mostrarAlternancia.value).toBe(true);
-    expect(DEFAULT_VISAO).toBe("lista");
-    expect(s.api!.visao.value).toBe("lista");
-    expect(s.api!.mostrarKanban.value).toBe(false);
+    expect(DEFAULT_VISAO).toBe("kanban");
+    expect(s.api!.visao.value).toBe("kanban");
+    expect(s.api!.mostrarKanban.value).toBe(true);
   });
 
-  it("escolher Kanban mostra o Kanban e lembra no localStorage; a próxima montagem já abre em Kanban", async () => {
+  it("escolher Lista fica lembrado no localStorage; a próxima montagem já abre na Lista (a um clique do Kanban)", async () => {
     localStorage.removeItem(CHAVE_VISAO_PROCESSOS);
     const s = sonda(() => true);
     await nextTick();
-    s.api!.escolher("kanban");
-    expect(s.api!.mostrarKanban.value).toBe(true);
-    expect(localStorage.getItem(CHAVE_VISAO_PROCESSOS)).toBe("kanban");
+    s.api!.escolher("lista");
+    expect(s.api!.mostrarKanban.value).toBe(false);
+    expect(localStorage.getItem(CHAVE_VISAO_PROCESSOS)).toBe("lista");
 
     const s2 = sonda(() => true);
     await nextTick();
+    expect(s2.api!.mostrarKanban.value).toBe(false);
+    s2.api!.escolher("kanban");
     expect(s2.api!.mostrarKanban.value).toBe(true);
+    expect(localStorage.getItem(CHAVE_VISAO_PROCESSOS)).toBe("kanban");
     localStorage.removeItem(CHAVE_VISAO_PROCESSOS);
   });
 });
