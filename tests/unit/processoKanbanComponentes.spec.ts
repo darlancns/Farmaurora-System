@@ -145,7 +145,7 @@ describe("ProcessoKanban (quadro)", () => {
     return montar(defineComponent({ setup: () => () => h(ProcessoKanban, { processos }) }));
   }
 
-  it("5 colunas na ordem do fluxo; cabeçalho em faixa accent-dark igual em todas: ícone + título + (número)", () => {
+  it("5 colunas na ordem do fluxo; cabeçalho em faixa accent-dark igual em todas: ícone + título à esquerda, (N) à direita", () => {
     const el = quadro([
       proc("a", { status: "entregue", pasta: "2026 - 2" }),
       proc("b", { status: "entregue", pasta: "2026 - 1" }),
@@ -162,14 +162,24 @@ describe("ProcessoKanban (quadro)", () => {
     for (const id of ["na-origem", "em-transito", "desembaraco", "liberado", "entregue"]) {
       const cab = el.querySelector("#kanban-cabecalho-" + id)!;
       const cls = cab.className;
-      for (const c of ["bg-accent-dark", "text-white", "rounded-lg", "h-10", "px-3", "font-display", "text-[13.5px]", "font-medium", "w-full"]) {
+      for (const c of ["bg-accent-dark", "text-white", "rounded-lg", "h-10", "px-3", "font-display", "text-[13.5px]", "font-medium", "w-full", "justify-between"]) {
         expect(cls, id + ": " + c).toContain(c);
       }
       expect(cls).not.toMatch(/bg-(gray|blue|purple|green|amber)-100/); // sem cor por status
       expect(cab.querySelector("svg")).not.toBeNull();
     }
-    expect(texto(el.querySelector("#kanban-cabecalho-entregue"))).toBe("Entregue (2)");
-    expect(texto(el.querySelector("#kanban-cabecalho-em-transito"))).toBe("Em trânsito (0)");
+    // Dois blocos na faixa: à esquerda [ícone] Título; à direita (N), com algarismos tabulares.
+    const cabEntregue = el.querySelector("#kanban-cabecalho-entregue")!;
+    const [esquerda, direita] = [...cabEntregue.children];
+    expect(esquerda!.querySelector("svg")).not.toBeNull();
+    expect(texto(esquerda!)).toBe("Entregue");
+    expect(texto(direita!)).toBe("(2)");
+    expect(direita!.className).toContain("tabular-nums");
+    expect(cabEntregue.children).toHaveLength(2);
+    // Nome legível da coluna para leitor de tela.
+    expect(el.querySelector("#kanban-coluna-entregue")!.getAttribute("aria-label")).toBe("Entregue, 2 processos");
+    expect(el.querySelector("#kanban-coluna-na-origem")!.getAttribute("aria-label")).toBe("Na origem, 1 processo");
+    expect(el.querySelector("#kanban-coluna-em-transito")!.getAttribute("aria-label")).toBe("Em trânsito, 0 processos");
     expect(contador(el, "entregue")).toBe("2");
     expect(contador(el, "na-origem")).toBe("1");
     expect(contador(el, "em-transito")).toBe("0");

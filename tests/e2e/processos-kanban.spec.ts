@@ -140,8 +140,13 @@ test.describe("/processos — Kanban", () => {
       await expect(page.locator(`#card-pagamento-${ids!.origem}`)).toHaveText("Pendente");
       await expect(page.locator(`#card-pendencias-${ids!.transito}`)).toContainText("1");
 
-      // Cabeçalho em faixa da cor do projeto, igual em todas: "[ícone] Em trânsito (1)".
-      await expect(page.locator("#kanban-cabecalho-em-transito")).toHaveText(/Em trânsito \(1\)/);
+      // Cabeçalho em faixa da cor do projeto, igual em todas: à esquerda "[ícone] Em trânsito", à direita "(1)".
+      await expect(page.locator("#kanban-titulo-em-transito")).toHaveText("Em trânsito");
+      await expect(page.locator("#kanban-contador-em-transito")).toHaveText("1");
+      await expect(page.locator("#kanban-coluna-em-transito")).toHaveAttribute("aria-label", "Em trânsito, 1 processo");
+      const cab = await page.locator("#kanban-cabecalho-em-transito").boundingBox();
+      const num = await page.locator("#kanban-contador-em-transito").boundingBox();
+      expect(cab!.x + cab!.width - (num!.x + num!.width), "(N) no canto direito da faixa").toBeLessThan(24);
       expect(await page.locator("#kanban-cabecalho-em-transito").evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(
         "rgb(11, 57, 86)",
       );
@@ -180,6 +185,36 @@ test.describe("/processos — Kanban", () => {
       await expect(page.locator("#tab-andamento")).toBeVisible(); // preferência lembrada
       await page.locator("#processo-visao-toggle-kanban").click();
       await expect(page.locator("#processo-kanban")).toBeVisible();
+    });
+
+    test("arrastar com o mouse FORA dos cards rola o quadro; em cima do card nada muda (clique abre o painel)", async ({ page }) => {
+      await abrirKanban(page);
+      const quadro = page.locator("#processo-kanban");
+      const rola = await quadro.evaluate((el) => el.scrollWidth > el.clientWidth);
+      test.skip(!rola, "as 5 colunas couberam nesta largura: não há o que rolar");
+
+      // Pelo cabeçalho da 2ª coluna, arrastando para a esquerda: o quadro rola para a direita.
+      const cab = await page.locator("#kanban-cabecalho-em-transito").boundingBox();
+      const y = cab!.y + cab!.height / 2;
+      await page.mouse.move(cab!.x + cab!.width - 20, y);
+      await page.mouse.down();
+      await page.mouse.move(cab!.x + cab!.width - 220, y + 30, { steps: 8 }); // o vertical é ignorado
+      await page.mouse.up();
+      const depois = await quadro.evaluate((el) => el.scrollLeft);
+      expect(depois).toBeGreaterThan(150);
+      await expect(page.locator("[data-testid='processo-painel']")).toHaveCount(0); // não abriu nada
+
+      // No espaço entre colunas, arrastando para a direita: volta.
+      const c1 = await page.locator("#kanban-coluna-em-transito").boundingBox();
+      await page.mouse.move(c1!.x - 6, c1!.y + 60);
+      await page.mouse.down();
+      await page.mouse.move(c1!.x + 194, c1!.y + 60, { steps: 8 });
+      await page.mouse.up();
+      expect(await quadro.evaluate((el) => el.scrollLeft)).toBeLessThan(depois);
+
+      // Clique simples no card continua abrindo o painel.
+      await page.locator(`#processo-card-${ids!.transito}`).click();
+      await expect(page.locator("[data-testid='processo-painel']")).toBeVisible();
     });
 
     test("painel: abre pelo card, blocos na ordem, Esc fecha e devolve o foco ao card", async ({ page }) => {

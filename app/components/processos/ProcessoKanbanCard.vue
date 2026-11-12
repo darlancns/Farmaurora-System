@@ -64,6 +64,7 @@ function onKeydown(event: KeyboardEvent): void {
   <article
     :id="`processo-card-${processo.id}`"
     :data-testid="`processo-card-${processo.id}`"
+    data-kanban-card
     role="button"
     tabindex="0"
     aria-haspopup="dialog"

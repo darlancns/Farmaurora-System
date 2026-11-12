@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from "vue";
 import type { Processo, StatusProcesso } from "#shared/types/processo";
 import { useArrastarKanban } from "../../composables/useArrastarKanban";
+import { useArrastarParaRolar } from "../../composables/useArrastarParaRolar";
 import { useRolagemQuadro } from "../../composables/useRolagemQuadro";
 import { agruparPorColuna, COLUNAS_KANBAN } from "../../utils/processoKanban";
 import KanbanColunaIcone from "./KanbanColunaIcone.vue";
@@ -10,6 +11,8 @@ import ProcessoKanbanCard from "./ProcessoKanbanCard.vue";
 // Quadro do Follow-Up por status (só para quem pode editar processos). Recebe a lista JÁ filtrada pela página
 // (busca, Empresa, Responsável, Cotações ASD) e agrupa uma vez só; cada coluna vem ordenada por Pasta (o mais antigo
 // em cima). O número no cabeçalho reflete os filtros e a busca.
+//
+// Rolar de lado: arrastar com o mouse FORA dos cards (useArrastarParaRolar), os botões ‹ ›, Shift+roda ou trackpad.
 //
 // Mudar de coluna: arrastar o card (mouse) — a página confirma e grava (useMoverProcesso). Em toque e por teclado o
 // caminho é o "Mover para…" do painel. `movendo` = ids travados enquanto gravam.
@@ -49,6 +52,12 @@ const arrasto = useArrastarKanban({
 });
 
 const rolagem = useRolagemQuadro(quadro);
+// Arrastar com o mouse FORA dos cards rola o quadro na horizontal (cabeçalhos, espaços, área vazia).
+const { arrastando: rolandoComMouse } = useArrastarParaRolar(quadro);
+
+function rotuloColuna(rotulo: string, n: number): string {
+  return `${rotulo}, ${n} ${n === 1 ? "processo" : "processos"}`;
+}
 // A lista mudou (busca, filtros, recarga): a largura do conteúdo pode mudar; reavalia as pontas.
 watch(
   () => props.processos,
@@ -98,6 +107,7 @@ const CLASSE_SETA =
       id="processo-kanban"
       ref="quadro"
       class="-mx-6 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-3 lg:mx-0 lg:snap-none lg:scroll-px-0 lg:px-0"
+      :class="rolandoComMouse ? 'cursor-grabbing select-none' : 'cursor-grab'"
       aria-label="Processos por status"
     >
       <section
@@ -105,7 +115,7 @@ const CLASSE_SETA =
         :id="`kanban-coluna-${coluna.id}`"
         :key="coluna.id"
         :data-testid="`kanban-coluna-${coluna.id}`"
-        :aria-labelledby="`kanban-cabecalho-${coluna.id}`"
+        :aria-label="rotuloColuna(coluna.rotulo, grupos[coluna.status].length)"
         class="flex w-[85vw] max-w-[22rem] min-w-[18rem] shrink-0 snap-start flex-col gap-2 rounded-lg transition-colors lg:w-auto lg:max-w-none lg:min-w-[19.5rem] lg:flex-1 lg:basis-0"
         :class="arrasto.destacada(coluna.status) ? 'outline-2 outline-offset-2 outline-accent-dark' : ''"
         @dragenter="arrasto.onDragEnter($event, coluna.status)"
@@ -113,16 +123,18 @@ const CLASSE_SETA =
         @dragleave="arrasto.onDragLeave(coluna.status)"
         @drop="arrasto.onDrop($event, coluna.status)"
       >
-        <!-- Cabeçalho: faixa na cor do projeto, igual em todas as colunas: ícone + título + (número). -->
+        <!-- Cabeçalho: faixa na cor do projeto, igual em todas as colunas: à esquerda ícone + título, à direita (N).
+             O nome da coluna (região) para leitor de tela vem do aria-label da <section>: "Em trânsito, 2 processos". -->
         <header
           :id="`kanban-cabecalho-${coluna.id}`"
-          class="flex h-10 w-full shrink-0 items-center gap-2 rounded-lg bg-accent-dark px-3 font-display text-[13.5px] font-medium text-white"
+          class="flex h-10 w-full shrink-0 items-center justify-between gap-2 rounded-lg bg-accent-dark px-3 font-display text-[13.5px] font-medium text-white"
         >
-          <KanbanColunaIcone :status="coluna.status" />
-          <span :id="`kanban-titulo-${coluna.id}`" class="truncate">{{ coluna.rotulo }}</span>
-          <!-- O espaço antes do "(" é texto de verdade (não só o gap): o nome lido pelo leitor de tela é "Em trânsito (24)". -->
-          <span class="-ml-2 shrink-0 text-white/80"
-            >{{ " (" }}<span :id="`kanban-contador-${coluna.id}`">{{ grupos[coluna.status].length }}</span>)</span
+          <span class="flex min-w-0 items-center gap-2">
+            <KanbanColunaIcone :status="coluna.status" />
+            <span :id="`kanban-titulo-${coluna.id}`" class="truncate">{{ coluna.rotulo }}</span>
+          </span>
+          <span class="shrink-0 tabular-nums"
+            >(<span :id="`kanban-contador-${coluna.id}`">{{ grupos[coluna.status].length }}</span>)</span
           >
         </header>
 
