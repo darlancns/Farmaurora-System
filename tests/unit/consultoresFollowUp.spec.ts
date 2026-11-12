@@ -18,7 +18,7 @@ const SETE_ORIGINAIS = [
   "Vinícius Alves",
 ] as const satisfies readonly ConsultorNome[];
 
-const NOVOS_NO_FOLLOW_UP = ["Alessandra", "Bolívar", "Bráulio", "Dani", "Flávia", "Flavinha", "Paulinho"] as const;
+const NOVOS_NO_FOLLOW_UP = ["Alessandra", "Bolívar", "Bráulio", "Dani", "Flávia", "Paulinho"] as const;
 
 const ORDEM_ESPERADA: ConsultorProcesso[] = [
   "Alessandra",
@@ -27,7 +27,6 @@ const ORDEM_ESPERADA: ConsultorProcesso[] = [
   "Bráulio",
   "Dani",
   "Flávia",
-  "Flavinha",
   "Gabriela Megda",
   "Gabriela Santana",
   "Mateus Morais",
@@ -60,9 +59,9 @@ describe("Follow-Up: CONSULTORES_PROCESSO", () => {
     }
   });
 
-  it("tem os 14 nomes aprovados, sem duplicatas", () => {
-    expect(CONSULTORES_PROCESSO).toHaveLength(14);
-    expect(new Set(CONSULTORES_PROCESSO).size).toBe(14);
+  it("tem os 13 nomes aprovados, sem duplicatas", () => {
+    expect(CONSULTORES_PROCESSO).toHaveLength(13);
+    expect(new Set(CONSULTORES_PROCESSO).size).toBe(13);
     expect([...CONSULTORES_PROCESSO].sort()).toEqual([...ORDEM_ESPERADA].sort());
   });
 
@@ -70,6 +69,11 @@ describe("Follow-Up: CONSULTORES_PROCESSO", () => {
     const ordenada = [...CONSULTORES_PROCESSO].sort((a, b) => a.localeCompare(b, "pt-BR"));
     expect(CONSULTORES_PROCESSO).toEqual(ordenada);
     expect(CONSULTORES_PROCESSO).toEqual(ORDEM_ESPERADA);
+  });
+
+  it("não inclui Flavinha (é a mesma pessoa que Flávia)", () => {
+    expect(CONSULTORES_PROCESSO as string[]).not.toContain("Flavinha");
+    expect(CONSULTORES_PROCESSO as string[]).toContain("Flávia");
   });
 
   it("não inclui nomes que só aparecem no cabeçalho do doc (Rodrigão, Daniel)", () => {
@@ -106,14 +110,15 @@ describe("validação de Processo com consultor", () => {
   });
 
   it("criação rejeita consultor fora da lista", () => {
-    for (const nome of ["Rodrigão", "Daniel", "Fulano", ""]) {
+    for (const nome of ["Rodrigão", "Daniel", "Fulano", "Flavinha", ""]) {
       expect(isValidProcessoPayload(payload(nome)), nome).toBe(false);
     }
   });
 
   it("edição (patch) aceita consultor novo e rejeita desconhecido", () => {
-    expect(isValidProcessoPatch({ consultor: "Flavinha" })).toBe(true);
+    expect(isValidProcessoPatch({ consultor: "Flávia" })).toBe(true);
     expect(isValidProcessoPatch({ consultor: "Paulinho" })).toBe(true);
+    expect(isValidProcessoPatch({ consultor: "Flavinha" })).toBe(false);
     expect(isValidProcessoPatch({ consultor: "Rodrigão" })).toBe(false);
   });
 });

@@ -29,7 +29,7 @@ function usuario(role: AuthUser["role"], consultorNome?: ConsultorProcesso): Aut
 const TODOS: Processo[] = [
   processo("Bolívar"),
   processo("Bolívar"),
-  processo("Flavinha"),
+  processo("Dani"),
   processo("Flávia"),
   processo("André Vitório"),
 ];
@@ -41,9 +41,9 @@ describe("escopo do cargo consultor — consultor novo", () => {
     expect(vistos.every((p) => p.consultor === "Bolívar")).toBe(true);
   });
 
-  it("Flavinha não enxerga os de Flávia (nomes distintos) nem os de outro consultor", () => {
-    const vistos = filtrarProcessosVisiveis(TODOS, usuario("consultor", "Flavinha"));
-    expect(vistos.map((p) => p.consultor)).toEqual(["Flavinha"]);
+  it("Flávia não enxerga os de Dani nem os de outro consultor", () => {
+    const vistos = filtrarProcessosVisiveis(TODOS, usuario("consultor", "Flávia"));
+    expect(vistos.map((p) => p.consultor)).toEqual(["Flávia"]);
   });
 
   it("detalhe: próprio processo visível, de outro consultor não", () => {

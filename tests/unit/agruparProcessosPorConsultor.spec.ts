@@ -29,7 +29,6 @@ describe("agruparProcessosPorConsultor", () => {
       processo("Bolívar"),
       processo("André Vitório"),
       processo("Bolívar"),
-      processo("Flavinha"),
       processo("Flávia"),
     ]);
 
@@ -37,7 +36,6 @@ describe("agruparProcessosPorConsultor", () => {
       "André Vitório",
       "Bolívar",
       "Flávia",
-      "Flavinha",
       "Paulinho",
       "Vinícius Alves",
     ]);

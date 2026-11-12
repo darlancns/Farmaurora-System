@@ -150,13 +150,22 @@ describe("resolveAuthUser — cargo a partir de app_metadata", () => {
     expect(u.consultorNome).toBeUndefined();
   });
 
-  it("aceita consultorNome que só existe no Follow-Up (ex.: Flavinha)", () => {
+  it("aceita consultorNome que só existe no Follow-Up (ex.: Dani)", () => {
+    const u = resolveAuthUser(
+      { ...base, app_metadata: { role: "consultor", consultorNome: "Dani" } } as never,
+      [],
+    );
+    expect(u.role).toBe("consultor");
+    expect(u.consultorNome).toBe("Dani");
+  });
+
+  it("consultorNome 'Flavinha' (removido da lista) é descartado", () => {
     const u = resolveAuthUser(
       { ...base, app_metadata: { role: "consultor", consultorNome: "Flavinha" } } as never,
       [],
     );
     expect(u.role).toBe("consultor");
-    expect(u.consultorNome).toBe("Flavinha");
+    expect(u.consultorNome).toBeUndefined();
   });
 
   it("consultorNome fora da lista de consultores é descartado", () => {

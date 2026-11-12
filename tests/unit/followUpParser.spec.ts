@@ -34,7 +34,7 @@ describe("parser do Follow-Up — seções e consultor", () => {
     "",
     "1. Ciclano Souza (2026 - 276) - Bráulio - FARMAURORA",
     "Status: desembaraço",
-    "2. Maria Souza (2026 - 366)- Flavinha -  FARMAURORA",
+    "2. Maria Souza (2026 - 366)- Flávia -  FARMAURORA",
     "Status: desembaraço",
     "3. Joao Souza (2026 - 321) - Bolívar",
     "Status: desembaraço",
@@ -68,9 +68,9 @@ describe("parser do Follow-Up — seções e consultor", () => {
     expect(r.empresa).toBe("MAINZFARMA");
   });
 
-  it("grupo: consultor = rótulo da entrada, sem normalizar Dani/Flavinha", () => {
+  it("grupo: consultor = rótulo da entrada, sem normalizar Dani/Daniel", () => {
     expect(entradas[2]!.record!.consultor).toBe("Bráulio");
-    expect(entradas[3]!.record!.consultor).toBe("Flavinha");
+    expect(entradas[3]!.record!.consultor).toBe("Flávia");
   });
 
   it("grupo: sem empresa → pula; sem rótulo → pula; rótulo fora da lista (Daniel) → pula", () => {
@@ -301,7 +301,7 @@ describe("parser do Follow-Up — formato novo (seção de grupo, rótulos por m
     "",
     "1. Ciclano Souza (2026 - 276) - Bráulio - FARMAURORA",
     "Status: desembaraço",
-    "2. Maria Souza (2026 - 366)- Flavinha -  FARMAURORA",
+    "2. Maria Souza (2026 - 366)- Flávia -  FARMAURORA",
     "Status: desembaraço",
     "3. Rita Souza (2026 - 369) - Dani - FARMAURORA",
     "Status: liberado",
@@ -322,10 +322,10 @@ describe("parser do Follow-Up — formato novo (seção de grupo, rótulos por m
 
   it("cabeçalho com vários nomes em 2 linhas vira seção de grupo (sem erro de parsing)", () => expect(erros).toEqual([]));
 
-  it("consultor de cada item vem do título do item: Dani e Flavinha continuam distintos", () => {
+  it("consultor de cada item vem do título do item: Dani e Flávia continuam distintos", () => {
     expect(entradas.map((e) => e.record?.consultor)).toEqual([
       "Bráulio",
-      "Flavinha",
+      "Flávia",
       "Dani",
       "Alessandra",
       undefined, // "Daniel" não é consultor cadastrado

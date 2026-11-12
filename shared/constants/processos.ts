@@ -21,7 +21,6 @@ export const CONSULTORES_PROCESSO: ConsultorProcesso[] = [
   "Bráulio",
   "Dani",
   "Flávia",
-  "Flavinha",
   "Gabriela Megda",
   "Gabriela Santana",
   "Mateus Morais",
