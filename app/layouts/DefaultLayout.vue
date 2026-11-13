@@ -18,8 +18,13 @@ import BottomNav from "../components/BottomNav.vue";
       conteúdo passa a aparecer visualmente cortado/quebrado — isso é esperado
       aqui: cada página que ainda não colapsa pra mobile é corrigida nas
       próximas rodadas, não nesta.
+
+      relative: o <main> é o ÚNICO contexto de rolagem vertical. Sem ele, um elemento absolute sem ancestral
+      posicionado dentro da página (ex.: o <p class="sr-only"> de aviso do Kanban, no fim de #processos-page) usa a
+      janela como bloco de contenção, escapa do overflow do <main> e estica o documento até o fim do conteúdo — o
+      que criava uma segunda rolagem vertical (a da janela) com faixa vazia abaixo do menu.
     -->
-    <main id="app-main-content" class="min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-6 pt-3.5 pb-10">
+    <main id="app-main-content" class="relative min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-6 pt-3.5 pb-10">
       <slot />
     </main>
     <ToastNotice />
