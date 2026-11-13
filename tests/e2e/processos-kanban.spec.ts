@@ -146,6 +146,12 @@ test.describe("/processos — Kanban", () => {
       await expect(page.locator("#kanban-contador-em-transito")).toHaveText("1");
       await expect(page.locator(`#card-pagamento-${ids!.origem}`)).toHaveText("Pendente");
       await expect(page.locator(`#card-pendencias-${ids!.transito}`)).toContainText("1");
+      // Bloquinhos: [Responsável][Consultor][Pendências], [Despachante] (sem fornecedor), sem linha aérea.
+      await expect(page.locator(`#card-responsavel-${ids!.transito}`)).toContainText("Rebeca");
+      await expect(page.locator(`#card-consultor-${ids!.transito}`)).toContainText("Dani");
+      await expect(page.locator(`#card-despachante-${ids!.transito}`)).toContainText("Andreza Faconi");
+      await expect(page.locator(`#card-fornecedor-${ids!.transito}`)).toHaveCount(0);
+      await expect(page.locator(`#card-info-aereo-${ids!.transito}`)).toHaveCount(0);
 
       // Cabeçalho em faixa da cor do projeto, igual em todas: à esquerda "[ícone] Em trânsito", à direita "(1)".
       await expect(page.locator("#kanban-titulo-em-transito")).toHaveText("Em trânsito");

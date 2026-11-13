@@ -92,7 +92,7 @@ describe("ProcessoKanbanCard", () => {
     expect(texto(el.querySelector("#card-paciente-p1"))).toBe("Maria");
     expect(texto(el.querySelector("#card-medicamento-p1"))).toBe("DROGA 10MG");
     expect(el.querySelector("#card-medicamento-p1")!.className).toContain("line-clamp-2"); // até 2 linhas, não 1
-    expect(texto(el.querySelector("#card-consultor-p1"))).toBe("Flávia");
+    expect(texto(el.querySelector("#card-consultor-p1"))).toBe("Consultor: Flávia");
   });
 
   it("PO ausente: só a Pasta", () => {
@@ -118,12 +118,109 @@ describe("ProcessoKanbanCard", () => {
     const alerta = com.querySelector("#card-pendencias-a")!;
     expect(alerta.className).toContain("text-danger");
     expect(alerta.querySelector("svg")).not.toBeNull();
-    expect(texto(alerta)).toBe("3 pendências");
+    expect(texto(alerta)).toBe("Pendências: 3");
+    expect(alerta.getAttribute("title")).toBe("3 pendências");
 
     const uma = card(proc("b", { pendencias: ["x"] }));
-    expect(texto(uma.querySelector("#card-pendencias-b"))).toBe("1 pendência");
+    expect(uma.querySelector("#card-pendencias-b")!.getAttribute("title")).toBe("1 pendência");
 
     expect(card(proc("c")).querySelector("#card-pendencias-c")).toBeNull();
+  });
+
+  it("bloquinhos: 3 caixas na ordem, células com ícone, rótulo sr-only e title; fornecedor sem o país", () => {
+    const el = card(
+      proc("p1", {
+        responsavelOperacional: "Rebeca",
+        consultor: "Dani",
+        pendencias: ["a", "b", "c", "d"],
+        fornecedor: "Beldimed - Bélgica",
+        despachante: "Aduaneira Sul",
+        companhiaAerea: "LATAM Cargo",
+        numeroAwb: "957-12345678",
+      }),
+    );
+    const linhas = [...el.querySelectorAll("#card-info-p1 > span")].map((l) => l.id);
+    expect(linhas).toEqual(["card-info-pessoas-p1", "card-info-origem-p1", "card-info-aereo-p1"]);
+    const celulas = (linha: string) => [...el.querySelectorAll(`#card-info-${linha}-p1 > span`)].map((c) => c.id);
+    expect(celulas("pessoas")).toEqual(["card-responsavel-p1", "card-consultor-p1", "card-pendencias-p1"]);
+    expect(celulas("origem")).toEqual(["card-fornecedor-p1", "card-despachante-p1"]);
+    expect(celulas("aereo")).toEqual(["card-aereo-p1"]);
+
+    for (const linha of ["pessoas", "origem", "aereo"]) {
+      const caixa = el.querySelector(`#card-info-${linha}-p1`)!;
+      for (const c of ["rounded-[8px]", "border", "divide-x", "min-w-0", "bg-[#f6f8f8]"]) expect(caixa.className).toContain(c);
+    }
+    const rotulos = [...el.querySelectorAll("#card-info-p1 .sr-only")].map((s) => texto(s));
+    expect(rotulos).toEqual(["Responsável:", "Consultor:", "Pendências:", "Fornecedor:", "Despachante:", "Cia. aérea · AWB:"]);
+    for (const c of el.querySelectorAll("#card-info-p1 [id^='card-'][title]")) {
+      expect(c.className).toContain("relative"); // contém o sr-only (absolute)
+      expect(c.className).toContain("min-w-0");
+      expect(c.querySelector("svg[aria-hidden='true']")).not.toBeNull();
+    }
+    expect(el.querySelector("#card-responsavel-p1")!.className).toContain("flex-auto");
+    expect(el.querySelector("#card-pendencias-p1")!.className).toContain("flex-none");
+    expect(el.querySelector("#card-responsavel-p1")!.className).toContain("shrink-0");
+    expect(el.querySelector("#card-consultor-p1")!.className).not.toContain("shrink-0");
+
+    const fornecedor = el.querySelector("#card-fornecedor-p1")!;
+    expect(texto(fornecedor)).toBe("Fornecedor: Beldimed");
+    expect(fornecedor.getAttribute("title")).toBe("Beldimed");
+    const aereo = el.querySelector("#card-aereo-p1")!;
+    expect(texto(aereo)).toBe("Cia. aérea · AWB: LATAM Cargo · 957-12345678");
+    expect(aereo.getAttribute("title")).toBe("LATAM Cargo · 957-12345678");
+    expect(texto(aereo.querySelector(".font-mono"))).toBe("957-12345678");
+
+    // Não interativo: nenhum botão nem parada de Tab nova dentro do card.
+    expect(el.querySelectorAll("article button, article [tabindex]")).toHaveLength(0);
+  });
+
+  it("bloquinhos: célula vazia e linha vazia não são renderizadas (nada de caixa vazia nem '—')", () => {
+    const so = card(proc("a", { responsavelOperacional: " ", fornecedor: "Pharyx - China", numeroAwb: "957-1" }));
+    expect([...so.querySelectorAll("#card-info-a > span")].map((l) => l.id)).toEqual([
+      "card-info-pessoas-a",
+      "card-info-origem-a",
+      "card-info-aereo-a",
+    ]);
+    expect(so.querySelector("#card-responsavel-a")).toBeNull();
+    expect(so.querySelector("#card-despachante-a")).toBeNull();
+    expect(texto(so.querySelector("#card-fornecedor-a"))).toBe("Fornecedor: Pharyx");
+    expect(texto(so.querySelector("#card-aereo-a"))).toBe("Cia. aérea · AWB: 957-1"); // sem " · " solto
+    expect(texto(so.querySelector("#card-info-a"))).not.toContain("—");
+
+    const minimo = card(proc("b")); // só consultor
+    expect([...minimo.querySelectorAll("#card-info-b > span")].map((l) => l.id)).toEqual(["card-info-pessoas-b"]);
+    expect(minimo.querySelector("#card-info-origem-b")).toBeNull();
+    expect(minimo.querySelector("#card-info-aereo-b")).toBeNull();
+
+    const nada = card(proc("c", { consultor: "" as Processo["consultor"] }));
+    expect(nada.querySelector("#card-info-c")).toBeNull();
+  });
+
+  it("hierarquia: nome 16px/600 é o maior (≥ 3px acima de qualquer outro) e o peso dele é ≥ o de qualquer texto; bloquinhos ≤ 12px", () => {
+    const el = card(
+      proc("p1", { statusPagamento: "pendente", responsavelOperacional: "Bruno", pendencias: ["x"], fornecedor: "Poros - Turquia", numeroAwb: "957-1" }),
+    );
+    const paciente = el.querySelector("#card-paciente-p1")!;
+    for (const c of ["text-[16px]", "font-semibold", "leading-[1.25]", "tracking-[-0.01em]", "line-clamp-2", "text-ink"]) {
+      expect(paciente.className).toContain(c);
+    }
+    const med = el.querySelector("#card-medicamento-p1")!.className;
+    for (const c of ["text-[12px]", "font-medium", "uppercase", "tracking-[0.02em]", "line-clamp-2"]) expect(med).toContain(c);
+
+    const PESOS: Record<string, number> = { "font-normal": 400, "font-medium": 500, "font-semibold": 600, "font-bold": 700 };
+    const tamanho = (n: Element) => [...n.className.matchAll(/text-\[(\d+(?:\.\d+)?)px\]/g)].map((m) => Number(m[1]));
+    const peso = (n: Element) => n.className.split(/\s+/).map((c) => PESOS[c] ?? 0);
+    const outros = [...el.querySelectorAll("article *")].filter((n) => n !== paciente && typeof n.className === "string");
+    const nomePx = tamanho(paciente)[0]!;
+    const nomePeso = Math.max(...peso(paciente));
+    expect(nomePx).toBe(16);
+    expect(nomePeso).toBe(600);
+    expect(nomePx - Math.max(...outros.flatMap(tamanho))).toBeGreaterThanOrEqual(3);
+    expect(Math.max(...outros.flatMap(peso))).toBeLessThanOrEqual(nomePeso);
+    const noBloco = [...el.querySelectorAll("#card-info-p1 *")].filter((n) => typeof n.className === "string").flatMap(tamanho);
+    expect(noBloco.length).toBeGreaterThan(0);
+    expect(Math.max(...noBloco)).toBeLessThanOrEqual(12);
+    for (const n of el.querySelectorAll("#card-info-p1 svg")) expect(n.getAttribute("class")).toContain("h-3.5");
   });
 
   it("estilo: rounded-lg, borda hairline, fundo paper-raised, sem sombra, hover com borda accent-dark", () => {
