@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { Processo } from "#shared/types/processo";
+import { rotuloPastaPo } from "#shared/utils/rotuloPasta";
 import { resumoMedicamentos } from "../../utils/processoFormatters";
 import { linhasInfoKanban, type ChaveCelulaKanban } from "../../utils/processoKanbanInfo";
 
@@ -37,9 +38,8 @@ const emit = defineEmits<{
   soltarArrasto: [];
 }>();
 
-const pastaPo = computed(() =>
-  props.processo.numeroPo ? `${props.processo.pasta} · ${props.processo.numeroPo}` : props.processo.pasta,
-);
+// "Pasta · PO", só um dos dois, ou "" (a linha continua existindo, com a mesma altura: ver min-h-lh no template).
+const pastaPo = computed(() => rotuloPastaPo(props.processo.pasta, props.processo.numeroPo));
 
 // Pagamento ao FORNECEDOR: etiqueta só quando há valor (vazio = nenhuma etiqueta).
 const etiquetaPagamento = computed<{ texto: string; classe: string } | null>(() => {
@@ -115,9 +115,14 @@ function onKeydown(event: KeyboardEvent): void {
     @dragend="emit('soltarArrasto')"
   >
     <span class="flex w-full items-center justify-between gap-3">
-      <span :id="`card-pasta-po-${processo.id}`" class="min-w-0 truncate font-mono text-[11.5px] text-[#5c6d74]" :title="pastaPo">{{
-        pastaPo
-      }}</span>
+      <!-- min-h-lh: sem pasta e sem PO o texto fica vazio, mas a linha mantém a altura de uma linha de texto (o nome do
+           paciente não sobe e a etiqueta Pago/Pendente fica no mesmo lugar). -->
+      <span
+        :id="`card-pasta-po-${processo.id}`"
+        class="min-h-lh min-w-0 truncate font-mono text-[11.5px] text-[#5c6d74]"
+        :title="pastaPo || undefined"
+        >{{ pastaPo }}</span
+      >
       <span
         v-if="etiquetaPagamento"
         :id="`card-pagamento-${processo.id}`"

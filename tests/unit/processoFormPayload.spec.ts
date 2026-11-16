@@ -251,12 +251,18 @@ describe("validarProcessoForm", () => {
     });
   });
 
-  it("pasta ausente: erro específico", () => {
-    const form = { ...formValido(), pasta: "" };
-    expect(validarProcessoForm(form, [], [], "")).toEqual({
-      valido: false,
-      erro: "Informe a pasta do processo.",
-    });
+  it("pasta vazia (ou só espaços) é aceita: a pasta é opcional e vai como \"\"", () => {
+    for (const pasta of ["", "   "]) {
+      const r = validarProcessoForm({ ...formValido(), pasta }, [], [], "");
+      expect(r.valido).toBe(true);
+      if (r.valido) expect(r.payload.pasta).toBe("");
+    }
+  });
+
+  it("pasta preenchida vai sem espaços nas pontas", () => {
+    const r = validarProcessoForm({ ...formValido(), pasta: "  2026 - 234 " }, [], [], "");
+    expect(r.valido).toBe(true);
+    if (r.valido) expect(r.payload.pasta).toBe("2026 - 234");
   });
 
   it("consultor ausente: erro específico", () => {
@@ -267,13 +273,6 @@ describe("validarProcessoForm", () => {
     });
   });
 
-  it("ordem de checagem: paciente E pasta ausentes ao mesmo tempo → erro é o de paciente (primeiro checado)", () => {
-    const form = { ...formValido(), paciente: "", pasta: "" };
-    expect(validarProcessoForm(form, [], [], "")).toEqual({
-      valido: false,
-      erro: "Informe o nome do paciente.",
-    });
-  });
 
   it("Air Cargo sem despachante: erro", () => {
     const form = { ...formValido(), modalEnvio: "Air Cargo", despachante: "", transportadoraNome: "Transportes X" };

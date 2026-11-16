@@ -13,6 +13,7 @@ import {
   numeroRemessaCanonico,
   patchExigeVersao,
   patchTocaModalOuCia,
+  pastaCanonica,
 } from "../../utils/processoValidation";
 import { normalizarNumeroPo } from "../../../shared/utils/numeroPo";
 import { assertPodeResolverMandado, patchTocaAlertaMandado } from "../../utils/processoMandadoAuth";
@@ -96,6 +97,9 @@ export default defineEventHandler(async (event): Promise<Processo> => {
 
   // `versao` e `parcial` não são colunas: saem do patch antes de gravar.
   const { versao, parcial, ...patch } = body as ProcessoPatchDTO & { versao?: string };
+
+  // Pasta: sem espaços nas pontas; "" limpa (grava ""), nunca null. Sem a chave, a coluna não é tocada.
+  if ("pasta" in patch) patch.pasta = pastaCanonica(patch.pasta) ?? "";
 
   // Grava o valor canônico da cia (sem espaços nas pontas; vazia = null).
   if ("companhiaAerea" in patch) patch.companhiaAerea = ciaAereaCanonica(patch.companhiaAerea);

@@ -42,7 +42,8 @@ export interface FollowUpRow {
   // Opcionais na linha: as colunas são aditivas (migrações 20261108160000 e 20261108170000) e linhas de antes não as trazem.
   numero_po?: string | null;
   numero_remessa?: number | null;
-  pasta: string;
+  // Opcional: "" = sem pasta. Linhas antigas podem trazer NULL; a leitura trata como "".
+  pasta: string | null;
   empresa: EmpresaProcesso;
   consultor: ConsultorProcesso;
   responsavel_operacional: string | null;
@@ -108,7 +109,8 @@ export function colunasDeDTO(src: ProcessoPatchDTO, opcoes: { parcial?: boolean 
   const col: Record<string, unknown> = {};
 
   if ("paciente" in src) col.paciente = src.paciente;
-  if ("pasta" in src) col.pasta = src.pasta;
+  // Pasta: sem espaços nas pontas; vazia (ou não texto) = "" — nunca NULL.
+  if ("pasta" in src) col.pasta = typeof src.pasta === "string" ? src.pasta.trim() : "";
   if ("empresa" in src) col.empresa = src.empresa;
   if ("consultor" in src) col.consultor = src.consultor;
   // Só o status. A coluna legada status_outro NUNCA é gravada (fica como está no banco).
@@ -185,7 +187,7 @@ export function montarProcesso(row: FollowUpRow): Processo {
     id: row.id,
     paciente: row.paciente,
     numeroRemessa: normalizarNumeroRemessa(row.numero_remessa) ?? NUMERO_REMESSA_PADRAO, // linha sem a coluna → 1
-    pasta: row.pasta,
+    pasta: row.pasta ?? "", // NULL de linha antiga = sem pasta
     empresa: row.empresa,
     consultor: row.consultor,
     medicamentos: (row.medicamentos ?? []).map((m) => ({ ...m })),

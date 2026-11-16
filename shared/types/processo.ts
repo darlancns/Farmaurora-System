@@ -89,7 +89,7 @@ export interface Processo {
   // PO, rótulo da tela "PO". Só o PO completo no formato da DIR, ex.: "PO26-10-0471" (ou ausente).
   // Não confundir com o Nº Remessa. Ver shared/utils/numeroPo.ts.
   numeroPo?: string;
-  pasta: string; // ex: "2026 - 234" (renomeado de "codigo")
+  pasta: string; // ex: "2026 - 234" (renomeado de "codigo"). OPCIONAL no formulário: "" = sem pasta (nunca null)
   empresa: EmpresaProcesso;
   consultor: ConsultorProcesso;
   responsavelOperacional?: string; // Bruno, Rebeca
@@ -165,8 +165,8 @@ export interface TransportadoraNacionalPatch {
 }
 
 // Corpo do PATCH: como Partial<NewProcessoDTO>, mas os campos opcionais acima também aceitam `null`.
-// Os obrigatórios (paciente, pasta, empresa, consultor, status), medicamentos, pendências e
-// atualizações NÃO aceitam null. `parcial: true` marca o formato novo do formulário (patch diferencial:
+// Os obrigatórios (paciente, empresa, consultor, status), a pasta (opcional, mas "" = sem pasta), medicamentos,
+// pendências e atualizações NÃO aceitam null. `parcial: true` marca o formato novo do formulário (patch diferencial:
 // só o que mudou, datas e transportadora por chave); o servidor o remove antes de gravar.
 export type ProcessoPatchDTO = Omit<
   Partial<NewProcessoDTO>,

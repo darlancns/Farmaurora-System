@@ -4,6 +4,7 @@ import type { Processo } from "#shared/types/processo";
 import { metaDoStatus, rotuloStatusProcesso } from "../../utils/processoStatus";
 import { resumoMedicamentos } from "../../utils/processoFormatters";
 import { remessaVisivelNaLinha, type ContagemPorPasta } from "../../utils/remessaNaLinha";
+import { pastaLimpa } from "#shared/utils/rotuloPasta";
 import ConfirmDialog from "../ConfirmDialog.vue";
 import ProcessoDetail from "./ProcessoDetail.vue";
 
@@ -37,6 +38,8 @@ const statusLabel = computed(() => rotuloStatusProcesso(props.processo));
 const hasPendencias = computed(() => props.processo.pendencias.length > 0);
 // "Remessa N" só quando N > 1 ou a pasta se repete entre TODOS os processos (a contagem vem da página).
 const mostrarRemessa = computed(() => remessaVisivelNaLinha(props.processo, props.contagemPasta));
+// Pasta opcional: vazia, some da linha junto com o "·" e o rótulo "Pasta" que a acompanham.
+const pasta = computed(() => pastaLimpa(props.processo.pasta));
 const medicamentoResumo = computed(() => resumoMedicamentos(props.processo.medicamentos));
 
 function toggleExpand(): void {
@@ -117,13 +120,19 @@ function confirmDelete(): void {
           </span>
         </div>
 
-        <p :id="`mobile-ordem-pasta-${processo.id}`" class="pl-[22px] text-[12px] text-ink-soft">
-          <template v-if="mostrarRemessa"
-            ><span :id="`mobile-remessa-${processo.id}`">Ordem {{ processo.numeroRemessa }}</span> · </template
-          >Pasta
-          <span class="font-mono">{{ processo.pasta }}</span>
+        <!-- "Ordem N · Pasta X · PO", cada parte só quando existe (sem "Pasta " solto nem "·" sobrando). -->
+        <p
+          v-if="mostrarRemessa || pasta || processo.numeroPo"
+          :id="`mobile-ordem-pasta-${processo.id}`"
+          class="pl-[22px] text-[12px] text-ink-soft"
+        >
+          <span v-if="mostrarRemessa" :id="`mobile-remessa-${processo.id}`">Ordem {{ processo.numeroRemessa }}</span>
+          <template v-if="pasta">
+            <template v-if="mostrarRemessa"> · </template>Pasta
+            <span class="font-mono">{{ pasta }}</span>
+          </template>
           <template v-if="processo.numeroPo">
-            ·
+            <template v-if="mostrarRemessa || pasta"> · </template>
             <span :id="`mobile-numero-po-${processo.id}`" class="font-mono break-all">{{ processo.numeroPo }}</span>
           </template>
         </p>
@@ -197,8 +206,10 @@ function confirmDelete(): void {
                 class="shrink-0 text-[11.5px] text-ink-soft"
                 >Ordem {{ processo.numeroRemessa }}</span
               >
-              <span class="shrink-0 text-[11.5px] text-ink-soft/60">·</span>
-              <span class="shrink-0 font-mono text-[11.5px] text-ink-soft">{{ processo.pasta }}</span>
+              <template v-if="pasta">
+                <span class="shrink-0 text-[11.5px] text-ink-soft/60">·</span>
+                <span class="shrink-0 font-mono text-[11.5px] text-ink-soft">{{ pasta }}</span>
+              </template>
               <template v-if="processo.numeroPo">
                 <span class="shrink-0 text-[11.5px] text-ink-soft/60">·</span>
                 <span

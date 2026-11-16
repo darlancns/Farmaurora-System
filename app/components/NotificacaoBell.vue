@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue"
 import { navigateTo } from "#app";
 import type { Notificacao } from "#shared/types/notificacao";
 import { podeResolverAlertaMandado } from "#shared/utils/mandadoPermissao";
+import { pastaLimpa, temPasta } from "#shared/utils/rotuloPasta";
 import { calcularNotificacoesFornecedor, type NotificacaoFornecedor } from "../utils/prazoFornecedor";
 import { calcularNotificacoesMandadoDoUsuario, type NotificacaoMandado } from "../utils/prazoMandado";
 import { calcularAvisosChegada, type AvisoChegadaSino } from "../utils/avisosChegada";
@@ -311,7 +312,9 @@ onBeforeUnmount(() => {
           >
             <span class="block truncate text-[13px] font-medium text-ink">
               {{ notificacao.paciente }}
-              <span class="font-mono text-[11px] font-normal text-ink-soft">· {{ notificacao.pasta }}</span>
+              <span v-if="temPasta(notificacao.pasta)" class="font-mono text-[11px] font-normal text-ink-soft"
+                >· {{ pastaLimpa(notificacao.pasta) }}</span
+              >
             </span>
             <span class="block text-[11.5px] text-danger">
               {{ notificacao.fornecedor }} — {{ notificacao.diasDeAtraso }}
@@ -351,7 +354,8 @@ onBeforeUnmount(() => {
             :class="[CLASSE_ITEM_ABRIR, 'text-[12.5px] text-danger']"
             @click="abrirProcessoDoAlerta(notificacao)"
           >
-            Solicitar Mandado de Segurança — {{ notificacao.paciente }} (pasta {{ notificacao.pasta }}). Registro do LPCO em
+            Solicitar Mandado de Segurança — {{ notificacao.paciente
+            }}<template v-if="temPasta(notificacao.pasta)"> (pasta {{ pastaLimpa(notificacao.pasta) }})</template>. Registro do LPCO em
             {{ notificacao.registroDDMM }}, há {{ notificacao.diasDecorridos }}
             {{ notificacao.diasDecorridos === 1 ? "dia" : "dias" }}.
           </button>

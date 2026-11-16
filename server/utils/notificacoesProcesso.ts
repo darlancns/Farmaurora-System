@@ -2,6 +2,7 @@ import { createSupabaseAdminClient } from "./supabaseServerClient";
 import { listAllAuthUsers, toAdminUserSummary } from "./authUser";
 import { inserirNotificacoes, type NovaNotificacao } from "./notificacoesStore";
 import { novasAtualizacoes, novasPendencias } from "#shared/utils/novosItensProcesso";
+import { pacienteComPasta } from "#shared/utils/rotuloPasta";
 import type { AtualizacaoProcesso, Processo } from "#shared/types/processo";
 
 /**
@@ -54,7 +55,8 @@ export function montarAvisosItensNovos(
   pendencias: readonly string[],
   atualizacoes: readonly AtualizacaoProcesso[],
 ): AvisoProcesso[] {
-  const quando = `${processo.paciente} (${processo.pasta})`;
+  // Sem pasta, só o nome do paciente (nada de "()" sobrando).
+  const quando = pacienteComPasta(processo.paciente, processo.pasta);
   return [
     ...avisosDoTipo("pendencia_nova", pendencias, "Nova pendência", "novas pendências", quando),
     ...avisosDoTipo(

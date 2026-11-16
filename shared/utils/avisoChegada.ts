@@ -8,6 +8,7 @@ import {
   parseDataBR,
 } from "./dataBrasilia";
 import { primeiroNomeNormalizado } from "./mandadoPermissao";
+import { pastaLimpa } from "./rotuloPasta";
 import type { Role } from "./rbac";
 
 // Aviso "chegou?" do sino (Follow-Up, item 9): ALERTA DERIVADO do estado do processo — não há linha de
@@ -151,7 +152,7 @@ export interface EntradaTextoAvisoChegada {
 export interface TextoAvisoChegada {
   /** "Chegou?" só para o operacional; o administrador não tem título (nem pergunta). */
   titulo: string | null;
-  /** "Remessa de {paciente} · {pasta}" (ou "Remessa {N} de ..."). */
+  /** "Remessa de {paciente} · {pasta}" (ou "Remessa {N} de ..."); sem pasta, "Remessa de {paciente}". */
   linhaProcesso: string;
   /** "Prevista para hoje" / "Prevista para DD/MM (n dia(s) de atraso)", + " · cia · AWB x" se existirem. */
   linhaData: string;
@@ -159,7 +160,9 @@ export interface TextoAvisoChegada {
 
 export function montarTextoAvisoChegada(entrada: EntradaTextoAvisoChegada): TextoAvisoChegada {
   const remessa = entrada.remessaVisivel ? `Ordem ${entrada.numeroRemessa}` : "Ordem";
-  const linhaProcesso = `${remessa} de ${entrada.paciente} · ${entrada.pasta}`;
+  // Sem pasta, a linha termina no nome do paciente (sem "·" sobrando).
+  const pasta = pastaLimpa(entrada.pasta);
+  const linhaProcesso = pasta ? `${remessa} de ${entrada.paciente} · ${pasta}` : `${remessa} de ${entrada.paciente}`;
 
   const previsao =
     entrada.diasAtraso <= 0

@@ -14,6 +14,7 @@ import {
   mostraDespachanteTransportadora,
 } from "../../utils/processoPainel";
 import { remessaVisivelNaLinha, type ContagemPorPasta } from "../../utils/remessaNaLinha";
+import { rotuloPastaPo } from "#shared/utils/rotuloPasta";
 import ConfirmDialog from "../ConfirmDialog.vue";
 import ProcessoAtualizacoes from "./ProcessoAtualizacoes.vue";
 
@@ -48,9 +49,8 @@ const painelRef = ref<HTMLElement | null>(null);
 const showDeleteConfirm = ref(false);
 
 const mostrarOrdem = computed(() => remessaVisivelNaLinha(props.processo, props.contagemPasta));
-const pastaPo = computed(() =>
-  props.processo.numeroPo ? `Pasta ${props.processo.pasta} · ${props.processo.numeroPo}` : `Pasta ${props.processo.pasta}`,
-);
+// "Pasta X · PO", só um dos dois, ou "" (sem pasta e sem PO o parágrafo não aparece).
+const pastaPo = computed(() => rotuloPastaPo(props.processo.pasta, props.processo.numeroPo, "Pasta "));
 const linhaOrdemResponsavel = computed(() =>
   [
     mostrarOrdem.value ? `Ordem ${props.processo.numeroRemessa}` : "",
@@ -204,10 +204,16 @@ const BLOCO = "border-b border-hairline px-5 py-4";
       </div>
       </header>
 
-      <!-- 2. Pasta · PO; Ordem N (só quando N > 1 ou pasta repetida, como na Lista) · Responsável -->
-      <section id="painel-bloco-pasta" :class="BLOCO">
-        <p id="painel-pasta-po" class="font-mono text-[13px] break-all text-ink">{{ pastaPo }}</p>
-        <p v-if="linhaOrdemResponsavel" id="painel-ordem-responsavel" class="mt-1 text-[12px] text-ink-soft">
+      <!-- 2. Pasta · PO; Ordem N (só quando N > 1 ou pasta repetida, como na Lista) · Responsável. Cada linha só
+           aparece com conteúdo; sem nenhuma das duas, o bloco inteiro some (nada de faixa vazia). -->
+      <section v-if="pastaPo || linhaOrdemResponsavel" id="painel-bloco-pasta" :class="BLOCO">
+        <p v-if="pastaPo" id="painel-pasta-po" class="font-mono text-[13px] break-all text-ink">{{ pastaPo }}</p>
+        <p
+          v-if="linhaOrdemResponsavel"
+          id="painel-ordem-responsavel"
+          class="text-[12px] text-ink-soft"
+          :class="{ 'mt-1': pastaPo }"
+        >
           {{ linhaOrdemResponsavel }}
         </p>
       </section>

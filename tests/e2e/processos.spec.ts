@@ -555,4 +555,45 @@ test.describe.serial("Follow-Up de processos", () => {
     await expect(lista).toContainText(nomes.simples);
     await expect(page.locator("#tab-entregues")).toContainText("Entregues (1)");
   });
+
+  test("18 · pasta opcional: cria sem pasta e, na edição, apaga a pasta de um processo que tinha", async ({ page }) => {
+    const SEM = `Paciente ${RUN} Sem Pasta`;
+    const APAGA = `Paciente ${RUN} Apaga Pasta`;
+    const db = createClient(env.url, env.serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+
+    await page.goto("/processos", { waitUntil: "networkidle" });
+
+    // Criar sem preencher a Pasta: salva sem erro e grava "" (nunca NULL).
+    await page.locator("#btn-novo-processo").click();
+    await page.locator("#pf-paciente").fill(SEM);
+    await selectOption(page, "pf-consultor", "André Vitório");
+    await page.locator("#btn-save-processo").click();
+    await expect(page.locator("#toast-notice")).toContainText("Processo adicionado");
+    const { data: criado } = await db.from("follow_up").select("pasta").eq("paciente", SEM).single();
+    expect(criado?.pasta).toBe("");
+
+    // Na linha, nada de "Pasta " solto nem "·" sobrando.
+    await expandGroup(page, "André Vitório");
+    const rowSem = page.locator('[id^="processo-row-"]').filter({ hasText: SEM });
+    await expect(rowSem).not.toContainText("Pasta");
+
+    // Editar um processo com pasta e apagar o campo: grava "".
+    await page.locator("#btn-novo-processo").click();
+    await page.locator("#pf-paciente").fill(APAGA);
+    await page.locator("#pf-pasta").fill("2026 - 995");
+    await selectOption(page, "pf-consultor", "André Vitório");
+    await page.locator("#btn-save-processo").click();
+    await expect(page.locator("#toast-notice")).toContainText("Processo adicionado");
+
+    const rowApaga = page.locator('[id^="processo-row-"]').filter({ hasText: APAGA });
+    await rowApaga.locator("button").first().click();
+    const detail = rowApaga.locator('[id^="processo-detail-"]');
+    await detail.getByRole("button", { name: "Editar processo" }).click();
+    await expect(page.locator("#pf-pasta")).toHaveValue("2026 - 995");
+    await page.locator("#pf-pasta").fill("");
+    await page.locator("#btn-save-processo").click();
+    await expect(page.locator("#toast-notice")).toContainText("Processo atualizado");
+    const { data: editado } = await db.from("follow_up").select("pasta").eq("paciente", APAGA).single();
+    expect(editado?.pasta).toBe("");
+  });
 });

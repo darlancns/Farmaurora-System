@@ -145,7 +145,8 @@ const CAMPOS_DATA: ReadonlyArray<keyof ProcessoDatas> = [
   "supostaEstimativa",
 ];
 
-// Obrigatórios e opcionais de valor único: vão no patch SÓ se o valor mudou. Opcionais esvaziados vão
+// Obrigatórios e opcionais de valor único: vão no patch SÓ se o valor mudou. A pasta é opcional, mas
+// esvaziada vai como "" (nunca null: a coluna guarda texto vazio para "sem pasta"). Opcionais esvaziados vão
 // como `null` (CAMPOS_PROCESSO_LIMPAVEIS). `transportadoraNacional`, `datas`, medicamentos, pendências
 // e o status têm tratamento próprio abaixo.
 const CAMPOS_ESCALARES = [
@@ -273,7 +274,7 @@ function transportadoraSemNome(form: ProcessoFormState): boolean {
 // Validação de handleSubmit, reformulada como função pura: decide só
 // valido/inválido + payload ou mensagem de erro. O componente decide o que
 // fazer com o resultado (emitir "invalid", ou "update"/"submit" com o
-// payload). Ordem de checagem: paciente, pasta, PO, consultor, Nº Remessa,
+// payload). Ordem de checagem: paciente, PO, consultor, Nº Remessa,
 // despachante (condicionado ao modalEnvio) e, por último, a transportadora
 // (opcional, mas cotação/valor exigem o nome).
 //
@@ -290,9 +291,6 @@ export function validarProcessoForm(
 ): ValidarProcessoFormResult {
   if (!form.paciente.trim()) {
     return { valido: false, erro: "Informe o nome do paciente." };
-  }
-  if (!form.pasta.trim()) {
-    return { valido: false, erro: "Informe a pasta do processo." };
   }
   // PO: vazio ou COMPLETO (PO26-10-0471); incompleto é recusado. Na edição, um valor igual ao que o processo já
   // tinha ao abrir (de antes desta regra) não impede salvar os outros campos — o servidor tolera do mesmo jeito.

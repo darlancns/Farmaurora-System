@@ -9,6 +9,7 @@ import {
   isValidProcessoPayload,
   numeroPoCanonico,
   numeroRemessaCanonico,
+  pastaCanonica,
 } from "../../utils/processoValidation";
 import { avisarConsultorDeItensNovos } from "../../utils/notificacoesProcesso";
 import { NUMERO_REMESSA_PADRAO } from "../../../shared/utils/numeroRemessa";
@@ -49,6 +50,9 @@ export default defineEventHandler(async (event): Promise<Processo> => {
     throw createError({ statusCode: 400, statusMessage: erroRemessa });
   }
 
+  // Pasta opcional: sempre gravada (sem espaços nas pontas; ausente ou vazia = ""), nunca null.
+  const pasta = pastaCanonica(body.pasta) ?? "";
+
   // Grava o valor canônico da cia (sem espaços nas pontas; vazia = sem cia), do PO (normalizado;
   // vazio = sem PO, a coluna nem entra no insert) e do Nº Remessa (sempre presente). `ordem` (campo
   // antigo, coluna congelada) pode chegar de uma aba antiga: é descartado sem erro e nunca gravado.
@@ -64,6 +68,7 @@ export default defineEventHandler(async (event): Promise<Processo> => {
   } = body as typeof body & { ordem?: unknown };
   const criado = await createProcesso({
     ...resto,
+    pasta,
     numeroRemessa,
     ...(cia ? { companhiaAerea: cia } : {}),
     ...(po ? { numeroPo: po } : {}),

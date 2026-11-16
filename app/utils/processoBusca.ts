@@ -8,9 +8,10 @@ import { normalizeText } from "./search";
 // ── O que casa ────────────────────────────────────────────────────────────────────────────────────
 
 // Pasta sem diferença de acento/maiúscula e SEM espaços e hífens (também travessões, de quem cola de um
-// documento): "2026 - 375", "2026-375" e "2026 375" viram "2026375".
-export function normalizarPasta(valor: string): string {
-  return normalizeText(valor).replace(/[\s\-‐-―]+/g, "");
+// documento): "2026 - 375", "2026-375" e "2026 375" viram "2026375". Pasta opcional: null/undefined (linha
+// antiga) vira "" sem erro.
+export function normalizarPasta(valor: string | null | undefined): string {
+  return normalizeText(valor ?? "").replace(/[\s\-‐-―]+/g, "");
 }
 
 // PO sem acento/maiúscula e SÓ com letras e números: "PO26-10-0471", "po26100471" e "26 10 0471" viram
@@ -20,7 +21,7 @@ export function normalizarOrdem(valor: string): string {
 }
 
 /** O termo (digitado de qualquer jeito) está contido na pasta? "375" acha "2026 - 375". */
-export function pastaCombina(pasta: string, termo: string): boolean {
+export function pastaCombina(pasta: string | null | undefined, termo: string): boolean {
   const procurado = normalizarPasta(termo);
   return procurado !== "" && normalizarPasta(pasta).includes(procurado);
 }

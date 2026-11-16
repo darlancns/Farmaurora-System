@@ -151,7 +151,8 @@ export const LIMITE_ATUALIZACOES_POR_PROCESSO = 200;
 
 // Campos opcionais do formulário de processo que podem ser ESVAZIADOS na edição (viram null no PATCH).
 // Fora desta lista ficam o que o formulário não controla ou que é obrigatório: atualizações, alertas
-// resolvidos, medicamentos, pendências, datas (objeto próprio) e paciente/pasta/empresa/consultor/status.
+// resolvidos, medicamentos, pendências, datas (objeto próprio), paciente/empresa/consultor/status e a pasta (opcional,
+// mas esvaziada vira "" e não null).
 export const CAMPOS_PROCESSO_LIMPAVEIS: readonly CampoProcessoLimpavel[] = [
   "numeroPo",
   "responsavelOperacional",

@@ -205,7 +205,7 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     form.paciente = processo.paciente;
     form.numeroRemessa = String(processo.numeroRemessa ?? NUMERO_REMESSA_PADRAO);
     form.numeroPo = processo.numeroPo ?? "";
-    form.pasta = processo.pasta;
+    form.pasta = (processo.pasta ?? "").trim(); // opcional: "" = sem pasta; null de linha antiga não quebra
     form.empresa = processo.empresa;
     form.consultor = processo.consultor;
     form.responsavelOperacional = processo.responsavelOperacional ?? "";

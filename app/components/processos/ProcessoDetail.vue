@@ -2,6 +2,7 @@
 import type { Processo } from "#shared/types/processo";
 import { formatCurrency } from "../../utils/formatters";
 import { quebrarNumeroProcesso } from "../../utils/quebrarNumeroProcesso";
+import { pastaLimpa, temPasta } from "#shared/utils/rotuloPasta";
 import ProcessoAtualizacoes from "./ProcessoAtualizacoes.vue";
 
 withDefaults(
@@ -42,7 +43,8 @@ function colunas(processo: Processo): DetailField[][] {
     : [];
   return [
     [
-      { label: "Pasta", value: processo.pasta },
+      // Pasta opcional: vazia, a linha "Pasta" não aparece.
+      ...(temPasta(processo.pasta) ? [{ label: "Pasta", value: pastaLimpa(processo.pasta) }] : []),
       { label: "PO", value: processo.numeroPo, mono: true },
       // Sempre aparece (a linha do processo só o mostra quando N > 1 ou a pasta se repete).
       { label: "Nº Ordem", value: String(processo.numeroRemessa), mono: true },

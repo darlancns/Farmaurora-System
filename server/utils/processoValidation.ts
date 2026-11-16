@@ -221,12 +221,27 @@ export function numeroRemessaCanonico(valor: unknown): number | undefined {
   return normalizarNumeroRemessa(valor);
 }
 
+// ── Pasta ───────────────────────────────────────────────────────────────────────────────────────
+// Opcional: processo sem pasta é gravado como "" (texto vazio, NUNCA null). POST: ausente, "" ou só espaços = "".
+// PATCH: ausente = não mexe; "" ou só espaços = limpa (grava ""). Qualquer outro tipo (null, número...) = 400.
+
+// A pasta do corpo é aceitável? (ausente ou texto, vazio incluído).
+function isPastaAceita(valor: unknown): boolean {
+  return valor === undefined || typeof valor === "string";
+}
+
+// Valor para gravar: sem espaços nas pontas (vazio = ""); chave ausente → undefined (não toca a coluna).
+export function pastaCanonica(valor: unknown): string | undefined {
+  if (valor === undefined) return undefined;
+  return typeof valor === "string" ? valor.trim() : "";
+}
+
 export function isValidProcessoPayload(body: unknown): body is NewProcessoDTO {
   if (!body || typeof body !== "object") return false;
   const b = body as Record<string, unknown>;
   return (
     isNonEmptyString(b.paciente) &&
-    isNonEmptyString(b.pasta) &&
+    isPastaAceita(b.pasta) &&
     EMPRESAS_PROCESSO.includes(b.empresa as EmpresaProcesso) &&
     CONSULTORES_PROCESSO.includes(b.consultor as ConsultorProcesso) &&
     STATUS_PROCESSO_ORDER.includes(b.status as StatusProcesso) &&
@@ -245,7 +260,7 @@ export function isValidProcessoPatch(body: unknown): body is ProcessoPatchDTO {
   const b = body as Record<string, unknown>;
 
   if (b.paciente !== undefined && !isNonEmptyString(b.paciente)) return false;
-  if (b.pasta !== undefined && !isNonEmptyString(b.pasta)) return false;
+  if (!isPastaAceita(b.pasta)) return false;
   if (b.empresa !== undefined && !EMPRESAS_PROCESSO.includes(b.empresa as EmpresaProcesso)) return false;
   if (b.consultor !== undefined && !CONSULTORES_PROCESSO.includes(b.consultor as ConsultorProcesso)) return false;
   if (b.status !== undefined && !STATUS_PROCESSO_ORDER.includes(b.status as StatusProcesso)) return false;
