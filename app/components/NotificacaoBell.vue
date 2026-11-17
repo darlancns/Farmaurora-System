@@ -32,7 +32,7 @@ import { getErrorMessage } from "../utils/errorMessages";
  *  - Mandado de Segurança: 7 dias após o registro do LPCO, calculado a partir
  *    de Processo[] (calcularNotificacoesMandadoDoUsuario). Administrador vê
  *    todos; operacional só os seus (vínculo pelo primeiro nome); consultor e
- *    sócio não veem.
+ *    sócio não veem. Não aparece quando o processo já tem "MS Anexado em".
  *  - Prazo da ANVISA ("Prazo limite pra Manifestação da ANVISA"): derivado de Processo[] (calcularAvisosPrazoAnvisa)
  *    — a partir do primeiro dia útil depois do prazo_anvisa, até alguém dar "Ciente" (vale para todos, por prazo),
  *    o prazo sumir ou o status virar Entregue. Quem vê: a regra do Mandado, só para quem escreve em Processos.

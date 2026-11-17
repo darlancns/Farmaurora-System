@@ -34,7 +34,8 @@ export interface AvisoPrazoAnvisaDevido {
 
 /** O processo deve mostrar o aviso agora? `agora` é injetável (testes). Conta em datas civis de Brasília. */
 export function avisoPrazoAnvisaDevido(processo: ProcessoParaAvisoAnvisa, agora: Date = new Date()): AvisoPrazoAnvisaDevido {
-  const texto = processo.datas.prazoAnvisa?.trim() ?? "";
+  // `datas?.`: tolera um processo incompleto vindo da rede (os outros alertas derivados também não quebram com ele).
+  const texto = processo.datas?.prazoAnvisa?.trim() ?? "";
   const prazo = parseDataISO(texto) ? texto : null;
   const diaAviso = prazo ? primeiroDiaUtilApos(prazo) : null;
   const naoDevido: AvisoPrazoAnvisaDevido = { devido: false, prazo, diaAviso };

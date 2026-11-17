@@ -53,6 +53,7 @@ function ddmm(iso: string): string {
 
 // Lógica pura (sem API): `hoje` injetável para testar. Toda a conta é em datas civis de Brasília.
 // Alerta quando hoje >= registro + PRAZO_MANDADO_DIAS. Mais antigos primeiro.
+// Processo com "MS Anexado em" preenchido (o despachante já anexou o Mandado) não alerta: não há o que solicitar.
 export function calcularNotificacoesMandado(processos: Processo[], hoje: Date = new Date()): NotificacaoMandado[] {
   const hojeISO = hojeBrasilia(hoje);
   const notificacoes: NotificacaoMandado[] = [];
@@ -60,6 +61,7 @@ export function calcularNotificacoesMandado(processos: Processo[], hoje: Date = 
   for (const processo of processos) {
     if (processo.alertaMandadoResolvido) continue;
     if (!STATUS_ALERTAVEIS_MANDADO.includes(processo.status)) continue;
+    if (processo.datas.msAnexadoEm?.trim()) continue;
 
     const registro = interpretarRegistroLpco(processo.datas.registroLpco, hoje);
     if (!registro) continue;

@@ -125,6 +125,14 @@ describe("calcularNotificacoesMandado", () => {
     }
   });
 
+  it("MS Anexado em preenchido (o Mandado já foi anexado) suprime o alerta; vazio ou só espaços, não", () => {
+    const anexado = buildProcesso({ datas: { registroLpco: "01/08", msAnexadoEm: "2026-08-12" } });
+    expect(calcularNotificacoesMandado([anexado], HOJE)).toHaveLength(0);
+    const vazio = buildProcesso({ datas: { registroLpco: "01/08", msAnexadoEm: "  " } });
+    expect(calcularNotificacoesMandado([vazio], HOJE)).toHaveLength(1);
+    expect(calcularNotificacoesMandado([comLpco("01/08")], HOJE)).toHaveLength(1);
+  });
+
   it("alertaMandadoResolvido=true suprime; o resolvido do fornecedor NÃO suprime", () => {
     expect(calcularNotificacoesMandado([comLpco("01/08", { alertaMandadoResolvido: true })], HOJE)).toHaveLength(0);
     expect(calcularNotificacoesMandado([comLpco("01/08", { alertaFornecedorResolvido: true })], HOJE)).toHaveLength(1);
