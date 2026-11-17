@@ -2,6 +2,7 @@
 import type { NewProcessoDTO, Processo, ProcessoFormPatchPayload } from "#shared/types/processo";
 import { MENSAGEM_CONFLITO_EDICAO } from "../../composables/useConflitoEdicaoProcesso";
 import { useProcessoForm } from "../../composables/useProcessoForm";
+import { useProverBloqueioDatas } from "../../composables/useBloqueioDatas";
 import AppSelect from "../AppSelect.vue";
 import BaseModal from "../BaseModal.vue";
 import ProcessoFormDatas from "./ProcessoFormDatas.vue";
@@ -78,7 +79,12 @@ const {
   validarEdicao,
 } = useProcessoForm(() => props.editingProcesso);
 
+// Datas com erro ("Data inexistente"/"incompleta") bloqueiam o Salvar (e o Enter): nada é enviado, o campo mostra
+// "Corrija ou limpe a data" e recebe o foco. Ver useBloqueioDatas.ts.
+const bloqueioDatas = useProverBloqueioDatas();
+
 function handleSubmit(): void {
+  if (!bloqueioDatas.liberado()) return;
   if (props.editingProcesso) {
     // Edição: só vai o que o usuário alterou (patch diferencial, ver montarPatchDiferencial).
     const edicao = validarEdicao();

@@ -10,7 +10,7 @@ import {
   textoChegadaAdiada,
   textoChegadaConfirmada,
 } from "../../../../shared/utils/avisoChegada";
-import { formatarDataCurta, hojeBrasilia } from "../../../../shared/utils/dataBrasilia";
+import { formatarDataBR, formatarDataCurta, hojeBrasilia } from "../../../../shared/utils/dataBrasilia";
 import type { AuthUser } from "../../../../shared/types/auth";
 import type { AtualizacaoProcesso, Processo, ProcessoPatchDTO } from "../../../../shared/types/processo";
 
@@ -20,8 +20,9 @@ import type { AtualizacaoProcesso, Processo, ProcessoPatchDTO } from "../../../.
  * O administrador só visualiza o aviso (olhinho, ver /api/chegada-avisos/visto).
  *
  *  - { acao: "confirmar" }: status em_transito -> desembaraco + UMA atualização "Chegada confirmada em DD/MM.".
- *  - { acao: "adiar", novaData }: data_chegada_brasil = novaData + UMA atualização
- *    "Chegada adiada de {antiga} para {nova}.". A atualização não leva nome de ninguém (o formato da
+ *  - { acao: "adiar", novaData }: data_chegada_brasil = novaData, SEMPRE gravada "DD/MM/AAAA" (com o ano, como
+ *    as datas novas do formulário), + UMA atualização "Chegada adiada de {antiga} para {nova}." (no texto, o formato
+ *    curto de sempre: DD/MM no ano corrente, DD/MM/AAAA em outro). A atualização não leva nome de ninguém (o formato da
  *    timeline, { data, texto }, nem tem campo de autor).
  *
  * Pré-condição: status = em_transito (senão 409). Mudança e atualização vão num ÚNICO UPDATE condicional
@@ -69,10 +70,14 @@ export default defineEventHandler(async (event): Promise<Processo> => {
       return { status: "desembaraco", atualizacoes: comAtualizacao(textoChegadaConfirmada(agora)) };
     }
 
-    const novaData = formatarDataCurta(pedido.novaDataISO, hojeISO); // DD/MM no ano corrente, DD/MM/AAAA em outro
+    const novaDataGravada = formatarDataBR(pedido.novaDataISO); // sempre DD/MM/AAAA
+    const novaDataTexto = formatarDataCurta(pedido.novaDataISO, hojeISO); // DD/MM no ano corrente, DD/MM/AAAA em outro
     const antigaISO = interpretarDataChegadaPrevista(lido.datas.dataChegadaBrasil, agora);
     const antiga = antigaISO ? formatarDataCurta(antigaISO, hojeISO) : null;
-    return { datas: { dataChegadaBrasil: novaData }, atualizacoes: comAtualizacao(textoChegadaAdiada(antiga, novaData)) };
+    return {
+      datas: { dataChegadaBrasil: novaDataGravada },
+      atualizacoes: comAtualizacao(textoChegadaAdiada(antiga, novaDataTexto)),
+    };
   });
 
   if (resultado.tipo === "nao_encontrado") {

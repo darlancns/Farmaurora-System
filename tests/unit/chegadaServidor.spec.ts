@@ -185,26 +185,27 @@ describe("POST /api/processos/:id/chegada — confirmar", () => {
 });
 
 describe("POST /api/processos/:id/chegada — adiar", () => {
-  it("válido: grava a nova data (DD/MM do ano corrente) e UMA atualização, numa gravação", async () => {
+  it("válido: grava a nova data SEMPRE com o ano (DD/MM/AAAA) e UMA atualização, numa gravação", async () => {
     const res = await chamar(responder, bruno, { acao: "adiar", novaData: "12/11" });
 
     expect(updatesNaTabela()).toBe(1);
     expect(res.status).toBe("em_transito");
-    expect(res.datas.dataChegadaBrasil).toBe("12/11");
+    expect(res.datas.dataChegadaBrasil).toBe("12/11/2026");
+    // No texto da atualização, o formato curto de sempre (ano só quando é outro).
     expect(res.atualizacoes.at(-1)).toEqual({ data: "08/11", texto: "Chegada adiada de 06/11 para 12/11." });
     expect(res.atualizacoes).toHaveLength(2);
-    expect(processoNoBanco().data_chegada_brasil).toBe("12/11");
+    expect(processoNoBanco().data_chegada_brasil).toBe("12/11/2026");
     expect(JSON.stringify(res.atualizacoes)).not.toMatch(/Bruno|Alves/);
   });
 
-  it("normaliza para o formato do calendário: outro ano vira DD/MM/AAAA; ano corrente explícito vira DD/MM", async () => {
+  it("normaliza para DD/MM/AAAA: outro ano e ano corrente (explícito ou não) vão com o ano", async () => {
     let res = await chamar(responder, bruno, { acao: "adiar", novaData: "5/1/2027" });
     expect(res.datas.dataChegadaBrasil).toBe("05/01/2027");
     expect(res.atualizacoes.at(-1)!.texto).toBe("Chegada adiada de 06/11 para 05/01/2027.");
 
     fake.tabelas[T] = [linha()];
     res = await chamar(responder, bruno, { acao: "adiar", novaData: "12/11/2026" });
-    expect(res.datas.dataChegadaBrasil).toBe("12/11");
+    expect(res.datas.dataChegadaBrasil).toBe("12/11/2026");
   });
 
   it("não mexe nos outros campos da linha", async () => {
@@ -231,14 +232,38 @@ describe("POST /api/processos/:id/chegada — adiar", () => {
     expect(updatesNaTabela()).toBe(0);
     // amanhã vale
     const res = await chamar(responder, bruno, { acao: "adiar", novaData: "09/11" });
-    expect(res.datas.dataChegadaBrasil).toBe("09/11");
+    expect(res.datas.dataChegadaBrasil).toBe("09/11/2026");
   });
 
   it("'hoje' é o de Brasília: 22:30 do dia 8 (dia 9 em UTC) -> 08/11 é hoje (400) e 09/11 é amanhã", async () => {
     vi.setSystemTime(new Date("2026-11-09T01:30:00Z"));
     expect((await erroDe(chamar(responder, bruno, { acao: "adiar", novaData: "08/11" }))).status).toBe(400);
     const res = await chamar(responder, bruno, { acao: "adiar", novaData: "09/11" });
-    expect(res.datas.dataChegadaBrasil).toBe("09/11");
+    expect(res.datas.dataChegadaBrasil).toBe("09/11/2026");
+  });
+
+  it("hoje 17/11/2026: adiar para 22/01 (o campo manda 22/01/2027) grava 22/01/2027 e o aviso volta no dia certo", async () => {
+    vi.setSystemTime(new Date("2026-11-17T10:00:00-03:00"));
+    const res = await chamar(responder, bruno, { acao: "adiar", novaData: "22/01/2027" });
+    expect(res.datas.dataChegadaBrasil).toBe("22/01/2027");
+    expect(processoNoBanco().data_chegada_brasil).toBe("22/01/2027");
+    expect(res.atualizacoes.at(-1)!.texto).toBe("Chegada adiada de 06/11 para 22/01/2027.");
+    // O aviso lê o ano gravado: nada antes de 22/01/2027; nesse dia, a partir das 13h de Brasília.
+    expect(avisoChegadaDevido(res, new Date("2026-11-17T14:00:00-03:00")).devido).toBe(false);
+    expect(avisoChegadaDevido(res, new Date("2027-01-21T18:00:00-03:00")).devido).toBe(false);
+    expect(avisoChegadaDevido(res, new Date("2027-01-22T12:59:00-03:00")).devido).toBe(false);
+    const noDia = avisoChegadaDevido(res, new Date("2027-01-22T13:00:00-03:00"));
+    expect(noDia).toEqual({ devido: true, dataPrevista: "2027-01-22", rotuloData: "hoje", diasAtraso: 0 });
+    // Mesmo lido depois da virada (a heurística sem ano não entra: o ano está gravado).
+    expect(avisoChegadaDevido(res, new Date("2027-01-25T09:00:00-03:00")).diasAtraso).toBe(3);
+  });
+
+  it("hoje 17/11/2026: adiar para amanhã grava 18/11/2026", async () => {
+    vi.setSystemTime(new Date("2026-11-17T10:00:00-03:00"));
+    const res = await chamar(responder, bruno, { acao: "adiar", novaData: "18/11/2026" });
+    expect(res.datas.dataChegadaBrasil).toBe("18/11/2026");
+    expect(avisoChegadaDevido(res, new Date("2026-11-18T13:00:00-03:00")).devido).toBe(true);
+    expect(avisoChegadaDevido(res, new Date("2026-11-18T12:00:00-03:00")).devido).toBe(false);
   });
 
   it("data antiga sem data legível: 'Chegada adiada para {nova}.'", async () => {

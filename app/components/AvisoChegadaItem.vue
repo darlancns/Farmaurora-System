@@ -9,7 +9,9 @@ import AppDatePicker from "./AppDatePicker.vue";
 /**
  * Um item do aviso "chegou?" no sino (alerta derivado de Processo[]).
  * - Operacional responsável: título "Chegou?", 2 linhas de texto e os botões [Sim, chegou] [Ainda não]. "Ainda não"
- *   abre o calendário próprio (mínimo AMANHÃ, Brasília) e depois pede a confirmação ("Nova data: 12/11").
+ *   abre o campo de data com ANO AUTOMÁTICO (sentido "futuro", mínimo AMANHÃ em Brasília) já com o calendário
+ *   aberto; dá para escolher ou fechar o calendário e digitar ("2201" -> 22/01 do próximo ano em que ainda vem).
+ *   Depois pede a confirmação ("Nova data: 22/01/2027"). A nova data vai sempre como "DD/MM/AAAA".
  * - Administrador: só as 2 linhas e o olhinho "Marcar como visto" (ele NÃO atualiza o processo por aqui;
  *   a regra "administrador só visualiza" será estendida depois às outras notificações do Follow-Up).
  * Erros (403, 409, 400...) aparecem como mensagem curta no próprio item; o sino não fecha. Quando dá certo, o
@@ -72,9 +74,9 @@ async function aindaNao(): Promise<void> {
   minimoNovaData.value = somarDiasISO(hojeBrasilia(), 1);
   novaData.value = "";
   etapa.value = "data";
-  // Abre o calendário na hora (o campo é o próprio botão do AppDatePicker).
+  // Abre o calendário na hora (botão do calendário do campo digitável).
   await nextTick();
-  document.getElementById(`chegada-data-${id.value}`)?.click();
+  document.getElementById(`chegada-data-${id.value}-abrir-calendario`)?.click();
 }
 
 // Escolheu a data no calendário: pede a confirmação (nada é gravado antes dela).
@@ -182,9 +184,11 @@ function visto(): Promise<boolean> {
           :id="`chegada-data-${aviso.processoId}`"
           v-model="novaData"
           :min="minimoNovaData"
+          ano-automatico
+          sentido="futuro"
           label="Nova data de chegada"
-          placeholder="Escolher nova data"
-          classe-campo="min-h-11 rounded-md border border-hairline bg-paper px-2.5 py-2 text-[13.5px] focus:bg-white focus:outline-2 focus:outline-accent-dark"
+          placeholder="DD/MM/AAAA"
+          classe-campo="min-h-11 rounded-md border border-hairline bg-paper px-2.5 py-2 font-mono text-[16px] lg:text-[13.5px]"
         />
         <button
           :id="`btn-chegada-cancelar-data-${aviso.processoId}`"

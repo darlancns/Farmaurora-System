@@ -271,7 +271,7 @@ describe("sino — Ainda não", () => {
     const p1 = proc("p1");
     servidor.chegada = () => ({
       status: 200,
-      corpo: { ...p1, datas: { dataChegadaBrasil: "12/11" }, updatedAt: "v2" },
+      corpo: { ...p1, datas: { dataChegadaBrasil: "12/11/2026" }, updatedAt: "v2" },
     });
     await montar(conta("operacional", "Bruno"), [p1]);
     await abrirSino();
@@ -290,12 +290,13 @@ describe("sino — Ainda não", () => {
     expect($("#painel-notificacoes-fornecedor")).not.toBeNull();
 
     await clicar('[data-iso="2026-11-12"]');
-    expect(texto($("#chegada-nova-data-p1"))).toBe("Nova data: 12/11");
+    // Campo com ano automático: a data vai SEMPRE com o ano.
+    expect(texto($("#chegada-nova-data-p1"))).toBe("Nova data: 12/11/2026");
     expect(postsChegada()).toHaveLength(0); // nada é gravado antes do Confirmar
 
     await clicar("#btn-chegada-confirmar-p1");
     expect(postsChegada()).toEqual([
-      { url: "/api/processos/p1/chegada", method: "POST", body: { acao: "adiar", novaData: "12/11" } },
+      { url: "/api/processos/p1/chegada", method: "POST", body: { acao: "adiar", novaData: "12/11/2026" } },
     ]);
     expect($("#aviso-chegada-p1")).toBeNull();
     expect(badge()).toBeNull();
@@ -326,6 +327,50 @@ describe("sino — Ainda não", () => {
     expect(texto($("#chegada-nova-data-p1"))).toBe("Nova data: 05/01/2027");
     await clicar("#btn-chegada-confirmar-p1");
     expect(postsChegada()[0]!.body).toEqual({ acao: "adiar", novaData: "05/01/2027" });
+  });
+});
+
+describe("sino — Ainda não, digitando (ano automático, sentido 'futuro')", () => {
+  // Fecha o calendário que abre sozinho (Esc) e digita no campo; sair do campo confirma a digitação.
+  async function digitarNovaData(textoDigitado: string): Promise<void> {
+    await clicar("#btn-chegada-nao-p1");
+    $("#chegada-data-p1-calendario")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await esperar();
+    const campo = $<HTMLInputElement>("#chegada-data-p1")!;
+    expect(campo.tagName).toBe("INPUT");
+    campo.dispatchEvent(new FocusEvent("focus"));
+    campo.value = textoDigitado;
+    campo.dispatchEvent(new Event("input"));
+    campo.dispatchEvent(new FocusEvent("blur"));
+    await esperar();
+  }
+
+  it("hoje 17/11/2026: '2201' vira 22/01/2027 e vai assim no POST", async () => {
+    vi.setSystemTime(BRT("2026-11-17", "14:00"));
+    await montar(conta("operacional", "Bruno"), [proc("p1")]);
+    await abrirSino();
+    await digitarNovaData("2201");
+    expect(texto($("#chegada-nova-data-p1"))).toBe("Nova data: 22/01/2027");
+    await clicar("#btn-chegada-confirmar-p1");
+    expect(postsChegada()[0]!.body).toEqual({ acao: "adiar", novaData: "22/01/2027" });
+  });
+
+  it("hoje 17/11/2026: amanhã ('1811') vira 18/11/2026", async () => {
+    vi.setSystemTime(BRT("2026-11-17", "14:00"));
+    await montar(conta("operacional", "Bruno"), [proc("p1")]);
+    await abrirSino();
+    await digitarNovaData("1811");
+    expect(texto($("#chegada-nova-data-p1"))).toBe("Nova data: 18/11/2026");
+  });
+
+  it("hoje (o mínimo é amanhã): aviso no campo, sem passar para a confirmação", async () => {
+    vi.setSystemTime(BRT("2026-11-17", "14:00"));
+    await montar(conta("operacional", "Bruno"), [proc("p1")]);
+    await abrirSino();
+    await digitarNovaData("1711");
+    expect(texto($("#chegada-data-p1-erro"))).toBe("Use a partir de 18/11/2026");
+    expect($("#chegada-nova-data-p1")).toBeNull();
+    expect(postsChegada()).toHaveLength(0);
   });
 });
 

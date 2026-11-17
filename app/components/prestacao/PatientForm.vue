@@ -2,6 +2,7 @@
 import type { ConsultorNome, NewPatientDTO, Patient } from "#shared/types/Patient";
 import { usePatientForm } from "../../composables/usePatientForm";
 import { usePatientAttachments } from "../../composables/usePatientAttachments";
+import { useProverBloqueioDatas } from "../../composables/useBloqueioDatas";
 import { CONSULTORES } from "#shared/constants/consultores";
 import AttachmentsPanel from "./AttachmentsPanel.vue";
 import BaseModal from "../BaseModal.vue";
@@ -75,10 +76,14 @@ const {
   medicamentos,
 });
 
+const bloqueioDatas = useProverBloqueioDatas();
+
 // Enter e cliques repetidos: com um envio em andamento o submit é ignorado (a trava de verdade fica
 // no handler da página; isto só poupa a validação e os toasts).
 function onFormSubmit(): void {
   if (props.saving) return;
+  // Data com erro bloqueia o envio: o campo mostra "Corrija ou limpe a data" e recebe o foco (useBloqueioDatas.ts).
+  if (!bloqueioDatas.liberado()) return;
   handleSubmit();
 }
 

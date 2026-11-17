@@ -7,6 +7,7 @@ import {
   type SentidoAno,
 } from "#shared/utils/anoAutomatico";
 import { adquirirTravaDeScroll } from "../composables/useLockBodyScroll";
+import { useBloqueioDatas } from "../composables/useBloqueioDatas";
 import {
   DIAS_DA_SEMANA,
   MESES,
@@ -134,9 +135,31 @@ const digitavel = computed(() => props.anoAutomatico && !textoAntigo.value);
 const rascunho = ref(exibido.value);
 const textoNoFoco = ref("");
 const comFoco = ref(false);
-const erro = ref<"" | "incompleta" | "inexistente">("");
+const erro = ref<"" | "incompleta" | "inexistente" | "fora">("");
 const erroId = computed(() => `${props.id}-erro`);
-const mensagemErro = computed(() => (erro.value === "inexistente" ? "Data inexistente" : "Data incompleta"));
+const mensagemErro = computed(() => {
+  if (erro.value === "inexistente") return "Data inexistente";
+  if (erro.value === "incompleta") return "Data incompleta";
+  // "fora": a data existe, mas está fora de min/max (ex.: "chegou? → adiar" só aceita a partir de amanhã).
+  if (props.min) return `Use a partir de ${formatarDataBR(props.min)}`;
+  return props.max ? `Use até ${formatarDataBR(props.max)}` : "Data fora do permitido";
+});
+
+// Bloqueio do Salvar (formulário com useProverBloqueioDatas): com erro, o envio não passa e o campo mostra
+// "Corrija ou limpe a data". Corrigir ou limpar tira o erro, e o aviso some junto.
+const avisoBloqueio = ref(false);
+const bloqueio = props.anoAutomatico ? useBloqueioDatas() : null;
+const sairDoBloqueio = bloqueio?.registrar({
+  temErro: () => digitavel.value && erro.value !== "",
+  avisarBloqueio: () => {
+    avisoBloqueio.value = true;
+  },
+  focar: () => entrada.value?.focus(),
+  elemento: () => caixa.value,
+});
+watch(erro, (atual) => {
+  if (!atual) avisoBloqueio.value = false;
+});
 
 // O valor gravado manda: mudou por fora (calendário, outro campo, recarga), o texto do campo acompanha.
 watch(
@@ -169,6 +192,10 @@ function confirmarDigitado(): boolean {
     erro.value = r.motivo;
     return false;
   }
+  if (r.tipo === "data" && !dentroDoIntervalo(r.iso, props.min, props.max)) {
+    erro.value = "fora";
+    return false;
+  }
   erro.value = "";
   const novo = r.tipo === "vazio" ? "" : valorParaGravar(r.iso);
   rascunho.value = novo === "" ? "" : textoParaExibir(novo, props.formato, hojeIso.value);
@@ -189,8 +216,12 @@ function aoSair(): void {
 
 function aoTeclarNaEntrada(evento: KeyboardEvent): void {
   if (evento.key === "Enter") {
-    // Válido: deixa o Enter seguir (o formulário pode enviar, já com o valor novo). Inválido: segura o envio.
-    if (!confirmarDigitado()) evento.preventDefault();
+    // Válido: deixa o Enter seguir (o formulário pode enviar, já com o valor novo; se OUTRO campo de data estiver
+    // com erro, o bloqueio do formulário segura). Inválido: segura o envio e mostra o mesmo aviso do Salvar.
+    if (!confirmarDigitado()) {
+      evento.preventDefault();
+      avisoBloqueio.value = true;
+    }
     return;
   }
   if (evento.key === "ArrowDown" && evento.altKey) {
@@ -356,6 +387,7 @@ watch([aberto, modo], ([estaAberto, modoAtual]) => {
 onBeforeUnmount(() => {
   window.removeEventListener("resize", aoRedimensionar);
   window.removeEventListener("scroll", reposicionar, true);
+  sairDoBloqueio?.();
   liberarTrava?.();
   liberarTrava = null;
 });
@@ -623,7 +655,8 @@ const classeCelulaMesAno = computed(() => [
         </button>
       </div>
       <p v-if="erro" :id="erroId" role="alert" class="mt-0.5 text-[11px] leading-tight text-danger">
-        {{ mensagemErro }}
+        {{ mensagemErro
+        }}<span v-if="avisoBloqueio" :id="`${id}-bloqueio`" class="font-semibold"> · Corrija ou limpe a data</span>
       </p>
     </template>
 
