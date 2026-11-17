@@ -132,6 +132,12 @@ export function somarDiasISO(iso: string, dias: number): string {
   return paraISO(r.getUTCFullYear(), r.getUTCMonth() + 1, r.getUTCDate());
 }
 
+// Dia da semana de uma data civil: 0 = domingo … 6 = sábado. Data inválida devolve -1. Calendário puro (UTC).
+export function diaDaSemana(iso: string): number {
+  const d = parseDataISO(iso);
+  return d ? new Date(diaJuliano(d) * MS_POR_DIA).getUTCDay() : -1;
+}
+
 // Dias corridos de `b` até `a` (a - b). Data inválida devolve NaN.
 export function diferencaEmDias(a: string, b: string): number {
   const da = parseDataISO(a);

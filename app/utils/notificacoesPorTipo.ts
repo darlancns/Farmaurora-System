@@ -35,9 +35,11 @@ export interface ContagensDoSino {
   contas: number;
   // Nova pendência / nova atualização num processo do consultor (tabela `notificacoes`).
   processos: number;
+  // Aviso "Prazo limite pra Manifestação da ANVISA" (derivado de Processo[]). Opcional: ausente = 0.
+  anvisa?: number;
 }
 
-/** Badge do sino: soma das 6 seções, cada item contado uma única vez. */
+/** Badge do sino: soma das seções, cada item contado uma única vez. */
 export function totalDoBadgeSino(c: ContagensDoSino): number {
-  return c.fornecedor + c.mandado + c.chegada + c.recados + c.contas + c.processos;
+  return c.fornecedor + c.mandado + c.chegada + c.recados + c.contas + c.processos + (c.anvisa ?? 0);
 }

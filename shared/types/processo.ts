@@ -132,6 +132,10 @@ export interface Processo {
   // true = o alerta "solicitar Mandado de Segurança" (7 dias após o registro do LPCO) foi
   // resolvido pra este processo, some do sino pra todos (ver app/utils/prazoMandado.ts).
   alertaMandadoResolvido?: boolean;
+  // Prazo da ANVISA ("AAAA-MM-DD") para o qual alguém deu "Ciente" no aviso "Prazo limite pra Manifestação da ANVISA".
+  // O aviso some enquanto for IGUAL a datas.prazoAnvisa (ver shared/utils/avisoPrazoAnvisa.ts). Só o endpoint
+  // POST /api/processos/:id/anvisa-ciente grava; o formulário e o PATCH nunca mexem.
+  alertaAnvisaCientePrazo?: string;
   atualizacoes: AtualizacaoProcesso[];
   createdAt: string;
   updatedAt: string;

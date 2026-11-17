@@ -178,6 +178,31 @@ export async function gravarChegadaProcesso(
   return { tipo: "conflito" };
 }
 
+export type ResultadoCienciaAnvisa =
+  | { tipo: "ok"; processo: Processo }
+  | { tipo: "nao_encontrado" }
+  | { tipo: "prazo_mudou" }; // o prazo_anvisa da linha já não é o que a pessoa viu
+
+// "Ciente" no aviso "Prazo limite pra Manifestação da ANVISA": UM UPDATE ... SET alerta_anvisa_ciente_prazo = <prazo>
+// WHERE id = ? AND prazo_anvisa = <prazo> — atômico: se o prazo mudou no meio, nada é gravado (a ciência nunca vale
+// para um prazo que a pessoa não viu). NÃO mexe em updated_at (não é edição do processo; não conflita com quem está
+// com o formulário aberto) e não cria notificação gravada. Nenhuma linha = processo sumiu ou o prazo mudou.
+export async function gravarCienciaPrazoAnvisa(id: string, prazo: string): Promise<ResultadoCienciaAnvisa> {
+  const db = createSupabaseAdminClient();
+
+  const { data, error } = await db
+    .from(TABELA)
+    .update({ alerta_anvisa_ciente_prazo: prazo })
+    .eq("id", id)
+    .eq("prazo_anvisa", prazo)
+    .select("*");
+  if (error) throw erro("registrar ciência do prazo da ANVISA", error);
+
+  const row = (data ?? [])[0] as FollowUpRow | undefined;
+  if (row) return { tipo: "ok", processo: montarProcesso(row) };
+  return (await getProcesso(id)) ? { tipo: "prazo_mudou" } : { tipo: "nao_encontrado" };
+}
+
 export async function deleteProcesso(id: string): Promise<boolean> {
   const db = createSupabaseAdminClient();
 

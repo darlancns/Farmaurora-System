@@ -3,10 +3,12 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue"
 import { navigateTo } from "#app";
 import type { Notificacao } from "#shared/types/notificacao";
 import { podeResolverAlertaMandado } from "#shared/utils/mandadoPermissao";
+import { podeDarCienciaPrazoAnvisa } from "#shared/utils/avisoPrazoAnvisa";
 import { pastaLimpa, temPasta } from "#shared/utils/rotuloPasta";
 import { calcularNotificacoesFornecedor, type NotificacaoFornecedor } from "../utils/prazoFornecedor";
 import { calcularNotificacoesMandadoDoUsuario, type NotificacaoMandado } from "../utils/prazoMandado";
 import { calcularAvisosChegada, type AvisoChegadaSino } from "../utils/avisosChegada";
+import { calcularAvisosPrazoAnvisa, type AvisoPrazoAnvisaSino } from "../utils/avisosPrazoAnvisa";
 import { totalDoBadgeSino } from "../utils/notificacoesPorTipo";
 import { criarAcoesSino } from "../utils/acoesSino";
 import { modoAlertasProcesso } from "../utils/modoAlertasProcesso";
@@ -31,6 +33,9 @@ import { getErrorMessage } from "../utils/errorMessages";
  *    de Processo[] (calcularNotificacoesMandadoDoUsuario). Administrador vê
  *    todos; operacional só os seus (vínculo pelo primeiro nome); consultor e
  *    sócio não veem.
+ *  - Prazo da ANVISA ("Prazo limite pra Manifestação da ANVISA"): derivado de Processo[] (calcularAvisosPrazoAnvisa)
+ *    — a partir do primeiro dia útil depois do prazo_anvisa, até alguém dar "Ciente" (vale para todos, por prazo),
+ *    o prazo sumir ou o status virar Entregue. Quem vê: a regra do Mandado, só para quem escreve em Processos.
  *  - Chegada ("chegou?"): alerta derivado de Processo[] (calcularAvisosChegada) — status em_transito e data
  *    prevista de hoje (a partir das 13:00 de Brasília) ou vencida. Operacional responsável vê a pergunta com
  *    [Sim, chegou] [Ainda não]; administrador vê o texto + olhinho (dispensa gravada por usuário); sócio,
@@ -55,7 +60,7 @@ const modoAlertas = computed(() => modoAlertasProcesso(user.value));
 const mostraAlertasProcesso = computed<boolean>(() => modoAlertas.value !== "nenhum");
 const podeAgirNosAlertas = computed<boolean>(() => modoAlertas.value === "editar");
 
-const { processos, patchProcesso, fetchProcessos } = useProcessos();
+const { processos, patchProcesso, fetchProcessos, darCienciaPrazoAnvisa, recarregarProcesso } = useProcessos();
 const { fetchNotificacoes, marcarComoLida, recadosNaoLidos, contasNaoLidas, processosNaoLidos } = useNotificacoes();
 const { showToast } = useToast();
 const { vistos: chegadaVistos, vistosCarregados: chegadaVistosCarregados, fetchVistos: fetchChegadaVistos } =
@@ -132,6 +137,36 @@ const avisosChegada = computed<AvisoChegadaSino[]>(() => {
   );
 });
 
+// Prazo da ANVISA ("Prazo limite pra Manifestação da ANVISA"): derivado de Processo[] + usuário + relógio (reavalia a
+// cada minuto). Só para quem ESCREVE em Processos (quem só "vê" não recebe este aviso); dentro disso, a regra de quem vê
+// é a do Mandado (administrador todos; operacional os seus). "Ciente" some com o item na hora (otimista, por
+// processo+prazo); se a gravação falhar, ele volta com um toast.
+const dismissedAnvisa = reactive(new Set<string>());
+const avisosAnvisa = computed<AvisoPrazoAnvisaSino[]>(() =>
+  podeAgirNosAlertas.value
+    ? calcularAvisosPrazoAnvisa(processos.value, { role: user.value?.role, nome: user.value?.nome }, agora.value)
+    : [],
+);
+const avisosAnvisaVisiveis = computed(() => avisosAnvisa.value.filter((a) => !dismissedAnvisa.has(a.chave)));
+
+function podeDarCiencia(aviso: AvisoPrazoAnvisaSino): boolean {
+  return podeDarCienciaPrazoAnvisa({ role: user.value?.role, nome: user.value?.nome }, aviso.responsavel);
+}
+
+async function darCienciaAnvisa(aviso: AvisoPrazoAnvisaSino, evento?: Event): Promise<void> {
+  evento?.stopPropagation(); // só dá ciência: não navega nem fecha o sino
+  if (!podeAgirNosAlertas.value) return;
+  dismissedAnvisa.add(aviso.chave);
+  try {
+    await darCienciaPrazoAnvisa(aviso.processoId, aviso.prazo);
+  } catch (e) {
+    dismissedAnvisa.delete(aviso.chave);
+    showToast(getErrorMessage(e, "Erro ao registrar a ciência do prazo da ANVISA"));
+    // 409: o prazo mudou — recarrega o processo para o aviso mostrar o prazo novo.
+    if ((e as { status?: number } | null)?.status === 409) void recarregarProcesso(aviso.processoId);
+  }
+}
+
 // Recados: só as não lidas aparecem no sino — mesmo espírito de "some da
 // lista ao resolver" do lado Fornecedor, aplicado a "marcar como lida". Só os tipos recado_novo e
 // recado_concluido (useNotificacoes().recadosNaoLidos); conta_editada vai pra seção "Contas".
@@ -146,6 +181,7 @@ const badgeCount = computed(() =>
     fornecedor: podeAgirNosAlertas.value ? notificacoesFornecedorVisiveis.value.length : 0,
     mandado: podeAgirNosAlertas.value ? notificacoesMandadoVisiveis.value.length : 0,
     chegada: podeAgirNosAlertas.value ? avisosChegada.value.length : 0,
+    anvisa: avisosAnvisaVisiveis.value.length, // já é só de quem pode agir
     recados: notificacoesRecadosVisiveis.value.length,
     contas: notificacoesContasVisiveis.value.length,
     processos: notificacoesProcessosVisiveis.value.length,
@@ -371,6 +407,46 @@ onBeforeUnmount(() => {
             <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
             </svg>
+          </button>
+        </div>
+      </template>
+
+      <template v-if="avisosAnvisaVisiveis.length">
+        <p
+          id="secao-notificacoes-anvisa"
+          class="border-b border-hairline px-3.5 py-2.5 text-[11px] font-semibold tracking-wide text-ink-soft uppercase"
+        >
+          Prazo da ANVISA
+        </p>
+        <div
+          v-for="aviso in avisosAnvisaVisiveis"
+          :key="aviso.chave"
+          :id="`aviso-anvisa-${aviso.processoId}`"
+          :class="CLASSE_LINHA_ITEM"
+        >
+          <button
+            :id="`btn-abrir-anvisa-${aviso.processoId}`"
+            type="button"
+            title="Ir para o processo"
+            :class="CLASSE_ITEM_ABRIR"
+            @click="abrirProcessoDoAlerta(aviso)"
+          >
+            <span class="block text-[13px] font-semibold text-danger">{{ aviso.titulo }}</span>
+            <span :id="`anvisa-processo-${aviso.processoId}`" class="block text-[13px] font-medium break-words text-ink">
+              {{ aviso.linhaProcesso }}
+            </span>
+            <span :id="`anvisa-prazo-${aviso.processoId}`" class="block text-[11.5px] text-ink-soft">
+              {{ aviso.linhaPrazo }}
+            </span>
+          </button>
+          <button
+            v-if="podeDarCiencia(aviso)"
+            :id="`btn-ciente-anvisa-${aviso.processoId}`"
+            type="button"
+            class="min-h-11 shrink-0 rounded-md border border-hairline bg-paper-raised px-3 text-[13px] font-semibold text-ink transition-colors hover:bg-paper focus-visible:outline-2 focus-visible:outline-accent-dark md:min-h-8"
+            @click="darCienciaAnvisa(aviso, $event)"
+          >
+            Ciente
           </button>
         </div>
       </template>

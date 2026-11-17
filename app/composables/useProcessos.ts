@@ -116,6 +116,24 @@ export function useProcessos() {
     return atualizado;
   }
 
+  // "Ciente" no aviso da ANVISA (POST /api/processos/:id/anvisa-ciente): o servidor só grava se `prazo` ainda for o
+  // prazo atual (409 se mudou) e devolve o processo (updatedAt inalterado), que substitui o da lista — o aviso some
+  // porque a ciência passa a bater com o prazo. Erros vão para quem chamou.
+  async function darCienciaPrazoAnvisa(id: string, prazo: string): Promise<Processo> {
+    const atualizado = await apiFetch<Processo>(
+      `/api/processos/${id}/anvisa-ciente`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prazo }),
+      },
+      "Erro ao registrar a ciência do prazo da ANVISA."
+    );
+    const index = processos.value.findIndex((p) => p.id === id);
+    if (index !== -1) processos.value[index] = atualizado;
+    return atualizado;
+  }
+
   // Recarrega UM processo do servidor (usado após um 409). Se ele sumiu (404), tira da lista local.
   async function recarregarProcesso(id: string): Promise<void> {
     try {
@@ -179,6 +197,7 @@ export function useProcessos() {
     patchProcesso,
     alterarAtualizacoes,
     moverProcesso,
+    darCienciaPrazoAnvisa,
     recarregarProcesso,
     removeProcesso,
   };

@@ -1,4 +1,4 @@
-import { formatarDataBR, formatarDataCurta, parseDataISO, somarDiasISO } from "#shared/utils/dataBrasilia";
+import { diaDaSemana, formatarDataBR, formatarDataCurta, parseDataISO, somarDiasISO } from "#shared/utils/dataBrasilia";
 
 // Lógica pura do calendário próprio (app/components/AppDatePicker.vue): grade do mês, navegação, limites,
 // formatos de gravação e a leitura do valor que já existe no campo. Datas civis circulam como "YYYY-MM-DD"
@@ -49,11 +49,8 @@ export function diasNoMes(ano: number, mes: number): number {
   return new Date(Date.UTC(ano, mes, 0)).getUTCDate();
 }
 
-/** 0 = domingo … 6 = sábado. Data inválida devolve -1. */
-export function diaDaSemana(iso: string): number {
-  const d = parseDataISO(iso);
-  return d ? new Date(Date.UTC(d.ano, d.mes - 1, d.dia)).getUTCDay() : -1;
-}
+/** 0 = domingo … 6 = sábado. Data inválida devolve -1. Mora em shared/utils/dataBrasilia.ts (o dia útil usa). */
+export { diaDaSemana };
 
 export interface CelulaDoDia {
   iso: string;

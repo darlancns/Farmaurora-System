@@ -233,6 +233,7 @@ export function montarProcesso(row: FollowUpRow): Processo {
   if (row.status_pagamento != null) processo.statusPagamento = row.status_pagamento;
   if (row.alerta_fornecedor_resolvido === true) processo.alertaFornecedorResolvido = true;
   if (row.alerta_mandado_resolvido === true) processo.alertaMandadoResolvido = true;
+  if (row.alerta_anvisa_ciente_prazo != null) processo.alertaAnvisaCientePrazo = row.alerta_anvisa_ciente_prazo;
 
   if (row.transportadora_nacional_nome != null) {
     const tn: TransportadoraNacional = { nome: row.transportadora_nacional_nome };
