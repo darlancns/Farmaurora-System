@@ -440,8 +440,8 @@ describe("blocos e o que o formulário não controla", () => {
     );
     expect(patch).toEqual({
       medicamentos: [
-        { nome: "DROGA", dosagem: "10MG", quantidade: "2" },
-        { nome: "OUTRA" },
+        { nome: "DROGA", dosagem: "10MG", quantidade: "2", laboratorio: "", brand: "" },
+        { nome: "OUTRA", laboratorio: "", brand: "" },
       ],
       parcial: true,
     });

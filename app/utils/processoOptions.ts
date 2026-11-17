@@ -1,4 +1,5 @@
 import {
+  BRANDS_MEDICAMENTO,
   ciasAereasDoModal,
   CONSULTORES_PROCESSO,
   DESPACHANTES_PROCESSO,
@@ -6,6 +7,7 @@ import {
   FORNECEDORES_PROCESSO,
   MODAIS_ENVIO,
   RESPONSAVEIS_PROCESSO,
+  ROTULOS_BRAND_MEDICAMENTO,
   STATUS_PAGAMENTO_PROCESSO,
   STATUS_PROCESSO_ORDER,
 } from "#shared/constants/processos";
@@ -13,6 +15,7 @@ import { STATUS_PROCESSO_META } from "./processoStatus";
 import type { FiltroCotacao } from "./processoListas";
 import type { AppSelectOption } from "../types/appSelect";
 import type {
+  BrandMedicamento,
   ConsultorProcesso,
   DespachanteProcesso,
   EmpresaProcesso,
@@ -25,6 +28,12 @@ import type {
 export const CONSULTOR_OPTIONS: AppSelectOption<ConsultorProcesso | "">[] = [
   { value: "", label: "Selecione" },
   ...CONSULTORES_PROCESSO.map((nome) => ({ value: nome, label: nome })),
+];
+
+// Brand do medicamento: "Selecione" (vazio = não informado) + os valores da constante única, com os rótulos dela.
+export const BRAND_MEDICAMENTO_OPTIONS: AppSelectOption<BrandMedicamento | "">[] = [
+  { value: "", label: "Selecione" },
+  ...BRANDS_MEDICAMENTO.map((brand) => ({ value: brand, label: ROTULOS_BRAND_MEDICAMENTO[brand] })),
 ];
 
 export const EMPRESA_OPTIONS: AppSelectOption<EmpresaProcesso>[] = EMPRESAS_PROCESSO.map((empresa) => ({

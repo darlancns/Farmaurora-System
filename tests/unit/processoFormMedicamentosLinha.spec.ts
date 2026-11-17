@@ -18,6 +18,9 @@ const ITENS_ANTIGOS: Medicamento[] = [
   { nome: "Yervoy" },
 ];
 
+// Como o item volta no payload: as chaves de sempre intactas + laboratorio/brand ("" quando o item não os tinha).
+const comExtras = <T extends object>(m: T) => ({ ...m, laboratorio: "", brand: "" });
+
 const montados: Array<{ unmount: () => void; el: HTMLElement }> = [];
 let desinstalar: (() => void) | null = null;
 
@@ -112,7 +115,12 @@ describe("linha do medicamento: Qtd. / Medicamento / botões (✕ e depois +, co
   it("a ordem entre os itens segue a lista (Qtd./Medicamento do 1º, depois do 2º...)", async () => {
     const { el } = abrir(ITENS_ANTIGOS);
     await nextTick();
-    const ids = ["pf-medicamento-quantidade-0", "pf-medicamento-nome-0", "pf-medicamento-quantidade-1", "pf-medicamento-nome-1", "pf-medicamento-quantidade-2", "pf-medicamento-nome-2"];
+    const ids = [0, 1, 2].flatMap((i) => [
+      `pf-medicamento-quantidade-${i}`,
+      `pf-medicamento-nome-${i}`,
+      `pf-medicamento-laboratorio-${i}`,
+      `pf-medicamento-brand-${i}`,
+    ]);
     const naOrdemDoDom = [...el.querySelectorAll<HTMLElement>("#processo-form [id^='pf-medicamento-']")].map((n) => n.id);
     expect(naOrdemDoDom).toEqual(ids);
   });
@@ -128,7 +136,8 @@ describe("linha do medicamento: Qtd. / Medicamento / botões (✕ e depois +, co
     expect(el.querySelector("[for*='dosagem']")).toBeNull();
     // Só os rótulos do bloco de medicamentos (o "Nome" que existe no formulário é o da Transportadora nacional).
     const bloco = el.querySelector("#pf-medicamento-nome-0")!.closest("fieldset")!;
-    expect([...bloco.querySelectorAll("label")].map(texto)).toEqual(["Qtd.", "Medicamento", "Qtd.", "Medicamento", "Qtd.", "Medicamento", "Local de entrega"]);
+    const porItem = ["Qtd.", "Medicamento", "Laboratório", "Brand"];
+    expect([...bloco.querySelectorAll("label")].map(texto)).toEqual([...porItem, ...porItem, ...porItem, "Local de entrega"]);
     const rotulosForm = [...el.querySelectorAll("#processo-form label")].map(texto);
     expect(rotulosForm).not.toContain("Dosagem");
     expect(rotulosForm).not.toContain("Quantidade");
@@ -158,7 +167,7 @@ describe("maiúsculas ao digitar (com o plugin de primeira maiúscula ativo)", (
     expect(qtd.value).toBe("12 AMPOLAS");
     // E é isso que vai no patch (modelo, não CSS).
     salvar(el);
-    expect(saida.atualizacoes.at(-1)?.medicamentos).toEqual([{ nome: "KEYTRUDA 100MG", quantidade: "12 AMPOLAS" }]);
+    expect(saida.atualizacoes.at(-1)?.medicamentos).toEqual([comExtras({ nome: "KEYTRUDA 100MG", quantidade: "12 AMPOLAS" })]);
   });
 });
 
@@ -189,13 +198,14 @@ describe("preservação dos itens existentes ao salvar", () => {
     salvar(el);
     const patch = saida.atualizacoes[0]!;
     expect(patch.medicamentos).toEqual([
-      { nome: "Keytruda 100mg/4ml", quantidade: "3 caixas" },
-      { nome: "NIVOLUMABE", quantidade: "2 Cx" },
-      { nome: "Yervoy" },
+      comExtras({ nome: "Keytruda 100mg/4ml", quantidade: "3 caixas" }),
+      comExtras({ nome: "NIVOLUMABE", quantidade: "2 Cx" }),
+      comExtras({ nome: "Yervoy" }),
     ]);
-    // Nenhum valor dos itens 0 e 2 foi trocado, nem ganhou chave nova (comparação pelo JSON que vai ao servidor).
-    expect(JSON.stringify(patch.medicamentos![0])).toBe(JSON.stringify(ITENS_ANTIGOS[0]));
-    expect(JSON.stringify(patch.medicamentos![2])).toBe(JSON.stringify(ITENS_ANTIGOS[2]));
+    // Nenhum valor dos itens 0 e 2 foi trocado; a única chave nova é laboratorio/brand vazios (comparação pelo JSON que vai
+    // ao servidor).
+    expect(JSON.stringify(patch.medicamentos![0])).toBe(JSON.stringify(comExtras(ITENS_ANTIGOS[0]!)));
+    expect(JSON.stringify(patch.medicamentos![2])).toBe(JSON.stringify(comExtras(ITENS_ANTIGOS[2]!)));
     expect(patch.versao).toBeTruthy(); // lista alterada leva a versão (409 se outra pessoa gravou)
   });
 
@@ -205,9 +215,9 @@ describe("preservação dos itens existentes ao salvar", () => {
     await digitar(el, "pf-medicamento-quantidade-2", "5 cx");
     salvar(el);
     expect(saida.atualizacoes[0]!.medicamentos).toEqual([
-      ITENS_ANTIGOS[0],
-      ITENS_ANTIGOS[1],
-      { nome: "Yervoy", quantidade: "5 CX" },
+      comExtras(ITENS_ANTIGOS[0]!),
+      comExtras(ITENS_ANTIGOS[1]!),
+      comExtras({ nome: "Yervoy", quantidade: "5 CX" }),
     ]);
   });
 
@@ -222,8 +232,8 @@ describe("preservação dos itens existentes ao salvar", () => {
     await digitar(el, "pf-medicamento-nome-1", "nivolumabe");
     salvar(el);
     expect(saida.atualizacoes[0]!.medicamentos).toEqual([
-      { nome: "Keytruda", quantidade: "1 cx", dosagem: "100 mg/4 mL" },
-      { nome: "NIVOLUMABE", quantidade: "2 cx" },
+      comExtras({ nome: "Keytruda", quantidade: "1 cx", dosagem: "100 mg/4 mL" }),
+      comExtras({ nome: "NIVOLUMABE", quantidade: "2 cx" }),
     ]);
   });
 
@@ -232,7 +242,7 @@ describe("preservação dos itens existentes ao salvar", () => {
     await nextTick();
     await digitar(el, "pf-medicamento-quantidade-0", "2 cx");
     salvar(el);
-    expect(saida.atualizacoes[0]!.medicamentos).toEqual([{ nome: "Keytruda", quantidade: "2 CX", dosagem: "100 mg/4 mL" }]);
+    expect(saida.atualizacoes[0]!.medicamentos).toEqual([comExtras({ nome: "Keytruda", quantidade: "2 CX", dosagem: "100 mg/4 mL" })]);
   });
 
   it("outras chaves que o item tenha também voltam intactas", async () => {
@@ -244,7 +254,7 @@ describe("preservação dos itens existentes ao salvar", () => {
     await nextTick();
     await digitar(el, "pf-medicamento-nome-1", "nivolumabe");
     salvar(el);
-    expect(saida.atualizacoes[0]!.medicamentos![0]).toEqual({ nome: "Keytruda", quantidade: "1 cx", marca: "MSD" });
+    expect(saida.atualizacoes[0]!.medicamentos![0]).toEqual(comExtras({ nome: "Keytruda", quantidade: "1 cx", marca: "MSD" }));
   });
 
   it("'+' acrescenta um item novo sem dosagem e sem mexer nos existentes", async () => {
@@ -257,8 +267,8 @@ describe("preservação dos itens existentes ao salvar", () => {
     salvar(el);
     const lista = saida.atualizacoes[0]!.medicamentos!;
     expect(lista).toHaveLength(4);
-    expect(lista.slice(0, 3)).toEqual(ITENS_ANTIGOS);
-    expect(JSON.stringify(lista[3])).toBe(JSON.stringify({ nome: "ZOLGENSMA" }));
+    expect(lista.slice(0, 3)).toEqual(ITENS_ANTIGOS.map(comExtras));
+    expect(JSON.stringify(lista[3])).toBe(JSON.stringify({ nome: "ZOLGENSMA", laboratorio: "", brand: "" }));
     expect(el.querySelector("[id*='dosagem']")).toBeNull();
   });
 });

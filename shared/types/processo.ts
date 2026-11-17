@@ -1,7 +1,16 @@
+// Brand do medicamento (select do formulário). Valores internos sem acento; os rótulos ficam em
+// ROTULOS_BRAND_MEDICAMENTO (shared/constants/processos.ts). "" = não informado.
+export type BrandMedicamento = "bioequivalente" | "referencia";
+
 export interface Medicamento {
   nome: string;
   dosagem?: string;
   quantidade?: string;
+  // Texto livre, opcional ("" = não informado). Cada palavra com a 1ª letra maiúscula (normalizarLaboratorio,
+  // shared/utils/laboratorio.ts), até LIMITE_LABORATORIO caracteres. Item antigo sem a chave é lido como "".
+  laboratorio: string;
+  // Opcional ("" = não informado). Item antigo sem a chave é lido como "".
+  brand: BrandMedicamento | "";
 }
 
 export interface AtualizacaoProcesso {

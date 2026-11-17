@@ -596,4 +596,47 @@ test.describe.serial("Follow-Up de processos", () => {
     const { data: editado } = await db.from("follow_up").select("pasta").eq("paciente", APAGA).single();
     expect(editado?.pasta).toBe("");
   });
+
+  test("19 · Laboratório e Brand por medicamento: normaliza ao sair do campo, grava no jsonb e aparece no detalhe", async ({ page }) => {
+    const PACIENTE_LAB = `Paciente ${RUN} Laboratorio`;
+    const db = createClient(env.url, env.serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+
+    await page.goto("/processos", { waitUntil: "networkidle" });
+    await page.locator("#btn-novo-processo").click();
+    await page.locator("#pf-paciente").fill(PACIENTE_LAB);
+    await selectOption(page, "pf-consultor", "André Vitório");
+
+    // 1º medicamento: laboratório. Ao digitar (tecla a tecla), a 1ª letra de cada palavra vira maiúscula e o resto fica
+    // como digitado (sigla EMS intacta, espaços como estão); ao sair, normalização completa. Brand Referência.
+    await page.locator("#pf-medicamento-nome-0").fill("keytruda");
+    await page.locator("#pf-medicamento-laboratorio-0").pressSequentially("bristol-myers   squibb EMS ");
+    await expect(page.locator("#pf-medicamento-laboratorio-0")).toHaveValue("Bristol-Myers   Squibb EMS ");
+    await page.locator("#pf-medicamento-laboratorio-0").press("Tab");
+    await expect(page.locator("#pf-medicamento-laboratorio-0")).toHaveValue("Bristol-Myers Squibb EMS");
+    await selectOption(page, "pf-medicamento-brand-0", "Referência");
+
+    // 2º medicamento ("+"): traz a própria linha; só o Brand.
+    await page.locator("#processo-form button[title='Adicionar medicamento']").click();
+    await page.locator("#pf-medicamento-nome-1").fill("opdivo");
+    await selectOption(page, "pf-medicamento-brand-1", "Bioequivalente");
+
+    await page.locator("#btn-save-processo").click();
+    await expect(page.locator("#toast-notice")).toContainText("Processo adicionado");
+
+    const { data: criado } = await db.from("follow_up").select("medicamentos").eq("paciente", PACIENTE_LAB).single();
+    expect(criado?.medicamentos).toEqual([
+      { nome: "KEYTRUDA", laboratorio: "Bristol-Myers Squibb EMS", brand: "referencia" },
+      { nome: "OPDIVO", laboratorio: "", brand: "bioequivalente" },
+    ]);
+
+    // Detalhe da Lista: "Laboratório · Brand" abaixo de cada medicamento, só o que houver (sem "·" sobrando).
+    await expandGroup(page, "André Vitório");
+    const row = page.locator('[id^="processo-row-"]').filter({ hasText: PACIENTE_LAB });
+    await row.locator("button").first().click();
+    const detail = row.locator('[id^="processo-detail-"]');
+    await expect(detail.locator('[id^="detalhe-medicamento-extra-"]').nth(0)).toHaveText("Bristol-Myers Squibb EMS · Referência");
+    await expect(detail.locator('[id^="detalhe-medicamento-extra-"]').nth(1)).toHaveText("Bioequivalente");
+    // A linha da Lista (resumo) não mostra laboratório nem brand.
+    await expect(row.locator("button").first()).not.toContainText("Bristol");
+  });
 });

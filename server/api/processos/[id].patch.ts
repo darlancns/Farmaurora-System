@@ -2,6 +2,7 @@ import { defineEventHandler, readBody, getRouterParam, createError } from "h3";
 import { getProcesso, patchProcesso, patchProcessoVersionado } from "../../utils/processosStore";
 import {
   ciaAereaCanonica,
+  erroCamposMedicamento,
   erroModalCiaNoPatch,
   erroNumeroPo,
   erroNumeroRemessa,
@@ -9,6 +10,7 @@ import {
   isValidProcessoPatch,
   isVersaoValida,
   MENSAGEM_VERSAO_AUSENTE,
+  medicamentosCanonicos,
   numeroPoCanonico,
   numeroRemessaCanonico,
   patchExigeVersao,
@@ -34,6 +36,12 @@ export default defineEventHandler(async (event): Promise<Processo> => {
   const erroStatus = erroStatusLegado(body);
   if (erroStatus) {
     throw createError({ statusCode: 400, statusMessage: erroStatus });
+  }
+
+  // Laboratório longo demais ou Brand fora da lista em algum medicamento: 400 com mensagem própria.
+  const erroMedicamento = erroCamposMedicamento(body);
+  if (erroMedicamento) {
+    throw createError({ statusCode: 400, statusMessage: erroMedicamento });
   }
 
   if (!isValidProcessoPatch(body)) {
@@ -100,6 +108,10 @@ export default defineEventHandler(async (event): Promise<Processo> => {
 
   // Pasta: sem espaços nas pontas; "" limpa (grava ""), nunca null. Sem a chave, a coluna não é tocada.
   if ("pasta" in patch) patch.pasta = pastaCanonica(patch.pasta) ?? "";
+
+  // Medicamentos (a lista inteira, sempre com `versao`): Laboratório normalizado e Brand em todo item; item sem as chaves
+  // (cliente antigo) grava "" — ver medicamentosCanonicos/erroCamposMedicamento em processoValidation.ts.
+  if (patch.medicamentos !== undefined) patch.medicamentos = medicamentosCanonicos(patch.medicamentos);
 
   // Grava o valor canônico da cia (sem espaços nas pontas; vazia = null).
   if ("companhiaAerea" in patch) patch.companhiaAerea = ciaAereaCanonica(patch.companhiaAerea);

@@ -3,6 +3,10 @@ import {
   ciasAereasDoModal,
   CONSULTORES_PROCESSO,
   EMPRESAS_PROCESSO,
+  BRAND_ERRO,
+  isBrandMedicamento,
+  LABORATORIO_ERRO,
+  LIMITE_LABORATORIO,
   LIMITE_ATUALIZACAO_DATA,
   LIMITE_ATUALIZACAO_TEXTO,
   LIMITE_ATUALIZACOES_POR_PROCESSO,
@@ -21,6 +25,7 @@ import type {
 } from "../../shared/types/processo";
 import { NUMERO_PO_ERRO, normalizarNumeroPo, numeroPoValido } from "../../shared/utils/numeroPo";
 import { NUMERO_REMESSA_ERRO, normalizarNumeroRemessa, numeroRemessaValido } from "../../shared/utils/numeroRemessa";
+import { normalizarLaboratorio, tamanhoLaboratorio } from "../../shared/utils/laboratorio";
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -30,10 +35,60 @@ function isOptionalString(value: unknown): value is string | undefined {
   return value === undefined || typeof value === "string";
 }
 
+// ── Medicamento: Laboratório e Brand ─────────────────────────────────────────────────────────────
+// Por item: `laboratorio` é texto (normalizado com normalizarLaboratorio, até LIMITE_LABORATORIO caracteres) e `brand` é
+// um dos valores de ROTULOS_BRAND_MEDICAMENTO ou "". Ausente ou null = "" (cliente antigo, de antes destes campos): o
+// servidor grava sempre as duas chaves. Qualquer outro tipo, laboratório longo demais ou brand fora da lista = 400.
+//
+// Por que ausente vira "" (e NÃO "preserva o que já existe no mesmo índice"): toda gravação de `medicamentos` exige a
+// `versao` (409 se a linha mudou desde que o formulário abriu), então a linha gravada é exatamente a que o cliente viu.
+// Um cliente antigo reenvia os itens que recebeu com todas as chaves (`...item`), inclusive laboratorio/brand se já
+// existiam; item sem as chaves é item novo ou item que não as tinha. Já "preservar por índice" grudaria o laboratório
+// no medicamento errado quando a pessoa remove ou reordena itens (o índice desloca).
+
+function isLaboratorioAceito(valor: unknown): boolean {
+  if (valor === undefined || valor === null) return true;
+  return typeof valor === "string" && tamanhoLaboratorio(valor) <= LIMITE_LABORATORIO;
+}
+
+function isBrandAceito(valor: unknown): boolean {
+  return valor === undefined || valor === null || valor === "" || isBrandMedicamento(valor);
+}
+
 function isMedicamento(value: unknown): value is Medicamento {
-  if (!value || typeof value !== "object") return false;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
-  return typeof v.nome === "string" && isOptionalString(v.dosagem) && isOptionalString(v.quantidade);
+  return (
+    typeof v.nome === "string" &&
+    isOptionalString(v.dosagem) &&
+    isOptionalString(v.quantidade) &&
+    isLaboratorioAceito(v.laboratorio) &&
+    isBrandAceito(v.brand)
+  );
+}
+
+// Mensagem própria do 400 para Laboratório/Brand inválidos em algum item (POST ou PATCH), ou null. O resto da forma
+// dos itens continua conferido por isValidProcessoPayload/isValidProcessoPatch.
+export function erroCamposMedicamento(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+  const lista = (body as Record<string, unknown>).medicamentos;
+  if (!Array.isArray(lista)) return null;
+  for (const item of lista) {
+    if (!item || typeof item !== "object") continue;
+    const v = item as Record<string, unknown>;
+    if (!isLaboratorioAceito(v.laboratorio)) return LABORATORIO_ERRO;
+    if (!isBrandAceito(v.brand)) return BRAND_ERRO;
+  }
+  return null;
+}
+
+// Itens para gravar: as chaves de sempre intactas, mais `laboratorio` normalizado e `brand` ("" quando ausente/null).
+export function medicamentosCanonicos(lista: readonly Medicamento[]): Medicamento[] {
+  return lista.map((item) => ({
+    ...item,
+    laboratorio: normalizarLaboratorio(item.laboratorio),
+    brand: isBrandMedicamento(item.brand) ? item.brand : "",
+  }));
 }
 
 // data: string (aceita vazia); texto: string não vazia após trim; ambos com limite de tamanho (os

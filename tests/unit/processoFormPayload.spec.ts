@@ -46,7 +46,7 @@ function emptyForm(): ProcessoFormState {
 }
 
 function medicamento(nome: string, dosagem = "", quantidade = ""): Medicamento {
-  return { nome, dosagem, quantidade };
+  return { nome, dosagem, quantidade, laboratorio: "", brand: "" };
 }
 
 describe("precisaDespachanteTransportadora", () => {
@@ -185,7 +185,7 @@ describe("buildBasePayload", () => {
       modalEnvio: "Air Cargo",
       companhiaAerea: "LATAM",
       numeroAwb: "AWB123",
-      medicamentos: [{ nome: "Dipirona", dosagem: "500mg", quantidade: "10" }],
+      medicamentos: [{ nome: "Dipirona", dosagem: "500mg", quantidade: "10", laboratorio: "", brand: "" }],
       status: "em_transito",
       datas: {
         dataCompraPO: undefined,

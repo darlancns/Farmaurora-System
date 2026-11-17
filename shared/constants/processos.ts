@@ -1,4 +1,5 @@
 import type {
+  BrandMedicamento,
   CampoProcessoLimpavel,
   ConsultorProcesso,
   DespachanteProcesso,
@@ -32,6 +33,26 @@ export const CONSULTORES_PROCESSO: ConsultorProcesso[] = [
 ];
 
 export const EMPRESAS_PROCESSO: EmpresaProcesso[] = ["FARMAURORA", "MAINZFARMA"];
+
+// ── Medicamento: Laboratório e Brand ──────────────────────────────────────────────────────────────
+// Fonte única dos valores e rótulos do Brand: o formulário (opções do select), a validação do servidor e a
+// exibição (painel e detalhe) usam estas constantes. O Record é exaustivo: um valor novo no tipo obriga o rótulo.
+export const ROTULOS_BRAND_MEDICAMENTO: Record<BrandMedicamento, string> = {
+  bioequivalente: "Bioequivalente",
+  referencia: "Referência",
+};
+
+// Na ordem do select.
+export const BRANDS_MEDICAMENTO: readonly BrandMedicamento[] = ["bioequivalente", "referencia"];
+
+export function isBrandMedicamento(valor: unknown): valor is BrandMedicamento {
+  return typeof valor === "string" && Object.prototype.hasOwnProperty.call(ROTULOS_BRAND_MEDICAMENTO, valor);
+}
+
+// Máximo de caracteres do Laboratório (depois da normalização: pontas sem espaço, espaços repetidos viram um).
+export const LIMITE_LABORATORIO = 120;
+export const LABORATORIO_ERRO = `Laboratório: no máximo ${LIMITE_LABORATORIO} caracteres.`;
+export const BRAND_ERRO = `Brand inválido. Opções: ${BRANDS_MEDICAMENTO.map((b) => ROTULOS_BRAND_MEDICAMENTO[b]).join(" ou ")}.`;
 
 // Ordem alfabética (regra geral de ordenação dos selects de entidade/nome).
 export const MODAL_AIR_CARGO = "Air Cargo" satisfies ModalEnvio;

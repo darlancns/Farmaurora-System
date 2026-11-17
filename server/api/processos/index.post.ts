@@ -2,11 +2,13 @@ import { defineEventHandler, readBody, createError } from "h3";
 import { createProcesso } from "../../utils/processosStore";
 import {
   ciaAereaCanonica,
+  erroCamposMedicamento,
   erroModalCiaNoPost,
   erroNumeroPo,
   erroNumeroRemessa,
   erroStatusLegado,
   isValidProcessoPayload,
+  medicamentosCanonicos,
   numeroPoCanonico,
   numeroRemessaCanonico,
   pastaCanonica,
@@ -23,6 +25,12 @@ export default defineEventHandler(async (event): Promise<Processo> => {
   const erroStatus = erroStatusLegado(body);
   if (erroStatus) {
     throw createError({ statusCode: 400, statusMessage: erroStatus });
+  }
+
+  // Laboratório longo demais ou Brand fora da lista em algum medicamento: 400 com mensagem própria.
+  const erroMedicamento = erroCamposMedicamento(body);
+  if (erroMedicamento) {
+    throw createError({ statusCode: 400, statusMessage: erroMedicamento });
   }
 
   if (!isValidProcessoPayload(body)) {
@@ -68,6 +76,8 @@ export default defineEventHandler(async (event): Promise<Processo> => {
   } = body as typeof body & { ordem?: unknown };
   const criado = await createProcesso({
     ...resto,
+    // Laboratório normalizado (cada palavra com maiúscula) e Brand ("" quando ausente) em todo item.
+    medicamentos: medicamentosCanonicos(resto.medicamentos),
     pasta,
     numeroRemessa,
     ...(cia ? { companhiaAerea: cia } : {}),

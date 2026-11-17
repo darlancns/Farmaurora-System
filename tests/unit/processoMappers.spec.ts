@@ -184,7 +184,8 @@ describe("montarProcesso", () => {
       modalEnvio: "Air Cargo",
       companhiaAerea: "LATAM",
       numeroAwb: "AWB-123",
-      medicamentos: [{ nome: "MED A", dosagem: "10mg", quantidade: "2" }],
+      // item antigo (sem laboratorio/brand na linha) volta com "" nos dois
+      medicamentos: [{ nome: "MED A", dosagem: "10mg", quantidade: "2", laboratorio: "", brand: "" }],
       status: "em_transito",
       datas: { dataCompraPO: "2026-01-01", dataEmbarque: "2026-01-05" },
       localEntrega: "SP",

@@ -10,7 +10,7 @@ import {
   focaveis,
   haModalAberto,
   linhaTransportadora,
-  linhasMedicamentos,
+  itensMedicamentos,
   mostraDespachanteTransportadora,
 } from "../../utils/processoPainel";
 import { remessaVisivelNaLinha, type ContagemPorPasta } from "../../utils/remessaNaLinha";
@@ -59,7 +59,8 @@ const linhaOrdemResponsavel = computed(() =>
     .filter(Boolean)
     .join(" · "),
 );
-const medicamentos = computed(() => linhasMedicamentos(props.processo.medicamentos));
+// Cada item: a linha "Qtd. — nome" e, abaixo, "Laboratório · Brand" só quando houver um dos dois.
+const medicamentos = computed(() => itensMedicamentos(props.processo.medicamentos));
 const comDespachanteTransportadora = computed(() => mostraDespachanteTransportadora(props.processo));
 const transportadora = computed(() => linhaTransportadora(props.processo));
 const datas = computed(() => camposDatas(props.processo));
@@ -222,7 +223,15 @@ const BLOCO = "border-b border-hairline px-5 py-4";
       <section id="painel-bloco-medicamentos" :class="BLOCO">
         <p :class="ROTULO">{{ medicamentos.length > 1 ? "Medicamentos" : "Medicamento" }}</p>
         <ul v-if="medicamentos.length" class="mt-1 flex flex-col gap-0.5">
-          <li v-for="(linha, i) in medicamentos" :key="i" :class="VALOR">{{ linha }}</li>
+          <li v-for="(item, i) in medicamentos" :key="i" :class="VALOR">
+            {{ item.linha }}
+            <span
+              v-if="item.extra"
+              :id="`painel-medicamento-extra-${i}`"
+              class="block text-[12px] text-ink-soft"
+              >{{ item.extra }}</span
+            >
+          </li>
         </ul>
         <p v-else class="mt-1" :class="VALOR">—</p>
       </section>

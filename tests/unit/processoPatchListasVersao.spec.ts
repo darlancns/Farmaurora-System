@@ -117,8 +117,10 @@ describe("200 — a versão é a da linha", () => {
   it("medicamentos: grava e troca o updated_at", async () => {
     const res = await chamar({ medicamentos: MEDICAMENTOS_NOVOS, versao: VERSAO, parcial: true });
 
-    expect(res.medicamentos).toEqual(MEDICAMENTOS_NOVOS);
-    expect(row().medicamentos).toEqual(MEDICAMENTOS_NOVOS);
+    // O servidor grava as duas chaves novas em todo item (cliente antigo, sem elas = "").
+    const gravados = MEDICAMENTOS_NOVOS.map((m) => ({ ...m, laboratorio: "", brand: "" }));
+    expect(res.medicamentos).toEqual(gravados);
+    expect(row().medicamentos).toEqual(gravados);
     expect(row().updated_at).not.toBe(VERSAO);
   });
 
@@ -143,7 +145,7 @@ describe("duas gravações com a MESMA versão: a primeira vale, a segunda leva 
     const segunda = await erroDe(chamar({ medicamentos: [{ nome: "SEGUNDO" }], versao: VERSAO, parcial: true }));
 
     expect(segunda.status).toBe(409);
-    expect(row().medicamentos).toEqual([{ nome: "PRIMEIRO" }]);
+    expect(row().medicamentos).toEqual([{ nome: "PRIMEIRO", laboratorio: "", brand: "" }]);
   });
 
   it("pendências de um, medicamentos do outro: a versão é da LINHA, então o segundo também leva 409", async () => {

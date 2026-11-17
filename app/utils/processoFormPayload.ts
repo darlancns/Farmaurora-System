@@ -9,7 +9,14 @@ import type {
   StatusProcesso,
   TransportadoraNacional,
 } from "#shared/types/processo";
-import { CAMPOS_PROCESSO_LIMPAVEIS, precisaDespachanteTransportadora } from "#shared/constants/processos";
+import {
+  CAMPOS_PROCESSO_LIMPAVEIS,
+  isBrandMedicamento,
+  LABORATORIO_ERRO,
+  LIMITE_LABORATORIO,
+  precisaDespachanteTransportadora,
+} from "#shared/constants/processos";
+import { normalizarLaboratorio, tamanhoLaboratorio } from "#shared/utils/laboratorio";
 import { NUMERO_PO_ERRO, normalizarNumeroPo, numeroPoValido } from "#shared/utils/numeroPo";
 import { NUMERO_REMESSA_ERRO, NUMERO_REMESSA_PADRAO, normalizarNumeroRemessa } from "#shared/utils/numeroRemessa";
 
@@ -108,12 +115,15 @@ export function buildBasePayload(
       .filter((item) => item.nome.trim() !== "")
       // O item volta com TODAS as chaves que já tinha (inclusive as que o formulário não exibe, como a dosagem, que saiu da
       // tela mas continua gravada): só se tiram as pontas dos textos e os vazios viram ausentes, como sempre. Nada de
-      // trocar caixa ou formato dos valores.
+      // trocar caixa ou formato dos valores. Exceção: o Laboratório é normalizado (cada palavra com maiúscula, a mesma
+      // regra do blur e do servidor) e vai sempre, com o Brand ("" = não informado; item antigo sem as chaves vira "").
       .map((item) => ({
         ...item,
         nome: item.nome.trim(),
         dosagem: item.dosagem?.trim() || undefined,
         quantidade: item.quantidade?.trim() || undefined,
+        laboratorio: normalizarLaboratorio(item.laboratorio),
+        brand: isBrandMedicamento(item.brand) ? item.brand : "",
       })),
     status: form.status,
     datas: buildDatas(form),
@@ -299,6 +309,11 @@ export function validarProcessoForm(
   }
   if (form.consultor === "") {
     return { valido: false, erro: "Selecione o consultor responsável." };
+  }
+  // Laboratório: o campo já limita a digitação (maxlength); a conferência cobre texto colado/antigo. Só itens que vão
+  // ser gravados (com nome) contam.
+  if (medicamentos.some((m) => m.nome.trim() !== "" && tamanhoLaboratorio(m.laboratorio) > LIMITE_LABORATORIO)) {
+    return { valido: false, erro: LABORATORIO_ERRO };
   }
   // Nº Remessa: vazio vale 1; o campo só aceita dígitos, então só falha acima de 2147483647.
   if (normalizarNumeroRemessa(form.numeroRemessa) === undefined) {

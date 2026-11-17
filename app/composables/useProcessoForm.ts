@@ -1,5 +1,6 @@
 import { computed, reactive, watch, type ComputedRef } from "vue";
 import type {
+  BrandMedicamento,
   ConsultorProcesso,
   EmpresaProcesso,
   Medicamento,
@@ -9,6 +10,7 @@ import type {
   StatusProcesso,
 } from "#shared/types/processo";
 import { ciaAereaValidaParaModal, EMPRESAS_PROCESSO, FORNECEDORES_PROCESSO } from "#shared/constants/processos";
+import { capitalizarIniciais, lerMedicamento, normalizarLaboratorio } from "#shared/utils/laboratorio";
 import { mascararNumeroPo } from "#shared/utils/numeroPo";
 import { NUMERO_REMESSA_PADRAO } from "#shared/utils/numeroRemessa";
 import { maskPastaCode } from "../utils/processoFormatters";
@@ -116,7 +118,7 @@ function emptyForm(): FormState {
 
 function emptyMedicamento(): Medicamento {
   // O formulário não cria mais dosagem (o campo saiu da tela); a de um item existente continua no objeto e é preservada.
-  return { nome: "", quantidade: "" };
+  return { nome: "", quantidade: "", laboratorio: "", brand: "" };
 }
 
 // Resultado de salvar uma EDIÇÃO: inválido (mensagem), ou válido com o patch diferencial — `null` quando
@@ -145,6 +147,9 @@ export interface UseProcessoFormReturn {
   onNumeroPoInput: (event: Event) => void;
   onMedicamentoNomeInput: (index: number, event: Event) => void;
   onMedicamentoQuantidadeInput: (index: number, event: Event) => void;
+  onMedicamentoLaboratorioInput: (index: number, event: Event) => void;
+  onMedicamentoLaboratorioBlur: (index: number) => void;
+  onMedicamentoBrandChange: (index: number, brand: BrandMedicamento | "") => void;
   onDataFieldChange: (field: DataField, value: string) => void;
   validar: () => ValidarProcessoFormResult;
   validarEdicao: () => ValidarEdicaoResult;
@@ -233,7 +238,8 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     form.statusPagamento = processo.statusPagamento ?? "";
 
     const medicamentosSource = processo.medicamentos.length ? processo.medicamentos : [emptyMedicamento()];
-    medicamentos.splice(0, medicamentos.length, ...medicamentosSource.map((item) => ({ ...item })));
+    // lerMedicamento: item antigo sem laboratório/brand entra com "" (as outras chaves ficam como estão).
+    medicamentos.splice(0, medicamentos.length, ...medicamentosSource.map((item) => lerMedicamento({ ...item })));
     pendencias.splice(0, pendencias.length, ...processo.pendencias);
 
     inicial = estadoAtual();
@@ -310,6 +316,50 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     item.quantidade = target.value.toUpperCase();
   }
 
+  // Laboratório (o campo leva data-sem-maiuscula: o plugin global, que só mexe na 1ª letra do texto, fica de fora).
+  // Ao DIGITAR (input e fim de composição): a 1ª letra de cada palavra vira maiúscula e o resto fica como foi digitado
+  // (capitalizarIniciais: sem trim, sem juntar espaços). O núcleo nunca muda o tamanho do texto, então a seleção/cursor
+  // salva antes é reaplicada no mesmo lugar (digitar ou colar no começo, no meio ou no fim não faz o cursor pular).
+  // Durante uma composição (IME, acento "morto", teclado de celular que compõe a palavra) o valor não é tocado: a regra
+  // roda no `compositionend`. Ao SAIR do campo: normalização completa (normalizarLaboratorio), a mesma do payload e do
+  // servidor.
+  function onMedicamentoLaboratorioInput(index: number, event: Event): void {
+    const target = event.target as HTMLInputElement;
+    const item = medicamentos[index];
+    if (!item) return;
+    if (event.type === "input" && (event as InputEvent).isComposing) {
+      item.laboratorio = target.value;
+      return;
+    }
+    const capitalizado = capitalizarIniciais(target.value);
+    if (capitalizado !== target.value) {
+      const inicio = target.selectionStart;
+      const fim = target.selectionEnd;
+      const direcao = target.selectionDirection ?? undefined;
+      target.value = capitalizado;
+      if (inicio !== null && fim !== null) {
+        try {
+          target.setSelectionRange(inicio, fim, direcao);
+        } catch {
+          // campo sem seleção (fora do DOM): nada a restaurar
+        }
+      }
+    }
+    item.laboratorio = capitalizado;
+  }
+
+  function onMedicamentoLaboratorioBlur(index: number): void {
+    const item = medicamentos[index];
+    if (!item) return;
+    item.laboratorio = normalizarLaboratorio(item.laboratorio);
+  }
+
+  function onMedicamentoBrandChange(index: number, brand: BrandMedicamento | ""): void {
+    const item = medicamentos[index];
+    if (!item) return;
+    item.brand = brand;
+  }
+
   // As datas vêm do calendário (AppDatePicker): "DD/MM", "DD/MM/AAAA" ou "" (limpar). O campo não é
   // digitável, então não há máscara; o texto antigo que já existe só muda depois de confirmado no painel.
   function onDataFieldChange(field: DataField, value: string): void {
@@ -349,6 +399,9 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     onNumeroPoInput,
     onMedicamentoNomeInput,
     onMedicamentoQuantidadeInput,
+    onMedicamentoLaboratorioInput,
+    onMedicamentoLaboratorioBlur,
+    onMedicamentoBrandChange,
     onDataFieldChange,
     validar,
     validarEdicao,

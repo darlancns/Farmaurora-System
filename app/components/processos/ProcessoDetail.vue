@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { Processo } from "#shared/types/processo";
+import type { Medicamento, Processo } from "#shared/types/processo";
+import { linhaLaboratorioBrand } from "#shared/utils/laboratorio";
 import { formatCurrency } from "../../utils/formatters";
 import { quebrarNumeroProcesso } from "../../utils/quebrarNumeroProcesso";
 import { pastaLimpa, temPasta } from "#shared/utils/rotuloPasta";
@@ -19,6 +20,17 @@ const emit = defineEmits<{
   // `delete` é o ProcessoRow, o mesmo fluxo do botão de lixeira do cabeçalho (lg+).
   "request-delete": [];
 }>();
+
+// Texto de um medicamento no detalhe (o de sempre): nome, dosagem e quantidade preenchidos, separados por espaço.
+function textoMedicamento(m: Medicamento): string {
+  return [m.nome, m.dosagem, m.quantidade].filter(Boolean).join(" ");
+}
+
+// Algum item tem Laboratório ou Brand? Sem nenhum, o detalhe fica exatamente como antes (uma linha, itens unidos por
+// " e "); com algum, cada medicamento vai numa linha e, abaixo dele, "Laboratório · Brand" (só o que houver).
+function temLaboratorioOuBrand(medicamentos: readonly Medicamento[]): boolean {
+  return medicamentos.some((m) => linhaLaboratorioBrand(m) !== "");
+}
 
 // Só apresentação (abaixo de lg): `mono` mantém a fonte monoespaçada no mobile (em lg+ todos os
 // valores já são mono); `destaque` pinta a previsão de entrega de azul-marinho em negrito abaixo de lg;
@@ -96,13 +108,18 @@ function datasFields(processo: Processo): DetailField[] {
 
     <div v-if="processo.medicamentos.length" class="text-[12.5px] text-ink">
       <span class="text-ink-soft">Medicamentos: </span>
-      <span
-        >{{
-          processo.medicamentos
-            .map((m) => [m.nome, m.dosagem, m.quantidade].filter(Boolean).join(" "))
-            .join(" e ")
-        }}</span
-      >
+      <ul v-if="temLaboratorioOuBrand(processo.medicamentos)" class="mt-0.5 flex min-w-0 flex-col gap-1">
+        <li v-for="(m, i) in processo.medicamentos" :key="i" class="break-words">
+          {{ textoMedicamento(m) }}
+          <span
+            v-if="linhaLaboratorioBrand(m)"
+            :id="`detalhe-medicamento-extra-${processo.id}-${i}`"
+            class="block text-[12px] text-ink-soft"
+            >{{ linhaLaboratorioBrand(m) }}</span
+          >
+        </li>
+      </ul>
+      <span v-else>{{ processo.medicamentos.map(textoMedicamento).join(" e ") }}</span>
     </div>
 
     <!-- 4 colunas em lg+; abaixo de lg, 2 colunas (1-2 em cima, 3-4 embaixo). Cada coluna é um wrapper próprio. -->

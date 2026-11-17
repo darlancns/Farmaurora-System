@@ -109,6 +109,8 @@ const CAMPOS_NOVO = [
   "pf-numero-processo",
   "pf-medicamento-quantidade-0",
   "pf-medicamento-nome-0",
+  "pf-medicamento-laboratorio-0", // linha Laboratório / Brand do item (abaixo de Qtd. + Medicamento)
+  "pf-medicamento-brand-0",
   "pf-local-entrega",
   "pf-empresa",
   "pf-responsavel",
@@ -127,12 +129,14 @@ const CAMPOS_NOVO = [
 ];
 // Editar: 2º medicamento (entra depois do 1º) e o condicional Qual fornecedor? ("Qual status?" saiu do formulário).
 const CAMPOS_EDITAR = [
-  ...CAMPOS_NOVO.slice(0, 10),
+  ...CAMPOS_NOVO.slice(0, 12),
   "pf-medicamento-quantidade-1",
   "pf-medicamento-nome-1",
-  ...CAMPOS_NOVO.slice(10, 15),
+  "pf-medicamento-laboratorio-1",
+  "pf-medicamento-brand-1",
+  ...CAMPOS_NOVO.slice(12, 17),
   "pf-fornecedor-outro",
-  ...CAMPOS_NOVO.slice(15),
+  ...CAMPOS_NOVO.slice(17),
 ];
 
 let processoId: string | null = null;

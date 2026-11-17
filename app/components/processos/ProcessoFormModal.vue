@@ -70,6 +70,9 @@ const {
   onNumeroPoInput,
   onMedicamentoNomeInput,
   onMedicamentoQuantidadeInput,
+  onMedicamentoLaboratorioInput,
+  onMedicamentoLaboratorioBlur,
+  onMedicamentoBrandChange,
   onDataFieldChange,
   validar,
   validarEdicao,
@@ -237,6 +240,9 @@ function handleSubmit(): void {
                 sem-rotulo
                 @nome-input="onMedicamentoNomeInput"
                 @quantidade-input="onMedicamentoQuantidadeInput"
+                @laboratorio-input="onMedicamentoLaboratorioInput"
+                @laboratorio-blur="onMedicamentoLaboratorioBlur"
+                @brand-change="onMedicamentoBrandChange"
                 @add="addMedicamento"
                 @remove="removeMedicamento"
               />

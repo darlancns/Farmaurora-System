@@ -34,6 +34,8 @@ const ORDEM_ESPERADA = [
   "pf-numero-processo",
   "pf-medicamento-quantidade-0",
   "pf-medicamento-nome-0",
+  "pf-medicamento-laboratorio-0", // linha Laboratório / Brand, abaixo de Qtd. + Medicamento
+  "pf-medicamento-brand-0",
   "pf-local-entrega",
   "pf-empresa",
   "pf-responsavel",
@@ -224,7 +226,13 @@ describe("Formulário de processo — ordem dos campos no DOM", () => {
     const el = abrir();
     await nextTick();
     const blocoDe = (id: string) => texto(el.querySelector(`#${id}`)!.closest("fieldset")?.querySelector(":scope > legend") ?? null);
-    for (const id of ["pf-medicamento-quantidade-0", "pf-medicamento-nome-0", "pf-local-entrega"]) {
+    for (const id of [
+      "pf-medicamento-quantidade-0",
+      "pf-medicamento-nome-0",
+      "pf-medicamento-laboratorio-0",
+      "pf-medicamento-brand-0",
+      "pf-local-entrega",
+    ]) {
       expect(blocoDe(id), id).toBe("Medicamentos e local de entrega");
     }
     for (const id of ["pf-modal", "pf-cia-aerea", "pf-awb"]) expect(blocoDe(id), id).toBe("Envio internacional");

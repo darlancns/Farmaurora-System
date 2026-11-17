@@ -1,5 +1,6 @@
 import { precisaDespachanteTransportadora } from "#shared/constants/processos";
 import type { Medicamento, Processo } from "#shared/types/processo";
+import { linhaLaboratorioBrand } from "#shared/utils/laboratorio";
 import { formatCurrency } from "./formatters";
 
 // Regras puras do painel lateral do Kanban (app/components/processos/ProcessoPainel.vue). Testadas em
@@ -20,15 +21,27 @@ export const BLOCOS_PAINEL = [
   "rodape",
 ] as const;
 
-/** "Qtd. — nome (dosagem)": cada item numa linha; sem quantidade, só o nome. Itens sem nome não aparecem. */
-export function linhasMedicamentos(medicamentos: readonly Medicamento[]): string[] {
+export interface ItemMedicamentoPainel {
+  /** "Qtd. — nome (dosagem)"; sem quantidade, só o nome. */
+  linha: string;
+  /** "Laboratório · Brand" (só as partes preenchidas), ou "" quando o item não tem nenhum dos dois. */
+  extra: string;
+}
+
+/** Os itens do bloco Medicamento(s), na ordem da lista. Itens sem nome não aparecem. */
+export function itensMedicamentos(medicamentos: readonly Medicamento[]): ItemMedicamentoPainel[] {
   return medicamentos
     .filter((m) => m.nome.trim() !== "")
     .map((m) => {
       const nome = [m.nome.trim(), m.dosagem?.trim()].filter(Boolean).join(" ");
       const qtd = m.quantidade?.trim();
-      return qtd ? `${qtd} — ${nome}` : nome;
+      return { linha: qtd ? `${qtd} — ${nome}` : nome, extra: linhaLaboratorioBrand(m) };
     });
+}
+
+/** "Qtd. — nome (dosagem)": cada item numa linha; sem quantidade, só o nome. Itens sem nome não aparecem. */
+export function linhasMedicamentos(medicamentos: readonly Medicamento[]): string[] {
+  return itensMedicamentos(medicamentos).map((item) => item.linha);
 }
 
 /**

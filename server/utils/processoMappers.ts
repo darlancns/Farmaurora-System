@@ -15,6 +15,7 @@ import type {
 } from "../../shared/types/processo";
 import { normalizarStatusProcesso } from "../../shared/constants/processos";
 import { NUMERO_REMESSA_PADRAO, normalizarNumeroRemessa } from "../../shared/utils/numeroRemessa";
+import { lerMedicamento } from "../../shared/utils/laboratorio";
 import { num } from "./storeKit";
 
 // Mapeadores puros linha (Supabase, tabela `follow_up`) ↔ modelo Processo —
@@ -27,7 +28,8 @@ import { num } from "./storeKit";
 //  - `Processo.transportadoraNacional` (objeto opcional) ↔ 3 colunas soltas.
 //    Se `transportadora_nacional_nome` é NULL, a chave some do objeto (não vira
 //    `{}` nem `null`).
-//  - `medicamentos` / `atualizacoes` ↔ colunas jsonb, shape direto.
+//  - `medicamentos` / `atualizacoes` ↔ colunas jsonb, shape direto. Na leitura, cada medicamento sem
+//    `laboratorio`/`brand` (item antigo, ou null) volta com "" (lerMedicamento); as outras chaves ficam.
 //  - `pendencias` ↔ coluna text[] direto.
 //  - Campo opcional ausente no DTO → NULL no banco; coluna NULL no banco →
 //    chave OMITIDA no objeto retornado (consistente com os campos serem `?`).
@@ -55,7 +57,8 @@ export interface FollowUpRow {
   modal_envio: string | null;
   companhia_aerea: string | null;
   numero_awb: string | null;
-  medicamentos: Medicamento[] | null;
+  // Itens antigos não têm `laboratorio`/`brand` (nem sempre `quantidade`): a leitura é tolerante (lerMedicamento).
+  medicamentos: Array<Partial<Medicamento> & Record<string, unknown>> | null;
   // Valor cru do enum: pode ser um dos 5 ou um legado (aguardando_inicio, liberado_parcial, outro). montarProcesso
   // normaliza. `status_outro` é coluna legada: continua no banco, mas nada daqui a lê ou grava.
   status: StatusProcesso | StatusProcessoLegado;
@@ -190,7 +193,7 @@ export function montarProcesso(row: FollowUpRow): Processo {
     pasta: row.pasta ?? "", // NULL de linha antiga = sem pasta
     empresa: row.empresa,
     consultor: row.consultor,
-    medicamentos: (row.medicamentos ?? []).map((m) => ({ ...m })),
+    medicamentos: (row.medicamentos ?? []).map((m) => lerMedicamento(m ?? {})),
     // PONTO ÚNICO da normalização do status legado: toda leitura do servidor (lista, um processo, retorno de
     // PATCH, /chegada, /mover) passa por aqui, então nenhuma tela nem regra do servidor vê um valor fora dos 5.
     status: normalizarStatusProcesso(row.status),
