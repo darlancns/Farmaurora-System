@@ -6,7 +6,7 @@ import { metaDoStatus } from "../../utils/processoStatus";
 import ProcessoMoverMenu from "./ProcessoMoverMenu.vue";
 import { useLockBodyScroll } from "../../composables/useLockBodyScroll";
 import {
-  camposDatas,
+  camposDatasPreenchidos,
   focaveis,
   haModalAberto,
   linhaTransportadora,
@@ -63,7 +63,8 @@ const linhaOrdemResponsavel = computed(() =>
 const medicamentos = computed(() => itensMedicamentos(props.processo.medicamentos));
 const comDespachanteTransportadora = computed(() => mostraDespachanteTransportadora(props.processo));
 const transportadora = computed(() => linhaTransportadora(props.processo));
-const datas = computed(() => camposDatas(props.processo));
+// Só as datas preenchidas (vazia não aparece; sem nenhuma, a seção some). Ver camposDatasPreenchidos.
+const datas = computed(() => camposDatasPreenchidos(props.processo));
 const deleteConfirmMessage = computed(
   () => `Excluir o processo de ${props.processo.paciente}? Essa ação não pode ser desfeita.`,
 );
@@ -282,8 +283,9 @@ const BLOCO = "border-b border-hairline px-5 py-4";
         <p id="painel-numero-processo" class="font-mono break-all" :class="VALOR">{{ processo.numeroProcesso || "—" }}</p>
       </section>
 
-      <!-- 8. Datas (texto livre como está no banco, inclusive observações antigas) -->
-      <section id="painel-bloco-datas" :class="BLOCO">
+      <!-- 8. Datas: só as preenchidas (texto livre como está no banco, inclusive observações antigas; MS Anexado em e
+           Prazo da ANVISA com o ano). Sem nenhuma data, a seção não existe. -->
+      <section v-if="datas.length" id="painel-bloco-datas" :class="BLOCO">
         <p class="mb-2 text-[11px] font-semibold tracking-wide text-ink-soft uppercase">Datas</p>
         <div class="grid grid-cols-2 gap-x-4 gap-y-3">
           <div v-for="campo in datas" :key="campo.id" :class="{ 'col-span-2': campo.larguraTotal }">
@@ -293,7 +295,7 @@ const BLOCO = "border-b border-hairline px-5 py-4";
               class="text-[13px] break-words"
               :class="campo.destaque && campo.valor ? 'font-semibold text-accent-dark' : 'text-ink'"
             >
-              {{ campo.valor || "—" }}
+              {{ campo.valor }}
             </p>
           </div>
         </div>

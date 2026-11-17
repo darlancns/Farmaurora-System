@@ -4,7 +4,7 @@ import { linhaLaboratorioBrand } from "#shared/utils/laboratorio";
 import { formatCurrency } from "../../utils/formatters";
 import { quebrarNumeroProcesso } from "../../utils/quebrarNumeroProcesso";
 import { pastaLimpa, temPasta } from "#shared/utils/rotuloPasta";
-import { camposDatas } from "../../utils/processoPainel";
+import { camposDatasPreenchidos } from "../../utils/processoPainel";
 import ProcessoAtualizacoes from "./ProcessoAtualizacoes.vue";
 
 withDefaults(
@@ -76,9 +76,10 @@ function colunas(processo: Processo): DetailField[][] {
   ];
 }
 
-// Mesma lista (rótulos, ordem, destaque e formato) do painel do Kanban: utils/processoPainel.ts (camposDatas).
+// Mesma lista (rótulos, ordem, destaque e formato) do painel do Kanban, SÓ com as datas preenchidas: data vazia não
+// aparece (nem rótulo, nem "—"); sem nenhuma, a seção Datas some. Ver utils/processoPainel.ts (camposDatasPreenchidos).
 function datasFields(processo: Processo): DetailField[] {
-  return camposDatas(processo).map((c) => ({
+  return camposDatasPreenchidos(processo).map((c) => ({
     label: c.rotulo,
     value: c.valor,
     destaque: c.destaque,
@@ -148,7 +149,8 @@ function datasFields(processo: Processo): DetailField[] {
       </div>
     </div>
 
-    <div class="border-t border-hairline pt-2.5">
+    <!-- Datas: só as preenchidas; sem nenhuma, a seção some (a grade e o destaque continuam os mesmos). -->
+    <div v-if="datasFields(processo).length" :id="`processo-detail-datas-${processo.id}`" class="border-t border-hairline pt-2.5">
       <p class="mb-1.5 text-[11px] font-semibold tracking-wide text-ink-soft uppercase">Datas</p>
       <div class="grid grid-cols-2 gap-x-4 gap-y-3 text-[12.5px] sm:grid-cols-4 lg:gap-y-2">
         <div
@@ -161,7 +163,7 @@ function datasFields(processo: Processo): DetailField[] {
           <span
             class="break-words lg:font-mono lg:break-normal"
             :class="field.destaque ? 'font-semibold text-accent-dark lg:font-normal lg:text-ink' : 'text-ink'"
-            >{{ field.value || "—" }}</span
+            >{{ field.value }}</span
           >
         </div>
       </div>

@@ -141,3 +141,28 @@ describe("ProcessoDetail — campos em colunas", () => {
     expect(coluna3.querySelector("span.lg\\:hidden wbr")).not.toBeNull();
   });
 });
+
+describe("Datas: só as preenchidas (vazia não aparece; sem nenhuma, a seção some)", () => {
+  const rotulos = (el: HTMLElement) =>
+    [...el.querySelectorAll("#processo-detail-datas-a .grid > div > span:first-child")].map((s) => texto(s));
+
+  it("algumas preenchidas: só elas, na ordem, as ISO com o ano; sem '—'", () => {
+    const el = montar(
+      proc({ datas: { dataEmbarque: "10/08", msAnexadoEm: "2026-11-10", previsaoEntrega: "28/08", registroDuimp: " " } }),
+    );
+    expect(rotulos(el)).toEqual(["Embarque", "MS Anexado em", "Previsão entrega"]);
+    expect(texto(el.querySelector("#processo-detail-datas-a"))).toContain("10/11/2026");
+    expect(texto(el.querySelector("#processo-detail-datas-a"))).not.toContain("—");
+  });
+
+  it("nenhuma data: a seção Datas não existe", () => {
+    const el = montar(proc({ datas: {} }));
+    expect(el.querySelector("#processo-detail-datas-a")).toBeNull();
+    expect([...el.querySelectorAll("p")].some((p) => texto(p) === "Datas")).toBe(false);
+  });
+
+  it("texto antigo com anotação conta como preenchido", () => {
+    const el = montar(proc({ datas: { registroLpco: "09/10 - agd. análise" } }));
+    expect(rotulos(el)).toEqual(["Registro Lpco"]);
+  });
+});

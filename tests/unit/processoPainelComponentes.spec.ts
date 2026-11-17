@@ -365,3 +365,58 @@ describe("camadas", () => {
     expect(aside.className).not.toMatch(/\bshadow-(lg|xl|2xl)\b/);
   });
 });
+
+describe("datas vazias escondidas no painel", () => {
+  const TODAS = {
+    dataCompraPO: "05/08",
+    dataEmbarque: "10/08/2026",
+    aberturaThread: "12/08",
+    dataChegadaBrasil: "20/08",
+    registroRadar: "21/08",
+    registroDuimp: "22/08",
+    registroLpco: "09/10 - agd. análise",
+    msAnexadoEm: "2026-11-10",
+    prazoAnvisa: "2026-11-25",
+    previsaoEntrega: "28/08",
+    supostaEstimativa: "Entre 28/08 e 02/09",
+  };
+  const rotulos = () =>
+    [...document.querySelectorAll("#painel-bloco-datas [id^='painel-']")].map((n) => n.previousElementSibling?.textContent?.trim());
+
+  it("todas preenchidas: as 11, na ordem da tela, as ISO com o ano", () => {
+    painel(proc({ datas: TODAS }));
+    expect(rotulos()).toEqual([
+      "Compra (PO)",
+      "Embarque",
+      "Abertura thread",
+      "Chegada Brasil",
+      "Registro Radar",
+      "Registro Duimp",
+      "Registro Lpco",
+      "MS Anexado em",
+      "Prazo da ANVISA",
+      "Previsão entrega",
+      "Suposta estimativa",
+    ]);
+    expect(texto(document.querySelector("#painel-ms-anexado"))).toBe("10/11/2026");
+    expect(texto(document.querySelector("#painel-prazo-anvisa"))).toBe("25/11/2026");
+  });
+
+  it("algumas: só as preenchidas aparecem (sem rótulo nem '—' das vazias); só espaços conta como vazia", () => {
+    painel(proc({ datas: { dataCompraPO: "05/08", registroRadar: "   ", prazoAnvisa: "2026-11-25", registroLpco: "09/10 - agd." } }));
+    expect(rotulos()).toEqual(["Compra (PO)", "Registro Lpco", "Prazo da ANVISA"]);
+    expect(texto(document.querySelector("#painel-bloco-datas"))).not.toContain("—");
+    expect(document.querySelector("#painel-registro-radar")).toBeNull();
+  });
+
+  it("nenhuma: a seção Datas some (os outros blocos continuam)", () => {
+    painel(proc({ datas: {} }));
+    expect(document.querySelector("#painel-bloco-datas")).toBeNull();
+    expect(document.querySelector("#painel-bloco-pendencias")).not.toBeNull();
+  });
+
+  it("Suposta estimativa segue em largura total quando aparece", () => {
+    painel(proc({ datas: { supostaEstimativa: "fim do mês" } }));
+    expect(document.querySelector("#painel-suposta-estimativa")!.parentElement!.className).toContain("col-span-2");
+  });
+});

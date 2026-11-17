@@ -99,7 +99,8 @@ test.describe("/processos — Kanban", () => {
     try {
       await login(page);
       ids = {
-        transito: await criar(page, dados("Kanban Transito", "2026 - 901", "em_transito")),
+        // Com uma data: o painel só mostra a seção Datas quando há data preenchida (o teste dos blocos a espera).
+        transito: await criar(page, dados("Kanban Transito", "2026 - 901", "em_transito", { datas: { previsaoEntrega: "28/08" } })),
         origem: await criar(page, dados("Kanban Origem", "2026 - 902", "elaboracao_fornecedores", { statusPagamento: "pendente" })),
         conflito: await criar(page, dados("Kanban Conflito", "2026 - 903", "liberado")),
         arrastar: await criar(page, dados("Kanban Arrastar", "2026 - 904", "desembaraco")),

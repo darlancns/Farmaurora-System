@@ -54,6 +54,9 @@ const ROBUSTO = {
     registroRadar: "21/08",
     registroDuimp: "22/08",
     registroLpco: "23/08",
+    // As duas datas completas (colunas `date`): o robusto tem TODAS as 11 datas preenchidas.
+    msAnexadoEm: "2026-08-24",
+    prazoAnvisa: "2026-09-10",
     previsaoEntrega: "28/08",
     supostaEstimativa: "Entre 28/08 e 02/09",
   },
@@ -565,19 +568,23 @@ test.describe("/processos abaixo de lg — card e detalhe do processo", () => {
         await expect(celula(page, id, "Transportadora")).not.toContainText("— R$", { useInnerText: true });
       });
 
-      test("detalhe: valores vazios aparecem como —; nenhum campo some", async ({ page }) => {
+      test("detalhe: campos vazios (não-data) aparecem como —; datas vazias somem, e sem nenhuma a seção Datas some", async ({ page }) => {
         const id = ids!.vazio;
         await abrirDetalhe(page, id);
-        const rotulos = [
-          "Pasta", "PO", "Despachante", "Fornecedor", "Envio", "Cia. aérea", "Nº AWB",
-          "Local de entrega", "Nº do processo", "Compra (PO)", "Embarque", "Abertura thread", "Chegada Brasil",
-          "Registro Radar", "Registro Duimp", "Registro Lpco", "Previsão entrega", "Suposta estimativa",
-        ];
+        const rotulos = ["Pasta", "PO", "Despachante", "Fornecedor", "Envio", "Cia. aérea", "Nº AWB", "Local de entrega", "Nº do processo"];
         for (const r of rotulos) {
           const c = celula(page, id, r);
           await expect(c, r).toBeVisible();
           if (r !== "Pasta") await expect(c.locator("span").nth(1), r).toHaveText("—");
         }
+        // Nenhuma data preenchida: nem os rótulos, nem o "—", nem a seção.
+        for (const r of [
+          "Compra (PO)", "Embarque", "Abertura thread", "Chegada Brasil", "Registro Radar", "Registro Duimp",
+          "Registro Lpco", "MS Anexado em", "Prazo da ANVISA", "Previsão entrega", "Suposta estimativa",
+        ]) {
+          await expect(page.locator(`#processo-detail-${id} span:text-is("${r}")`), r).toHaveCount(0);
+        }
+        await expect(page.locator(`#processo-detail-datas-${id}`)).toHaveCount(0);
         // Sem transportadora, o bloco não existe (condição idêntica à de hoje).
         await expect(page.locator(`#processo-detail-${id} span:text-is("Transportadora")`)).toHaveCount(0);
       });
@@ -595,18 +602,23 @@ test.describe("/processos abaixo de lg — card e detalhe do processo", () => {
           viewport.colunasDatas,
         );
 
+        // As 11 datas (o robusto tem todas), na ordem: ... Registro Lpco, MS Anexado em, Prazo da ANVISA, Previsão.
         if (viewport.colunasDatas === 2) {
           await expectLadoALado(page, id, "Compra (PO)", "Embarque");
           await expectLadoALado(page, id, "Abertura thread", "Chegada Brasil");
           await expectLadoALado(page, id, "Registro Radar", "Registro Duimp");
-          await expectLadoALado(page, id, "Registro Lpco", "Previsão entrega");
+          await expectLadoALado(page, id, "Registro Lpco", "MS Anexado em");
+          await expectLadoALado(page, id, "Prazo da ANVISA", "Previsão entrega");
         } else {
           await expectLadoALado(page, id, "Compra (PO)", "Embarque");
           await expectLadoALado(page, id, "Embarque", "Abertura thread");
           await expectLadoALado(page, id, "Abertura thread", "Chegada Brasil");
           await expectLadoALado(page, id, "Registro Radar", "Registro Duimp");
-          await expectLadoALado(page, id, "Registro Lpco", "Previsão entrega");
+          await expectLadoALado(page, id, "Registro Lpco", "MS Anexado em");
+          await expectLadoALado(page, id, "Prazo da ANVISA", "Previsão entrega");
         }
+        await expect(celula(page, id, "MS Anexado em")).toContainText("24/08/2026");
+        await expect(celula(page, id, "Prazo da ANVISA")).toContainText("10/09/2026");
 
         // Rótulo em cima, data embaixo.
         const compra = celula(page, id, "Compra (PO)");

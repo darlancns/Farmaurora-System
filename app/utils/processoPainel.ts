@@ -95,6 +95,15 @@ export function camposDatas(processo: Pick<Processo, "datas">): CampoData[] {
   ];
 }
 
+/**
+ * Só as datas PREENCHIDAS (texto não vazio depois de trim; texto antigo com anotação conta), na ordem da tela. É o que
+ * o painel do Kanban e o detalhe da Lista mostram: data vazia não aparece (nem o rótulo, nem "—"); sem nenhuma, a seção
+ * Datas some. O formulário continua com todos os campos (camposDatas).
+ */
+export function camposDatasPreenchidos(processo: Pick<Processo, "datas">): CampoData[] {
+  return camposDatas(processo).filter((c) => c.valor.trim() !== "");
+}
+
 /** Há algum modal (BaseModal) aberto? Enquanto houver, o Esc é dele, não do painel. */
 export function haModalAberto(raiz: ParentNode | null | undefined = typeof document !== "undefined" ? document : null): boolean {
   return Boolean(raiz?.querySelector('[data-overlay="modal"]'));
