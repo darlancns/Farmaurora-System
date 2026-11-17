@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getRequiredSlots, slotLabel } from "../../app/utils/anexoSlots";
+import { contarPaginasAnexo, criterioAnexos, getRequiredSlots, slotLabel } from "../../app/utils/anexoSlots";
 import { ensurePngBlob } from "../../app/utils/attachmentImage";
 
 describe("slotLabel", () => {
@@ -38,6 +38,42 @@ describe("slotLabel", () => {
       "dsi",
       "servico",
     ]);
+  });
+});
+
+describe("getRequiredSlots segue o critério único do Word", () => {
+  const base = { empresa: "FARMAURORA" as const, remessas: 1, despachanteRemessas: 0, transporteRemessas: 0 };
+
+  it("só despachante → sem slot de transporte nem DSI", () => {
+    const keys = getRequiredSlots({ ...base, despesaTotal: 500, transporteTotal: 0, despachanteRemessas: 1 }).map((s) => s.key);
+    expect(keys).toEqual(["invoice_1", "cambio_1", "despachante_1", "servico"]);
+  });
+
+  it("só transporte → sem slot de despachante nem DSI", () => {
+    const keys = getRequiredSlots({ ...base, despesaTotal: 0, transporteTotal: 800, transporteRemessas: 1 }).map((s) => s.key);
+    expect(keys).toEqual(["invoice_1", "cambio_1", "transporte_1", "servico"]);
+  });
+
+  it("dado antigo (despesaTotal > 0 com despachanteRemessas = 0) → pede 1 despachante, a mesma página que o Word imprime", () => {
+    const keys = getRequiredSlots({ ...base, despesaTotal: 500, transporteTotal: 0 }).map((s) => s.key);
+    expect(keys).toEqual(["invoice_1", "cambio_1", "despachante_1", "servico"]);
+  });
+});
+
+describe("criterioAnexos / contarPaginasAnexo", () => {
+  it("temDsi só com os dois valores", () => {
+    expect(criterioAnexos({ despesaTotal: 1, transporteTotal: 0 })).toEqual({ temDespachante: true, temTransporte: false, temDsi: false });
+    expect(criterioAnexos({ despesaTotal: 1, transporteTotal: 1 })).toEqual({ temDespachante: true, temTransporte: true, temDsi: true });
+  });
+
+  it.each([
+    [0, 0, 0],
+    [0, 2, 0],
+    [500, 0, 1],
+    [500, 1, 1],
+    [900, 2, 2],
+  ])("total %d, %d remessas preenchidas → %d páginas", (total, remessas, paginas) => {
+    expect(contarPaginasAnexo(total, remessas)).toBe(paginas);
   });
 });
 

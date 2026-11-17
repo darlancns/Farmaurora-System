@@ -7,11 +7,13 @@ import {
   buildRemessaQualifier,
   buildRemessasList,
   buildTransporteList,
+  calcularNumeracaoAnexos,
   calculateFitSize,
   resolveAttachmentUrl,
   resolveTemplateUrl,
   sanitizeFilenamePart,
 } from "../../app/utils/docxLayout";
+import { criterioAnexos } from "../../app/utils/anexoSlots";
 
 // TESTE DE CARACTERIZAÇÃO — Round 1, item (b): funções puras extraídas de
 // useDocxGenerator.ts pra app/utils/docxLayout.ts. Documenta o comportamento
@@ -61,18 +63,68 @@ describe("buildRemessaQualifier", () => {
     expect(buildRemessaQualifier(2, 3)).toBe(" ( 2 REMESSAS )");
   });
 
-  it("FRONTEIRA: 0 preenchidas (e total > 0) → ainda usa o singular ' ( 0 REMESSA )'", () => {
-    // O plural só entra com `> 1`; 0 cai no singular junto com 1. Documentado
-    // como está, não é óbvio que seja intencional — ver relatório final.
-    expect(buildRemessaQualifier(0, 2)).toBe(" ( 0 REMESSA )");
+  it("0 preenchidas (dado antigo, total > 0 sem contagem) → sem qualificador, nunca ' ( 0 REMESSA )'", () => {
+    expect(buildRemessaQualifier(0, 2)).toBe("");
+    expect(buildRemessaQualifier(0, 1)).toBe("");
+  });
+});
+
+describe("calcularNumeracaoAnexos (Invoice/Câmbio = 1; depois Despachante, Transporte, DSI, Prestação)", () => {
+  it("só despachante → Despachante 2, Prestação 3; Transporte e DSI somem", () => {
+    expect(calcularNumeracaoAnexos(criterioAnexos({ despesaTotal: 500, transporteTotal: 0 }))).toEqual({
+      mostrarDespachante: true,
+      mostrarTransporte: false,
+      mostrarDsi: false,
+      numDespachante: 2,
+      numTransporte: null,
+      numDsi: null,
+      numServico: 3,
+    });
+  });
+
+  it("só transporte → Transporte 2, Prestação 3; Despachante e DSI somem", () => {
+    expect(calcularNumeracaoAnexos(criterioAnexos({ despesaTotal: 0, transporteTotal: 800 }))).toEqual({
+      mostrarDespachante: false,
+      mostrarTransporte: true,
+      mostrarDsi: false,
+      numDespachante: null,
+      numTransporte: 2,
+      numDsi: null,
+      numServico: 3,
+    });
+  });
+
+  it("despachante + transporte → 2 Despachante, 3 Transporte, 4 DSI, 5 Prestação", () => {
+    expect(calcularNumeracaoAnexos(criterioAnexos({ despesaTotal: 500, transporteTotal: 800 }))).toEqual({
+      mostrarDespachante: true,
+      mostrarTransporte: true,
+      mostrarDsi: true,
+      numDespachante: 2,
+      numTransporte: 3,
+      numDsi: 4,
+      numServico: 5,
+    });
+  });
+
+  it("nenhum dos dois → só a Prestação, como 2", () => {
+    const numeracao = calcularNumeracaoAnexos(criterioAnexos({ despesaTotal: 0, transporteTotal: 0 }));
+    expect(numeracao.numServico).toBe(2);
+    expect([numeracao.mostrarDespachante, numeracao.mostrarTransporte, numeracao.mostrarDsi]).toEqual([false, false, false]);
+  });
+
+  it("dado antigo (despesaTotal > 0 com despachanteRemessas = 0) → numera e mostra 1 página de despachante", () => {
+    const patient = buildPatient({ despesaTotal: 500, despachanteRemessas: 0 });
+    const numeracao = calcularNumeracaoAnexos(criterioAnexos(patient));
+    expect(numeracao.mostrarDespachante).toBe(true);
+    expect(numeracao.numDespachante).toBe(2);
+    expect(numeracao.numServico).toBe(3);
+    expect(buildDespachanteList(patient, {})).toEqual([{ label: "", anexo_despachante: PLACEHOLDER_IMAGE_URL }]);
   });
 });
 
 describe("buildLabelledAnexoList", () => {
-  it("count = 0 → NÃO retorna lista vazia: sempre pelo menos 1 item (label vazio)", () => {
-    // effectiveCount = Math.max(count, 1) nunca deixa a lista vazia de verdade.
-    const result = buildLabelledAnexoList(0, (n) => ({ x: `v${n}` }));
-    expect(result).toEqual([{ label: "", x: "v1" }]);
+  it("count = 0 → lista vazia (o loop do template não gera página)", () => {
+    expect(buildLabelledAnexoList(0, (n) => ({ x: `v${n}` }))).toEqual([]);
   });
 
   it("count = 1 → 1 item, label vazio (sem número)", () => {
@@ -119,13 +171,18 @@ describe("buildRemessasList / buildDespachanteList / buildTransporteList", () =>
     ]);
   });
 
-  it("buildDespachanteList: despachanteRemessas = 0 → 1 item com placeholder (mesma regra de count=0)", () => {
-    const patient = buildPatient({ despachanteRemessas: 0 });
+  it("buildDespachanteList: sem despesa (despesaTotal = 0) → nenhuma página", () => {
+    const patient = buildPatient({ despesaTotal: 0, despachanteRemessas: 0 });
+    expect(buildDespachanteList(patient, {})).toEqual([]);
+  });
+
+  it("buildDespachanteList: dado antigo (despesaTotal > 0, despachanteRemessas = 0) → 1 item com placeholder", () => {
+    const patient = buildPatient({ despesaTotal: 500, despachanteRemessas: 0 });
     expect(buildDespachanteList(patient, {})).toEqual([{ label: "", anexo_despachante: PLACEHOLDER_IMAGE_URL }]);
   });
 
   it("buildDespachanteList: despachanteRemessas = 3 com 1 anexo no meio → labels numeradas, só o item 2 resolvido", () => {
-    const patient = buildPatient({ despachanteRemessas: 3, attachedSlots: ["despachante_2"] });
+    const patient = buildPatient({ despesaTotal: 900, despachanteRemessas: 3, attachedSlots: ["despachante_2"] });
     expect(buildDespachanteList(patient, { despachante_2: SIGNED("despachante_2") })).toEqual([
       { label: " 1", anexo_despachante: PLACEHOLDER_IMAGE_URL },
       { label: " 2", anexo_despachante: SIGNED("despachante_2") },
@@ -133,13 +190,19 @@ describe("buildRemessasList / buildDespachanteList / buildTransporteList", () =>
     ]);
   });
 
-  it("buildTransporteList: transporteRemessas = 0 → 1 item com placeholder", () => {
-    const patient = buildPatient({ transporteRemessas: 0 });
+  it("buildTransporteList: sem transporte (transporteTotal = 0) → nenhuma página", () => {
+    const patient = buildPatient({ transporteTotal: 0, transporteRemessas: 0 });
+    expect(buildTransporteList(patient, {})).toEqual([]);
+  });
+
+  it("buildTransporteList: dado antigo (transporteTotal > 0, transporteRemessas = 0) → 1 item com placeholder", () => {
+    const patient = buildPatient({ transporteTotal: 800, transporteRemessas: 0 });
     expect(buildTransporteList(patient, {})).toEqual([{ label: "", anexo_transporte: PLACEHOLDER_IMAGE_URL }]);
   });
 
   it("buildTransporteList: transporteRemessas = 2 com todos anexados", () => {
     const patient = buildPatient({
+      transporteTotal: 1500,
       transporteRemessas: 2,
       attachedSlots: ["transporte_1", "transporte_2"],
     });

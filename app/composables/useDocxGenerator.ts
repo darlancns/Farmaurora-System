@@ -1,9 +1,10 @@
 import type { PatientComputed } from "#shared/types/Patient";
 import { isFarmauroraModeloCompleto, withComputedFields } from "../utils/calculations";
 import { formatCurrency } from "../utils/formatters";
-import { slotLabel } from "../utils/anexoSlots";
+import { criterioAnexos, slotLabel } from "../utils/anexoSlots";
 import {
   type ImageBox,
+  calcularNumeracaoAnexos,
   sanitizeFilenamePart,
   resolveTemplateUrl,
   resolveAttachmentUrl,
@@ -137,11 +138,13 @@ export function useDocxGenerator() {
         const remessasList = buildRemessasList(patient, signedUrls);
         const despachanteList = buildDespachanteList(patient, signedUrls);
         const transporteList = buildTransporteList(patient, signedUrls);
-        const mostrarDsi = patient.despesaTotal > 0 && patient.transporteTotal > 0;
-        const anexoDsi = mostrarDsi ? resolveAttachmentUrl(patient, "dsi", signedUrls) : undefined;
+        // Mesmo critério dos slots do modal (getRequiredSlots): capa, páginas e DSI andam juntos.
+        const numeracao = calcularNumeracaoAnexos(criterioAnexos(patient));
+        const anexoDsi = numeracao.mostrarDsi ? resolveAttachmentUrl(patient, "dsi", signedUrls) : undefined;
         const anexoServico = resolveAttachmentUrl(patient, "servico", signedUrls);
 
         Object.assign(renderData, {
+          ...numeracao,
           despesa: formatCurrency(patient.despesaTotal),
           despachante_qualifier: buildRemessaQualifier(patient.despachanteRemessas, patient.remessas),
           despachanteList,
@@ -149,7 +152,6 @@ export function useDocxGenerator() {
           transporte_qualifier: buildRemessaQualifier(patient.transporteRemessas, patient.remessas),
           transporteList,
           remessasList,
-          mostrarDsi,
           anexo_dsi: anexoDsi,
           anexo_servico: anexoServico,
         });

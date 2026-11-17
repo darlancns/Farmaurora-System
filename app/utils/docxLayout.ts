@@ -1,7 +1,7 @@
 import type { PatientComputed } from "#shared/types/Patient";
 import { EMPRESA_TEMPLATE, TEMPLATE_FARMAURORA_COMPLETO } from "#shared/constants/empresas";
 import { isFarmauroraModeloCompleto } from "./calculations";
-import { slotLabel } from "./anexoSlots";
+import { type CriterioAnexos, contarPaginasAnexo, slotLabel } from "./anexoSlots";
 
 // Funções puras extraídas de useDocxGenerator.ts (Round 1, item b) — nenhuma
 // delas depende de `#imports`, DOM ou estado do composable, então saem daqui
@@ -44,17 +44,54 @@ export function resolveAttachmentUrl(
   return url;
 }
 
+// Contagem 0 também não leva qualificador: é dado antigo (total > 0 sem contagem) e "( 0 REMESSA )"
+// não descreve nada.
 export function buildRemessaQualifier(remessasPreenchidas: number, totalRemessas: number): string {
-  if (remessasPreenchidas === totalRemessas) return "";
+  if (remessasPreenchidas === 0 || remessasPreenchidas === totalRemessas) return "";
   const plural = remessasPreenchidas > 1 ? "REMESSAS" : "REMESSA";
   return ` ( ${remessasPreenchidas} ${plural} )`;
 }
 
+export interface NumeracaoAnexos {
+  mostrarDespachante: boolean;
+  mostrarTransporte: boolean;
+  mostrarDsi: boolean;
+  /** null quando o anexo não existe (a linha da capa e as páginas somem). */
+  numDespachante: number | null;
+  numTransporte: number | null;
+  numDsi: number | null;
+  numServico: number;
+}
+
+// Invoice e Contrato de Câmbio são sempre o ANEXO 1. Os demais entram só se existirem, nesta ordem —
+// Despachante, Transporte, DSI, Prestação de serviço — com contador sequencial a partir de 2. O mesmo
+// número vai na capa ("N. … – ANEXO N") e no título da página ("ANEXO N: …").
+export function calcularNumeracaoAnexos(criterio: CriterioAnexos): NumeracaoAnexos {
+  let proximo = 2;
+  const numerar = (existe: boolean): number | null => (existe ? proximo++ : null);
+
+  const numDespachante = numerar(criterio.temDespachante);
+  const numTransporte = numerar(criterio.temTransporte);
+  const numDsi = numerar(criterio.temDsi);
+  const numServico = proximo;
+
+  return {
+    mostrarDespachante: criterio.temDespachante,
+    mostrarTransporte: criterio.temTransporte,
+    mostrarDsi: criterio.temDsi,
+    numDespachante,
+    numTransporte,
+    numDsi,
+    numServico,
+  };
+}
+
+// count = 0 → lista vazia (o loop do template não gera página). Numeração " 1", " 2"… só com 2+ itens.
 export function buildLabelledAnexoList<T extends Record<string, string>>(
   count: number,
   buildAnexoFields: (n: number) => T
 ): Array<{ label: string } & T> {
-  const effectiveCount = Math.max(count, 1);
+  const effectiveCount = Math.max(count, 0);
   return Array.from({ length: effectiveCount }, (_, index) => {
     const n = index + 1;
     return {
@@ -64,21 +101,22 @@ export function buildLabelledAnexoList<T extends Record<string, string>>(
   });
 }
 
+// Invoice/Câmbio (ANEXO 1) sempre existem: mesmo com remessas = 0 sai uma página de cada.
 export function buildRemessasList(patient: PatientComputed, signedUrls: Record<string, string>) {
-  return buildLabelledAnexoList(patient.remessas, (n) => ({
+  return buildLabelledAnexoList(Math.max(patient.remessas, 1), (n) => ({
     anexo_invoice: resolveAttachmentUrl(patient, `invoice_${n}`, signedUrls),
     anexo_cambio: resolveAttachmentUrl(patient, `cambio_${n}`, signedUrls),
   }));
 }
 
 export function buildDespachanteList(patient: PatientComputed, signedUrls: Record<string, string>) {
-  return buildLabelledAnexoList(patient.despachanteRemessas, (n) => ({
+  return buildLabelledAnexoList(contarPaginasAnexo(patient.despesaTotal, patient.despachanteRemessas), (n) => ({
     anexo_despachante: resolveAttachmentUrl(patient, `despachante_${n}`, signedUrls),
   }));
 }
 
 export function buildTransporteList(patient: PatientComputed, signedUrls: Record<string, string>) {
-  return buildLabelledAnexoList(patient.transporteRemessas, (n) => ({
+  return buildLabelledAnexoList(contarPaginasAnexo(patient.transporteTotal, patient.transporteRemessas), (n) => ({
     anexo_transporte: resolveAttachmentUrl(patient, `transporte_${n}`, signedUrls),
   }));
 }
