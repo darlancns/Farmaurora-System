@@ -20,7 +20,15 @@ import type { VisaoProcessos } from "../utils/processoVisao";
 import type { AppSelectOption } from "../types/appSelect";
 import { getErrorMessage } from "../utils/errorMessages";
 import { filtrarPorBusca } from "../utils/processoBusca";
-import { filtrarPorCotacao, filtrarPorStatus, separarAbas, type FiltroCotacao } from "../utils/processoListas";
+import {
+  filtrarPorCotacao,
+  filtrarPorMandado,
+  filtrarPorStatus,
+  haProcessoComMs,
+  separarAbas,
+  type FiltroCotacao,
+  type FiltroMandado,
+} from "../utils/processoListas";
 import { contarProcessosPorPasta } from "../utils/remessaNaLinha";
 import {
   DESTAQUE_PROCESSO_MS,
@@ -30,6 +38,7 @@ import {
 } from "../utils/processoFoco";
 import {
   COTACAO_FILTER_OPTIONS,
+  MANDADO_FILTER_OPTIONS,
   EMPRESA_FILTER_OPTIONS,
   RESPONSAVEL_FILTER_OPTIONS,
   STATUS_FILTER_OPTIONS,
@@ -87,6 +96,8 @@ const statusFilter = ref<StatusProcesso | "">("");
 const empresaFilter = ref<EmpresaProcesso | "">("");
 const responsavelFilter = ref("");
 const cotacaoFilter = ref<FiltroCotacao>("");
+// "Mandado de Segurança": só os processos com "MS Anexado em". O controle só existe com ao menos um processo com MS.
+const mandadoFilter = ref<FiltroMandado>("");
 
 // Abaixo de lg os 4 selects moram no bottom sheet (ProcessoFiltrosSheet), aberto
 // pelo ícone ao lado da busca; a bolinha do ícone conta quantos estão ativos.
@@ -94,9 +105,13 @@ const showFiltros = ref(false);
 // No Kanban o filtro Status não existe (cada status é uma coluna): não aparece, não conta na bolinha e não filtra.
 const filtrosAtivos = computed<number>(
   () =>
-    [mostrarKanban.value ? "" : statusFilter.value, empresaFilter.value, responsavelFilter.value, cotacaoFilter.value].filter(
-      Boolean,
-    ).length,
+    [
+      mostrarKanban.value ? "" : statusFilter.value,
+      empresaFilter.value,
+      responsavelFilter.value,
+      cotacaoFilter.value,
+      mandadoFilter.value,
+    ].filter(Boolean).length,
 );
 
 const filteredProcessos = computed<Processo[]>(() => {
@@ -117,6 +132,8 @@ const filteredProcessos = computed<Processo[]>(() => {
   }
   // "Cotações ASD": sem a cotação da transportadora nacional (nunca Entregues nem Courier Simples).
   list = filtrarPorCotacao(list, cotacaoFilter.value);
+  // "Mandado de Segurança": só com MS anexado (Lista, Kanban e Entregues usam esta mesma lista).
+  list = filtrarPorMandado(list, mandadoFilter.value);
   // Paciente, pasta OU Nº Ordem. A pasta ignora espaços e hífens ("2026-375", "2026 375" e "375" acham "2026 - 375");
   // o PO também ignora pontuação e maiúsculas ("po26100471", "PO26-10-0471" e "26-10-0471" acham "PO26-10-0471").
   return filtrarPorBusca(list, searchQuery.value);
@@ -125,6 +142,20 @@ const filteredProcessos = computed<Processo[]>(() => {
 // "Remessa N" na linha: N > 1 OU pasta repetida. A contagem por pasta usa TODOS os processos carregados (Andamento +
 // Entregues), nunca a lista filtrada pela busca/filtros — ver utils/remessaNaLinha.ts.
 const contagemPasta = computed(() => contarProcessosPorPasta(processos.value));
+
+// O filtro "Mandado de Segurança" só aparece se ao menos um processo VISÍVEL tem MS (o consultor: um processo dele).
+// Se a opção sumir (alguém apagou o último MS) com o filtro ligado, ele volta para "todos" — nada fica escondido
+// por um filtro que não está mais na tela.
+const mostrarFiltroMandado = computed(() =>
+  haProcessoComMs(
+    role.value === "consultor" && consultorNome.value
+      ? processos.value.filter((p) => p.consultor === consultorNome.value)
+      : processos.value,
+  ),
+);
+watch(mostrarFiltroMandado, (mostra) => {
+  if (!mostra) mandadoFilter.value = "";
+});
 
 const andamentoList = computed(() => separarAbas(filteredProcessos.value).andamento);
 const entregueList = computed(() => separarAbas(filteredProcessos.value).entregues);
@@ -163,6 +194,7 @@ function limparBuscaEFiltros(): void {
   empresaFilter.value = "";
   responsavelFilter.value = "";
   cotacaoFilter.value = "";
+  mandadoFilter.value = "";
 }
 
 function destacarPorUmTempo(id: string): void {
@@ -207,6 +239,7 @@ async function irParaProcesso(id: string): Promise<void> {
     empresaFilter.value = "";
     responsavelFilter.value = "";
     cotacaoFilter.value = "";
+    mandadoFilter.value = "";
   }
   activeTab.value = plano.aba;
 
@@ -489,6 +522,12 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
             <AppSelect id="filtro-cotacao" v-model="cotacaoFilter" :options="COTACAO_FILTER_OPTIONS" />
           </div>
 
+          <!-- Mandado de Segurança: só com ao menos um processo com "MS Anexado em"; Lista (as duas abas) e Kanban. -->
+          <div v-if="mostrarFiltroMandado" id="filtro-mandado-campo" class="hidden shrink-0 items-center gap-2 lg:flex lg:w-fit">
+            <label for="filtro-mandado" class="text-[12px] whitespace-nowrap text-ink-soft">Mandado de Segurança</label>
+            <AppSelect id="filtro-mandado" v-model="mandadoFilter" :options="MANDADO_FILTER_OPTIONS" />
+          </div>
+
           <!-- Abaixo de lg: só o "+" flutuante (FloatingAddButton) acima do BottomNav. Em lg+ o botão
                com texto volta pra linha de filtros, à direita, igual a antes. -->
           <FloatingAddButton v-if="canWriteProcessos" id="fab-novo-processo" label="Novo processo" @click="openCreateForm" />
@@ -594,6 +633,8 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
       v-model:empresa="empresaFilter"
       v-model:responsavel="responsavelFilter"
       v-model:cotacao="cotacaoFilter"
+      v-model:mandado="mandadoFilter"
+      :show-mandado="mostrarFiltroMandado"
       :show-status="!mostrarKanban && activeTab === 'andamento'"
       :show-cotacao="mostrarKanban || activeTab === 'andamento'"
       @close="showFiltros = false"

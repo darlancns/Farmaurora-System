@@ -23,3 +23,20 @@ export type FiltroCotacao = "" | "asd";
 export function filtrarPorCotacao(processos: Processo[], filtro: FiltroCotacao): Processo[] {
   return filtro === "asd" ? processos.filter(cotacaoAsd) : processos;
 }
+
+/** Filtro "Mandado de Segurança" da toolbar: "" = todos; "com_ms" = só os processos com "MS Anexado em" preenchido. */
+export type FiltroMandado = "" | "com_ms";
+
+/** O processo tem "MS Anexado em" (data em que o despachante anexou o Mandado de Segurança)? */
+function temMsAnexado(processo: Pick<Processo, "datas">): boolean {
+  return Boolean(processo.datas.msAnexadoEm?.trim());
+}
+
+export function filtrarPorMandado(processos: Processo[], filtro: FiltroMandado): Processo[] {
+  return filtro === "com_ms" ? processos.filter(temMsAnexado) : processos;
+}
+
+/** Há ao menos um processo com MS anexado? O filtro "Mandado de Segurança" só aparece nesse caso. */
+export function haProcessoComMs(processos: readonly Pick<Processo, "datas">[]): boolean {
+  return processos.some(temMsAnexado);
+}

@@ -12,7 +12,7 @@ import {
   STATUS_PROCESSO_ORDER,
 } from "#shared/constants/processos";
 import { STATUS_PROCESSO_META } from "./processoStatus";
-import type { FiltroCotacao } from "./processoListas";
+import type { FiltroCotacao, FiltroMandado } from "./processoListas";
 import type { AppSelectOption } from "../types/appSelect";
 import type {
   BrandMedicamento,
@@ -114,4 +114,10 @@ export const RESPONSAVEL_FILTER_OPTIONS: AppSelectOption<string>[] = [
 export const COTACAO_FILTER_OPTIONS: AppSelectOption<FiltroCotacao>[] = [
   { value: "", label: "Todas as cotações" },
   { value: "asd", label: "Cotações ASD" },
+];
+
+// Filtro "Mandado de Segurança" (rótulo visível ao lado/acima do select): só aparece quando há processo com MS.
+export const MANDADO_FILTER_OPTIONS: AppSelectOption<FiltroMandado>[] = [
+  { value: "", label: "Todos" },
+  { value: "com_ms", label: "Com MS" },
 ];
