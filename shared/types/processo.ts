@@ -87,6 +87,10 @@ export interface ProcessoDatas {
   registroLpco?: string;
   previsaoEntrega?: string;
   supostaEstimativa?: string;
+  // As duas datas do Mandado de Segurança / ANVISA são DATA COMPLETA ("AAAA-MM-DD", colunas `date`), diferente das 9
+  // acima (texto livre "DD/MM", "DD/MM/AAAA" ou com anotação). Ver DATAS_ISO_PROCESSO (shared/constants/processos.ts).
+  msAnexadoEm?: string; // dia em que o despachante anexou o Mandado de Segurança
+  prazoAnvisa?: string; // prazo que a ANVISA tem para responder
 }
 
 export interface Processo {

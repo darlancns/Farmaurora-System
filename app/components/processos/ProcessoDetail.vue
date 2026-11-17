@@ -4,6 +4,7 @@ import { linhaLaboratorioBrand } from "#shared/utils/laboratorio";
 import { formatCurrency } from "../../utils/formatters";
 import { quebrarNumeroProcesso } from "../../utils/quebrarNumeroProcesso";
 import { pastaLimpa, temPasta } from "#shared/utils/rotuloPasta";
+import { camposDatas } from "../../utils/processoPainel";
 import ProcessoAtualizacoes from "./ProcessoAtualizacoes.vue";
 
 withDefaults(
@@ -75,18 +76,14 @@ function colunas(processo: Processo): DetailField[][] {
   ];
 }
 
+// Mesma lista (rótulos, ordem, destaque e formato) do painel do Kanban: utils/processoPainel.ts (camposDatas).
 function datasFields(processo: Processo): DetailField[] {
-  return [
-    { label: "Compra (PO)", value: processo.datas.dataCompraPO },
-    { label: "Embarque", value: processo.datas.dataEmbarque },
-    { label: "Abertura thread", value: processo.datas.aberturaThread },
-    { label: "Chegada Brasil", value: processo.datas.dataChegadaBrasil },
-    { label: "Registro Radar", value: processo.datas.registroRadar },
-    { label: "Registro Duimp", value: processo.datas.registroDuimp },
-    { label: "Registro Lpco", value: processo.datas.registroLpco },
-    { label: "Previsão entrega", value: processo.datas.previsaoEntrega, destaque: true },
-    { label: "Suposta estimativa", value: processo.datas.supostaEstimativa, wide: true },
-  ];
+  return camposDatas(processo).map((c) => ({
+    label: c.rotulo,
+    value: c.valor,
+    destaque: c.destaque,
+    wide: c.larguraTotal,
+  }));
 }
 </script>
 

@@ -64,6 +64,9 @@ export interface FormState {
   registroLpco: string;
   previsaoEntrega: string;
   supostaEstimativa: string;
+  // Datas completas ("AAAA-MM-DD" ou ""): colunas `date` (vazio vai como null no patch, NULL no banco).
+  msAnexadoEm: string;
+  prazoAnvisa: string;
   localEntrega: string;
   numeroProcesso: string;
   statusPagamento: StatusPagamentoProcesso | "";
@@ -78,7 +81,9 @@ export type DataField =
   | "registroDuimp"
   | "registroLpco"
   | "previsaoEntrega"
-  | "supostaEstimativa";
+  | "supostaEstimativa"
+  | "msAnexadoEm"
+  | "prazoAnvisa";
 
 // Opções fixas do Fornecedor, sem o sentinela "Outro" — usado só pra decidir se
 // um valor existente bate com uma das 4 opções reais ao carregar o form.
@@ -110,6 +115,8 @@ function emptyForm(): FormState {
     registroLpco: "",
     previsaoEntrega: "",
     supostaEstimativa: "",
+    msAnexadoEm: "",
+    prazoAnvisa: "",
     localEntrega: "",
     numeroProcesso: "",
     statusPagamento: "",
@@ -233,6 +240,8 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     form.registroLpco = processo.datas.registroLpco ?? "";
     form.previsaoEntrega = processo.datas.previsaoEntrega ?? "";
     form.supostaEstimativa = processo.datas.supostaEstimativa ?? "";
+    form.msAnexadoEm = processo.datas.msAnexadoEm ?? "";
+    form.prazoAnvisa = processo.datas.prazoAnvisa ?? "";
     form.localEntrega = processo.localEntrega ?? "";
     form.numeroProcesso = processo.numeroProcesso ?? "";
     form.statusPagamento = processo.statusPagamento ?? "";
@@ -361,7 +370,7 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
   }
 
   // As datas vêm do AppDatePicker com ano automático (digitadas ou do calendário): valor novo "DD/MM/AAAA" ou ""
-  // (limpar). A máscara e o ano ficam no componente; o texto antigo só muda depois de confirmado no painel.
+  // (limpar); MS Anexado em e Prazo da ANVISA vêm como "AAAA-MM-DD" (formato iso). A máscara e o ano ficam no componente; o texto antigo só muda depois de confirmado no painel.
   function onDataFieldChange(field: DataField, value: string): void {
     form[field] = value;
   }

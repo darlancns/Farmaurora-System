@@ -6,6 +6,7 @@ import {
   erroModalCiaNoPatch,
   erroNumeroPo,
   erroNumeroRemessa,
+  erroDatasIso,
   erroStatusLegado,
   isValidProcessoPatch,
   isVersaoValida,
@@ -42,6 +43,12 @@ export default defineEventHandler(async (event): Promise<Processo> => {
   const erroMedicamento = erroCamposMedicamento(body);
   if (erroMedicamento) {
     throw createError({ statusCode: 400, statusMessage: erroMedicamento });
+  }
+
+  // MS Anexado em / Prazo da ANVISA (colunas `date`): só AAAA-MM-DD real; vazio = NULL. 400 aqui, nunca 500 do banco.
+  const erroDatas = erroDatasIso(body);
+  if (erroDatas) {
+    throw createError({ statusCode: 400, statusMessage: erroDatas });
   }
 
   if (!isValidProcessoPatch(body)) {

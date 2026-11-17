@@ -94,6 +94,8 @@ const DATAS = [
   "pf-radar",
   "pf-duimp",
   "pf-lpco",
+  "pf-ms-anexado",
+  "pf-prazo-anvisa",
   "pf-previsao",
   "pf-suposta-estimativa",
 ] as const;
@@ -694,6 +696,12 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
           const suposta = await b("pf-suposta-estimativa");
           abaixoDe(d1, fieldset, "Datas (abaixo da Transportadora)");
           mesmaLinha(d1, d2, "Compra | Embarque");
+          // MS Anexado em e Prazo da ANVISA lado a lado, abaixo do Registro Lpco (2 e 3 colunas).
+          const lpco = await b("pf-lpco");
+          const ms = await b("pf-ms-anexado");
+          const prazo = await b("pf-prazo-anvisa");
+          mesmaLinha(ms, prazo, "MS Anexado em | Prazo da ANVISA");
+          if (!tablet) abaixoDe(ms, lpco, "MS Anexado em (linha própria, abaixo do Lpco)");
           if (modo === "novo") {
             // Campo de data vazio (digitável, ano automático): texto-guia "DD/MM/AAAA".
             for (const id of DATAS) {

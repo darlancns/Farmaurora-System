@@ -1,6 +1,7 @@
 import { precisaDespachanteTransportadora } from "#shared/constants/processos";
 import type { Medicamento, Processo } from "#shared/types/processo";
 import { linhaLaboratorioBrand } from "#shared/utils/laboratorio";
+import { formatarDataBR } from "#shared/utils/dataBrasilia";
 import { formatCurrency } from "./formatters";
 
 // Regras puras do painel lateral do Kanban (app/components/processos/ProcessoPainel.vue). Testadas em
@@ -67,7 +68,16 @@ export interface CampoData {
   larguraTotal?: boolean;
 }
 
-/** As 9 datas, na ordem da tela (a mesma do detalhe da Lista e do formulário). Texto antigo aparece como está. */
+/**
+ * As 11 datas, na ordem da tela (a mesma do detalhe da Lista e do formulário). As 9 de texto aparecem como estão
+ * gravadas (inclusive texto antigo); MS Anexado em e Prazo da ANVISA ("AAAA-MM-DD") aparecem com o ano, DD/MM/AAAA.
+ */
+// "AAAA-MM-DD" -> "DD/MM/AAAA"; vazio -> ""; valor que não é ISO (não deveria existir) aparece como está.
+function dataIsoParaTela(valor: string | undefined): string {
+  const texto = (valor ?? "").trim();
+  return texto ? formatarDataBR(texto) || texto : "";
+}
+
 export function camposDatas(processo: Pick<Processo, "datas">): CampoData[] {
   const d = processo.datas;
   return [
@@ -78,6 +88,8 @@ export function camposDatas(processo: Pick<Processo, "datas">): CampoData[] {
     { id: "registro-radar", rotulo: "Registro Radar", valor: d.registroRadar ?? "" },
     { id: "registro-duimp", rotulo: "Registro Duimp", valor: d.registroDuimp ?? "" },
     { id: "registro-lpco", rotulo: "Registro Lpco", valor: d.registroLpco ?? "" },
+    { id: "ms-anexado", rotulo: "MS Anexado em", valor: dataIsoParaTela(d.msAnexadoEm) },
+    { id: "prazo-anvisa", rotulo: "Prazo da ANVISA", valor: dataIsoParaTela(d.prazoAnvisa) },
     { id: "previsao-entrega", rotulo: "Previsão entrega", valor: d.previsaoEntrega ?? "", destaque: true },
     { id: "suposta-estimativa", rotulo: "Suposta estimativa", valor: d.supostaEstimativa ?? "", larguraTotal: true },
   ];

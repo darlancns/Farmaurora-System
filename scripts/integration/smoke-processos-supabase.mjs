@@ -70,6 +70,9 @@ function colunasDeDTO(src) {
     col.registro_lpco = d.registroLpco ?? null;
     col.previsao_entrega = d.previsaoEntrega ?? null;
     col.suposta_estimativa = d.supostaEstimativa ?? null;
+    // Colunas `date`: vazio vira NULL ("" não é aceito pelo Postgres).
+    col.ms_anexado_em = (d.msAnexadoEm ?? "").trim() || null;
+    col.prazo_anvisa = (d.prazoAnvisa ?? "").trim() || null;
   }
   if ("transportadoraNacional" in src) {
     const t = src.transportadoraNacional;
@@ -86,6 +89,7 @@ function montarProcesso(row) {
     data_compra_po: "dataCompraPO", data_embarque: "dataEmbarque", abertura_thread: "aberturaThread",
     data_chegada_brasil: "dataChegadaBrasil", registro_radar: "registroRadar", registro_duimp: "registroDuimp",
     registro_lpco: "registroLpco", previsao_entrega: "previsaoEntrega", suposta_estimativa: "supostaEstimativa",
+    ms_anexado_em: "msAnexadoEm", prazo_anvisa: "prazoAnvisa",
   };
   for (const [c, k] of Object.entries(D)) if (row[c] != null) datas[k] = row[c];
   const p = {

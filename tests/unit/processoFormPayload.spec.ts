@@ -39,6 +39,8 @@ function emptyForm(): ProcessoFormState {
     registroLpco: "",
     previsaoEntrega: "",
     supostaEstimativa: "",
+    msAnexadoEm: "",
+    prazoAnvisa: "",
     localEntrega: "",
     numeroProcesso: "",
     statusPagamento: "",

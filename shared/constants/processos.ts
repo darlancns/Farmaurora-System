@@ -1,6 +1,7 @@
 import type {
   BrandMedicamento,
   CampoProcessoLimpavel,
+  ProcessoDatas,
   ConsultorProcesso,
   DespachanteProcesso,
   EmpresaProcesso,
@@ -186,4 +187,11 @@ export const CAMPOS_PROCESSO_LIMPAVEIS: readonly CampoProcessoLimpavel[] = [
   "localEntrega",
   "numeroProcesso",
   "statusPagamento",
+];
+
+// Datas do processo guardadas como DATA COMPLETA (colunas `date`, valor "AAAA-MM-DD"), com o rótulo da tela. As outras 9
+// datas são texto livre. Vazio vira NULL no banco; qualquer outro valor que não seja uma data ISO real é recusado (400).
+export const DATAS_ISO_PROCESSO: ReadonlyArray<{ chave: keyof ProcessoDatas; rotulo: string }> = [
+  { chave: "msAnexadoEm", rotulo: "MS Anexado em" },
+  { chave: "prazoAnvisa", rotulo: "Prazo da ANVISA" },
 ];

@@ -2,6 +2,7 @@ import {
   ciaAereaValidaParaModal,
   ciasAereasDoModal,
   CONSULTORES_PROCESSO,
+  DATAS_ISO_PROCESSO,
   EMPRESAS_PROCESSO,
   BRAND_ERRO,
   isBrandMedicamento,
@@ -26,6 +27,7 @@ import type {
 import { NUMERO_PO_ERRO, normalizarNumeroPo, numeroPoValido } from "../../shared/utils/numeroPo";
 import { NUMERO_REMESSA_ERRO, normalizarNumeroRemessa, numeroRemessaValido } from "../../shared/utils/numeroRemessa";
 import { normalizarLaboratorio, tamanhoLaboratorio } from "../../shared/utils/laboratorio";
+import { parseDataISO } from "../../shared/utils/dataBrasilia";
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -168,6 +170,25 @@ export function erroStatusLegado(body: unknown): string | null {
   if (!body || typeof body !== "object") return null;
   const status = (body as Record<string, unknown>).status;
   return isStatusProcessoLegado(status) ? mensagemStatusLegado(status) : null;
+}
+
+// ── Datas ISO (MS Anexado em, Prazo da ANVISA) ─────────────────────────────────────────────────────
+// Colunas `date`: só aceitam "AAAA-MM-DD" que exista (parseDataISO). Vazio/null/ausente = sem data (NULL). Qualquer
+// outra coisa vira 400 com mensagem clara aqui — nunca chega ao Postgres (que devolveria 500).
+
+// Mensagem do 400 para a primeira data ISO inválida em `body.datas` (POST ou PATCH), ou null.
+export function erroDatasIso(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+  const datas = (body as Record<string, unknown>).datas;
+  if (!datas || typeof datas !== "object" || Array.isArray(datas)) return null; // formato do bloco: isValidDatas
+  for (const { chave, rotulo } of DATAS_ISO_PROCESSO) {
+    const valor = (datas as Record<string, unknown>)[chave];
+    if (valor === undefined || valor === null) continue;
+    if (typeof valor !== "string") return `${rotulo}: data inválida. Use AAAA-MM-DD.`;
+    const texto = valor.trim();
+    if (texto !== "" && !parseDataISO(texto)) return `${rotulo}: data inválida ("${texto.slice(0, 20)}"). Use AAAA-MM-DD.`;
+  }
+  return null;
 }
 
 // ── Cia. aérea × modal de envio ─────────────────────────────────────────────────────────────────

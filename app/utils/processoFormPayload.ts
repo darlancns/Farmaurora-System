@@ -53,6 +53,8 @@ export interface ProcessoFormState {
   registroLpco: string;
   previsaoEntrega: string;
   supostaEstimativa: string;
+  msAnexadoEm: string; // "AAAA-MM-DD" ou ""
+  prazoAnvisa: string; // "AAAA-MM-DD" ou ""
   localEntrega: string;
   numeroProcesso: string;
   statusPagamento: StatusPagamentoProcesso | "";
@@ -73,6 +75,8 @@ export function buildDatas(form: ProcessoFormState): ProcessoDatas {
     registroLpco: form.registroLpco.trim() || undefined,
     previsaoEntrega: form.previsaoEntrega.trim() || undefined,
     supostaEstimativa: form.supostaEstimativa.trim() || undefined,
+    msAnexadoEm: form.msAnexadoEm.trim() || undefined,
+    prazoAnvisa: form.prazoAnvisa.trim() || undefined,
   };
 }
 
@@ -153,6 +157,8 @@ const CAMPOS_DATA: ReadonlyArray<keyof ProcessoDatas> = [
   "registroLpco",
   "previsaoEntrega",
   "supostaEstimativa",
+  "msAnexadoEm",
+  "prazoAnvisa",
 ];
 
 // Obrigatórios e opcionais de valor único: vão no patch SÓ se o valor mudou. A pasta é opcional, mas

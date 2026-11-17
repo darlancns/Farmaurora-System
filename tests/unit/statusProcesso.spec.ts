@@ -253,6 +253,8 @@ describe("formulário", () => {
       registroLpco: "",
       previsaoEntrega: "",
       supostaEstimativa: "",
+      msAnexadoEm: "",
+      prazoAnvisa: "",
       localEntrega: "",
       numeroProcesso: "",
       statusPagamento: "",

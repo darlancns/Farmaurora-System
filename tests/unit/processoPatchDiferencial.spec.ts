@@ -270,8 +270,10 @@ describe("datas", () => {
   it("colunasDeDTO: parcial só monta as colunas das chaves presentes", () => {
     expect(colunasDeDTO({ datas: { dataEmbarque: "10/10" } }, { parcial: true })).toEqual({ data_embarque: "10/10" });
     expect(colunasDeDTO({ datas: { dataEmbarque: null } }, { parcial: true })).toEqual({ data_embarque: null });
-    // sem parcial (criação / formato antigo): as 9 colunas
-    expect(Object.keys(colunasDeDTO({ datas: { dataEmbarque: "10/10" } }))).toHaveLength(9);
+    // sem parcial (criação / formato antigo): as 11 colunas (as 2 `date` novas vazias = NULL, nunca "")
+    const todas = colunasDeDTO({ datas: { dataEmbarque: "10/10" } });
+    expect(Object.keys(todas)).toHaveLength(11);
+    expect(todas).toMatchObject({ ms_anexado_em: null, prazo_anvisa: null });
   });
 });
 

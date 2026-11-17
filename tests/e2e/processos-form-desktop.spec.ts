@@ -429,22 +429,25 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
             expect(Math.abs(embaixo(remover) - embaixo(botaoAdd)), "✕ e + na mesma linha").toBeLessThanOrEqual(1);
           }
 
-          // Datas: 4 colunas (Suposta estimativa sozinha na 3ª linha, 1 coluna).
+          // Datas: 4 colunas. Linha 1: Compra..Chegada; linha 2: Radar, Duimp, Lpco; linha 3: MS Anexado em, Prazo da
+          // ANVISA, Previsão e Suposta estimativa (o MS começa a linha, para ficar lado a lado com o Prazo).
           const datas = await Promise.all(
-            ["pf-data-po", "pf-data-embarque", "pf-thread", "pf-chegada", "pf-radar", "pf-duimp", "pf-lpco", "pf-previsao", "pf-suposta-estimativa"].map(b),
+            ["pf-data-po", "pf-data-embarque", "pf-thread", "pf-chegada", "pf-radar", "pf-duimp", "pf-lpco", "pf-ms-anexado", "pf-prazo-anvisa", "pf-previsao", "pf-suposta-estimativa"].map(b),
           );
           if (modo === "novo") {
             // Campo de data vazio (digitável, ano automático): texto-guia "DD/MM/AAAA".
-            for (const id of ["pf-data-po", "pf-data-embarque", "pf-thread", "pf-chegada", "pf-radar", "pf-duimp", "pf-lpco", "pf-previsao", "pf-suposta-estimativa"]) {
+            for (const id of ["pf-data-po", "pf-data-embarque", "pf-thread", "pf-chegada", "pf-radar", "pf-duimp", "pf-lpco", "pf-ms-anexado", "pf-prazo-anvisa", "pf-previsao", "pf-suposta-estimativa"]) {
               await expect(page.locator(`#${id}`), id).toHaveValue("");
               await expect(page.locator(`#${id}`), id).toHaveAttribute("placeholder", "DD/MM/AAAA");
             }
           }
           for (const i of [1, 2, 3]) mesmaLinha(datas[0]!, datas[i]!, `data ${i}`);
-          for (const i of [5, 6, 7]) mesmaLinha(datas[4]!, datas[i]!, `data ${i}`);
+          for (const i of [5, 6]) mesmaLinha(datas[4]!, datas[i]!, `data ${i}`);
+          for (const i of [8, 9, 10]) mesmaLinha(datas[7]!, datas[i]!, `data ${i}`);
           expect(datas[4]!.y).toBeGreaterThan(embaixo(datas[0]!) - 1);
-          expect(datas[8]!.y).toBeGreaterThan(embaixo(datas[4]!) - 1);
-          expect(datas[8]!.width).toBeCloseTo(datas[0]!.width, 0);
+          expect(datas[7]!.y).toBeGreaterThan(embaixo(datas[4]!) - 1);
+          expect(datas[7]!.x, "MS Anexado em começa a linha").toBeCloseTo(datas[0]!.x, 0);
+          expect(datas[10]!.width).toBeCloseTo(datas[0]!.width, 0);
 
           // Medicamentos e local de entrega: o fieldset vem logo depois da linha 1 e o Local de entrega fecha o bloco,
           // em largura total dentro dele.

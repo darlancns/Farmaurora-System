@@ -99,7 +99,9 @@ describe("ProcessoFormDatas com o calendário", () => {
     const ids = Array.from(el.querySelectorAll<HTMLElement>("input[id^='pf-'], button[id^='pf-'][aria-haspopup]"))
       .map((e) => e.id)
       .filter((id) => !id.endsWith("-abrir-calendario"));
-    expect(ids).toEqual(IDS.map((i) => i[0]));
+    // As 9 de texto + MS Anexado em e Prazo da ANVISA (logo depois do Registro Lpco).
+    const nove = IDS.map((i) => i[0] as string);
+    expect(ids).toEqual([...nove.slice(0, 7), "pf-ms-anexado", "pf-prazo-anvisa", ...nove.slice(7)]);
     for (const [id, , , valor] of IDS) {
       const c = campo(id);
       if (id === "pf-suposta-estimativa") {

@@ -193,7 +193,7 @@ describe("funções puras do painel", () => {
     expect(linhaTransportadora({})).toBe("");
   });
 
-  it("datas: as 9, na ordem da tela", () => {
+  it("datas: as 11, na ordem da tela (MS Anexado em e Prazo da ANVISA depois do Registro Lpco)", () => {
     expect(camposDatas({ datas: {} }).map((c) => c.rotulo)).toEqual([
       "Compra (PO)",
       "Embarque",
@@ -202,6 +202,8 @@ describe("funções puras do painel", () => {
       "Registro Radar",
       "Registro Duimp",
       "Registro Lpco",
+      "MS Anexado em",
+      "Prazo da ANVISA",
       "Previsão entrega",
       "Suposta estimativa",
     ]);

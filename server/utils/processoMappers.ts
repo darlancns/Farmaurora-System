@@ -22,7 +22,8 @@ import { num } from "./storeKit";
 // sem Supabase/rede, testáveis isoladamente (ver tests/unit/processoMappers.spec.ts).
 //
 // Mapeamento:
-//  - `Processo.datas` (objeto parcial de 9 campos) ↔ 9 colunas soltas
+//  - `Processo.datas` (objeto parcial de 11 campos) ↔ 11 colunas soltas (9 de texto + 2 `date`: ms_anexado_em e
+//    prazo_anvisa, que gravam NULL quando vazias — `date` não aceita "")
 //    (`data_compra_po`, …). Na leitura, `datas` volta como objeto parcial com
 //    só as chaves cujas colunas não são NULL (mantém o formato atual).
 //  - `Processo.transportadoraNacional` (objeto opcional) ↔ 3 colunas soltas.
@@ -72,6 +73,10 @@ export interface FollowUpRow {
   registro_lpco: string | null;
   previsao_entrega: string | null;
   suposta_estimativa: string | null;
+  // Colunas `date` (AAAA-MM-DD), aditivas (migração 20261117120000): linhas de antes não as trazem.
+  ms_anexado_em?: string | null;
+  prazo_anvisa?: string | null;
+  alerta_anvisa_ciente_prazo?: string | null;
   local_entrega: string | null;
   numero_processo: string | null;
   pendencias: string[] | null;
@@ -83,7 +88,7 @@ export interface FollowUpRow {
   updated_at: string;
 }
 
-// As 9 datas do processo: chave do DTO → coluna (texto livre no banco).
+// As 11 datas do processo: chave do DTO → coluna. As 9 primeiras são texto livre; as 2 últimas, `date` (ISO).
 const COLUNA_DE_DATA: ReadonlyArray<readonly [keyof ProcessoDatas, string]> = [
   ["dataCompraPO", "data_compra_po"],
   ["dataEmbarque", "data_embarque"],
@@ -94,7 +99,17 @@ const COLUNA_DE_DATA: ReadonlyArray<readonly [keyof ProcessoDatas, string]> = [
   ["registroLpco", "registro_lpco"],
   ["previsaoEntrega", "previsao_entrega"],
   ["supostaEstimativa", "suposta_estimativa"],
+  ["msAnexadoEm", "ms_anexado_em"],
+  ["prazoAnvisa", "prazo_anvisa"],
 ];
+
+// Colunas `date`: não aceitam "" — vazio (ou só espaços) vira NULL. O formato já foi validado (erroDatasIso).
+const COLUNAS_DATE = new Set(["ms_anexado_em", "prazo_anvisa"]);
+function valorDeData(coluna: string, valor: string | null | undefined): string | null {
+  if (valor == null) return null;
+  if (COLUNAS_DATE.has(coluna)) return valor.trim() || null;
+  return valor;
+}
 
 // Colunas do follow_up a partir das chaves do DTO PRESENTES em `src`. Só inclui
 // coluna cuja chave do DTO está em `src` (via `in`) — assim o patch é seletivo
@@ -146,7 +161,7 @@ export function colunasDeDTO(src: ProcessoPatchDTO, opcoes: { parcial?: boolean 
     const d: ProcessoDatasPatch = src.datas ?? {};
     for (const [chave, coluna] of COLUNA_DE_DATA) {
       if (parcial && !(chave in d)) continue; // formato novo: chave ausente = não mexe
-      col[coluna] = d[chave] ?? null;
+      col[coluna] = valorDeData(coluna, d[chave]);
     }
   }
 
@@ -185,6 +200,8 @@ export function montarProcesso(row: FollowUpRow): Processo {
   if (row.registro_lpco != null) datas.registroLpco = row.registro_lpco;
   if (row.previsao_entrega != null) datas.previsaoEntrega = row.previsao_entrega;
   if (row.suposta_estimativa != null) datas.supostaEstimativa = row.suposta_estimativa;
+  if (row.ms_anexado_em != null) datas.msAnexadoEm = row.ms_anexado_em;
+  if (row.prazo_anvisa != null) datas.prazoAnvisa = row.prazo_anvisa;
 
   const processo: Processo = {
     id: row.id,

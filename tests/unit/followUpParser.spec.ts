@@ -524,9 +524,17 @@ describe.each([
   });
 
   it("cada coluna que o mapper real grava tem o MESMO valor na linha de carga", () => {
+    // Colunas aditivas POSTERIORES à carga (migração 20261117120000): a carga histórica não as traz (a coluna fica NULL
+    // nessas linhas); o mapper as grava NULL quando o registro não tem a data — o mesmo resultado.
+    const posterioresACarga = new Set(["ms_anexado_em", "prazo_anvisa"]);
     for (const { rec, linha } of pares) {
       const col = colunasDeDTO(rec as unknown as NewProcessoDTO);
       for (const [k, v] of Object.entries(col)) {
+        if (posterioresACarga.has(k)) {
+          expect(linha[k], `${rec.pasta} › ${k} (fora da carga)`).toBeUndefined();
+          expect(v, `${rec.pasta} › ${k}`).toBeNull();
+          continue;
+        }
         expect(linha[k], `${rec.pasta} › ${k}`).toEqual(v);
       }
     }
