@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
-import { hojeBrasilia, parseDataISO, somarDiasISO } from "#shared/utils/dataBrasilia";
+import { formatarDataBR, hojeBrasilia, parseDataISO, somarDiasISO } from "#shared/utils/dataBrasilia";
+import {
+  interpretarDataDigitada,
+  mascararDataDigitada,
+  type SentidoAno,
+} from "#shared/utils/anoAutomatico";
 import { adquirirTravaDeScroll } from "../composables/useLockBodyScroll";
 import {
   DIAS_DA_SEMANA,
@@ -37,6 +42,15 @@ import {
 //   antigo: «…»", Confirmar / Cancelar) e só aplica depois do Confirmar.
 // - O painel vai num <Teleport to="body"> com posição fixa (calculada a partir do campo): nenhum modal com
 //   rolagem o corta. Esc fecha SÓ o calendário (não propaga para o modal) e devolve o foco ao campo.
+//
+// ANO AUTOMÁTICO (opt-in: `anoAutomatico`, com `sentido`; sem a prop, nada acima muda): o campo vira um <input>
+// DIGITÁVEL (inputmode numérico, máscara DD/MM/AAAA) com um botão de limpar (enquanto o campo tem foco e texto) e
+// um botão que abre o MESMO calendário. Ao sair do campo (ou Enter), "22/10" ou "2210" ganham o ano sozinhos
+// (shared/utils/anoAutomatico.ts, "hoje" de Brasília); o ano digitado é respeitado. Data que não existe (31/04) ou
+// incompleta fica como foi digitada, com um aviso discreto, e NÃO é emitida (o valor anterior continua).
+// Valores novos (digitados ou escolhidos) saem SEMPRE com o ano: "DD/MM/AAAA" (formato "iso": "AAAA-MM-DD").
+// Valor antigo "DD/MM" aparece como está até ser editado. Texto antigo com anotação continua no modo botão de
+// cima (mostrado como está, substituição só com confirmação); depois de trocado ou limpo, o campo vira digitável.
 
 const props = withDefaults(
   defineProps<{
@@ -50,8 +64,13 @@ const props = withDefaults(
     disabled?: boolean;
     // Classes do campo (caixa, fonte). Sem ela, o mesmo visual do AppSelect.
     classeCampo?: string;
+    // Opt-in: campo digitável com ano automático (ver o topo). `sentido`: "futuro" (prazos) ou "proximo" (fatos).
+    anoAutomatico?: boolean;
+    sentido?: SentidoAno;
   }>(),
   {
+    anoAutomatico: false,
+    sentido: "proximo",
     modelValue: "",
     formato: "dd/mm",
     min: undefined,
@@ -92,17 +111,110 @@ const lado = ref<"abaixo" | "acima">("abaixo");
 
 const botao = ref<HTMLButtonElement | null>(null);
 const painel = ref<HTMLElement | null>(null);
+// Modo digitável (anoAutomatico): a caixa (âncora do popover) e o <input>.
+const caixa = ref<HTMLElement | null>(null);
+const entrada = ref<HTMLInputElement | null>(null);
 
 const painelId = computed(() => `${props.id}-calendario`);
 const lido = computed(() => interpretarValor(props.modelValue ?? "", props.formato, hojeIso.value));
 const textoAntigo = computed(() => (lido.value.tipo === "texto" ? lido.value.texto : ""));
 const exibido = computed(() => textoParaExibir(props.modelValue ?? "", props.formato, hojeIso.value));
-// Dia destacado como "selecionado": a data do valor, ou a que o texto antigo traz no início.
+// Dia destacado como "selecionado": a data do valor, ou a que o texto antigo traz no início. Um valor antigo
+// "DD/MM" (sem ano) é lido no ano corrente, como em todos os leitores (listas, alertas): o sentido do ano automático
+// só vale para o que for DIGITADO agora, para o calendário nunca abrir num ano diferente do que as telas mostram.
 const selecionado = computed(() => {
   if (lido.value.tipo === "data") return lido.value.iso;
   if (lido.value.tipo === "texto") return lido.value.isoInicial ?? "";
   return "";
 });
+
+// ── modo digitável (anoAutomatico) ──────────────────────────────────────────────────────────────────
+// Texto antigo com anotação continua no modo botão (não dá para representá-lo num campo com máscara).
+const digitavel = computed(() => props.anoAutomatico && !textoAntigo.value);
+const rascunho = ref(exibido.value);
+const textoNoFoco = ref("");
+const comFoco = ref(false);
+const erro = ref<"" | "incompleta" | "inexistente">("");
+const erroId = computed(() => `${props.id}-erro`);
+const mensagemErro = computed(() => (erro.value === "inexistente" ? "Data inexistente" : "Data incompleta"));
+
+// O valor gravado manda: mudou por fora (calendário, outro campo, recarga), o texto do campo acompanha.
+watch(
+  () => props.modelValue,
+  () => {
+    rascunho.value = exibido.value;
+    erro.value = "";
+  },
+);
+
+/** Valor a gravar para um dia escolhido/digitado. Com ano automático, sempre com o ano. */
+function valorParaGravar(iso: string): string {
+  if (props.anoAutomatico) return props.formato === "iso" ? iso : formatarDataBR(iso);
+  return formatarEscolha(iso, props.formato, hojeIso.value);
+}
+
+function aoDigitar(evento: Event): void {
+  const alvo = evento.target as HTMLInputElement;
+  const mascarado = mascararDataDigitada(alvo.value);
+  rascunho.value = mascarado;
+  if (alvo.value !== mascarado) alvo.value = mascarado;
+  erro.value = "";
+}
+
+/** Fecha a digitação: interpreta o texto e emite (ou mostra o aviso). Devolve false quando o texto é inválido. */
+function confirmarDigitado(): boolean {
+  if (rascunho.value === textoNoFoco.value && !erro.value) return true; // nada mudou: o valor antigo fica intacto
+  const r = interpretarDataDigitada(rascunho.value, hojeBrasilia(), props.sentido);
+  if (r.tipo === "invalido") {
+    erro.value = r.motivo;
+    return false;
+  }
+  erro.value = "";
+  const novo = r.tipo === "vazio" ? "" : valorParaGravar(r.iso);
+  rascunho.value = novo === "" ? "" : textoParaExibir(novo, props.formato, hojeIso.value);
+  textoNoFoco.value = rascunho.value;
+  if (novo !== (props.modelValue ?? "")) emit("update:modelValue", novo);
+  return true;
+}
+
+function aoFocar(): void {
+  comFoco.value = true;
+  textoNoFoco.value = rascunho.value;
+}
+
+function aoSair(): void {
+  comFoco.value = false;
+  confirmarDigitado();
+}
+
+function aoTeclarNaEntrada(evento: KeyboardEvent): void {
+  if (evento.key === "Enter") {
+    // Válido: deixa o Enter seguir (o formulário pode enviar, já com o valor novo). Inválido: segura o envio.
+    if (!confirmarDigitado()) evento.preventDefault();
+    return;
+  }
+  if (evento.key === "ArrowDown" && evento.altKey) {
+    evento.preventDefault();
+    abrir();
+  }
+}
+
+function aoColar(evento: ClipboardEvent): void {
+  const colado = evento.clipboardData?.getData("text") ?? "";
+  const iso = /^\s*(\d{4})-(\d{2})-(\d{2})\s*$/.exec(colado);
+  if (!iso) return; // o resto passa pela máscara em aoDigitar
+  evento.preventDefault();
+  rascunho.value = `${iso[3]}/${iso[2]}/${iso[1]}`;
+  erro.value = "";
+}
+
+function limparDigitado(): void {
+  rascunho.value = "";
+  textoNoFoco.value = "";
+  erro.value = "";
+  if (props.modelValue) emit("update:modelValue", "");
+  entrada.value?.focus();
+}
 const vazio = computed(() => lido.value.tipo === "vazio");
 const rotuloDoPainel = computed(() => props.label ?? "Escolher data");
 const rotuloDoBotao = computed(() => {
@@ -163,7 +275,7 @@ function fechar(devolverFoco = true): void {
   if (!aberto.value) return;
   aberto.value = false;
   pendente.value = null;
-  if (devolverFoco) void nextTick(() => botao.value?.focus());
+  if (devolverFoco) void nextTick(() => (digitavel.value ? entrada.value : botao.value)?.focus());
 }
 
 function alternar(): void {
@@ -178,8 +290,9 @@ function focarNoDia(): void {
 // ── posição do popover (fixa, calculada a partir do campo) ──────────────────────────────────────────
 
 function posicionar(decidirLado = false): void {
-  if (!aberto.value || modo.value !== "popover" || !botao.value) return;
-  const campo = botao.value.getBoundingClientRect();
+  const ancora = digitavel.value ? caixa.value : botao.value;
+  if (!aberto.value || modo.value !== "popover" || !ancora) return;
+  const campo = ancora.getBoundingClientRect();
   const altura = painel.value?.offsetHeight || ALTURA_POPOVER;
   const largura = Math.min(painel.value?.offsetWidth || LARGURA_POPOVER, window.innerWidth - 2 * MARGEM);
   const esquerda = Math.min(Math.max(campo.left, MARGEM), window.innerWidth - largura - MARGEM);
@@ -261,7 +374,12 @@ function escolher(iso: string): void {
     void nextTick(() => painel.value?.querySelector<HTMLElement>('[data-acao="confirmar"]')?.focus());
     return;
   }
-  aplicar(formatarEscolha(iso, props.formato, hojeIso.value));
+  // Ano automático: escolher o MESMO dia que já está no campo não regrava (um "DD/MM" antigo continua como está).
+  if (props.anoAutomatico && lido.value.tipo === "data" && iso === selecionado.value) {
+    fechar();
+    return;
+  }
+  aplicar(valorParaGravar(iso));
 }
 
 function escolherHoje(): void {
@@ -281,7 +399,7 @@ function limpar(): void {
 function confirmar(): void {
   const atual = pendente.value;
   if (!atual) return;
-  aplicar(atual.tipo === "limpar" ? "" : formatarEscolha(atual.iso, props.formato, hojeIso.value));
+  aplicar(atual.tipo === "limpar" ? "" : valorParaGravar(atual.iso));
 }
 
 function cancelarConfirmacao(): void {
@@ -436,7 +554,81 @@ const classeCelulaMesAno = computed(() => [
 
 <template>
   <div class="relative">
+    <!-- Ano automático: campo digitável + limpar + calendário. A caixa leva as classes do campo (mesma altura,
+         borda e fonte do modo botão); o foco vale para a caixa inteira (focus-within). -->
+    <template v-if="digitavel">
+      <div
+        ref="caixa"
+        data-campo-digitavel
+        :class="[
+          classeCampo ?? CAMPO_PADRAO,
+          'flex items-center py-0! pr-0! focus-within:bg-white focus-within:outline-2 focus-within:outline-accent-dark',
+          erro ? 'border-danger' : '',
+          disabled ? 'cursor-not-allowed opacity-60' : '',
+        ]"
+      >
+        <input
+          :id="id"
+          ref="entrada"
+          type="text"
+          inputmode="numeric"
+          autocomplete="off"
+          enterkeyhint="done"
+          maxlength="10"
+          data-sem-maiuscula
+          :value="rascunho"
+          :placeholder="placeholder"
+          :disabled="disabled"
+          :aria-invalid="erro ? 'true' : undefined"
+          :aria-describedby="erro ? erroId : undefined"
+          class="min-h-[calc(1lh+1rem)] min-w-0 flex-1 self-stretch bg-transparent py-2 tracking-tight text-ink outline-none placeholder:text-ink-soft disabled:cursor-not-allowed"
+          @input="aoDigitar"
+          @paste="aoColar"
+          @focus="aoFocar"
+          @blur="aoSair"
+          @keydown="aoTeclarNaEntrada"
+        />
+        <!-- Limpar: só com foco e texto (no celular a coluna é estreita). mousedown.prevent mantém o foco no campo
+             (sem isso o blur esconderia o botão antes do clique). -->
+        <button
+          v-if="comFoco && rascunho && !disabled"
+          :id="`${id}-limpar`"
+          type="button"
+          tabindex="-1"
+          :aria-label="label ? `Limpar ${label}` : 'Limpar data'"
+          title="Limpar"
+          class="flex w-6.5 shrink-0 items-center justify-center self-stretch rounded-md text-ink-soft transition-colors hover:text-danger"
+          @mousedown.prevent
+          @click="limparDigitado"
+        >
+          <svg viewBox="0 0 20 20" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <path stroke-linecap="round" d="M5 5l10 10M15 5L5 15" />
+          </svg>
+        </button>
+        <button
+          :id="`${id}-abrir-calendario`"
+          type="button"
+          aria-haspopup="dialog"
+          :aria-expanded="aberto"
+          :aria-controls="aberto ? painelId : undefined"
+          :aria-label="label ? `Abrir calendário de ${label}` : 'Abrir calendário'"
+          :disabled="disabled"
+          class="flex w-7 shrink-0 items-center justify-center self-stretch rounded-r-md text-ink-soft transition-colors hover:text-accent-dark disabled:cursor-not-allowed"
+          @click="alternar"
+        >
+          <svg viewBox="0 0 20 20" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+            <rect x="3" y="4.5" width="14" height="12.5" rx="2" />
+            <path stroke-linecap="round" d="M3 8.5h14M7 2.75v3M13 2.75v3" />
+          </svg>
+        </button>
+      </div>
+      <p v-if="erro" :id="erroId" role="alert" class="mt-0.5 text-[11px] leading-tight text-danger">
+        {{ mensagemErro }}
+      </p>
+    </template>
+
     <button
+      v-else
       :id="id"
       ref="botao"
       type="button"

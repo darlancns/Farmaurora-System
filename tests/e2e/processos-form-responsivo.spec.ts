@@ -367,7 +367,10 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
           const esperados = modo === "editar" ? CAMPOS_EDITAR : CAMPOS_NOVO;
           const presentes = await page
             .locator("#processo-form [id^='pf-']")
-            .evaluateAll((els) => els.map((el) => el.id).filter((id) => !id.endsWith("-listbox")));
+            // Botão do calendário dos campos de data (ano automático) é parte do campo, não um campo à parte.
+            .evaluateAll((els) =>
+              els.map((el) => el.id).filter((id) => !id.endsWith("-listbox") && !id.endsWith("-abrir-calendario")),
+            );
           expect([...presentes].sort(), "conjunto exato de campos").toEqual([...esperados].sort());
 
           for (const id of esperados) await expectVisivelNoCorpo(page, id);
@@ -389,10 +392,17 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
             // Setas ▲/▼ do Nº Ordem: ícones dentro do campo (cada uma com metade da altura), sem texto — conferidas na
             // grade abaixo; a altura de 44px é do CONTÊINER do campo (o input ocupa a altura toda dele, sem a borda).
             if (id === "pf-numero-remessa-mais" || id === "pf-numero-remessa-menos") continue;
+            // Datas digitáveis (ano automático): a caixa de 44px é o contêiner do <input> (que leva também os botões
+            // limpar/calendário); texto antigo com anotação continua sendo o próprio botão.
             const b =
               id === "pf-numero-remessa"
                 ? await box(campo(page, id).locator("xpath=.."), "contêiner do Nº Ordem")
-                : await boxCampo(page, id);
+                : (DATAS as readonly string[]).includes(id)
+                  ? await box(
+                      campo(page, id).locator("xpath=ancestor-or-self::*[@data-campo-digitavel or local-name()='button'][1]"),
+                      `caixa de #${id}`,
+                    )
+                  : await boxCampo(page, id);
             expect(b.height, `altura de #${id}`).toBeGreaterThanOrEqual(44);
             const fonte = await campo(page, id).evaluate((el) => parseFloat(getComputedStyle(el.tagName === "BUTTON" ? el : el).fontSize));
             expect(fonte, `font-size de #${id}`).toBeGreaterThanOrEqual(16);
@@ -685,8 +695,11 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
           abaixoDe(d1, fieldset, "Datas (abaixo da Transportadora)");
           mesmaLinha(d1, d2, "Compra | Embarque");
           if (modo === "novo") {
-            // Campo de data vazio: só "Escolher" (o texto-guia não leva mais a palavra "data").
-            for (const id of DATAS) await expect(campo(page, id), id).toHaveText("Escolher");
+            // Campo de data vazio (digitável, ano automático): texto-guia "DD/MM/AAAA".
+            for (const id of DATAS) {
+              await expect(campo(page, id), id).toHaveValue("");
+              await expect(campo(page, id), id).toHaveAttribute("placeholder", "DD/MM/AAAA");
+            }
           }
           if (!tablet) {
             abaixoDe(d3, d1, "Abertura thread (2 colunas)");

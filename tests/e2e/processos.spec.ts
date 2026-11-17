@@ -259,26 +259,29 @@ test.describe.serial("Follow-Up de processos", () => {
     await expect(page.locator("#pf-medicamento-quantidade-0")).toHaveValue("6 CAIXAS");
   });
 
-  test("10 · campos de Datas usam o calendário próprio: escolhem DD/MM (ano corrente) e limpam", async ({ page }) => {
+  test("10 · campos de Datas: digita DD/MM e o ano entra sozinho; calendário próprio escolhe e limpa (DD/MM/AAAA)", async ({ page }) => {
     await page.goto("/processos", { waitUntil: "networkidle" });
     await page.locator("#btn-novo-processo").click();
 
     const hoje = hojeBrasilia(); // AAAA-MM-DD
-    const ddmm = `${hoje.slice(8, 10)}/${hoje.slice(5, 7)}`;
+    const ddmmaaaa = `${hoje.slice(8, 10)}/${hoje.slice(5, 7)}/${hoje.slice(0, 4)}`;
     const campo = page.locator("#pf-data-po");
 
-    // Não é digitável: é um botão que mostra o placeholder até escolher.
-    await expect(campo).toHaveJSProperty("tagName", "BUTTON");
-    await expect(campo).toContainText("Escolher");
+    // Digitável (ano automático): só dia e mês; ao sair do campo o ano é completado (Compra: sentido "proximo").
+    await expect(campo).toHaveJSProperty("tagName", "INPUT");
+    await expect(campo).toHaveAttribute("inputmode", "numeric");
+    await campo.fill(`${hoje.slice(8, 10)}${hoje.slice(5, 7)}`);
+    await campo.press("Tab");
+    await expect(campo).toHaveValue(ddmmaaaa);
 
-    await campo.click();
+    await page.locator("#pf-data-po-abrir-calendario").click();
+    await page.locator('#pf-data-po-calendario [data-acao="limpar"]').click();
+    await expect(campo).toHaveValue("");
+
+    await page.locator("#pf-data-po-abrir-calendario").click();
     await page.locator(`#pf-data-po-calendario [data-iso="${hoje}"]`).click();
     await expect(page.locator("#pf-data-po-calendario")).toHaveCount(0); // escolher fecha o painel
-    await expect(campo).toContainText(ddmm); // ano corrente: só DD/MM
-
-    await campo.click();
-    await page.locator('#pf-data-po-calendario [data-acao="limpar"]').click();
-    await expect(campo).toContainText("Escolher");
+    await expect(campo).toHaveValue(ddmmaaaa); // valor novo: sempre com o ano
   });
 
   test("11 · editar um processo com data em formato complexo não corrompe o valor existente", async ({ page }) => {

@@ -9,9 +9,10 @@ import { montarProcesso, type FollowUpRow } from "../../server/utils/processoMap
 import { FakeSupabase } from "./helpers/fakeSupabase";
 import { formCompleto, linhaCompleta } from "./helpers/processoEdicaoFixtures";
 
-// Item 4 — as 9 datas do processo agora vêm do calendário (AppDatePicker). Regressão: o formulário gera o
-// MESMO payload de antes, o patch diferencial leva só a data alterada e limpar uma data persiste como
-// vazio sem tocar nas outras 8 (componente → composable → PATCH real → "banco" em memória).
+// Item 4 — as 9 datas do processo vêm do AppDatePicker, agora com ANO AUTOMÁTICO (digitável + calendário).
+// Regressão: o patch diferencial leva só a data alterada, valor novo sai "DD/MM/AAAA", valor antigo "DD/MM" só muda
+// se for editado, e limpar uma data persiste como vazio sem tocar nas outras 8 (componente → composable → PATCH
+// real → "banco" em memória). A digitação em si é coberta em appDatePickerAnoAutomatico.spec.ts.
 
 vi.mock("#shared/utils/dataBrasilia", async (importOriginal) => ({
   ...(await importOriginal<typeof import("#shared/utils/dataBrasilia")>()),
@@ -61,12 +62,13 @@ function abrirFormulario(extra: Record<string, unknown> = {}) {
   return { f, el };
 }
 
-const campo = (id: string) => document.getElementById(id) as HTMLButtonElement;
+// O campo digitável é um <input>; o texto antigo com anotação continua sendo o botão de antes.
+const campo = (id: string) => document.getElementById(id) as HTMLInputElement | HTMLButtonElement;
 const dia = (iso: string) => document.querySelector<HTMLButtonElement>(`[data-iso="${iso}"]`);
 const acao = (nome: string) => document.querySelector<HTMLButtonElement>(`[data-acao="${nome}"]`);
 
 async function abrir(id: string): Promise<void> {
-  campo(id).click();
+  (document.getElementById(`${id}-abrir-calendario`) ?? campo(id)).click();
   await nextTick();
   await nextTick();
 }
@@ -92,19 +94,31 @@ afterEach(() => {
 });
 
 describe("ProcessoFormDatas com o calendário", () => {
-  it("são 9 campos, com os MESMOS ids de antes, na mesma ordem, todos botões (não digitáveis)", () => {
+  it("são 9 campos, com os MESMOS ids de antes, na mesma ordem: digitáveis (o texto antigo segue como botão)", () => {
     const { el } = abrirFormulario();
-    const botoes = Array.from(el.querySelectorAll<HTMLButtonElement>("button[aria-haspopup='dialog']"));
-    expect(botoes.map((b) => b.id)).toEqual(IDS.map((i) => i[0]));
-    expect(el.querySelectorAll("input, textarea")).toHaveLength(0);
-    for (const [id, , , valor] of IDS) expect(campo(id).textContent).toContain(valor);
-    for (const [id] of IDS) expect(el.querySelector(`label[for='${id}']`)).not.toBeNull();
+    const ids = Array.from(el.querySelectorAll<HTMLElement>("input[id^='pf-'], button[id^='pf-'][aria-haspopup]"))
+      .map((e) => e.id)
+      .filter((id) => !id.endsWith("-abrir-calendario"));
+    expect(ids).toEqual(IDS.map((i) => i[0]));
+    for (const [id, , , valor] of IDS) {
+      const c = campo(id);
+      if (id === "pf-suposta-estimativa") {
+        expect(c.tagName, id).toBe("BUTTON"); // "fim de setembro": texto antigo, mostrado como está
+        expect(c.textContent).toContain(valor);
+      } else {
+        expect(c.tagName, id).toBe("INPUT");
+        expect((c as HTMLInputElement).value, id).toBe(valor); // "DD/MM" antigo aparece como está
+        expect(c.getAttribute("inputmode"), id).toBe("numeric");
+        expect(document.getElementById(`${id}-abrir-calendario`), id).not.toBeNull();
+      }
+      expect(el.querySelector(`label[for='${id}']`), id).not.toBeNull();
+    }
   });
 
-  it("o campo mantém a caixa e a fonte dos campos de texto de antes (INPUT_DATA_CLASS)", () => {
+  it("a caixa mantém o tamanho e a fonte dos campos de texto de antes (INPUT_DATA_CLASS)", () => {
     abrirFormulario();
-    const classes = campo("pf-data-po").className;
-    for (const c of ["font-mono", "min-h-11", "text-[16px]", "lg:text-[12.5px]", "px-2.5", "py-2", "w-full"]) {
+    const classes = campo("pf-data-po").closest("[data-campo-digitavel]")!.className;
+    for (const c of ["font-mono", "min-h-11", "text-[16px]", "lg:text-[12.5px]", "px-2.5", "w-full", "border-hairline"]) {
       expect(classes, c).toContain(c);
     }
   });
@@ -141,9 +155,9 @@ describe("payload e patch diferencial", () => {
     dia("2026-09-25")!.click();
     await nextTick();
 
-    expect(f.form.previsaoEntrega).toBe("25/09");
+    expect(f.form.previsaoEntrega).toBe("25/09/2026"); // valor novo: sempre com o ano
     const r = f.validarEdicao();
-    expect(r).toEqual({ valido: true, patch: { datas: { previsaoEntrega: "25/09" }, parcial: true } });
+    expect(r).toEqual({ valido: true, patch: { datas: { previsaoEntrega: "25/09/2026" }, parcial: true } });
   });
 
   it("data de outro ano vai com o ano (DD/MM/AAAA)", async () => {
@@ -185,7 +199,7 @@ describe("de ponta a ponta com o servidor", () => {
     await nextTick();
     await salvar(f);
 
-    expect(row().data_embarque).toBe("22/09");
+    expect(row().data_embarque).toBe("22/09/2026");
     for (const [, , coluna, original] of IDS) {
       if (coluna !== "data_embarque") expect(row()[coluna], coluna).toBe(original);
     }
@@ -246,10 +260,11 @@ describe("de ponta a ponta com o servidor", () => {
     expect(document.getElementById("pf-data-embarque-calendario-confirmacao")!.textContent).toContain("«26/10 (VCP)»");
     acao("confirmar")!.click();
     await nextTick();
-    expect(f.form.dataEmbarque).toBe("30/10");
+    expect(f.form.dataEmbarque).toBe("30/10/2026");
+    expect(campo("pf-data-embarque").tagName).toBe("INPUT"); // trocado o texto antigo, o campo vira digitável
 
     await salvar(f);
-    expect(row().data_embarque).toBe("30/10");
+    expect(row().data_embarque).toBe("30/10/2026");
   });
 
   it("texto antigo cancelado: o valor e o banco continuam como estavam", async () => {

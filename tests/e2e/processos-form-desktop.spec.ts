@@ -434,9 +434,10 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
             ["pf-data-po", "pf-data-embarque", "pf-thread", "pf-chegada", "pf-radar", "pf-duimp", "pf-lpco", "pf-previsao", "pf-suposta-estimativa"].map(b),
           );
           if (modo === "novo") {
-            // Campo de data vazio: só "Escolher" (o texto-guia não leva mais a palavra "data").
+            // Campo de data vazio (digitável, ano automático): texto-guia "DD/MM/AAAA".
             for (const id of ["pf-data-po", "pf-data-embarque", "pf-thread", "pf-chegada", "pf-radar", "pf-duimp", "pf-lpco", "pf-previsao", "pf-suposta-estimativa"]) {
-              await expect(page.locator(`#${id}`), id).toHaveText("Escolher");
+              await expect(page.locator(`#${id}`), id).toHaveValue("");
+              await expect(page.locator(`#${id}`), id).toHaveAttribute("placeholder", "DD/MM/AAAA");
             }
           }
           for (const i of [1, 2, 3]) mesmaLinha(datas[0]!, datas[i]!, `data ${i}`);
@@ -472,6 +473,15 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
             "pf-numero-processo": "13.5px",
           };
           for (const [id, fonte] of Object.entries(fontes)) {
+            // Data digitável: o padding lateral e a altura mínima são da caixa; o vertical, do <input> dentro dela.
+            const digitavel = await page.locator(`#${id}`).evaluate((el) => el.tagName === "INPUT" && !!el.closest("[data-campo-digitavel]"));
+            if (digitavel) {
+              const caixaData = page.locator(`#${id}`).locator("xpath=..");
+              expect(await estilo(page.locator(`#${id}`), ["font-size", "padding-top"]), id).toEqual({ "font-size": fonte, "padding-top": "8px" });
+              const ec = await estilo(caixaData, ["min-height", "padding-left"]);
+              expect(ec, id).toEqual({ "min-height": expect.stringMatching(/^(auto|0px)$/), "padding-left": "10px" });
+              continue;
+            }
             const e = await estilo(page.locator(`#${id}`), ["font-size", "min-height", "padding-top", "padding-left"]);
             expect(e, id).toEqual({ "font-size": fonte, "min-height": expect.stringMatching(/^(auto|0px)$/), "padding-top": "8px", "padding-left": "10px" });
           }

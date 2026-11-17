@@ -7,6 +7,7 @@ import AttachmentsPanel from "./AttachmentsPanel.vue";
 import BaseModal from "../BaseModal.vue";
 import ConfirmDialog from "../ConfirmDialog.vue";
 import AppSelect from "../AppSelect.vue";
+import AppDatePicker from "../AppDatePicker.vue";
 import type { AppSelectOption } from "../../types/appSelect";
 
 const props = defineProps<{
@@ -38,7 +39,7 @@ const {
   cancelarReducaoRemessas,
   addMedicamentoItem,
   removeMedicamentoItem,
-  onDataInput,
+  onDataChange,
   onPacienteInput,
   onMedicamentoInput,
   onCurrencyInput,
@@ -128,15 +129,18 @@ function handleOverlayClose(): void {
         <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-[1fr_1.6fr_0.6fr]">
           <div>
             <label for="f-data" class="mb-1.5 block text-[10.5px] text-ink-soft">Data</label>
-            <input
+            <!-- Digitável com ano automático ("proximo": a data da prestação é um fato) + calendário; grava
+                 "DD/MM/AAAA" como antes. Mesma caixa e fonte do campo de texto anterior. -->
+            <AppDatePicker
               id="f-data"
-              data-sem-maiuscula
-              :value="form.data"
-              type="text"
-              inputmode="numeric"
-              maxlength="10"
-              class="w-full rounded-md border border-hairline bg-paper px-2.5 py-2 font-mono text-[13.5px] focus:bg-white focus:outline-2 focus:outline-accent-dark"
-              @input="onDataInput"
+              :model-value="form.data"
+              formato="dd/mm"
+              ano-automatico
+              sentido="proximo"
+              placeholder="DD/MM/AAAA"
+              label="Data"
+              classe-campo="w-full rounded-md border border-hairline bg-paper px-2.5 py-2 font-mono text-[13.5px]"
+              @update:model-value="onDataChange"
             />
           </div>
 

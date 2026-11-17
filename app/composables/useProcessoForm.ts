@@ -360,8 +360,8 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     item.brand = brand;
   }
 
-  // As datas vêm do calendário (AppDatePicker): "DD/MM", "DD/MM/AAAA" ou "" (limpar). O campo não é
-  // digitável, então não há máscara; o texto antigo que já existe só muda depois de confirmado no painel.
+  // As datas vêm do AppDatePicker com ano automático (digitadas ou do calendário): valor novo "DD/MM/AAAA" ou ""
+  // (limpar). A máscara e o ano ficam no componente; o texto antigo só muda depois de confirmado no painel.
   function onDataFieldChange(field: DataField, value: string): void {
     form[field] = value;
   }

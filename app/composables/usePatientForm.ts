@@ -3,7 +3,6 @@ import type { ConsultorNome, MedicamentoItem, NewPatientDTO, Patient } from "#sh
 import {
   formatCurrency,
   maskCurrencyDigits,
-  maskDateDdMm,
   normalizeCurrencyInput,
   parseBrCurrency,
 } from "../utils/formatters";
@@ -65,7 +64,7 @@ export interface UsePatientFormReturn {
   cancelarReducaoRemessas: () => void;
   addMedicamentoItem: () => void;
   removeMedicamentoItem: (index: number) => void;
-  onDataInput: (event: Event) => void;
+  onDataChange: (value: string) => void;
   onPacienteInput: (event: Event) => void;
   onMedicamentoInput: (index: number, event: Event) => void;
   onCurrencyInput: (field: CurrencyField, event: Event) => void;
@@ -196,9 +195,10 @@ export function usePatientForm(options: UsePatientFormOptions): UsePatientFormRe
     { immediate: true }
   );
 
-  function onDataInput(event: Event): void {
-    const target = event.target as HTMLInputElement;
-    form.data = maskDateDdMm(target.value);
+  // A data vem do AppDatePicker com ano automático (sentido "proximo"): digitada ou do calendário, sai sempre
+  // "DD/MM/AAAA" — o mesmo formato que a máscara antiga gravava — ou "" (limpar).
+  function onDataChange(value: string): void {
+    form.data = value;
   }
 
   const onPacienteInput = useTitleCaseInput((value) => {
@@ -305,7 +305,7 @@ export function usePatientForm(options: UsePatientFormOptions): UsePatientFormRe
     cancelarReducaoRemessas,
     addMedicamentoItem,
     removeMedicamentoItem,
-    onDataInput,
+    onDataChange,
     onPacienteInput,
     onMedicamentoInput,
     onCurrencyInput,

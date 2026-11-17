@@ -213,9 +213,9 @@ test.describe.serial("Prestação de Contas", () => {
     await page.goto("/prestacao", { waitUntil: "networkidle" });
     await abrirFormNovo(page);
 
+    // Data digitável com ano automático (sentido "proximo"): "1009" vira 10/09 e, ao sair do campo, ganha o ano.
     await page.locator("#f-data").fill("1009");
-    // maskDateDdMm (Patient) completa o ano corrente quando chega a 4 dígitos —
-    // diferente da máscara de Processo, que fica só "DD/MM" (ver Round 1b).
+    await page.locator("#f-data").press("Tab");
     await expect(page.locator("#f-data")).toHaveValue(/^10\/09\/\d{4}$/);
 
     await page.locator("#f-paciente").fill(P1);

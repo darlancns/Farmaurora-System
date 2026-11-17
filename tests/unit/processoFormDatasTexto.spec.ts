@@ -4,8 +4,9 @@ import { createApp, defineComponent, h, nextTick } from "vue";
 import AppDatePicker from "../../app/components/AppDatePicker.vue";
 import ProcessoFormDatas from "../../app/components/processos/ProcessoFormDatas.vue";
 
-// Item 11 — o texto do campo de data VAZIO, no fieldset "Datas" do formulário de processo, é só "Escolher". O padrão
-// do AppDatePicker ("Escolher data") continua valendo nos outros usos (data do pagamento, etc.): o texto vai por prop.
+// Item 11 — o texto-guia do campo de data VAZIO no fieldset "Datas" do formulário de processo vai por prop. Com o ano
+// automático (campo digitável) ele é "DD/MM/AAAA", o formato que se digita. O padrão do AppDatePicker ("Escolher
+// data") continua valendo nos outros usos (data do pagamento, etc.).
 
 const IDS_DATAS = [
   "pf-data-po",
@@ -54,32 +55,38 @@ const valores = (extra: Record<string, string> = {}) => ({
 });
 
 describe("Formulário de processo — fieldset Datas", () => {
-  it("os 9 campos vazios mostram apenas 'Escolher' (sem a palavra 'data')", async () => {
+  it("os 9 campos vazios são digitáveis e mostram só o texto-guia 'DD/MM/AAAA'", async () => {
     const el = montar(defineComponent({ render: () => h(ProcessoFormDatas, { values: valores() }) }));
     await nextTick();
     for (const id of IDS_DATAS) {
-      const botao = el.querySelector(`#${id}`)!;
-      expect(botao, id).toBeTruthy();
-      expect(texto(botao), id).toBe("Escolher");
+      const campo = el.querySelector<HTMLInputElement>(`input#${id}`)!;
+      expect(campo, id).toBeTruthy();
+      expect(campo.value, id).toBe("");
+      expect(campo.placeholder, id).toBe("DD/MM/AAAA");
     }
     // A legenda do fieldset continua "Datas" (e só ela).
     expect(texto(el.querySelector("legend"))).toBe("Datas");
   });
 
-  it("campo preenchido mostra o valor (DD/MM), não o texto-guia", async () => {
+  it("campo preenchido mostra o valor como está gravado (DD/MM/AAAA ou o DD/MM antigo)", async () => {
     const el = montar(
-      defineComponent({ render: () => h(ProcessoFormDatas, { values: valores({ dataCompraPO: "05/09/2026" }) }) }),
+      defineComponent({
+        render: () => h(ProcessoFormDatas, { values: valores({ dataCompraPO: "05/09/2026", dataEmbarque: "06/09" }) }),
+      }),
     );
     await nextTick();
-    expect(texto(el.querySelector("#pf-data-po"))).toContain("05/09");
-    expect(texto(el.querySelector("#pf-data-po"))).not.toContain("Escolher");
-    expect(texto(el.querySelector("#pf-data-embarque"))).toBe("Escolher");
+    expect(el.querySelector<HTMLInputElement>("#pf-data-po")!.value).toBe("05/09/2026");
+    expect(el.querySelector<HTMLInputElement>("#pf-data-embarque")!.value).toBe("06/09");
+    expect(el.querySelector<HTMLInputElement>("#pf-thread")!.value).toBe("");
   });
 
-  it("o aria-label do botão (rótulo + situação) não mudou: 'Compra (PO): nenhuma data escolhida'", async () => {
+  it("acessível: o rótulo é o <label for> do campo e o botão do calendário diz de qual data é", async () => {
     const el = montar(defineComponent({ render: () => h(ProcessoFormDatas, { values: valores() }) }));
     await nextTick();
-    expect(el.querySelector("#pf-data-po")!.getAttribute("aria-label")).toBe("Compra (PO): nenhuma data escolhida");
+    expect(texto(el.querySelector("label[for='pf-data-po']"))).toBe("Compra (PO)");
+    expect(el.querySelector("#pf-data-po-abrir-calendario")!.getAttribute("aria-label")).toBe(
+      "Abrir calendário de Compra (PO)",
+    );
   });
 });
 
