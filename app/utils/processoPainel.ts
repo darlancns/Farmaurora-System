@@ -10,8 +10,6 @@ import { formatCurrency } from "./formatters";
 /** Blocos do painel, NA ORDEM da tela (ids `painel-bloco-<id>`). */
 export const BLOCOS_PAINEL = [
   "cabecalho",
-  "pasta",
-  "medicamentos",
   "fornecedor",
   "envio",
   "transportadora",

@@ -27,6 +27,10 @@ const props = defineProps<{
   // - itensToque: itens com 44px de altura e fonte de 14px abaixo de lg (alvo de toque confortável). Padrão false =
   //   os itens de sempre (py-1.5, 12.5px), como na tela de Contas. Ligado pelo "Mover para…" do painel do Kanban.
   itensToque?: boolean;
+  // - title: dica (tooltip) do botão, para o botão só de ícone (ex.: "Mover para…" no painel do Kanban). Sem ela, nada muda.
+  // - busy: marca o botão com aria-busy (ex.: "Movendo…"); normalmente vem junto com `disabled`. Sem ela, nada muda.
+  title?: string;
+  busy?: boolean;
 }>();
 
 const CLASSE_TRIGGER_PADRAO =
@@ -142,6 +146,8 @@ onBeforeUnmount(() => {
       ref="triggerRef"
       type="button"
       :aria-label="ariaLabel ?? 'Mais ações'"
+      :title="title"
+      :aria-busy="busy ? 'true' : undefined"
       aria-haspopup="true"
       :aria-expanded="open"
       :aria-controls="open ? resolvedMenuId : undefined"

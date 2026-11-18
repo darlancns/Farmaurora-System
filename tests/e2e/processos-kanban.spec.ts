@@ -244,7 +244,7 @@ test.describe("/processos — Kanban", () => {
       await expect(painel).toBeVisible();
       const blocos = await painel.locator("[id^='painel-bloco-']").evaluateAll((els) => els.map((e) => e.id.replace("painel-bloco-", "")));
       expect(blocos).toEqual([
-        "cabecalho", "pasta", "medicamentos", "fornecedor", "envio", "transportadora",
+        "cabecalho", "fornecedor", "envio", "transportadora",
         "numero-processo", "datas", "pendencias", "atualizacoes", "rodape",
       ]);
       await expect(page.locator("#painel-status")).toHaveText("Em trânsito");
@@ -381,13 +381,21 @@ test.describe("/processos — Kanban", () => {
       const painel = page.locator("[data-testid='processo-painel']");
       const caixa = await painel.boundingBox();
       expect(caixa!.width).toBeCloseTo(390, 0);
+      const fecharAntes = await page.locator("#btn-painel-fechar").boundingBox();
       await painel.evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
+      // Os 3 ícones do topo (Mover, Editar, Fechar) ficam num contêiner sticky: continuam no mesmo lugar, visíveis, ao rolar até o fim.
       const fechar = await page.locator("#btn-painel-fechar").boundingBox();
       expect(fechar!.y).toBeGreaterThanOrEqual(0);
+      expect(fechar!.y + fechar!.height).toBeLessThanOrEqual(page.viewportSize()!.height);
       expect(fechar!.height).toBeGreaterThanOrEqual(44);
-      // Em toque, mover é pelo menu do painel.
+      expect(fechar!.width).toBeGreaterThanOrEqual(44);
+      expect(Math.abs(fechar!.y - fecharAntes!.y), "Fechar não sai do lugar ao rolar").toBeLessThanOrEqual(1);
+      expect(fechar!.x + fechar!.width).toBeLessThanOrEqual(390);
+      // Em toque, mover é pelo menu do painel (botão só de ícone, com alvo de 44x44).
       const menuPainel = await page.locator(`#btn-mover-painel-${ids!.origem}`).boundingBox();
       expect(menuPainel!.height).toBeGreaterThanOrEqual(44);
+      expect(menuPainel!.width).toBeGreaterThanOrEqual(44);
+      expect(menuPainel!.y).toBeGreaterThanOrEqual(0);
       await page.locator("#btn-painel-fechar").click();
       await expect(painel).toHaveCount(0);
     });

@@ -5,6 +5,8 @@ import { useEscapeToClose } from "../../composables/useEscapeToClose";
 import { metaDoStatus } from "../../utils/processoStatus";
 import ProcessoMoverMenu from "./ProcessoMoverMenu.vue";
 import { useLockBodyScroll } from "../../composables/useLockBodyScroll";
+import { ICONES_PROCESSO, type ChaveIconePainel } from "../../utils/processoIcones";
+import { etiquetaPagamentoDe } from "../../utils/processoPagamento";
 import {
   camposDatasPreenchidos,
   focaveis,
@@ -13,12 +15,13 @@ import {
   itensMedicamentos,
   mostraDespachanteTransportadora,
 } from "../../utils/processoPainel";
+import { haLinhaDeCima } from "../../utils/processoPainelSecoes";
 import { remessaVisivelNaLinha, type ContagemPorPasta } from "../../utils/remessaNaLinha";
 import { rotuloPastaPo } from "#shared/utils/rotuloPasta";
 import ConfirmDialog from "../ConfirmDialog.vue";
 import ProcessoAtualizacoes from "./ProcessoAtualizacoes.vue";
 
-// Painel lateral do Kanban (só para quem pode editar processos; quem decide é a página). Desktop: à direita, 480px,
+// Painel lateral do Kanban (só para quem pode editar processos; quem decide é a página). Desktop: à direita, 600px,
 // sobre um overlay bg-ink/40 que cobre o quadro; abaixo de lg, tela cheia. z-index 880: ABAIXO do BaseModal (900),
 // para o formulário de edição e os ConfirmDialog ficarem por cima, e acima do BottomNav (40), do botão flutuante
 // (30) e do menu da conta (60). O toast (999) segue por cima de tudo.
@@ -49,15 +52,16 @@ const painelRef = ref<HTMLElement | null>(null);
 const showDeleteConfirm = ref(false);
 
 const mostrarOrdem = computed(() => remessaVisivelNaLinha(props.processo, props.contagemPasta));
-// "Pasta X · PO", só um dos dois, ou "" (sem pasta e sem PO o parágrafo não aparece).
+// "Pasta X · PO", só um dos dois, ou "" (sem pasta e sem PO o texto não aparece).
 const pastaPo = computed(() => rotuloPastaPo(props.processo.pasta, props.processo.numeroPo, "Pasta "));
-const linhaOrdemResponsavel = computed(() =>
-  [
-    mostrarOrdem.value ? `Ordem ${props.processo.numeroRemessa}` : "",
-    props.processo.responsavelOperacional ? `Responsável ${props.processo.responsavelOperacional}` : "",
-  ]
-    .filter(Boolean)
-    .join(" · "),
+// "Ordem N": a mesma regra da Lista (só quando N > 1 ou a pasta se repete), depois do PO.
+const ordem = computed(() => (mostrarOrdem.value ? `Ordem ${props.processo.numeroRemessa}` : ""));
+// Pago/Pendente (pagamento ao fornecedor): só com valor.
+const pagamento = computed(() => etiquetaPagamentoDe(props.processo.statusPagamento));
+// A linha de cima do cabeçalho só existe com pasta, PO, "Ordem N" ou etiqueta de pagamento; sem nada, os ícones ficam na
+// linha do nome (sem espaço vazio acima dele).
+const linhaDeCima = computed(() =>
+  haLinhaDeCima({ pastaPo: pastaPo.value, ordem: ordem.value, pagamento: pagamento.value?.texto ?? null }),
 );
 // Cada item: a linha "Qtd. — nome" e, abaixo, "Laboratório · Brand" só quando houver um dos dois.
 const medicamentos = computed(() => itensMedicamentos(props.processo.medicamentos));
@@ -123,8 +127,20 @@ function confirmDelete(): void {
 }
 
 const ROTULO = "text-[11px] text-ink-soft";
+// Botões só de ícone do topo: 44x44 abaixo de lg (alvo de toque) e 36x36 em lg+, borda hairline, raio 8.
+const BOTAO_ICONE =
+  "pointer-events-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-hairline bg-paper-raised text-ink-soft transition-colors lg:h-9 lg:w-9";
+// Espaço que os 3 ícones ocupam à direita (3×44 + 2×8 abaixo de lg; 3×36 + 2×8 em lg+) mais respiro: o texto da mesma
+// linha não passa por baixo deles.
+const RESERVA_ICONES = "pr-[156px] lg:pr-[132px]";
+
+function caminhos(chave: ChaveIconePainel): string[] {
+  return ICONES_PROCESSO[chave];
+}
 const VALOR = "text-[13px] text-ink break-words";
 const BLOCO = "border-b border-hairline px-5 py-4";
+// Cabeçalho: 24px laterais (16px abaixo de sm), 18px em cima e 20px embaixo; divisória fina (#e0e7e5) embaixo.
+const BLOCO_CABECALHO = "border-b border-[#e0e7e5] px-4 pt-[18px] pb-5 sm:px-6";
 </script>
 
 <template>
@@ -140,102 +156,104 @@ const BLOCO = "border-b border-hairline px-5 py-4";
       role="dialog"
       aria-modal="true"
       aria-labelledby="painel-titulo"
-      class="flex h-dvh w-full max-w-[100vw] flex-col overflow-y-auto overscroll-contain bg-paper-raised lg:w-[480px] lg:border-l lg:border-hairline"
+      class="flex h-dvh w-full max-w-[100vw] flex-col overflow-y-auto overscroll-contain bg-paper-raised lg:w-[600px] lg:rounded-l-xl lg:border-l lg:border-hairline"
       @keydown="onKeydown"
     >
-      <!-- 1. Cabeçalho: ícone, nome, editar e fechar; embaixo, a etiqueta do status atual e o "Mover para…". -->
-      <!-- sticky: o botão de fechar (e o editar/mover) fica sempre visível ao rolar, também em tela cheia no celular. -->
-      <header id="painel-bloco-cabecalho" :class="BLOCO" class="sticky top-0 z-10 flex flex-col gap-2.5 bg-paper-raised">
-      <div class="flex items-center gap-3">
-        <span
-          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-farm-blue-soft text-accent-dark"
-          aria-hidden="true"
+      <!-- Ações do topo: [Mover para…][Editar processo][Fechar], só ícones. Ficam num contêiner STICKY de altura zero (filho
+           direto do painel, então ele acompanha a rolagem inteira): os 3 botões continuam visíveis ao rolar, sem fixar o
+           cabeçalho (com 8–10 medicamentos ele ocuparia a tela). Visualmente ficam sobre a primeira linha do cabeçalho, no
+           canto direito (que reserva o espaço: RESERVA_ICONES). Vêm primeiro no DOM: o Tab começa por eles. -->
+      <div id="painel-acoes" class="pointer-events-none sticky top-0 z-20 h-0 shrink-0">
+        <div class="flex items-start justify-end gap-2 px-4 pt-[18px] sm:px-6">
+          <ProcessoMoverMenu :processo="processo" :movendo="movendo" @mover="(para) => emit('mover', processo, para)" />
+          <button
+            id="btn-painel-editar"
+            type="button"
+            title="Editar processo"
+            aria-label="Editar processo"
+            :class="BOTAO_ICONE"
+            class="hover:border-accent-dark hover:text-accent-dark"
+            @click="emit('edit', processo)"
+          >
+            <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path v-for="(d, i) in caminhos('editar')" :key="i" :d="d" />
+            </svg>
+          </button>
+          <button
+            id="btn-painel-fechar"
+            type="button"
+            title="Fechar"
+            aria-label="Fechar painel"
+            :class="BOTAO_ICONE"
+            class="hover:border-danger hover:text-danger"
+            @click="emit('close')"
+          >
+            <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path v-for="(d, i) in caminhos('fechar')" :key="i" :d="d" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <!-- Movendo… para leitor de tela (o botão Mover fica desabilitado, com aria-busy e spinner). -->
+      <span v-if="movendo" id="painel-movendo" class="sr-only" role="status">Movendo…</span>
+
+      <!-- 1. Cabeçalho. Linha de cima (só se houver pasta, PO, Ordem N ou etiqueta de pagamento): "Pasta X · PO" em fonte de
+           código cinza, "Ordem N" e Pago/Pendente. Depois o NOME (o destaque: 22px/600). Sem a linha de cima, o nome sobe e
+           ocupa a linha dos ícones. Embaixo, os medicamentos e, NA MESMA LINHA do último, a etiqueta de status à direita
+           (irmã do bloco de medicamentos, rente ao fundo do cabeçalho). -->
+      <header id="painel-bloco-cabecalho" :class="BLOCO_CABECALHO">
+        <div
+          v-if="linhaDeCima"
+          id="painel-linha-cima"
+          class="flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 lg:min-h-9"
+          :class="RESERVA_ICONES"
         >
-          <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.6">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"
-            />
-          </svg>
-        </span>
-        <h2 id="painel-titulo" class="min-w-0 flex-1 font-display text-[16px] font-semibold break-words text-ink">
+          <span v-if="pastaPo" id="painel-pasta-po" class="font-mono text-[12px] break-all text-ink-soft">{{ pastaPo }}</span>
+          <template v-if="ordem">
+            <span v-if="pastaPo" class="font-mono text-[12px] text-ink-soft" aria-hidden="true">·</span>
+            <span id="painel-ordem" class="font-mono text-[12px] text-ink-soft">{{ ordem }}</span>
+          </template>
+          <span
+            v-if="pagamento"
+            id="painel-pagamento"
+            class="shrink-0 rounded-full px-[9px] py-px text-[11.5px] leading-snug font-semibold"
+            :class="pagamento.classe"
+            >{{ pagamento.texto }}</span
+          >
+        </div>
+        <h2
+          id="painel-titulo"
+          class="min-w-0 font-display text-[22px] leading-[1.2] font-semibold break-words text-ink"
+          :class="linhaDeCima ? 'mt-2' : ['flex min-h-11 items-center lg:min-h-9', RESERVA_ICONES]"
+        >
           {{ processo.paciente }}
         </h2>
-        <button
-          id="btn-painel-editar"
-          type="button"
-          title="Editar processo"
-          aria-label="Editar processo"
-          class="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-ink-soft transition-colors hover:text-accent-dark lg:h-8 lg:w-8"
-          @click="emit('edit', processo)"
-        >
-          <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"
-            />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 7.125L16.862 4.487" />
-          </svg>
-        </button>
-        <button
-          id="btn-painel-fechar"
-          type="button"
-          title="Fechar"
-          aria-label="Fechar painel"
-          class="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-ink-soft transition-colors hover:text-danger lg:h-8 lg:w-8"
-          @click="emit('close')"
-        >
-          ✕
-        </button>
-      </div>
-      <div class="flex flex-wrap items-center gap-2 pl-[52px]">
-        <span
-          id="painel-status"
-          class="rounded-full px-2.5 py-1 text-[11px] font-semibold"
-          :class="statusMeta.badgeClass"
-          >{{ statusMeta.label }}</span
-        >
-        <span v-if="movendo" id="painel-movendo" class="text-[12px] font-semibold text-accent-dark">Movendo…</span>
-        <ProcessoMoverMenu
-          v-else
-          :processo="processo"
-          @mover="(para) => emit('mover', processo, para)"
-        />
-      </div>
+
+        <div class="mt-3 flex items-end justify-between gap-4">
+          <div id="painel-medicamentos" class="min-w-0 flex-1">
+            <ul v-if="medicamentos.length" class="flex flex-col gap-2">
+              <li v-for="(item, i) in medicamentos" :key="i" class="min-w-0">
+                <span class="block text-[12.5px] leading-snug font-medium tracking-[0.02em] break-words text-ink uppercase">
+                  <strong v-if="item.quantidade" class="font-bold">{{ item.quantidade }}</strong
+                  ><template v-if="item.quantidade"> — </template>{{ item.nome }}
+                </span>
+                <span
+                  v-if="item.extra"
+                  :id="`painel-medicamento-extra-${i}`"
+                  class="block text-[12px] leading-snug break-words text-ink-soft"
+                  >{{ item.extra }}</span
+                >
+              </li>
+            </ul>
+          </div>
+          <span
+            id="painel-status"
+            class="-mb-[3px] flex-none rounded-full px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap"
+            :class="statusMeta.badgeClass"
+            >{{ statusMeta.label }}</span
+          >
+        </div>
       </header>
-
-      <!-- 2. Pasta · PO; Ordem N (só quando N > 1 ou pasta repetida, como na Lista) · Responsável. Cada linha só
-           aparece com conteúdo; sem nenhuma das duas, o bloco inteiro some (nada de faixa vazia). -->
-      <section v-if="pastaPo || linhaOrdemResponsavel" id="painel-bloco-pasta" :class="BLOCO">
-        <p v-if="pastaPo" id="painel-pasta-po" class="font-mono text-[13px] break-all text-ink">{{ pastaPo }}</p>
-        <p
-          v-if="linhaOrdemResponsavel"
-          id="painel-ordem-responsavel"
-          class="text-[12px] text-ink-soft"
-          :class="{ 'mt-1': pastaPo }"
-        >
-          {{ linhaOrdemResponsavel }}
-        </p>
-      </section>
-
-      <!-- 3. Medicamento(s) -->
-      <section id="painel-bloco-medicamentos" :class="BLOCO">
-        <p :class="ROTULO">{{ medicamentos.length > 1 ? "Medicamentos" : "Medicamento" }}</p>
-        <ul v-if="medicamentos.length" class="mt-1 flex flex-col gap-0.5">
-          <li v-for="(item, i) in medicamentos" :key="i" :class="VALOR">
-            {{ item.linha }}
-            <span
-              v-if="item.extra"
-              :id="`painel-medicamento-extra-${i}`"
-              class="block text-[12px] text-ink-soft"
-              >{{ item.extra }}</span
-            >
-          </li>
-        </ul>
-        <p v-else class="mt-1" :class="VALOR">—</p>
-      </section>
 
       <!-- 4. Fornecedor · Envio -->
       <section id="painel-bloco-fornecedor" :class="BLOCO" class="grid grid-cols-2 gap-x-4 gap-y-3">

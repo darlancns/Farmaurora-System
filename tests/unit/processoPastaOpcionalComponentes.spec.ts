@@ -127,22 +127,31 @@ describe("ProcessoPainel", () => {
     expect(texto(document.querySelector("#painel-pasta-po"))).toBe("PO26-10-0471");
   });
 
-  it("sem pasta e sem PO, com Responsável: só a linha do Responsável", () => {
+  it("sem pasta e sem PO: o texto Pasta/PO não existe (o Responsável não vem mais nessa linha)", () => {
     painel(proc("p1", { pasta: "", responsavelOperacional: "Bruno" }));
     expect(document.querySelector("#painel-pasta-po")).toBeNull();
-    expect(texto(document.querySelector("#painel-ordem-responsavel"))).toBe("Responsável Bruno");
-    expect(document.querySelector("#painel-ordem-responsavel")!.className).not.toContain("mt-1");
+    expect(document.querySelector("#painel-ordem-responsavel")).toBeNull();
   });
 
-  it("sem pasta, sem PO e sem Responsável: o bloco some", () => {
-    painel(proc("p1", { pasta: "" }));
-    expect(document.querySelector("#painel-bloco-pasta")).toBeNull();
+  it("sem pasta, sem PO, sem Ordem N e sem pagamento: a linha de cima NÃO existe (o nome sobe para a linha dos ícones)", () => {
+    painel(proc("p1", { pasta: "", statusPagamento: undefined }));
+    expect(document.querySelector("#painel-linha-cima")).toBeNull();
+    const titulo = document.querySelector("#painel-titulo")!;
+    expect(titulo.className).toContain("min-h-11"); // ocupa a altura dos ícones, sem espaço vazio acima
+    expect(titulo.className).not.toContain("mt-2");
+  });
+
+  it("só com a etiqueta de pagamento: a linha de cima existe", () => {
+    painel(proc("p1", { pasta: "", statusPagamento: "pago" }));
+    expect(document.querySelector("#painel-linha-cima")).not.toBeNull();
+    expect(document.querySelector("#painel-pasta-po")).toBeNull();
+    expect(texto(document.querySelector("#painel-pagamento"))).toBe("Pago");
   });
 
   it("dois sem pasta: sem 'Ordem N'", () => {
     const a = proc("p1", { pasta: "", responsavelOperacional: "Bruno" });
     painel(a, [a, proc("p2", { pasta: "" })]);
-    expect(texto(document.querySelector("#painel-ordem-responsavel"))).toBe("Responsável Bruno");
+    expect(document.querySelector("#painel-ordem")).toBeNull();
   });
 });
 

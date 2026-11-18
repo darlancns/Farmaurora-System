@@ -90,8 +90,6 @@ describe("ordem e conteúdo dos blocos", () => {
     expect(ids).toEqual([...BLOCOS_PAINEL]);
     expect(BLOCOS_PAINEL).toEqual([
       "cabecalho",
-      "pasta",
-      "medicamentos",
       "fornecedor",
       "envio",
       "transportadora",
@@ -103,12 +101,26 @@ describe("ordem e conteúdo dos blocos", () => {
     ]);
   });
 
-  it("cabeçalho: nome (font-display 16px), editar e fechar; dialog rotulado pelo nome", () => {
+  it("cabeçalho: nome em destaque (font-display 22px/600), ícones Mover/Editar/Fechar nessa ordem; dialog rotulado pelo nome", () => {
     painel(proc());
     const titulo = document.querySelector("#painel-titulo")!;
     expect(texto(titulo)).toBe("Maria Aparecida");
     expect(titulo.className).toContain("font-display");
-    expect(titulo.className).toContain("text-[16px]");
+    expect(titulo.className).toContain("text-[22px]");
+    expect(titulo.className).toContain("font-semibold");
+    expect(titulo.className).toContain("break-words");
+    expect(titulo.className).toContain("min-w-0");
+    const acoes = [...document.querySelectorAll("#painel-acoes button")].map((b) => b.id);
+    expect(acoes).toEqual(["btn-mover-painel-p1", "btn-painel-editar", "btn-painel-fechar"]);
+    for (const id of acoes) {
+      const b = document.getElementById(id)!;
+      expect(b.getAttribute("aria-label"), id).toBeTruthy();
+      expect(b.getAttribute("title"), id).toBeTruthy();
+      expect(b.className, id).toContain("h-11"); // 44px abaixo de lg
+      expect(b.className, id).toContain("lg:h-9"); // 36px em lg+
+      expect(b.querySelector("svg[aria-hidden='true']"), id).not.toBeNull();
+    }
+    expect(document.querySelector("#btn-painel-fechar")!.getAttribute("aria-label")).toBe("Fechar painel");
     const dialog = document.querySelector("[data-testid='processo-painel']")!;
     expect(dialog.getAttribute("role")).toBe("dialog");
     expect(dialog.getAttribute("aria-labelledby")).toBe("painel-titulo");
@@ -137,26 +149,102 @@ describe("ordem e conteúdo dos blocos", () => {
   });
 });
 
-describe("Ordem N (como na Lista)", () => {
-  it("N = 1 e pasta única: sem 'Ordem'; só o Responsável", () => {
+describe("Ordem N (como na Lista) na linha de cima do cabeçalho", () => {
+  it("N = 1 e pasta única: sem 'Ordem'", () => {
     painel(proc());
-    expect(texto(document.querySelector("#painel-ordem-responsavel"))).toBe("Responsável Rebeca");
+    expect(document.querySelector("#painel-ordem")).toBeNull();
   });
 
-  it("N > 1: 'Ordem N · Responsável'", () => {
+  it("N > 1: 'Ordem N' depois do PO, no mesmo estilo (fonte de código cinza)", () => {
     painel(proc({ numeroRemessa: 2 }));
-    expect(texto(document.querySelector("#painel-ordem-responsavel"))).toBe("Ordem 2 · Responsável Rebeca");
+    expect(texto(document.querySelector("#painel-ordem"))).toBe("Ordem 2");
+    const linha = document.querySelector("#painel-linha-cima")!;
+    expect([...linha.children].map((c) => texto(c))).toEqual(["Pasta 2026 - 366 · PO-26-0471", "·", "Ordem 2"]); // "·" é só separador visual (aria-hidden)
+    expect(linha.children[1]!.getAttribute("aria-hidden")).toBe("true");
+    const pasta = document.querySelector("#painel-pasta-po")!;
+    const ordem = document.querySelector("#painel-ordem")!;
+    expect(pasta.compareDocumentPosition(ordem) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(ordem.className).toContain("font-mono");
   });
 
   it("pasta repetida (mesmo com N = 1): mostra 'Ordem 1'", () => {
     const p = proc();
     painel(p, {}, [p, proc({ id: "p2", numeroRemessa: 2 })]);
-    expect(texto(document.querySelector("#painel-ordem-responsavel"))).toBe("Ordem 1 · Responsável Rebeca");
+    expect(texto(document.querySelector("#painel-ordem"))).toBe("Ordem 1");
   });
 
-  it("sem Ordem visível e sem Responsável: a linha some", () => {
-    painel(proc({ responsavelOperacional: undefined }));
+  it("o Responsável não aparece mais junto da Ordem (#painel-ordem-responsavel não existe)", () => {
+    painel(proc({ numeroRemessa: 2 }));
     expect(document.querySelector("#painel-ordem-responsavel")).toBeNull();
+  });
+});
+
+describe("cabeçalho: linha de cima, pagamento, medicamentos e status", () => {
+  it("Pago/Pendente aparece na linha de cima com as classes do card; sem valor, nenhuma etiqueta", () => {
+    painel(proc({ statusPagamento: "pago" }));
+    expect(texto(document.querySelector("#painel-pagamento"))).toBe("Pago");
+    expect(document.querySelector("#painel-pagamento")!.className).toContain("bg-green-100 text-green-800");
+    document.body.innerHTML = "";
+    painel(proc({ statusPagamento: "pendente" }));
+    expect(document.querySelector("#painel-pagamento")!.className).toContain("bg-amber-100 text-amber-800");
+    document.body.innerHTML = "";
+    painel(proc({ statusPagamento: undefined }));
+    expect(document.querySelector("#painel-pagamento")).toBeNull();
+  });
+
+  it("com pasta/PO a linha de cima existe e o nome vem depois dela", () => {
+    painel(proc());
+    const linha = document.querySelector("#painel-linha-cima")!;
+    const titulo = document.querySelector("#painel-titulo")!;
+    expect(linha.compareDocumentPosition(titulo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(texto(document.querySelector("#painel-pasta-po"))).toBe("Pasta 2026 - 366 · PO-26-0471");
+    expect(document.querySelector("#painel-pasta-po")!.className).toContain("font-mono");
+  });
+
+  it("medicamentos: quantidade em negrito, ' — ', nome em maiúsculas (CSS); laboratório/brand numa linha cinza embaixo", () => {
+    painel(
+      proc({
+        medicamentos: [
+          { nome: "Opdivo", dosagem: "40mg", quantidade: "6 caixas", laboratorio: "BMS", brand: "referencia" },
+          { nome: "Keytruda" },
+        ],
+      }),
+    );
+    const itens = [...document.querySelectorAll("#painel-medicamentos li")];
+    expect(itens.map((li) => texto(li.firstElementChild))).toEqual(["6 caixas — Opdivo 40mg", "Keytruda"]);
+    expect(itens[0]!.querySelector("strong")!.textContent).toBe("6 caixas");
+    expect(itens[0]!.firstElementChild!.className).toContain("uppercase");
+    expect(itens[0]!.firstElementChild!.className).toContain("text-[12.5px]");
+    expect(texto(document.querySelector("#painel-medicamento-extra-0"))).toBe("BMS · Referência");
+    expect(document.querySelector("#painel-medicamento-extra-0")!.className).not.toContain("uppercase");
+    expect(document.querySelector("#painel-medicamento-extra-1")).toBeNull();
+    expect(itens[1]!.querySelector("strong")).toBeNull();
+  });
+
+  it("status: elemento IRMÃO do bloco de medicamentos (não dentro dele), no mesmo contêiner flex alinhado pelo fundo", () => {
+    painel(proc());
+    const status = document.querySelector("#painel-status")!;
+    const meds = document.querySelector("#painel-medicamentos")!;
+    expect(meds.contains(status)).toBe(false);
+    expect(status.parentElement).toBe(meds.parentElement);
+    const linha = status.parentElement!;
+    for (const c of ["flex", "items-end", "justify-between", "gap-4"]) expect(linha.className, c).toContain(c);
+    expect(meds.className).toContain("flex-1");
+    expect(meds.className).toContain("min-w-0");
+    expect(status.className).toContain("flex-none");
+    expect(status.className).toContain("whitespace-nowrap");
+    expect(status.className).toContain("-mb-[3px]");
+    expect(texto(status)).toBe("Em trânsito");
+    // Não existe mais uma linha própria para o status nem o texto "Mover para…" ao lado dele.
+    expect(texto(document.querySelector("#painel-bloco-cabecalho"))).not.toContain("Mover para");
+  });
+
+  it("os 3 ícones ficam num contêiner sticky de altura zero (Fechar alcançável ao rolar), filho direto do painel", () => {
+    painel(proc());
+    const acoes = document.querySelector("#painel-acoes")!;
+    expect(acoes.parentElement).toBe(document.querySelector("[data-testid='processo-painel']"));
+    for (const c of ["sticky", "top-0", "h-0", "z-20"]) expect(acoes.className, c).toContain(c);
+    expect(acoes.compareDocumentPosition(document.querySelector("#painel-bloco-cabecalho")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 
@@ -353,13 +441,13 @@ describe("foco e Esc", () => {
 });
 
 describe("camadas", () => {
-  it("overlay z-[880] (abaixo do BaseModal z-900) com fundo bg-ink/40; painel de 480px em lg+ e tela cheia abaixo", () => {
+  it("overlay z-[880] (abaixo do BaseModal z-900) com fundo bg-ink/40; painel de 600px em lg+ e tela cheia abaixo", () => {
     painel(proc());
     const overlay = document.querySelector("#processo-painel-overlay")!;
     expect(overlay.className).toContain("z-[880]");
     expect(overlay.className).toContain("bg-ink/40");
     const aside = document.querySelector("[data-testid='processo-painel']")!;
-    for (const c of ["h-dvh", "w-full", "lg:w-[480px]", "max-w-[100vw]", "bg-paper-raised", "lg:border-l"]) {
+    for (const c of ["h-dvh", "w-full", "lg:w-[600px]", "max-w-[100vw]", "bg-paper-raised", "lg:border-l"]) {
       expect(aside.className).toContain(c);
     }
     expect(aside.className).not.toMatch(/\bshadow-(lg|xl|2xl)\b/);

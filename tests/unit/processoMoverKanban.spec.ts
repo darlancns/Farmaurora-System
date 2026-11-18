@@ -243,7 +243,7 @@ describe("menu 'Mover para…'", () => {
     expect(mover).toHaveBeenCalledWith("liberado");
   });
 
-  it("no painel: etiqueta do status atual + menu com texto, cuja lista abre ACIMA do painel (z-890 > 880)", async () => {
+  it("no painel: etiqueta do status atual + botão SÓ DE ÍCONE (title e aria-label), cuja lista abre ACIMA do painel (z-890 > 880)", async () => {
     const mover = vi.fn();
     montar(
       defineComponent({
@@ -253,7 +253,13 @@ describe("menu 'Mover para…'", () => {
     expect(texto(document.querySelector("#painel-status"))).toBe("Liberado");
     expect(document.querySelector("#painel-status")!.className).toContain("bg-green-100");
     const trigger = document.querySelector<HTMLButtonElement>("#btn-mover-painel-a")!;
-    expect(texto(trigger)).toBe("Mover para…");
+    // Só o ícone: nenhum texto visível; a dica é "Mover para…" e o nome acessível continua com o paciente.
+    expect(texto(trigger)).toBe("");
+    expect(trigger.getAttribute("title")).toBe("Mover para…");
+    expect(trigger.getAttribute("aria-label")).toMatch(/^Mover .+ para…$/);
+    expect(trigger.querySelector("svg[aria-hidden='true']")).not.toBeNull();
+    expect(trigger.getAttribute("aria-busy")).toBeNull();
+    expect(trigger.disabled).toBe(false);
     trigger.click();
     await nextTick();
     await nextTick();
@@ -263,10 +269,30 @@ describe("menu 'Mover para…'", () => {
     expect(mover).toHaveBeenCalledWith(expect.objectContaining({ id: "a" }), "entregue");
   });
 
-  it("painel 'movendo': o menu dá lugar a 'Movendo…'", () => {
+  it("painel 'movendo': o botão fica no lugar, desabilitado, com aria-busy, nome 'Movendo…' e spinner (não troca por texto)", () => {
     montar(defineComponent({ setup: () => () => h(ProcessoPainel, { processo: proc("a"), movendo: true }) }));
-    expect(document.querySelector("#btn-mover-painel-a")).toBeNull();
-    expect(texto(document.querySelector("#painel-movendo"))).toBe("Movendo…");
+    const trigger = document.querySelector<HTMLButtonElement>("#btn-mover-painel-a")!;
+    expect(trigger).not.toBeNull();
+    expect(trigger.disabled).toBe(true);
+    expect(trigger.getAttribute("aria-busy")).toBe("true");
+    expect(trigger.getAttribute("aria-label")).toBe("Movendo…");
+    expect(trigger.getAttribute("title")).toBe("Movendo…");
+    expect(trigger.querySelector("#painel-movendo-spinner")).not.toBeNull();
+    expect(texto(trigger)).toBe("");
+    // Para leitor de tela, o aviso continua existindo (status, sem aparecer na tela).
+    const aviso = document.querySelector("#painel-movendo")!;
+    expect(texto(aviso)).toBe("Movendo…");
+    expect(aviso.getAttribute("role")).toBe("status");
+    // Clicar não abre o menu.
+    trigger.click();
+    expect(document.querySelector("#menu-mover-painel-a")).toBeNull();
+  });
+
+  it("painel sem 'movendo': sem aria-busy, sem spinner e sem aviso", () => {
+    montar(defineComponent({ setup: () => () => h(ProcessoPainel, { processo: proc("a") }) }));
+    expect(document.querySelector("#painel-movendo")).toBeNull();
+    expect(document.querySelector("#painel-movendo-spinner")).toBeNull();
+    expect(document.querySelector("#btn-mover-painel-a")!.getAttribute("aria-busy")).toBeNull();
   });
 });
 

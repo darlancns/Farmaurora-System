@@ -282,7 +282,9 @@ describe("painel lateral — 'Laboratório · Brand' abaixo de cada medicamento,
     expect(texto(el.querySelector("#painel-medicamento-extra-1"))).toBe("Bristol-Myers Squibb");
     expect(texto(el.querySelector("#painel-medicamento-extra-2"))).toBe("Bioequivalente");
     expect(el.querySelector("#painel-medicamento-extra-3")).toBeNull();
-    expect(texto(el.querySelector("#painel-bloco-medicamentos"))).not.toMatch(/·\s*$|^\s*·|· ·/);
+    const bloco = el.querySelector("#painel-medicamentos");
+    expect(bloco, "o bloco de medicamentos do cabeçalho existe").not.toBeNull();
+    expect(texto(bloco)).not.toMatch(/·\s*$|^\s*·|· ·/);
   });
 
   it("processo antigo (itens sem os campos): nenhuma linha extra", async () => {
