@@ -242,7 +242,6 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
             expect(Math.abs(a.y - c.y), `${nome} na mesma linha`).toBeLessThanOrEqual(1);
           const util = 720 - 2 - 40; // largura do modal - bordas - padding do corpo
           const col2 = (util - 10) / 2;
-          const col3 = (util - 2 * 10) / 3;
           // Linha 1: Paciente (flexível) | Pasta (7rem = 112px) | PO (8rem = 128px) com 2 espaços de 10px.
           const larguraPasta = 112;
           const larguraPo = 128; // a máscara "PO26-10-0471" (12 caracteres = 97px em mono 13,5px) + 22 de padding e borda = 119px; 9px de sobra, como a Pasta
@@ -252,7 +251,7 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
           const larguraNumeroProcesso = util - larguraRemessa - 10;
           // Dentro de um fieldset: borda 1+1 e padding 12+12.
           const interno = util - 2 - 24;
-          const colEnvio = (interno - 2 * 10) / 3;
+          const colEnvio = (interno - 10) / 2; // Envio e desembaraço: grade de 2 colunas iguais
 
           // Linha 1: Paciente | Pasta | PO, todos na mesma linha, nessa ordem.
           const paciente = await b("pf-paciente");
@@ -324,35 +323,37 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
           expect(pag.width).toBeCloseTo(col2, 0);
           expect(status.y).toBeGreaterThan(embaixo(forn) - 1);
 
-          // Envio internacional (fieldset): Modal | Cia. aérea | Nº AWB em 3 colunas iguais (sem Rastreio, sem buraco).
-          const fsEnvio = await caixa(page.locator("#pf-modal").locator("xpath=ancestor::fieldset"), "fieldset Envio internacional");
+          // Envio e desembaraço (fieldset): Envio | Cia. aérea na 1ª linha e Nº AWB | Despachante na 2ª, em 2 colunas iguais
+          // (sem Rastreio). O Despachante está DENTRO do bloco, depois do Nº AWB, e não passa da borda do bloco.
+          const fsEnvio = await caixa(page.locator("#pf-modal").locator("xpath=ancestor::fieldset"), "fieldset Envio e desembaraço");
           expect(fsEnvio.width).toBeCloseTo(util, 0);
           expect(fsEnvio.y).toBeGreaterThan(embaixo(status) - 1);
           const modalEnvio = await b("pf-modal");
           const cia = await b("pf-cia-aerea");
           const awb = await b("pf-awb");
-          mesmaLinha(modalEnvio, cia, "Modal | Cia. aérea");
-          mesmaLinha(cia, awb, "Cia. aérea | Nº AWB");
+          const desp = await b("pf-despachante");
+          mesmaLinha(modalEnvio, cia, "Envio | Cia. aérea");
+          mesmaLinha(awb, desp, "Nº AWB | Despachante");
           expect(cia.x).toBeGreaterThan(direita(modalEnvio));
-          expect(awb.x).toBeGreaterThan(direita(cia));
-          for (const [nome, c] of [["Modal", modalEnvio], ["Cia. aérea", cia], ["Nº AWB", awb]] as const) {
+          expect(desp.x).toBeGreaterThan(direita(awb));
+          expect(awb.y, "Nº AWB na 2ª linha").toBeGreaterThan(embaixo(modalEnvio) - 1);
+          expect(Math.abs(awb.x - modalEnvio.x), "Nº AWB sob o Envio").toBeLessThanOrEqual(1);
+          expect(Math.abs(desp.x - cia.x), "Despachante sob a Cia. aérea").toBeLessThanOrEqual(1);
+          for (const [nome, c] of [["Envio", modalEnvio], ["Cia. aérea", cia], ["Nº AWB", awb], ["Despachante", desp]] as const) {
             expect(c.width, nome).toBeCloseTo(colEnvio, 0);
           }
+          expect(direita(desp), "Despachante dentro do bloco").toBeLessThanOrEqual(direita(fsEnvio) + 0.5);
+          expect(embaixo(desp), "Despachante dentro do bloco (base)").toBeLessThanOrEqual(embaixo(fsEnvio) + 0.5);
+          expect(await page.locator("#pf-despachante").evaluate((el) => el.closest("fieldset") !== null)).toBe(true);
           await expect(page.locator("#pf-rastreio")).toHaveCount(0);
 
-          // Despachante: FORA do bloco, logo depois dele, 1 coluna de 3.
-          const desp = await b("pf-despachante");
-          expect(desp.width).toBeCloseTo(col3, 0);
-          expect(desp.y).toBeGreaterThan(embaixo(fsEnvio) - 1);
-          expect(await page.locator("#pf-despachante").evaluate((el) => el.closest("fieldset") === null)).toBe(true);
-
-          // Transportadora nacional: Nome | Cotação | Valor em 3 colunas, abaixo do Despachante.
+          // Transportadora nacional: Nome | Cotação | Valor em 3 colunas, abaixo do bloco Envio e desembaraço.
           const transp = await Promise.all(["pf-transp-nome", "pf-transp-cotacao", "pf-transp-valor"].map(b));
           mesmaLinha(transp[0]!, transp[1]!, "Nome | Cotação");
           mesmaLinha(transp[1]!, transp[2]!, "Cotação | Valor");
           expect(transp[1]!.x).toBeGreaterThan(direita(transp[0]!));
           expect(transp[2]!.x).toBeGreaterThan(direita(transp[1]!));
-          expect(transp[0]!.y).toBeGreaterThan(embaixo(desp) - 1);
+          expect(transp[0]!.y).toBeGreaterThan(embaixo(fsEnvio) - 1);
 
           // Stepper do Nº Ordem em lg+: UM campo (uma borda só) com o número à esquerda e, à direita DENTRO da borda, as
           // setas ▲ (em cima) e ▼ (embaixo) empilhadas, cada uma com metade da altura. O contêiner ocupa a coluna inteira e
@@ -495,7 +496,9 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
         });
 
         test("lista do AppSelect: absoluta logo abaixo do campo, w-max, até 224px, como antes", async ({ page }) => {
-          for (const id of ["pf-empresa", "pf-consultor", "pf-modal"]) {
+          // pf-despachante é a célula da coluna da direita do bloco Envio e desembaraço: a lista aberta (w-max, até 320px)
+          // não pode gerar rolagem horizontal no formulário nem passar da borda direita do modal.
+          for (const id of ["pf-empresa", "pf-consultor", "pf-modal", "pf-cia-aerea", "pf-despachante"]) {
             await page.locator(`#${id}`).evaluate((el) => el.scrollIntoView({ block: "center" }));
             await page.locator(`#${id}`).click();
             const lista = page.locator(`#${id}-listbox`);
@@ -510,6 +513,12 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
             expect(l.y, `${id}: 4px abaixo do campo`).toBeCloseTo(embaixo(campo) + 4, 0);
             expect(l.width).toBeGreaterThanOrEqual(campo.width - 0.5);
             expect(l.width).toBeLessThanOrEqual(320 + 0.5); // max-w-[min(20rem,90vw)]
+            const formulario = (await page.locator("#processo-form").boundingBox())!;
+            expect(direita(l), `${id}: lista dentro do formulário (sem estourar à direita)`).toBeLessThanOrEqual(direita(formulario) + 0.5);
+            expect(
+              await page.locator("#processo-form").evaluate((f) => f.scrollWidth > f.clientWidth + 1),
+              `${id}: rolagem horizontal com a lista aberta`,
+            ).toBe(false);
             const alturaOpcao = await lista.locator("li").first().evaluate((li) => li.getBoundingClientRect().height);
             expect(alturaOpcao, `${id}: opção compacta (não vira alvo de 44px)`).toBeLessThan(40);
             await page.locator(`#${id}`).click(); // fecha (Esc fecharia o modal inteiro — comportamento do BaseModal)

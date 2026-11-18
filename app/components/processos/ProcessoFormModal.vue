@@ -174,8 +174,8 @@ function handleSubmit(): void {
       >
         <!-- Ordem dos blocos (a ordem do DOM é a ordem de tabulação; nenhum tabindex positivo):
              1) Paciente / Pasta / Nº Ordem  2) Nº Remessa / Nº do processo  3) Medicamentos e local de entrega
-             4) Empresa / Responsável / Consultor / Fornecedor  5) Status / Pagamento  6) Envio internacional (Envio /
-             Cia. aérea / Nº AWB)  7) Despachante  8) Transportadora nacional  9) Datas  10) Pendências.
+             4) Empresa / Responsável / Consultor / Fornecedor  5) Status / Pagamento  6) Envio e desembaraço (Envio /
+             Cia. aérea / Nº AWB / Despachante)  7) Transportadora nacional  8) Datas  9) Pendências.
              Cada linha e cada fieldset é filho DIRETO deste contêiner: em lg+ ele vira `contents` e os filhos passam a ser
              itens do <form> (flex-col com gap-3.5). -->
         <div class="flex flex-col gap-3.5 py-4 lg:contents" :class="MODAL_PAD_X_CLASS">
@@ -298,10 +298,13 @@ function handleSubmit(): void {
             </div>
           </div>
 
-          <!-- Envio internacional: Envio (campo pf-modal) / Cia. aérea / Nº AWB. A Cia. depende do Envio (opções e desabilitada sem Envio). -->
+          <!-- Envio e desembaraço: Envio (campo pf-modal) / Cia. aérea / Nº AWB / Despachante, nessa ordem (a do DOM é a do Tab).
+               A Cia. depende do Envio (opções e desabilitada sem Envio). O Despachante some no Courier Simples (mesma condição
+               de sempre). Grade de 2 colunas: abaixo de sm, Envio e Despachante em linha inteira e Cia. | AWB lado a lado; de sm
+               em diante, Envio | Cia. e AWB | Despachante. Sem Despachante, o AWB fica sozinho na linha (sem largura forçada). -->
           <fieldset :class="FIELDSET_CLASS">
-            <legend :class="LEGEND_CLASS">Envio internacional</legend>
-            <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+            <legend :class="LEGEND_CLASS">Envio e desembaraço</legend>
+            <div class="grid grid-cols-2 gap-2.5">
               <div class="col-span-2 sm:col-span-1" :class="SELECT_CAMPO_CLASS">
                 <label for="pf-modal" :class="LABEL_CLASS">Envio</label>
                 <AppSelect
@@ -325,16 +328,12 @@ function handleSubmit(): void {
                 <label for="pf-awb" :class="LABEL_CLASS">Nº AWB</label>
                 <input id="pf-awb" data-sem-maiuscula v-model="form.numeroAwb" type="text" :class="INPUT_MONO_CLASS" />
               </div>
+              <div v-if="showDespachanteTransportadora" class="col-span-2 sm:col-span-1" :class="SELECT_CAMPO_CLASS">
+                <label for="pf-despachante" :class="LABEL_CLASS">Despachante</label>
+                <AppSelect id="pf-despachante" v-model="form.despachante" :options="DESPACHANTE_OPTIONS" />
+              </div>
             </div>
           </fieldset>
-
-          <!-- Despachante: fora do bloco, logo depois dele; 1 coluna de 3 em lg+. Mesma condição de sempre (some no Courier Simples). -->
-          <div v-if="showDespachanteTransportadora" class="grid grid-cols-1 gap-2.5 lg:grid-cols-3">
-            <div :class="SELECT_CAMPO_CLASS">
-              <label for="pf-despachante" :class="LABEL_CLASS">Despachante</label>
-              <AppSelect id="pf-despachante" v-model="form.despachante" :options="DESPACHANTE_OPTIONS" />
-            </div>
-          </div>
 
           <fieldset v-if="showDespachanteTransportadora" :class="FIELDSET_CLASS">
             <legend :class="LEGEND_CLASS">Transportadora nacional</legend>

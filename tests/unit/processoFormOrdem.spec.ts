@@ -219,7 +219,7 @@ describe("Formulário de processo — ordem dos campos no DOM", () => {
     const el = abrir();
     await nextTick();
     const legendas = [...el.querySelectorAll("#processo-form fieldset > legend")].map(texto);
-    expect(legendas).toEqual(["Medicamentos e local de entrega", "Envio internacional", "Transportadora nacional", "Datas"]);
+    expect(legendas).toEqual(["Medicamentos e local de entrega", "Envio e desembaraço", "Transportadora nacional", "Datas"]);
   });
 
   it("cada campo está dentro do bloco certo", async () => {
@@ -235,16 +235,62 @@ describe("Formulário de processo — ordem dos campos no DOM", () => {
     ]) {
       expect(blocoDe(id), id).toBe("Medicamentos e local de entrega");
     }
-    for (const id of ["pf-modal", "pf-cia-aerea", "pf-awb"]) expect(blocoDe(id), id).toBe("Envio internacional");
+    for (const id of ["pf-modal", "pf-cia-aerea", "pf-awb", "pf-despachante"]) expect(blocoDe(id), id).toBe("Envio e desembaraço");
     for (const id of ["pf-transp-nome", "pf-transp-cotacao", "pf-transp-valor"]) expect(blocoDe(id), id).toBe("Transportadora nacional");
     for (const id of DATAS) expect(blocoDe(id), id).toBe("Datas");
-    // Fora de qualquer bloco: a linha 1, o grupo de selects, Nº do processo, Status/Pagamento e o Despachante.
+    // Fora de qualquer bloco: a linha 1, o grupo de selects, Nº do processo e Status/Pagamento.
     for (const id of [
       "pf-paciente", "pf-pasta", "pf-numero-po", "pf-numero-remessa", "pf-empresa", "pf-responsavel", "pf-consultor",
-      "pf-fornecedor", "pf-numero-processo", "pf-status", "pf-status-pagamento", "pf-despachante",
+      "pf-fornecedor", "pf-numero-processo", "pf-status", "pf-status-pagamento",
     ]) {
       expect(el.querySelector(`#${id}`)!.closest("fieldset"), id).toBeNull();
     }
+  });
+
+  it("bloco 'Envio e desembaraço': grade de 2 colunas; Envio e Despachante em linha inteira abaixo de sm; sem largura forçada", async () => {
+    const el = abrir();
+    await nextTick();
+    const fieldset = el.querySelector("#pf-modal")!.closest("fieldset")!;
+    const grade = el.querySelector("#pf-modal")!.closest("fieldset > div")!;
+    const classes = (grade.getAttribute("class") ?? "").split(/\s+/);
+    expect(classes).toContain("grid-cols-2");
+    expect(classes.filter((c) => c.includes("grid-cols-"))).toEqual(["grid-cols-2"]); // nenhuma variante sm:/lg:grid-cols-N
+    // Células na ordem Envio, Cia., AWB, Despachante (a do DOM é a do Tab).
+    const celula = (id: string) => el.querySelector(`#${id}`)!.closest("fieldset > div > div")!;
+    expect([...grade.children]).toEqual(["pf-modal", "pf-cia-aerea", "pf-awb", "pf-despachante"].map(celula));
+    for (const id of ["pf-modal", "pf-despachante"]) {
+      const cls = (celula(id).getAttribute("class") ?? "").split(/\s+/);
+      expect(cls, id).toContain("col-span-2");
+      expect(cls, id).toContain("sm:col-span-1");
+    }
+    for (const id of ["pf-cia-aerea", "pf-awb"]) {
+      expect((celula(id).getAttribute("class") ?? "").split(/\s+/).filter((c) => c.includes("col-span")), id).toEqual([]);
+    }
+    // Nada que force largura no bloco: sem w-*/min-w-*/max-w-* nas células nem na grade (as variantes [&_ul]: do
+    // SELECT_CAMPO_CLASS são da lista do select, não da célula).
+    for (const n of [grade, ...grade.children]) {
+      const cls = (n.getAttribute("class") ?? "").split(/\s+/).filter((c) => !c.includes("[&"));
+      expect(cls.filter((c) => /(^|:)(min-w|max-w|w)-/.test(c)), n.tagName).toEqual([]);
+    }
+    expect(fieldset.parentElement!.className).toContain("lg:contents");
+  });
+
+  it("Despachante usa a mesma célula de select de sempre (SELECT_CAMPO_CLASS) e continua com o v-model do formulário", async () => {
+    const el = abrir({ despachante: "Bruno Lopes" });
+    await nextTick();
+    const cls = el.querySelector("#pf-despachante")!.closest("fieldset > div > div")!.getAttribute("class") ?? "";
+    expect(cls).toContain("[&_button]:min-h-11");
+    expect(cls).toContain("lg:[&_ul]:absolute");
+    expect(texto(el.querySelector("#pf-despachante"))).toContain("Bruno Lopes");
+  });
+
+  it("Courier Simples: o bloco fica com Envio, Cia. e AWB (3 células); o AWB não ganha largura forçada", async () => {
+    const el = abrir({ modal_envio: "Courier Simples", companhia_aerea: "DHL" });
+    await nextTick();
+    const grade = el.querySelector("#pf-modal")!.closest("fieldset > div")!;
+    expect(grade.children).toHaveLength(3);
+    const awb = el.querySelector("#pf-awb")!.closest("fieldset > div > div")!;
+    expect((awb.getAttribute("class") ?? "").split(/\s+/).filter((c) => c.includes("col-span") || /(^|:)w-/.test(c))).toEqual([]);
   });
 
   it("fieldsets e linhas são filhos DIRETOS do contêiner do corpo (o lg:contents do desktop depende disso)", async () => {
@@ -256,7 +302,7 @@ describe("Formulário de processo — ordem dos campos no DOM", () => {
       // Os fieldsets das Datas e da Transportadora/Envio/Medicamentos: pai imediato = o contêiner do corpo.
       expect(fieldset.parentElement, texto(fieldset.querySelector("legend"))).toBe(corpo);
     }
-    for (const id of ["pf-despachante", "pf-numero-processo", "pf-status"]) {
+    for (const id of ["pf-numero-processo", "pf-status"]) {
       const linha = el.querySelector(`#${id}`)!.closest("#processo-form > div > div");
       expect(linha?.parentElement, id).toBe(corpo);
     }

@@ -642,41 +642,51 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
           }
           expect(await page.locator("#pf-status-outro").count(), "Qual status? saiu do formulário").toBe(0);
 
-          // Envio internacional (fieldset): celular, Modal em linha inteira do bloco e Cia. aérea | Nº AWB lado a lado
-          // (2 colunas iguais, sem Rastreio e sem buraco); tablet, os três em 3 colunas iguais.
-          const fsEnvio = await caixaNoCorpo(page.locator("#pf-modal").locator("xpath=ancestor::fieldset"), "fieldset Envio internacional");
+          // Envio e desembaraço (fieldset), grade de 2 colunas iguais, com o Despachante DENTRO do bloco, depois do Nº AWB.
+          // Celular: Envio em linha inteira do bloco, Cia. aérea | Nº AWB lado a lado e Despachante em linha inteira.
+          // Tablet (sm+): Envio | Cia. aérea na 1ª linha e Nº AWB | Despachante na 2ª (sem Rastreio e sem buraco).
+          const fsEnvio = await caixaNoCorpo(page.locator("#pf-modal").locator("xpath=ancestor::fieldset"), "fieldset Envio e desembaraço");
           expect(fsEnvio.width).toBeCloseTo(util, 0);
-          abaixoDe(fsEnvio, status, "Envio internacional");
+          abaixoDe(fsEnvio, status, "Envio e desembaraço");
           const modal = await b("pf-modal");
           const cia = await b("pf-cia-aerea");
           const awb = await b("pf-awb");
+          const desp = await b("pf-despachante");
           mesmaLinha(cia, awb, "Cia | AWB");
-          expect(cia.width, "Cia e AWB com a mesma largura").toBeCloseTo(awb.width, 0);
-          expect(direita(awb), "AWB vai até a borda direita do bloco").toBeCloseTo(fsEnvio.x + 1 + 12 + interno, 0);
+          const colEnvio = (interno - 10) / 2;
+          expect(await page.locator("#pf-despachante").evaluate((el) => el.closest("fieldset") !== null), "Despachante dentro do bloco").toBe(true);
+          expect(direita(desp), "Despachante não passa da borda direita do bloco").toBeLessThanOrEqual(fsEnvio.x + 1 + 12 + interno + 0.5);
+          expect(embaixo(desp), "Despachante dentro do bloco (base)").toBeLessThanOrEqual(embaixo(fsEnvio) + 0.5);
           if (!tablet) {
-            expect(modal.width, "Modal em largura total do bloco").toBeCloseTo(interno, 0);
-            expect(cia.width).toBeCloseTo((interno - 10) / 2, 0);
+            // Cia | AWB lado a lado; AWB vai até a borda direita do bloco.
+            expect(cia.width, "Cia e AWB com a mesma largura").toBeCloseTo(awb.width, 0);
+            expect(direita(awb), "AWB vai até a borda direita do bloco").toBeCloseTo(fsEnvio.x + 1 + 12 + interno, 0);
+            expect(modal.width, "Envio em largura total do bloco").toBeCloseTo(interno, 0);
+            expect(cia.width).toBeCloseTo(colEnvio, 0);
             abaixoDe(cia, modal, "Cia. aérea");
+            expect(desp.width, "Despachante em linha inteira do bloco").toBeCloseTo(interno, 0);
+            abaixoDe(desp, awb, "Despachante (abaixo de Cia. | AWB)");
           } else {
-            mesmaLinha(modal, cia, "Modal | Cia. aérea (3 colunas)");
+            mesmaLinha(modal, cia, "Envio | Cia. aérea");
+            mesmaLinha(awb, desp, "Nº AWB | Despachante");
             expect(cia.x).toBeGreaterThan(direita(modal));
-            expect(cia.width).toBeCloseTo((interno - 20) / 3, 0);
-            expect(modal.width).toBeCloseTo((interno - 20) / 3, 0);
+            expect(desp.x).toBeGreaterThan(direita(awb));
+            abaixoDe(awb, modal, "Nº AWB (2ª linha)");
+            expect(Math.abs(awb.x - modal.x), "Nº AWB sob o Envio").toBeLessThanOrEqual(1);
+            expect(Math.abs(desp.x - cia.x), "Despachante sob a Cia. aérea").toBeLessThanOrEqual(1);
+            for (const [nome, c] of [["Envio", modal], ["Cia. aérea", cia], ["Nº AWB", awb], ["Despachante", desp]] as const) {
+              expect(c.width, nome).toBeCloseTo(colEnvio, 0);
+            }
+            expect(direita(desp), "Despachante vai até a borda direita do bloco").toBeCloseTo(fsEnvio.x + 1 + 12 + interno, 0);
           }
           await expect(page.locator("#pf-rastreio")).toHaveCount(0);
-
-          // Despachante: FORA do bloco, linha inteira logo depois dele.
-          const desp = await b("pf-despachante");
-          expect(desp.width, "Despachante em linha inteira").toBeCloseTo(util, 0);
-          abaixoDe(desp, fsEnvio, "Despachante");
-          expect(await campo(page, "pf-despachante").evaluate((el) => el.closest("fieldset") === null)).toBe(true);
 
           // Transportadora nacional: Nome em largura total do fieldset; Cotação | Valor lado a lado.
           const fieldset = await caixaNoCorpo(page.locator("#pf-transp-nome").locator("xpath=ancestor::fieldset"), "fieldset");
           const nome = await b("pf-transp-nome");
           const cot = await b("pf-transp-cotacao");
           const valor = await b("pf-transp-valor");
-          abaixoDe(fieldset, desp, "Transportadora nacional (abaixo do Despachante)");
+          abaixoDe(fieldset, fsEnvio, "Transportadora nacional (abaixo do bloco Envio e desembaraço)");
           mesmaLinha(cot, valor, "Cotação | Valor");
           for (const [id, c] of [["nome", nome], ["cotação", cot], ["valor", valor]] as const) {
             expect(c.x, `${id} dentro do fieldset (esq.)`).toBeGreaterThanOrEqual(fieldset.x);
