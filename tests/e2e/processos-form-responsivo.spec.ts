@@ -731,6 +731,17 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
           // Pendências por último, depois das Datas.
           const pendencias = await caixaNoCorpo(page.locator("#btn-add-pendencia"), "+ Pendência");
           abaixoDe(pendencias, suposta, "Pendências (depois das Datas)");
+          // Bloco Pendências com moldura, como os demais: fieldset em largura útil, botão "+ Pendência" em largura total do bloco
+          // (abaixo de lg) e todas as linhas/botões dentro da borda do bloco.
+          const fsPend = await caixaNoCorpo(page.locator("#btn-add-pendencia").locator("xpath=ancestor::fieldset"), "fieldset Pendências");
+          expect(fsPend.width).toBeCloseTo(util, 0);
+          expect(pendencias.width, "+ Pendência em largura total do bloco").toBeCloseTo(interno, 0);
+          expect(pendencias.x).toBeGreaterThanOrEqual(fsPend.x);
+          expect(direita(pendencias)).toBeLessThanOrEqual(direita(fsPend) + 0.5);
+          for (const caixaPend of await page.locator("#btn-add-pendencia").locator("xpath=ancestor::fieldset").locator("input, button").all()) {
+            const cp = await caixaNoCorpo(caixaPend, "controle de Pendências");
+            expect(direita(cp), "controle dentro do bloco Pendências").toBeLessThanOrEqual(direita(fsPend) + 0.5);
+          }
         });
 
         test("campo focado nunca fica atrás do rodapé fixo (scroll-padding do corpo)", async ({ page }) => {

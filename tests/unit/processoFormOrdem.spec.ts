@@ -178,10 +178,10 @@ describe("Formulário de processo — ordem dos campos no DOM", () => {
     }
   });
 
-  it("o rótulo 'Pendências' vem logo antes do botão de adicionar, depois das datas, e o rodapé fecha o formulário", async () => {
+  it("o bloco 'Pendências' (fieldset com legenda) vem logo antes do botão de adicionar, depois das datas, e o rodapé fecha o formulário", async () => {
     const el = abrir();
     await nextTick();
-    const rotulo = [...el.querySelectorAll("#processo-form p")].find((p) => texto(p) === "Pendências")!;
+    const rotulo = [...el.querySelectorAll("#processo-form fieldset > legend")].find((l) => texto(l) === "Pendências")!;
     expect(rotulo).toBeTruthy();
     const ultimaData = el.querySelector("#pf-suposta-estimativa")!;
     const salvar = el.querySelector("#btn-save-processo")!;
@@ -215,11 +215,45 @@ describe("Formulário de processo — ordem dos campos no DOM", () => {
     expect(rotulos.filter((t) => /\bmodal\b/i.test(t))).toEqual([]);
   });
 
-  it("blocos com moldura: 4 fieldsets, na ordem, com as legendas certas", async () => {
+  it("blocos com moldura: 5 fieldsets, na ordem, com as legendas certas", async () => {
     const el = abrir();
     await nextTick();
     const legendas = [...el.querySelectorAll("#processo-form fieldset > legend")].map(texto);
-    expect(legendas).toEqual(["Medicamentos e local de entrega", "Envio e desembaraço", "Transportadora nacional", "Datas"]);
+    expect(legendas).toEqual(["Medicamentos e local de entrega", "Envio e desembaraço", "Transportadora nacional", "Datas", "Pendências"]);
+  });
+
+  it("Pendências: fieldset como os demais, com aria-label por posição nos inputs e nos ✕ (title mantido)", async () => {
+    const el = abrir({ pendencias: ["Enviar laudo", "Ligar para a clínica"] });
+    await nextTick();
+    const fieldset = [...el.querySelectorAll("#processo-form fieldset")].find((f) => texto(f.querySelector(":scope > legend")) === "Pendências")!;
+    expect(fieldset).toBeTruthy();
+    expect(fieldset.parentElement).toBe(el.querySelector("#processo-form > div")); // filho direto do lg:contents
+    const demais = [...el.querySelectorAll("#processo-form fieldset")].find((f) => f !== fieldset)!;
+    expect(fieldset.getAttribute("class")).toBe(demais.getAttribute("class")); // FIELDSET_CLASS
+    expect(fieldset.querySelector(":scope > legend")!.getAttribute("class")).toBe(demais.querySelector(":scope > legend")!.getAttribute("class"));
+    const inputs = [...fieldset.querySelectorAll<HTMLInputElement>("input")];
+    expect(inputs.map((i) => i.value)).toEqual(["Enviar laudo", "Ligar para a clínica"]);
+    expect(inputs.map((i) => i.getAttribute("aria-label"))).toEqual(["Pendência 1", "Pendência 2"]);
+    const remover = [...fieldset.querySelectorAll("button[title='Remover pendência']")];
+    expect(remover.map((b) => b.getAttribute("aria-label"))).toEqual(["Remover pendência 1", "Remover pendência 2"]);
+    expect(fieldset.querySelector("#btn-add-pendencia")).not.toBeNull();
+    // Nenhuma largura fixa no bloco (min-w-11 é só o alvo de toque de 44px do ✕; lg:min-w-min já é do FIELDSET_CLASS).
+    const tokens = [fieldset, ...fieldset.querySelectorAll("*")].flatMap((n) => (n.getAttribute("class") ?? "").split(/\s+/));
+    expect(tokens.filter((c) => /(^|:)(min-w|max-w)-/.test(c) && !["lg:min-w-min", "min-w-0", "min-w-11", "lg:min-w-auto"].includes(c))).toEqual([]);
+  });
+
+  it("Pendências: o botão '+ Pendência' tem o mesmo estilo do '+' dos Medicamentos e largura total abaixo de lg", async () => {
+    const el = abrir();
+    await nextTick();
+    const add = el.querySelector("#btn-add-pendencia")!;
+    const cls = (add.getAttribute("class") ?? "").split(/\s+/);
+    for (const c of ["min-h-11", "w-full", "rounded-md", "border", "border-hairline", "px-2.5", "py-2", "text-[14px]", "font-semibold", "text-accent-dark", "lg:w-auto", "lg:text-[13px]"]) {
+      expect(cls, c).toContain(c);
+    }
+    const maisMed = el.querySelector("button[title='Adicionar medicamento']")!;
+    const base = ["rounded-md", "border", "border-hairline", "px-2.5", "py-2", "text-[14px]", "font-semibold", "text-accent-dark", "min-h-11", "lg:min-h-auto", "lg:text-[13px]"];
+    for (const c of base) expect((maisMed.getAttribute("class") ?? "").split(/\s+/), `medicamentos: ${c}`).toContain(c);
+    for (const c of base) expect(cls, `pendências: ${c}`).toContain(c);
   });
 
   it("cada campo está dentro do bloco certo", async () => {

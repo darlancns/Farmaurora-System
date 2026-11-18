@@ -362,11 +362,19 @@ function handleSubmit(): void {
 
           <ProcessoFormDatas :values="form" @update:field="onDataFieldChange" />
 
-          <div>
-            <p :class="LABEL_CLASS">Pendências</p>
+          <!-- Pendências: bloco com moldura como os demais. Mesmo estilo dos botões do bloco de Medicamentos (remover = BOTAO_REMOVER_CLASS;
+               adicionar = borda hairline, rounded-md, text-accent-dark, 44px abaixo de lg), com largura total abaixo de lg. -->
+          <fieldset :class="FIELDSET_CLASS">
+            <legend :class="LEGEND_CLASS">Pendências</legend>
             <div v-for="(_, index) in pendencias" :key="index" class="mb-1.5 flex items-center gap-2">
-              <input v-model="pendencias[index]" type="text" :class="INPUT_COMPACTO_CLASS" />
-              <button type="button" title="Remover pendência" :class="BOTAO_REMOVER_CLASS" @click="removePendencia(index)">
+              <input v-model="pendencias[index]" type="text" :aria-label="`Pendência ${index + 1}`" :class="INPUT_COMPACTO_CLASS" />
+              <button
+                type="button"
+                title="Remover pendência"
+                :aria-label="`Remover pendência ${index + 1}`"
+                :class="BOTAO_REMOVER_CLASS"
+                @click="removePendencia(index)"
+              >
                 ✕
               </button>
             </div>
@@ -378,7 +386,7 @@ function handleSubmit(): void {
             >
               + Pendência
             </button>
-          </div>
+          </fieldset>
         </div>
 
         <div

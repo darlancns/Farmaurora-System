@@ -347,6 +347,15 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
           expect(await page.locator("#pf-despachante").evaluate((el) => el.closest("fieldset") !== null)).toBe(true);
           await expect(page.locator("#pf-rastreio")).toHaveCount(0);
 
+          // Pendências: fieldset com moldura em largura útil, controles dentro da borda (sem rolagem horizontal).
+          const fsPend = await caixa(page.locator("#btn-add-pendencia").locator("xpath=ancestor::fieldset"), "fieldset Pendências");
+          expect(fsPend.width).toBeCloseTo(util, 0);
+          expect(fsPend.y, "Pendências depois do bloco Envio e desembaraço").toBeGreaterThan(embaixo(fsEnvio) - 1);
+          for (const c of await page.locator("#btn-add-pendencia").locator("xpath=ancestor::fieldset").locator("input, button").all()) {
+            const cb = await caixa(c, "controle de Pendências");
+            expect(direita(cb), "controle dentro do bloco Pendências").toBeLessThanOrEqual(direita(fsPend) + 0.5);
+          }
+
           // Transportadora nacional: Nome | Cotação | Valor em 3 colunas, abaixo do bloco Envio e desembaraço.
           const transp = await Promise.all(["pf-transp-nome", "pf-transp-cotacao", "pf-transp-valor"].map(b));
           mesmaLinha(transp[0]!, transp[1]!, "Nome | Cotação");

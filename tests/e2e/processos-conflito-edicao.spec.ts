@@ -98,9 +98,9 @@ async function abrirEdicao(page: Page): Promise<void> {
   await expect(page.locator("#processo-form")).toBeVisible();
 }
 
-// Campos de pendência (sem id próprio): os inputs dentro do bloco rotulado "Pendências".
+// Campos de pendência (sem id próprio): os inputs dentro do bloco (fieldset) com a legenda "Pendências".
 const camposPendencia = (page: Page) =>
-  page.locator('#processo-form p:text-is("Pendências")').locator("xpath=..").locator("input");
+  page.locator('#processo-form fieldset:has(> legend:text-is("Pendências"))').locator("input");
 
 test.describe.serial("Conflito de versão na edição do processo", () => {
   test.describe.configure({ retries: 2 });
