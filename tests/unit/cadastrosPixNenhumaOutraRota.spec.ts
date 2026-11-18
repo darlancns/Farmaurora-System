@@ -88,6 +88,32 @@ describe("a chave PIX dos Cadastros só sai por /api/cadastros", () => {
     }
   });
 
+  it("na tela, a chave só existe no value do input do painel: nenhum componente de Cadastros a imprime nem a registra em log", () => {
+    const componentes = todos.filter((a) => /^app\/components\/configuracoes\/Cadastro/.test(a.caminho));
+    expect(componentes.map((a) => a.caminho).sort()).toEqual([
+      "app/components/configuracoes/CadastroDesfazer.vue",
+      "app/components/configuracoes/CadastroPainel.vue",
+      "app/components/configuracoes/CadastroSecao.vue",
+      "app/components/configuracoes/CadastroSwitch.vue",
+      "app/components/configuracoes/CadastrosTab.vue",
+    ]);
+    for (const c of componentes) {
+      // Interpolação {{ ... }} que cita a chave: proibida (a coluna usa textoPix: "Cadastrada" ou "—").
+      const interpolacoes = [...c.texto.matchAll(/\{\{([^}]*)\}\}/g)].map((m) => m[1] ?? "");
+      expect(interpolacoes.filter((i) => /chave_?pix/i.test(i)), c.caminho).toEqual([]);
+      // Nenhum console.* nos componentes de Cadastros.
+      expect(c.texto, c.caminho).not.toMatch(/console\.(log|info|warn|error|debug)/);
+    }
+    // O painel liga a chave só a um input (v-model) e a mostra só como o value dele.
+    const painel = componentes.find((a) => a.caminho.endsWith("CadastroPainel.vue"))!.texto;
+    expect(painel.match(/form\.chavePix/g)!.length).toBeGreaterThan(0);
+    expect(painel).toContain('v-model="form.chavePix"');
+    expect(painel).toContain(":type=\"pixVisivel ? 'text' : 'password'\"");
+    // E as funções de texto da tabela e do celular nunca devolvem a chave.
+    const colunas = todos.find((a) => a.caminho === "app/utils/cadastroColunas.ts")!.texto;
+    expect(colunas).not.toMatch(/return [^;]*chavePix/);
+  });
+
   it("o store lê a chave só com o pedido: sem ele, uma lista de colunas explícita sem chave_pix", () => {
     const store = todos.find((a) => a.caminho === "server/utils/cadastrosStore.ts")!.texto;
     expect(store).toContain('return incluirPix ? "*" : (COLUNAS_SEM_PIX[lista] ?? "*");');

@@ -15,9 +15,8 @@ export const LISTA_CADASTRO_ROTULO: Record<ListaCadastro, string> = {
   "cias-aereas": "Cias aéreas",
 };
 
-/** Textos de UM item da lista, já com o gênero certo (botão "+ Novo …", título do modal, aviso de criado). */
+/** Textos de UM item da lista, já com o gênero certo (títulos do painel e aviso de criado). */
 export interface TextosItemCadastro {
-  novo: string;
   tituloNovo: string;
   tituloEditar: string;
   criado: string;
@@ -25,25 +24,21 @@ export interface TextosItemCadastro {
 
 export const LISTA_CADASTRO_TEXTOS: Record<ListaCadastro, TextosItemCadastro> = {
   fornecedores: {
-    novo: "+ Novo fornecedor",
     tituloNovo: "Novo fornecedor",
     tituloEditar: "Editar fornecedor",
     criado: "Fornecedor criado.",
   },
   despachantes: {
-    novo: "+ Novo despachante",
     tituloNovo: "Novo despachante",
     tituloEditar: "Editar despachante",
     criado: "Despachante criado.",
   },
   transportadoras: {
-    novo: "+ Nova transportadora",
     tituloNovo: "Nova transportadora",
     tituloEditar: "Editar transportadora",
     criado: "Transportadora criada.",
   },
   "cias-aereas": {
-    novo: "+ Nova cia aérea",
     tituloNovo: "Nova cia aérea",
     tituloEditar: "Editar cia aérea",
     criado: "Cia aérea criada.",

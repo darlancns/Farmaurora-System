@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Despachante, Fornecedor, CiaAerea } from "../../shared/types/Cadastro";
-import { colunasDaLista, textoAlerta } from "../../app/utils/cadastroColunas";
+import type { Despachante, Fornecedor, CiaAerea, Transportadora } from "../../shared/types/Cadastro";
 import {
   formDeItem,
   formVazio,
@@ -10,12 +9,15 @@ import {
   montarNovo,
 } from "../../app/utils/cadastroForm";
 
-// Regras puras do formulário e das colunas da tela de Cadastros.
+// Regras puras do formulário de Cadastros (as colunas e a busca estão em cadastroColunas.spec.ts). Valores de PIX fictícios.
 
 const BASE = { id: "x", ativo: true, atualizadoPor: "", createdAt: "", updatedAt: "" };
 const forn = (e: Partial<Fornecedor> = {}): Fornecedor => ({ ...BASE, nome: "Poros", pais: "Turquia", prazoAlertaDias: 3, semAlerta: false, ...e });
 const desp = (e: Partial<Despachante> = {}): Despachante => ({ ...BASE, nome: "STAR CUSTOMS", contatoNome: "", telefone: "", email: "", ...e });
 const cia = (e: Partial<CiaAerea> = {}): CiaAerea => ({ ...BASE, nome: "Ambiente", ...e });
+const transp = (e: Partial<Transportadora> = {}): Transportadora => ({ ...BASE, nome: "DHL", ...e });
+const PIX = "chave-ficticia-form-0001";
+const PIX2 = "chave-ficticia-form-0002";
 
 describe("formulário do fornecedor — o alerta nasce SEM escolha", () => {
   it("formVazio não pré-seleciona 'Número de dias' nem 'Sem alerta'", () => {
@@ -86,9 +88,15 @@ describe("edição: o nome não vai no corpo", () => {
 
   it("cia aérea não tem campo editável: só desativar/reativar", () => {
     expect(listaTemEdicao("cias-aereas")).toBe(false);
+    expect(listaTemEdicao("cias-aereas", true)).toBe(false);
     expect(listaTemEdicao("fornecedores")).toBe(true);
     expect(listaTemEdicao("despachantes")).toBe(true);
     expect(montarAlteracao("cias-aereas", formDeItem("cias-aereas", cia())).ok).toBe(false);
+  });
+
+  it("transportadora só tem a chave PIX: edita quem a vê; quem não vê só desativa/reativa", () => {
+    expect(listaTemEdicao("transportadoras", true)).toBe(true);
+    expect(listaTemEdicao("transportadoras", false)).toBe(false);
   });
 });
 
@@ -108,23 +116,67 @@ describe("itemComMesmoNome (aviso de duplicado e 'Reativar')", () => {
   });
 });
 
-describe("colunas da tela", () => {
-  it("fornecedor: País e Alerta; despachante: Contato, Telefone e E-mail; cia aérea: nenhuma extra", () => {
-    expect(colunasDaLista("fornecedores").map((c) => c.titulo)).toEqual(["País", "Alerta de prazo"]);
-    expect(colunasDaLista("despachantes").map((c) => c.titulo)).toEqual(["Contato", "Telefone", "E-mail"]);
-    expect(colunasDaLista("cias-aereas")).toEqual([]);
+describe("chave PIX no formulário (despachantes e transportadoras)", () => {
+  it("formVazio e formDeItem: chave vazia por padrão; carrega a chave do item quando ela veio da API", () => {
+    expect(formVazio().chavePix).toBe("");
+    expect(formDeItem("despachantes", desp({ chavePix: PIX })).chavePix).toBe(PIX);
+    expect(formDeItem("transportadoras", transp({ chavePix: PIX })).chavePix).toBe(PIX);
+    expect(formDeItem("transportadoras", transp()).chavePix).toBe(""); // campo ausente (quem não recebe a chave)
+    expect(formDeItem("fornecedores", forn()).chavePix).toBe("");
   });
 
-  it("textos: vazio vira travessão; alerta é 'Sem alerta' ou 'N dias' (singular em 1)", () => {
-    const [pais, alerta] = colunasDaLista("fornecedores");
-    expect(pais!.texto(forn({ pais: "" }))).toBe("—");
-    expect(pais!.texto(forn())).toBe("Turquia");
-    expect(alerta!.texto(forn({ prazoAlertaDias: 10 }))).toBe("10 dias");
-    expect(textoAlerta({ semAlerta: false, prazoAlertaDias: 1 })).toBe("1 dia");
-    expect(textoAlerta({ semAlerta: true, prazoAlertaDias: null })).toBe("Sem alerta");
-    const [contato, telefone, email] = colunasDaLista("despachantes");
-    expect(contato!.texto(desp())).toBe("—");
-    expect(telefone!.texto(desp({ telefone: "11 3333-4444" }))).toBe("11 3333-4444");
-    expect(email!.texto(desp({ email: "a@b.co" }))).toBe("a@b.co");
+  it("criar: a chave só vai no corpo com `incluirPix` (quem pode ver/gravar)", () => {
+    const form = { ...formVazio(), nome: "DHL", chavePix: `  ${PIX}  ` };
+    expect(montarNovo("transportadoras", form, true)).toEqual({ ok: true, valor: { nome: "DHL", chavePix: PIX } });
+    // Sem permissão a chave digitada nem entra: o corpo leva só o nome (a validação normaliza a chave ausente para "").
+    expect(montarNovo("transportadoras", form)).toEqual({ ok: true, valor: { nome: "DHL", chavePix: "" } });
+    expect(montarNovo("transportadoras", form, false)).toEqual({ ok: true, valor: { nome: "DHL", chavePix: "" } });
+    expect(JSON.stringify(montarNovo("transportadoras", form, false))).not.toContain(PIX);
+    expect(montarNovo("despachantes", { ...form, nome: "STAR CUSTOMS" }, true)).toMatchObject({ ok: true, valor: { chavePix: PIX } });
+    const semPermissao = montarNovo("despachantes", { ...form, nome: "STAR CUSTOMS" }, false);
+    expect(JSON.stringify(semPermissao)).not.toContain(PIX);
+  });
+
+  it("criar com chave maior que 140 é recusado, sem repetir a chave na mensagem", () => {
+    const longa = `${PIX}-${"w".repeat(150)}`;
+    const r = montarNovo("transportadoras", { ...formVazio(), nome: "DHL", chavePix: longa }, true);
+    expect(r.ok).toBe(false);
+    expect(r.ok ? "" : r.erro).not.toContain("wwww");
+    expect(r.ok ? "" : r.erro).not.toContain(PIX);
+  });
+
+  it("editar: a chave só vai no PATCH se MUDOU (e só com `incluirPix`); '' limpa", () => {
+    const original = transp({ chavePix: PIX });
+    const igual = formDeItem("transportadoras", original);
+    // Igual ao que está gravado: nada a enviar (a chave não é regravada à toa).
+    const semMudar = montarAlteracao("transportadoras", igual, original, true);
+    expect(semMudar.ok).toBe(false);
+    expect(semMudar.ok ? "" : semMudar.erro).toMatch(/Nenhuma alteração/);
+
+    expect(montarAlteracao("transportadoras", { ...igual, chavePix: PIX2 }, original, true)).toEqual({ ok: true, valor: { chavePix: PIX2 } });
+    expect(montarAlteracao("transportadoras", { ...igual, chavePix: "" }, original, true)).toEqual({ ok: true, valor: { chavePix: "" } });
+    expect(montarAlteracao("transportadoras", { ...igual, chavePix: "   " }, original, true)).toEqual({ ok: true, valor: { chavePix: "" } });
+    // Sem permissão a chave nunca entra, mude o que mudar.
+    expect(montarAlteracao("transportadoras", { ...igual, chavePix: PIX2 }, original, false).ok).toBe(false);
+  });
+
+  it("despachante: a chave acompanha contato, telefone e e-mail só quando mudou", () => {
+    const original = desp({ contatoNome: "Fulano", telefone: "11 3333-4444", email: "a@b.co", chavePix: PIX });
+    const f = formDeItem("despachantes", original);
+    expect(montarAlteracao("despachantes", f, original, true)).toEqual({
+      ok: true,
+      valor: { contatoNome: "Fulano", telefone: "11 3333-4444", email: "a@b.co" },
+    });
+    expect(montarAlteracao("despachantes", { ...f, chavePix: PIX2 }, original, true)).toMatchObject({ ok: true, valor: { chavePix: PIX2 } });
+    expect(montarAlteracao("despachantes", { ...f, chavePix: "" }, original, true)).toMatchObject({ ok: true, valor: { chavePix: "" } });
+    const semPermissao = montarAlteracao("despachantes", { ...f, chavePix: PIX2 }, original, false);
+    expect(JSON.stringify(semPermissao)).not.toContain(PIX2);
+    expect(semPermissao.ok).toBe(true); // o resto do cadastro continua salvando
+  });
+
+  it("fornecedor e cia aérea nunca enviam chave", () => {
+    expect(JSON.stringify(montarNovo("fornecedores", { ...formVazio(), nome: "X", alertaOpcao: "sem", chavePix: PIX }, true))).not.toContain(PIX);
+    expect(JSON.stringify(montarNovo("cias-aereas", { ...formVazio(), nome: "X", chavePix: PIX }, true))).not.toContain(PIX);
+    expect(JSON.stringify(montarAlteracao("fornecedores", { ...formDeItem("fornecedores", forn()), chavePix: PIX }, forn(), true))).not.toContain(PIX);
   });
 });

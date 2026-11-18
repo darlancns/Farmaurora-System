@@ -1,9 +1,12 @@
-import type { Cadastro, Despachante, Fornecedor, ListaCadastro, NovoPorLista, PatchPorLista } from "#shared/types/Cadastro";
+import type { Cadastro, Despachante, Fornecedor, ListaCadastro, NovoPorLista, PatchPorLista, Transportadora } from "#shared/types/Cadastro";
 import { chaveCadastro } from "#shared/utils/cadastroNome";
 import { validarNovoCadastro, validarPatchCadastro, type ResultadoCadastro } from "#shared/utils/cadastroValidacao";
 
-// Regras puras do formulário de Cadastros (CadastroFormModal.vue). O componente só liga os campos; a validação é a
-// MESMA do servidor (shared/utils/cadastroValidacao.ts), então a mensagem que a pessoa lê é a da API.
+// Regras puras do formulário de Cadastros (painel lateral CadastroPainel.vue). O componente só liga os campos; a
+// validação é a MESMA do servidor (shared/utils/cadastroValidacao.ts), então a mensagem que a pessoa lê é a da API.
+//
+// Chave PIX (dado financeiro): o campo só existe para quem recebe a chave da API (`incluirPix`/`podeVerPix`). Sem isso
+// a chave nunca entra no corpo enviado. Na edição, só vai se mudou (não se regrava uma chave que ficou igual).
 
 /** Alerta do fornecedor: começa SEM escolha ("") — a pessoa precisa decidir entre "Número de dias" e "Sem alerta". */
 export type OpcaoAlerta = "" | "dias" | "sem";
@@ -17,11 +20,15 @@ export interface FormCadastro {
   contatoNome: string;
   telefone: string;
   email: string;
+  /** Só despachantes e transportadoras; "" = sem chave. */
+  chavePix: string;
 }
 
 export function formVazio(): FormCadastro {
-  return { nome: "", pais: "", alertaOpcao: "", prazoTexto: "", contatoNome: "", telefone: "", email: "" };
+  return { nome: "", pais: "", alertaOpcao: "", prazoTexto: "", contatoNome: "", telefone: "", email: "", chavePix: "" };
 }
+
+const pixDoItem = (item: Cadastro | null | undefined): string => (item as { chavePix?: string } | null | undefined)?.chavePix ?? "";
 
 export function formDeItem(lista: ListaCadastro, item: Cadastro): FormCadastro {
   const form: FormCadastro = { ...formVazio(), nome: item.nome };
@@ -35,6 +42,9 @@ export function formDeItem(lista: ListaCadastro, item: Cadastro): FormCadastro {
     form.contatoNome = d.contatoNome;
     form.telefone = d.telefone;
     form.email = d.email;
+    form.chavePix = pixDoItem(d);
+  } else if (lista === "transportadoras") {
+    form.chavePix = pixDoItem(item as Transportadora);
   }
   return form;
 }
@@ -55,8 +65,12 @@ function alertaDoForm(form: FormCadastro): { semAlerta?: boolean; prazoAlertaDia
   return {}; // nada escolhido: a validação recusa com a mensagem de decidir
 }
 
-/** Corpo do POST: validado pela regra compartilhada (ou a mensagem de erro). */
-export function montarNovo(lista: ListaCadastro, form: FormCadastro): ResultadoCadastro<NovoPorLista[ListaCadastro]> {
+/** Corpo do POST: validado pela regra compartilhada (ou a mensagem de erro). `incluirPix`: quem pode ver/gravar a chave. */
+export function montarNovo(
+  lista: ListaCadastro,
+  form: FormCadastro,
+  incluirPix = false,
+): ResultadoCadastro<NovoPorLista[ListaCadastro]> {
   if (lista === "fornecedores") {
     return validarNovoCadastro(lista, { nome: form.nome, pais: form.pais, ...alertaDoForm(form) });
   }
@@ -66,25 +80,51 @@ export function montarNovo(lista: ListaCadastro, form: FormCadastro): ResultadoC
       contatoNome: form.contatoNome,
       telefone: form.telefone,
       email: form.email,
+      ...(incluirPix ? { chavePix: form.chavePix } : {}),
     });
+  }
+  if (lista === "transportadoras") {
+    return validarNovoCadastro(lista, { nome: form.nome, ...(incluirPix ? { chavePix: form.chavePix } : {}) });
   }
   return validarNovoCadastro(lista, { nome: form.nome });
 }
 
-/** Corpo do PATCH da edição: só os campos editáveis (o NOME nunca vai — não muda depois de criado). */
-export function montarAlteracao(lista: ListaCadastro, form: FormCadastro): ResultadoCadastro<PatchPorLista[ListaCadastro]> {
+/**
+ * Corpo do PATCH da edição: só os campos editáveis (o NOME nunca vai — não muda depois de criado). A chave PIX só vai
+ * com `incluirPix` E se mudou em relação ao item original ("" limpa a chave).
+ */
+export function montarAlteracao(
+  lista: ListaCadastro,
+  form: FormCadastro,
+  original?: Cadastro | null,
+  incluirPix = false,
+): ResultadoCadastro<PatchPorLista[ListaCadastro]> {
+  const pixMudou = incluirPix && form.chavePix.trim() !== pixDoItem(original).trim();
   if (lista === "fornecedores") {
     return validarPatchCadastro(lista, { pais: form.pais, ...alertaDoForm(form) });
   }
   if (lista === "despachantes") {
-    return validarPatchCadastro(lista, { contatoNome: form.contatoNome, telefone: form.telefone, email: form.email });
+    return validarPatchCadastro(lista, {
+      contatoNome: form.contatoNome,
+      telefone: form.telefone,
+      email: form.email,
+      ...(pixMudou ? { chavePix: form.chavePix } : {}),
+    });
+  }
+  if (lista === "transportadoras") {
+    return validarPatchCadastro(lista, pixMudou ? { chavePix: form.chavePix } : {});
   }
   return { ok: false, erro: "Esta lista não tem campos editáveis além do nome." };
 }
 
-/** A lista tem algum campo editável depois de criada? (Cia aérea só tem o nome: só se desativa/reativa.) */
-export function listaTemEdicao(lista: ListaCadastro): boolean {
-  return lista !== "cias-aereas" && lista !== "transportadoras";
+/**
+ * A lista tem algum campo editável depois de criada? Cia aérea só tem o nome (só se desativa/reativa); transportadora
+ * só tem a chave PIX, então só edita quem pode vê-la (`podeVerPix`).
+ */
+export function listaTemEdicao(lista: ListaCadastro, podeVerPix = true): boolean {
+  if (lista === "cias-aereas") return false;
+  if (lista === "transportadoras") return podeVerPix;
+  return true;
 }
 
 /** Item que já usa este nome (mesma chave: sem acento, caixa e espaços repetidos), inativo ou não. */
