@@ -454,7 +454,7 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
                 id="processo-search"
                 v-model="searchQuery"
                 type="text"
-                placeholder="Buscar em todos os campos"
+                placeholder="Buscar em tudo"
                 :aria-label="BUSCA_DESCRICAO"
                 :title="BUSCA_DESCRICAO"
                 class="w-full rounded-md border border-hairline bg-paper px-3 py-[11px] pr-[68px] text-[13.5px] focus:bg-white focus:outline-2 focus:outline-accent-dark lg:py-2 lg:pr-8"

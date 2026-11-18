@@ -182,9 +182,10 @@ describe("Aviso 'Chegou?'", () => {
 describe("Busca e mensagens de validação", () => {
   const lerFonte = (caminho: string) => readFileSync(resolve(__dirname, "../..", caminho), "utf-8");
 
-  it("placeholder da busca de /processos: 'Buscar em todos os campos' (aria-label e title listam os campos)", () => {
+  it("placeholder da busca de /processos: 'Buscar em tudo' (aria-label e title listam os campos)", () => {
     const pagina = lerFonte("app/pages/processos.vue");
-    expect(pagina).toContain('placeholder="Buscar em todos os campos"');
+    expect(pagina).toContain('placeholder="Buscar em tudo"');
+    expect(pagina).not.toContain('placeholder="Buscar em todos os campos"');
     expect(pagina).not.toContain("Buscar por paciente, pasta ou PO");
     expect(pagina).not.toContain("pasta ou ordem");
     expect(pagina).toContain(':aria-label="BUSCA_DESCRICAO"');
