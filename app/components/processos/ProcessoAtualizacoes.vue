@@ -5,14 +5,19 @@ import { LIMITE_ATUALIZACAO_DATA, LIMITE_ATUALIZACAO_TEXTO } from "#shared/const
 import { useAtualizacoesProcesso } from "../../composables/useAtualizacoesProcesso";
 import { chaveAtualizacao } from "../../utils/atualizacoesLista";
 import { capitalizeFirstLetter } from "../../utils/processoFormatters";
+import { ICONES_PROCESSO } from "../../utils/processoIcones";
 import ConfirmDialog from "../ConfirmDialog.vue";
 
+// `variante`: "lista" (padrão) é o visual de sempre (detalhe da Lista); "painel" é o da barra lateral do Kanban: data numa
+// pílula de fonte de código (ou "obs." sem data), texto e só dois ícones (editar e excluir) à direita. A LÓGICA é a mesma
+// nas duas (adicionar, editar inline, excluir com confirmação, versão) e os ids e aria-labels também.
 const props = withDefaults(
   defineProps<{
     processo: Processo;
     readonly?: boolean;
+    variante?: "lista" | "painel";
   }>(),
-  { readonly: false },
+  { readonly: false, variante: "lista" },
 );
 
 const { salvando, erro, adicionar, editar, excluir, limparErro } = useAtualizacoesProcesso(() => props.processo.id);
@@ -117,20 +122,29 @@ function rotuloItem(atualizacao: AtualizacaoProcesso): string {
 
 const classeCampo =
   "min-h-11 w-full rounded-md border border-hairline bg-paper-raised px-2.5 py-1.5 text-[12.5px] focus:outline-2 focus:outline-accent-dark lg:min-h-auto";
+// Variante "painel": botões só de ícone (30x30 em lg+, 44x44 abaixo).
+const classeIcone =
+  "flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-[#e0e7e5] bg-paper-raised text-ink-soft transition-colors disabled:cursor-not-allowed disabled:opacity-50 lg:h-[30px] lg:w-[30px]";
 const classeAcao =
   "min-h-11 shrink-0 rounded-md border border-hairline bg-paper-raised px-3 py-1.5 text-[12px] font-semibold text-ink-soft transition-colors hover:border-accent-dark hover:text-accent-dark disabled:cursor-not-allowed disabled:opacity-50 lg:min-h-auto lg:px-2 lg:py-0.5";
 </script>
 
 <template>
-  <div class="border-t border-hairline pt-2.5">
-    <p class="mb-1.5 text-[11px] font-semibold tracking-wide text-ink-soft uppercase">Atualizações</p>
+  <div :class="variante === 'painel' ? '' : 'border-t border-hairline pt-2.5'">
+    <p class="text-[11px] font-semibold tracking-wide text-ink-soft uppercase" :class="variante === 'painel' ? 'mb-2.5' : 'mb-1.5'">
+      Atualizações
+    </p>
 
-    <ol v-if="processo.atualizacoes.length" class="flex flex-col gap-1.5 text-[12.5px]">
+    <ol
+      v-if="processo.atualizacoes.length"
+      class="text-[12.5px]"
+      :class="variante === 'painel' ? 'divide-y divide-[#e0e7e5]' : 'flex flex-col gap-1.5'"
+    >
       <li
         v-for="(atualizacao, index) in processo.atualizacoes"
         :id="idItem('atualizacao', index)"
         :key="chaveAtualizacao(atualizacao, index)"
-        class="border-l-2 border-hairline pl-2.5"
+        :class="variante === 'painel' ? 'py-2.5 first:pt-0 last:pb-2.5' : 'border-l-2 border-hairline pl-2.5'"
       >
         <form
           v-if="edicao && edicao.indice === index"
@@ -181,6 +195,46 @@ const classeAcao =
           </div>
         </form>
 
+        <!-- Variante "painel": pílula da data (ou "obs."), texto e só os ícones de editar e excluir (mesmos ids e aria-labels). -->
+        <div v-else-if="variante === 'painel'" class="flex items-start gap-2.5">
+          <span
+            class="mt-px shrink-0 rounded-md bg-[#edf1f0] px-2 py-0.5 text-[11.5px] leading-snug text-ink-soft"
+            :class="atualizacao.data ? 'font-mono' : 'font-medium'"
+            >{{ atualizacao.data || "obs." }}</span
+          >
+          <span class="min-w-0 flex-1 text-[13px] leading-snug break-words text-ink">{{ atualizacao.texto }}</span>
+          <div v-if="!readonly" class="flex shrink-0 items-center gap-1.5">
+            <button
+              :id="idItem('btn-edit-atualizacao', index)"
+              type="button"
+              title="Editar atualização"
+              :aria-label="`Editar atualização ${rotuloItem(atualizacao)}`"
+              :disabled="salvando || edicao !== null"
+              :class="classeIcone"
+              class="hover:border-accent-dark hover:text-accent-dark"
+              @click="iniciarEdicao(index, atualizacao)"
+            >
+              <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path v-for="(d, i) in ICONES_PROCESSO.editar" :key="i" :d="d" />
+              </svg>
+            </button>
+            <button
+              :id="idItem('btn-delete-atualizacao', index)"
+              type="button"
+              title="Excluir atualização"
+              :aria-label="`Excluir atualização ${rotuloItem(atualizacao)}`"
+              :disabled="salvando || edicao !== null"
+              :class="classeIcone"
+              class="hover:border-danger hover:text-danger"
+              @click="pedirExclusao(index, atualizacao)"
+            >
+              <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path v-for="(d, i) in ICONES_PROCESSO.lixeira" :key="i" :d="d" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
         <div v-else class="flex flex-col gap-1 lg:flex-row lg:items-start lg:gap-2">
           <div class="flex min-w-0 flex-1 gap-2">
             <span class="shrink-0 font-mono text-ink-soft">{{ atualizacao.data || "—" }}</span>
@@ -211,7 +265,9 @@ const classeAcao =
         </div>
       </li>
     </ol>
-    <p v-else class="text-[12px] text-ink-soft">Nenhuma atualização registrada ainda.</p>
+    <p v-else class="text-[12px] text-ink-soft">
+      {{ variante === "painel" ? "Nenhuma atualização ainda." : "Nenhuma atualização registrada ainda." }}
+    </p>
 
     <form
       v-if="!readonly"

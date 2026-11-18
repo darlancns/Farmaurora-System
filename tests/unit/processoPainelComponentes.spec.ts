@@ -140,7 +140,8 @@ describe("ordem e conteúdo dos blocos", () => {
     expect(texto(document.querySelector("#painel-transportadora"))).toBe("AJC · COT-9 · R$ 1.500,00");
     expect(texto(document.querySelector("#painel-numero-processo"))).toBe("25BR0001");
     expect(texto(document.querySelector("#painel-registro-lpco"))).toBe("09/10 - agd. análise"); // texto antigo como está
-    expect(texto(document.querySelector("#painel-bloco-pendencias"))).toContain("Pendências (2)");
+    expect(texto(document.querySelector("#painel-bloco-pendencias h3"))).toContain("Pendências");
+    expect(texto(document.querySelector("#painel-pendencias-contador"))).toBe("2");
     expect(texto(document.querySelector("#painel-pendencias"))).toContain("Enviar laudo");
     expect(texto(document.querySelector("#painel-bloco-atualizacoes"))).toContain("Carga embarcada.");
   });
@@ -248,6 +249,21 @@ describe("cabeçalho: linha de cima, pagamento, medicamentos e status", () => {
     for (const c of ["sticky", "top-0", "h-0", "z-20"]) expect(acoes.className, c).toContain(c);
     expect(acoes.compareDocumentPosition(document.querySelector("#painel-bloco-cabecalho")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
+
+  it("o contêiner dos ícones não captura o mouse, mas o menu Mover e os botões RECEBEM o clique (pointer-events-auto nos filhos diretos)", () => {
+    painel(proc());
+    const acoes = document.querySelector("#painel-acoes")!;
+    expect(acoes.className).toContain("pointer-events-none");
+    const interno = acoes.firstElementChild!;
+    expect(interno.className).toContain("[&>*]:pointer-events-auto");
+    // Todo botão do topo é filho direto do contêiner interno ou está dentro do menu Mover (filho direto): herdam o auto.
+    const filhos = [...interno.children];
+    expect(filhos).toHaveLength(3);
+    for (const id of ["btn-mover-painel-p1", "btn-painel-editar", "btn-painel-fechar"]) {
+      const b = document.getElementById(id)!;
+      expect(filhos.some((f) => f === b || f.contains(b)), id).toBe(true);
+    }
+  });
 });
 
 describe("Courier Simples (mesma regra do formulário)", () => {
@@ -308,7 +324,7 @@ describe("reatividade: lê o processo do store, não um snapshot", () => {
     p.pendencias = ["Só uma"];
     await nextTick();
     expect(texto(document.querySelector("#painel-titulo"))).toBe("Maria Aparecida Souza");
-    expect(texto(document.querySelector("#painel-bloco-pendencias"))).toContain("Pendências (1)");
+    expect(texto(document.querySelector("#painel-pendencias-contador"))).toBe("1");
   });
 });
 
@@ -658,5 +674,95 @@ describe("divisórias só entre seções que existem", () => {
     painel(proc({ datas: { dataCompraPO: "05/08" } }));
     const ids = [...document.querySelector("#painel-corpo")!.children].map((c) => c.id.replace("painel-bloco-", ""));
     expect(ids).toEqual([...BLOCOS_PAINEL]);
+  });
+});
+
+describe("pendências", () => {
+  it("título com contador vermelho (pílula); cada pendência numa linha de fundo vermelho suave com ícone de alerta", () => {
+    painel(proc({ pendencias: ["Enviar laudo", "Ligar para a clínica", "Conferir procuração"] }));
+    const contador = document.querySelector("#painel-pendencias-contador")!;
+    expect(texto(contador)).toBe("3");
+    for (const c of ["bg-[#fbe9e5]", "text-[#9a3828]", "rounded-full"]) expect(contador.className, c).toContain(c);
+    const linhas = [...document.querySelectorAll("#painel-pendencias li")];
+    expect(linhas.map((l) => texto(l))).toEqual(["Enviar laudo", "Ligar para a clínica", "Conferir procuração"]);
+    for (const l of linhas) {
+      for (const c of ["bg-[#fbeeea]", "border-[#efd3cc]", "text-[#7e2e20]"]) expect(l.className, c).toContain(c);
+      expect(l.querySelector("svg[aria-hidden='true']")).not.toBeNull();
+      expect(l.querySelector("span.break-words")).not.toBeNull();
+    }
+  });
+
+  it("vazio: 'Nenhuma pendência.' e sem pílula", () => {
+    painel(proc({ pendencias: [] }));
+    expect(texto(document.querySelector("#painel-bloco-pendencias"))).toContain("Nenhuma pendência.");
+    expect(document.querySelector("#painel-pendencias-contador")).toBeNull();
+    expect(document.querySelector("#painel-pendencias")).toBeNull();
+  });
+});
+
+describe("atualizações (variante painel) e Excluir processo", () => {
+  const atualizacoes = [
+    { data: "31/08", texto: "Carga embarcada." },
+    { data: "", texto: "Cliente avisado por telefone." },
+  ];
+
+  it("data numa pílula de fonte de código ou 'obs.' sem data; texto com break-words; linhas separadas por fio fino", () => {
+    painel(proc({ atualizacoes }));
+    const itens = [...document.querySelectorAll("#painel-bloco-atualizacoes ol > li")];
+    expect(itens).toHaveLength(2);
+    const pilulas = itens.map((li) => li.querySelector("span")!);
+    expect(pilulas.map((p) => texto(p))).toEqual(["31/08", "obs."]);
+    expect(pilulas[0]!.className).toContain("font-mono");
+    expect(pilulas[0]!.className).toContain("bg-[#edf1f0]");
+    expect(pilulas[1]!.className).not.toContain("font-mono");
+    expect(itens[0]!.querySelector("span.break-words")!.textContent!.trim()).toBe("Carga embarcada.");
+    expect(document.querySelector("#painel-bloco-atualizacoes ol")!.className).toContain("divide-y");
+  });
+
+  it("só dois ícones (editar e excluir) à direita, sem botões de texto, com os MESMOS ids e aria-labels de hoje", () => {
+    painel(proc({ atualizacoes }));
+    const li = document.querySelector("#atualizacao-p1-0")!;
+    const botoes = [...li.querySelectorAll("button")];
+    expect(botoes.map((b) => b.id)).toEqual(["btn-edit-atualizacao-p1-0", "btn-delete-atualizacao-p1-0"]);
+    expect(botoes.map((b) => b.getAttribute("aria-label"))).toEqual(["Editar atualização de 31/08", "Excluir atualização de 31/08"]);
+    expect(botoes.map((b) => b.getAttribute("title"))).toEqual(["Editar atualização", "Excluir atualização"]);
+    for (const b of botoes) {
+      expect(texto(b)).toBe("");
+      expect(b.querySelector("svg[aria-hidden='true']")).not.toBeNull();
+      expect(b.className).toContain("h-11"); // 44px abaixo de lg
+      expect(b.className).toContain("lg:h-[30px]");
+    }
+    // Sem data: "sem data" no nome acessível, como hoje.
+    expect(document.querySelector("#btn-edit-atualizacao-p1-1")!.getAttribute("aria-label")).toBe("Editar atualização sem data");
+  });
+
+  it("o campo de adicionar é o de hoje (data, texto e botão Adicionar); vazio: 'Nenhuma atualização ainda.'", () => {
+    painel(proc({ atualizacoes: [] }));
+    const bloco = document.querySelector("#painel-bloco-atualizacoes")!;
+    expect(texto(bloco)).toContain("Nenhuma atualização ainda.");
+    const form = bloco.querySelector("form[id^='form-nova-atualizacao-']")!;
+    expect(form.querySelectorAll("input")).toHaveLength(2);
+    expect(texto(form.querySelector("button[type='submit']"))).toBe("Adicionar");
+    expect(form.querySelector("button[type='submit']")!.className).toContain("bg-accent-dark");
+  });
+
+  it("clicar em editar abre o formulário inline de sempre (Salvar/Cancelar)", async () => {
+    painel(proc({ atualizacoes }));
+    document.querySelector<HTMLButtonElement>("#btn-edit-atualizacao-p1-0")!.click();
+    await nextTick();
+    expect(document.querySelector("#form-edit-atualizacao-p1-0")).not.toBeNull();
+    expect(texto(document.querySelector("#btn-save-atualizacao-p1-0"))).toBe("Salvar");
+  });
+
+  it("Excluir processo: última seção, no canto direito, borda #efd3cc, texto #9a3828 e ícone de lixeira", () => {
+    painel(proc());
+    const rodape = document.querySelector("#painel-bloco-rodape")!;
+    const corpo = document.querySelector("#painel-corpo")!;
+    expect(corpo.lastElementChild).toBe(rodape);
+    expect(rodape.className).toContain("justify-end");
+    const botao = document.querySelector<HTMLButtonElement>("#btn-painel-excluir")!;
+    expect(texto(botao)).toBe("Excluir processo");
+    for (const c of ["border-[#efd3cc]", "text-[#9a3828]"]) expect(botao.className, c).toContain(c);
+    expect(botao.querySelector("svg[aria-hidden='true']")).not.toBeNull();
   });
 });

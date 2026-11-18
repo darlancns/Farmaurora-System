@@ -144,7 +144,8 @@ function caminhos(chave: ChaveIconePainel): string[] {
 // Seções: 24px laterais (16px abaixo de sm), 18px em cima e 20px embaixo. A divisória (#e0e7e5) vem do `divide-y` do
 // contêiner (só entre seções que existem). Título de seção: 11px/600 maiúsculo, no cinza do projeto.
 const SECAO = "px-4 pt-[18px] pb-5 sm:px-6";
-const TITULO_SECAO = "mb-2.5 text-[11px] font-semibold tracking-wide text-ink-soft uppercase";
+const TITULO_SECAO_BASE = "text-[11px] font-semibold tracking-wide uppercase";
+const TITULO_SECAO = `mb-2.5 ${TITULO_SECAO_BASE} text-ink-soft`;
 </script>
 
 <template>
@@ -166,9 +167,11 @@ const TITULO_SECAO = "mb-2.5 text-[11px] font-semibold tracking-wide text-ink-so
       <!-- Ações do topo: [Mover para…][Editar processo][Fechar], só ícones. Ficam num contêiner STICKY de altura zero (filho
            direto do painel, então ele acompanha a rolagem inteira): os 3 botões continuam visíveis ao rolar, sem fixar o
            cabeçalho (com 8–10 medicamentos ele ocuparia a tela). Visualmente ficam sobre a primeira linha do cabeçalho, no
-           canto direito (que reserva o espaço: RESERVA_ICONES). Vêm primeiro no DOM: o Tab começa por eles. -->
+           canto direito (que reserva o espaço: RESERVA_ICONES). Vêm primeiro no DOM: o Tab começa por eles. O contêiner não
+           captura o mouse (pointer-events-none) para não cobrir o texto do cabeçalho; os filhos diretos (o menu Mover e os
+           botões) o recebem de volta (`[&>*]:pointer-events-auto`). -->
       <div id="painel-acoes" class="pointer-events-none sticky top-0 z-20 h-0 shrink-0">
-        <div class="flex items-start justify-end gap-2 px-4 pt-[18px] sm:px-6">
+        <div class="flex items-start justify-end gap-2 px-4 pt-[18px] sm:px-6 [&>*]:pointer-events-auto">
           <ProcessoMoverMenu :processo="processo" :movendo="movendo" @mover="(para) => emit('mover', processo, para)" />
           <button
             id="btn-painel-editar"
@@ -317,42 +320,51 @@ const TITULO_SECAO = "mb-2.5 text-[11px] font-semibold tracking-wide text-ink-so
         </div>
       </section>
 
-      <!-- 9. Pendências -->
+      <!-- 7. Pendências: título com o contador numa pílula vermelha (só com pendências); cada pendência numa linha de fundo
+           vermelho suave com ícone de alerta. Vazio: "Nenhuma pendência.". Cores: pílula #fbe9e5/#9a3828; linha
+           #fbeeea, borda #efd3cc, texto #7e2e20. -->
       <section id="painel-bloco-pendencias" :class="SECAO">
-        <p
-          class="mb-1.5 text-[11px] font-semibold tracking-wide uppercase"
-          :class="processo.pendencias.length ? 'text-danger' : 'text-ink-soft'"
-        >
-          Pendências ({{ processo.pendencias.length }})
-        </p>
-        <ul v-if="processo.pendencias.length" id="painel-pendencias" class="flex flex-col gap-1 text-[13px] text-ink">
-          <li v-for="(pendencia, index) in processo.pendencias" :key="index" class="flex items-start gap-1.5">
-            <span class="text-danger">•</span>
+        <h3 class="mb-2.5 flex items-center gap-2" :class="TITULO_SECAO_BASE">
+          <span :class="processo.pendencias.length ? 'text-[#9a3828]' : 'text-ink-soft'">Pendências</span>
+          <span
+            v-if="processo.pendencias.length"
+            id="painel-pendencias-contador"
+            class="rounded-full bg-[#fbe9e5] px-2 py-px text-[11px] leading-snug font-semibold text-[#9a3828]"
+            >{{ processo.pendencias.length }}</span
+          >
+        </h3>
+        <ul v-if="processo.pendencias.length" id="painel-pendencias" class="flex flex-col gap-1.5">
+          <li
+            v-for="(pendencia, index) in processo.pendencias"
+            :key="index"
+            class="flex items-start gap-2 rounded-[8px] border border-[#efd3cc] bg-[#fbeeea] px-3 py-2 text-[13px] leading-snug text-[#7e2e20]"
+          >
+            <svg viewBox="0 0 24 24" class="mt-px h-4 w-4 shrink-0 text-[#9a3828]" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path v-for="(d, i) in caminhos('alerta')" :key="i" :d="d" />
+            </svg>
             <span class="min-w-0 break-words">{{ pendencia }}</span>
           </li>
         </ul>
         <p v-else class="text-[12px] text-ink-soft">Nenhuma pendência.</p>
       </section>
 
-      <!-- 10. Atualizações: o componente de sempre (adicionar/editar/excluir com versão), lendo o processo do store.
-           Ele traz a própria linha e o respiro de cima (border-t pt-2.5, como no detalhe da Lista); aqui o bloco já
-           separa, então o seletor de filho os tira sem mexer no componente. -->
-      <section
-        id="painel-bloco-atualizacoes"
-        :class="SECAO"
-        class="[&>div]:border-t-0 [&>div]:pt-0"
-      >
-        <ProcessoAtualizacoes :processo="processo" />
+      <!-- 8. Atualizações: o componente de sempre (adicionar/editar/excluir com versão), lendo o processo do store, na variante
+           "painel" (pílula da data ou "obs.", só os ícones de editar e excluir). -->
+      <section id="painel-bloco-atualizacoes" :class="SECAO">
+        <ProcessoAtualizacoes :processo="processo" variante="painel" />
       </section>
 
-      <!-- 11. Rodapé: excluir, com a MESMA confirmação da lixeira da Lista -->
-      <footer id="painel-bloco-rodape" :class="SECAO">
+      <!-- 9. Excluir processo: canto direito, com a MESMA confirmação da lixeira da Lista. É a última seção. -->
+      <footer id="painel-bloco-rodape" :class="SECAO" class="flex justify-end">
         <button
           id="btn-painel-excluir"
           type="button"
-          class="min-h-11 rounded-md px-2 text-[12.5px] font-semibold text-ink-soft transition-colors hover:text-danger lg:min-h-auto lg:py-1"
+          class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#efd3cc] bg-paper-raised px-3.5 text-[12.5px] font-semibold text-[#9a3828] transition-colors hover:bg-[#fbeeea] lg:min-h-9"
           @click="showDeleteConfirm = true"
         >
+          <svg viewBox="0 0 24 24" class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path v-for="(d, i) in caminhos('lixeira')" :key="i" :d="d" />
+          </svg>
           Excluir processo
         </button>
       </footer>
