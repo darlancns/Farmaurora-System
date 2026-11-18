@@ -45,9 +45,10 @@ export function useAberturaPorBusca(opcoes: OpcoesAberturaPorBusca): AberturaPor
   let assinatura: string | null = null;
 
   // Só muda quando começa/termina a busca ou quando o CONJUNTO de resultados muda (não a cada tecla).
-  const chave = computed<string | null>(() =>
-    criarTermoBusca(opcoes.termo()) ? assinaturaDeResultados(opcoes.encontrados(), opcoes.agrupado()) : null,
-  );
+  const chave = computed<string | null>(() => {
+    const termo = criarTermoBusca(opcoes.termo());
+    return termo ? assinaturaDeResultados(opcoes.encontrados(), opcoes.agrupado(), termo) : null;
+  });
 
   watch(
     chave,

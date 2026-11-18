@@ -7,9 +7,12 @@ import {
   calcularAberturaAutomatica,
   criarTermoBusca,
   filtrarPorBusca,
+  camposPesquisaveis,
   normalizarPasta,
   pastaCombina,
   processoCombinaBusca,
+  processoCombinaBuscaAntiga,
+  processoCombinaPorPalavras,
   type EstadoAbertura,
   type PassoBusca,
 } from "../../app/utils/processoBusca";
@@ -113,14 +116,278 @@ describe("busca por paciente OU pasta", () => {
 
   it("criarTermoBusca: null sem busca; guarda o texto, a pasta e a ordem já normalizados", () => {
     expect(criarTermoBusca("  ")).toBeNull();
-    expect(criarTermoBusca("2026 - 375")).toEqual({ texto: "2026 - 375", pasta: "2026375", ordem: "2026375" });
-    expect(criarTermoBusca("-")).toEqual({ texto: "-", pasta: "", ordem: "" });
+    // "-" solto não vira palavra (sem letra nem número); "2026" e "375" viram.
+    expect(criarTermoBusca("2026 - 375")).toEqual({
+      texto: "2026 - 375",
+      pasta: "2026375",
+      ordem: "2026375",
+      palavras: [
+        { texto: "2026", pasta: "2026", ordem: "2026", digitos: "2026" },
+        { texto: "375", pasta: "375", ordem: "375", digitos: "" },
+      ],
+    });
+    // Sem nenhuma palavra: a busca por palavras não vale; a antiga segue com o texto inteiro.
+    expect(criarTermoBusca("-")).toEqual({ texto: "-", pasta: "", ordem: "", palavras: [] });
   });
 
-  it("termo só de hífen não casa com pasta (mas pode casar com um nome com hífen)", () => {
+  it("termo só de hífen: a busca por palavras não filtra nada; a antiga segue como antes (nome com hífen), sem casar tudo", () => {
     const termo = criarTermoBusca("-")!;
+    expect(termo.palavras).toEqual([]);
+    expect(processoCombinaPorPalavras(proc("x", "Dani", "Ana Paula", "2026 - 1"), termo)).toBe(false);
     expect(processoCombinaBusca(proc("x", "Dani", "Ana Paula", "2026 - 1"), termo)).toBe(false);
     expect(processoCombinaBusca(proc("y", "Dani", "Ana-Paula", "2026 - 1"), termo)).toBe(true);
+    // Sobre uma lista inteira: só o nome com hífen; ninguém mais (nem pelos campos novos, como "Beldimed - Bélgica").
+    const lote = [
+      proc("1", "Dani", "Ana Paula"),
+      { ...proc("2", "Dani", "João"), fornecedor: "Beldimed - Bélgica" },
+      proc("3", "Dani", "Ana-Paula"),
+    ];
+    expect(ids(filtrarPorBusca(lote, "-"))).toEqual(["3"]);
+    expect(ids(filtrarPorBusca(lote, " - "))).toEqual(["3"]);
+  });
+});
+
+// ── Busca por palavras em todos os campos ───────────────────────────────────────────────────────────
+
+function cheio(id: string, extra: Partial<Processo> = {}): Processo {
+  return { ...proc(id, "Dani", `Paciente ${id}`, `2026 - ${id}`), ...extra };
+}
+
+describe("busca por palavras: todos os campos", () => {
+  const lote: Processo[] = [
+    cheio("430", {
+      paciente: "Maria da Silva",
+      numeroPo: "PO26-10-0471",
+      companhiaAerea: "FedEx",
+      responsavelOperacional: "Rebeca",
+      fornecedor: "Beldimed - Bélgica",
+      despachante: "Andreza Faconi",
+      consultor: "Bolívar",
+      empresa: "FARMAURORA",
+      numeroAwb: "8787 4954 6211",
+      transportadoraNacional: { nome: "AJC", cotacao: "COT-1" },
+      modalEnvio: "Courier Formal",
+      numeroProcesso: "5001234-56.2026.4.01.3400",
+      localEntrega: "Hospital Sírio-Libanês",
+      status: "desembaraco",
+      statusPagamento: "pago",
+      medicamentos: [
+        { nome: "VERZENIOS 150MG", laboratorio: "Eli Lilly", brand: "referencia" },
+        { nome: "Pembrolizumabe", laboratorio: "", brand: "bioequivalente" },
+      ],
+    }),
+    cheio("431", {
+      paciente: "João Álvares",
+      companhiaAerea: "FEDEX Express",
+      responsavelOperacional: "Bruno",
+      fornecedor: "Pharyx - China",
+      empresa: "MAINZFARMA",
+      status: "em_transito",
+      statusPagamento: "pendente",
+      numeroAwb: "87874954",
+    }),
+    cheio("432", {
+      paciente: "Élida Souza",
+      companhiaAerea: "LATAM Cargo",
+      responsavelOperacional: "Rebeca",
+      status: "liberado",
+      // sem statusPagamento, sem numeroAwb, sem transportadora
+    }),
+    cheio("433", { paciente: "Carlos Rebelo", companhiaAerea: "FedEx", responsavelOperacional: "Rebeca", status: "entregue" }),
+  ];
+  const achar = (termo: string) => ids(filtrarPorBusca(lote, termo));
+
+  it('"fedex" acha só os processos com companhia FedEx; maiúsculas e minúsculas dão o mesmo', () => {
+    expect(achar("fedex")).toEqual(["430", "431", "433"]);
+    expect(achar("FEDEX")).toEqual(["430", "431", "433"]);
+    expect(achar("FedEx")).toEqual(["430", "431", "433"]);
+    expect(achar("latam")).toEqual(["432"]);
+  });
+
+  it("medicamento (nome), laboratório e brand pelo RÓTULO", () => {
+    expect(achar("verzenios")).toEqual(["430"]);
+    expect(achar("pembrolizumabe")).toEqual(["430"]);
+    expect(achar("eli lilly")).toEqual(["430"]);
+    expect(achar("lilly")).toEqual(["430"]);
+    expect(achar("referencia")).toEqual(["430"]); // sem acento acha "Referência"
+    expect(achar("Referência")).toEqual(["430"]);
+    expect(achar("bioequivalente")).toEqual(["430"]);
+    // Só o rótulo: o valor interno do brand não é um campo (o rótulo e o valor coincidem sem acento; "referencia" acima já prova o rótulo).
+    expect(camposPesquisaveis(lote[0]!)).toContain("referencia");
+  });
+
+  it("empresa, responsável, consultor, despachante", () => {
+    expect(achar("mainzfarma")).toEqual(["431"]);
+    expect(achar("farmaurora")).toEqual(["430", "432", "433"]);
+    expect(achar("bruno")).toEqual(["431"]);
+    expect(achar("rebeca")).toEqual(["430", "432", "433"]);
+    expect(achar("bolivar")).toEqual(["430"]);
+    expect(achar("Andreza")).toEqual(["430"]);
+    expect(achar("faconi andreza")).toEqual(["430"]);
+  });
+
+  it('fornecedor "Beldimed - Bélgica": por "beldimed", por "belgica", pelo texto todo e por "beldimed - belgica"', () => {
+    expect(achar("beldimed")).toEqual(["430"]);
+    expect(achar("belgica")).toEqual(["430"]);
+    expect(achar("Bélgica beldimed")).toEqual(["430"]);
+    expect(achar("beldimed - belgica")).toEqual(["430"]);
+    expect(achar("pharyx")).toEqual(["431"]);
+  });
+
+  it("transportadora, modal, nº do processo e local de entrega", () => {
+    expect(achar("ajc")).toEqual(["430"]);
+    expect(achar("courier")).toEqual(["430"]);
+    expect(achar("5001234")).toEqual(["430"]);
+    expect(achar("hospital sirio")).toEqual(["430"]);
+    expect(achar("libanes")).toEqual(["430"]);
+  });
+
+  it("status pelo RÓTULO da tela", () => {
+    expect(achar("em transito")).toEqual(["431"]);
+    expect(achar("EM TRÂNSITO")).toEqual(["431"]);
+    expect(achar("desembaraco")).toEqual(["430"]);
+    expect(achar("liberado")).toEqual(["432"]);
+    expect(achar("entregue")).toEqual(["433"]);
+    expect(achar("na origem")).toEqual([]); // ninguém está "Na origem" neste lote
+    // O valor interno ("em_transito", "elaboracao_fornecedores") NÃO é pesquisável.
+    expect(achar("em_transito")).toEqual([]);
+    expect(achar("elaboracao")).toEqual([]);
+  });
+
+  it('"pago" só acha pago e "pendente" só pendente; sem statusPagamento não acha nenhum dos dois', () => {
+    expect(achar("pago")).toEqual(["430"]);
+    expect(achar("pendente")).toEqual(["431"]);
+    expect(achar("pago pendente")).toEqual([]);
+    const semPagamento = lote[2]!;
+    expect(semPagamento.statusPagamento).toBeUndefined();
+    const pago = criarTermoBusca("pago")!;
+    const pendente = criarTermoBusca("pendente")!;
+    expect(processoCombinaBusca(semPagamento, pago)).toBe(false);
+    expect(processoCombinaBusca(semPagamento, pendente)).toBe(false);
+  });
+
+  it("AWB: com espaços, sem espaços e só dígitos (4+ dígitos)", () => {
+    expect(achar("8787 4954 6211")).toEqual(["430"]);
+    expect(achar("878749546211")).toEqual(["430"]); // sem espaços, achado só pelos dígitos
+    expect(achar("8787 4954")).toEqual(["430", "431"]);
+    expect(achar("87874954")).toEqual(["430", "431"]); // 431 guarda o AWB sem espaços
+    expect(achar("8787-4954-6211")).toEqual(["430"]);
+    expect(achar("4954")).toEqual(["430", "431"]);
+    expect(achar("7874")).toEqual(["430", "431"]); // 4 dígitos: "8787 4954…" só contém "7874" sem os espaços
+    expect(achar("787 4")).toEqual(["430", "431"]); // 3 dígitos / 1 dígito: só o trecho normal de cada palavra
+    expect(achar("878157542300")).toEqual([]);
+  });
+
+  it("palavra com letras não é comparada com os dígitos do AWB", () => {
+    expect(achar("awb8787")).toEqual([]);
+    expect(achar("x87874954")).toEqual([]);
+  });
+
+  it('pasta "2026 - 430", "2026-430" e "430" acham a mesma pasta; PO como antes', () => {
+    expect(achar("2026 - 430")).toEqual(["430"]);
+    expect(achar("2026-430")).toEqual(["430"]);
+    expect(achar("2026 430")).toEqual(["430"]);
+    expect(achar("430")).toEqual(["430"]);
+    expect(achar("po26100471")).toEqual(["430"]);
+    expect(achar("PO26-10-0471")).toEqual(["430"]);
+    expect(achar("26-10-0471")).toEqual(["430"]);
+    expect(achar("26 10 0471")).toEqual(["430"]);
+  });
+
+  it("pasta e PO também valem dentro de uma busca com várias palavras", () => {
+    expect(achar("2026-430 fedex")).toEqual(["430"]);
+    expect(achar("2026-431 fedex")).toEqual(["431"]);
+    expect(achar("2026-432 fedex")).toEqual([]);
+    expect(achar("po26-10-0471 rebeca")).toEqual(["430"]);
+  });
+
+  it('"maria silva" acha "Maria da Silva" (palavras separadas, qualquer ordem)', () => {
+    expect(achar("maria silva")).toEqual(["430"]);
+    expect(achar("silva maria")).toEqual(["430"]);
+    expect(achar("MARIA   SILVA")).toEqual(["430"]);
+  });
+
+  it('"fedex rebeca": só os FedEx da Rebeca (E lógico entre palavras, em campos diferentes)', () => {
+    expect(achar("fedex rebeca")).toEqual(["430", "433"]);
+    expect(achar("rebeca fedex")).toEqual(["430", "433"]);
+    expect(achar("fedex bruno")).toEqual(["431"]);
+    expect(achar("fedex rebeca entregue")).toEqual(["433"]);
+  });
+
+  it("palavras em processos diferentes, mas não no mesmo, não acham ninguém", () => {
+    expect(achar("verzenios latam")).toEqual([]); // 430 tem verzenios, 432 tem latam
+    expect(achar("pharyx rebeca")).toEqual([]); // pharyx é do 431, rebeca não
+  });
+
+  it("uma palavra nunca atravessa dois campos", () => {
+    // paciente "Maria da Silva" + pasta "2026 - 430": "silva2026" não existe em nenhum campo
+    expect(achar("silva2026")).toEqual([]);
+    // fim de um campo e começo do seguinte: "sirio-libanes" não é o fornecedor+despachante
+    expect(achar("belgicaandreza")).toEqual([]);
+  });
+
+  it("campos que NÃO são pesquisados: atualizações, pendências e datas", () => {
+    const p = cheio("900", {
+      atualizacoes: [{ data: "01/11", texto: "Aguardando liberação da Anvisa" }],
+      pendencias: ["Enviar procuração assinada"],
+      datas: { dataEmbarque: "05/11", previsaoEntrega: "30/11" },
+    });
+    expect(ids(filtrarPorBusca([p], "anvisa"))).toEqual([]);
+    expect(ids(filtrarPorBusca([p], "procuracao"))).toEqual([]);
+    expect(ids(filtrarPorBusca([p], "30/11"))).toEqual([]);
+    expect(camposPesquisaveis(p).join(" ")).not.toMatch(/anvisa|procuracao|30\/11/);
+  });
+
+  it("campos undefined, medicamentos vazios e transportadora ausente não quebram", () => {
+    const vazio = cheio("901", { medicamentos: [], transportadoraNacional: undefined });
+    expect(vazio.fornecedor).toBeUndefined();
+    expect(vazio.companhiaAerea).toBeUndefined();
+    expect(vazio.numeroAwb).toBeUndefined();
+    expect(ids(filtrarPorBusca([vazio], "fedex"))).toEqual([]);
+    expect(ids(filtrarPorBusca([vazio], "8787 4954"))).toEqual([]);
+    expect(ids(filtrarPorBusca([vazio], "paciente 901"))).toEqual(["901"]);
+    expect(ids(filtrarPorBusca([vazio], "em transito"))).toEqual(["901"]);
+    // Defesa: itens fora do contrato (null no meio dos medicamentos, brand desconhecido) também não quebram.
+    const sujo = cheio("902", {
+      medicamentos: [null as unknown as Processo["medicamentos"][number], { nome: "X", laboratorio: "", brand: "invalido" as never }],
+    });
+    expect(() => filtrarPorBusca([sujo], "x")).not.toThrow();
+    expect(ids(filtrarPorBusca([sujo], "invalido"))).toEqual([]);
+  });
+
+  it("busca vazia ou só de espaços devolve a lista inteira (a mesma referência)", () => {
+    expect(filtrarPorBusca(lote, "")).toBe(lote);
+    expect(filtrarPorBusca(lote, "   ")).toBe(lote);
+  });
+
+  it("a ordem dos resultados é a da lista (sem relevância)", () => {
+    const invertido = [...lote].reverse();
+    expect(ids(filtrarPorBusca(invertido, "fedex"))).toEqual(["433", "431", "430"]);
+  });
+
+  it("a busca antiga com o texto inteiro continua valendo, mesmo quando as palavras sozinhas não achariam", () => {
+    // "da silva" é um trecho do paciente; "silva da" não é (só pelas palavras).
+    const termo = criarTermoBusca("maria da silva")!;
+    expect(processoCombinaBuscaAntiga(lote[0]!, termo)).toBe(true);
+    const fora = criarTermoBusca("silva da maria")!;
+    expect(processoCombinaBuscaAntiga(lote[0]!, fora)).toBe(false);
+    expect(processoCombinaPorPalavras(lote[0]!, fora)).toBe(true);
+    // Hífen no meio: o texto inteiro "2026-430" acha a pasta pela regra antiga, mesmo com o "-" que não é palavra.
+    expect(processoCombinaBuscaAntiga(lote[0]!, criarTermoBusca("2026-430")!)).toBe(true);
+  });
+
+  it("o texto pesquisável é calculado uma vez por processo e recalculado quando o processo é atualizado", () => {
+    const original = cheio("950", { companhiaAerea: "DHL", updatedAt: "v1" });
+    expect(ids(filtrarPorBusca([original], "dhl"))).toEqual(["950"]);
+    // Mesma versão (updatedAt): reaproveita o texto já calculado, mesmo que o objeto tenha sido mexido por fora.
+    original.companhiaAerea = "UPS";
+    expect(ids(filtrarPorBusca([original], "dhl"))).toEqual(["950"]);
+    // O servidor devolve outra versão: recalcula.
+    original.updatedAt = "v2";
+    expect(ids(filtrarPorBusca([original], "dhl"))).toEqual([]);
+    expect(ids(filtrarPorBusca([original], "ups"))).toEqual(["950"]);
+    // Objeto novo (substituído na lista): índice próprio.
+    expect(ids(filtrarPorBusca([{ ...original, companhiaAerea: "TNT" }], "tnt"))).toEqual(["950"]);
   });
 });
 
@@ -296,5 +563,67 @@ describe("avancarAberturaPorBusca — digitar, mudar resultados, limpar", () => 
     expect(assinaturaDeResultados([A, B], true)).toBe(assinaturaDeResultados([A, B], true));
     expect(assinaturaDeResultados([A, B], true)).not.toBe(assinaturaDeResultados([A], true));
     expect(assinaturaDeResultados([A], true)).not.toBe(assinaturaDeResultados([A], false));
+  });
+});
+
+describe("abertura automática com a busca por palavras (só a busca antiga abre o detalhe)", () => {
+  const fedex = (id: string, consultor: ConsultorProcesso, paciente: string): Processo => ({
+    ...proc(id, consultor, paciente),
+    companhiaAerea: "FedEx",
+  });
+  const maria = fedex("m", "Dani", "Maria Alves"); // a busca antiga acha por "maria"
+  const outro = fedex("o", "Bolívar", "Pedro Costa"); // só a busca por palavras acha por "fedex"
+
+  it('"fedex": a lista aparece (grupos abrem) mas nenhum detalhe abre sozinho', () => {
+    const termo = criarTermoBusca("fedex")!;
+    const auto = calcularAberturaAutomatica([maria, outro], true, termo);
+    expect([...auto.grupos].sort()).toEqual(["Bolívar", "Dani"]);
+    expect(auto.detalhes).toEqual([]);
+  });
+
+  it("o detalhe só abre para quem a busca antiga também acha (paciente, pasta, Nº Ordem)", () => {
+    const termo = criarTermoBusca("maria")!;
+    const comFedex = { ...maria, companhiaAerea: "FedEx" };
+    expect(calcularAberturaAutomatica([comFedex], true, termo).detalhes).toEqual(["m"]);
+    // Pasta e PO (busca antiga) continuam abrindo o detalhe.
+    const p = { ...proc("p", "Dani", "Ana", "2026 - 430"), numeroPo: "PO26-10-0471" };
+    expect(calcularAberturaAutomatica([p], true, criarTermoBusca("2026-430")!).detalhes).toEqual(["p"]);
+    expect(calcularAberturaAutomatica([p], true, criarTermoBusca("26100471")!).detalhes).toEqual(["p"]);
+  });
+
+  it("misto: com até 5 resultados abre só o detalhe de quem a busca antiga acha; com 6+ nenhum", () => {
+    const misto = [
+      proc("a", "Dani", "Fedex Silva"), // paciente tem "fedex": a busca antiga acha
+      fedex("b", "Dani", "Pedro Costa"), // só pelas palavras
+    ];
+    const termo = criarTermoBusca("fedex")!;
+    expect(calcularAberturaAutomatica(misto, true, termo).detalhes).toEqual(["a"]);
+    const muitos = [...misto, ...Array.from({ length: 4 }, (_, i) => fedex(`x${i}`, "Dani", `Outro ${i}`))];
+    expect(calcularAberturaAutomatica(muitos, true, termo).detalhes).toEqual([]);
+  });
+
+  it("sem termo (uso antigo), a regra dos 5 vale para todos, como antes", () => {
+    expect(calcularAberturaAutomatica([maria, outro], true).detalhes).toEqual(["m", "o"]);
+  });
+
+  it("avancarAberturaPorBusca: buscar por 'fedex' não abre detalhes; buscar por 'maria' abre", () => {
+    const passo = (termo: string, encontrados: Processo[]) =>
+      avancarAberturaPorBusca({ termo, encontrados, agrupado: true, atual: vazio(), snapshot: null, assinatura: null });
+    const porFedex = passo("fedex", [maria, outro]);
+    expect(lista(porFedex.estado)).toEqual({ grupos: ["Bolívar", "Dani"], detalhes: [] });
+    const porMaria = passo("maria", [maria]);
+    expect(lista(porMaria.estado)).toEqual({ grupos: ["Dani"], detalhes: ["m"] });
+  });
+
+  it("a assinatura muda quando o mesmo conjunto passa a ser achado só pelas palavras", () => {
+    const pelaAntiga = assinaturaDeResultados([maria], true, criarTermoBusca("maria")!);
+    const soPalavras = assinaturaDeResultados([maria], true, criarTermoBusca("fedex")!);
+    expect(pelaAntiga).not.toBe(soPalavras);
+    // mesmo conjunto e mesma situação: mesma assinatura (as escolhas manuais continuam valendo)
+    expect(assinaturaDeResultados([maria], true, criarTermoBusca("mari")!)).toBe(
+      assinaturaDeResultados([maria], true, criarTermoBusca("maria")!),
+    );
+    // sem termo, o formato de sempre
+    expect(assinaturaDeResultados([maria], true)).toBe("g:m");
   });
 });

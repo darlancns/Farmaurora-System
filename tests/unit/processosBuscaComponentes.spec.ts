@@ -200,6 +200,29 @@ describe("ProcessoGroupList com busca", () => {
     expect(cabecalhoDoGrupo(el, "Dani")).toBeUndefined();
   });
 
+  it("busca por palavra de outro campo ('fedex'): a lista aparece com os grupos abertos, SEM abrir detalhes sozinha", async () => {
+    const lote = [
+      proc("f1", "Dani", "Maria Alves", { companhiaAerea: "FedEx" }),
+      proc("f2", "Bolívar", "Pedro Costa", { companhiaAerea: "FEDEX" }),
+      proc("l1", "Dani", "Ana Lima", { companhiaAerea: "LATAM Cargo" }),
+    ];
+    const { termo, el } = paginaDeAndamento(lote);
+    termo.value = "fedex";
+    await nextTick();
+    expect(linhas(el).sort()).toEqual(["f1", "f2"]); // grupos abertos, só os achados
+    expect(detalhes(el)).toEqual([]);
+
+    // Quando o texto também é achado pela busca antiga (paciente), o detalhe abre como sempre.
+    termo.value = "maria";
+    await nextTick();
+    expect(linhas(el)).toEqual(["f1"]);
+    expect(detalhes(el)).toEqual(["f1"]);
+
+    termo.value = "";
+    await nextTick();
+    expect(linhas(el)).toEqual([]); // restaura: tudo recolhido
+  });
+
   it("achar por PASTA (variações de digitação) abre o grupo e o detalhe", async () => {
     for (const digitado of ["2026 - 375", "2026-375", "2026 375", "375"]) {
       const { termo, el } = paginaDeAndamento(LOTE);

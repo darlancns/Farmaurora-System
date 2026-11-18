@@ -92,6 +92,9 @@ type Tab = "andamento" | "entregues";
 const activeTab = ref<Tab>("andamento");
 
 const searchQuery = ref("");
+// Lido por leitor de tela (aria-label) e no balão do mouse (title): o texto de ajuda da caixa é curto, a lista completa fica aqui.
+const BUSCA_DESCRICAO =
+  "Buscar em todos os campos: paciente, pasta, PO, medicamento, laboratório, brand, empresa, responsável, consultor, fornecedor, despachante, companhia aérea, AWB, transportadora, modal, nº do processo, local de entrega, status e pagamento. Várias palavras: todas precisam aparecer.";
 const statusFilter = ref<StatusProcesso | "">("");
 const empresaFilter = ref<EmpresaProcesso | "">("");
 const responsavelFilter = ref("");
@@ -134,8 +137,9 @@ const filteredProcessos = computed<Processo[]>(() => {
   list = filtrarPorCotacao(list, cotacaoFilter.value);
   // "Mandado de Segurança": só com MS anexado (Lista, Kanban e Entregues usam esta mesma lista).
   list = filtrarPorMandado(list, mandadoFilter.value);
-  // Paciente, pasta OU Nº Ordem. A pasta ignora espaços e hífens ("2026-375", "2026 375" e "375" acham "2026 - 375");
-  // o PO também ignora pontuação e maiúsculas ("po26100471", "PO26-10-0471" e "26-10-0471" acham "PO26-10-0471").
+  // Busca antiga (texto inteiro em paciente, pasta ou Nº Ordem) OU todas as palavras em qualquer campo (utils/processoBusca.ts).
+  // A pasta ignora espaços e hífens ("2026-375", "2026 375" e "375" acham "2026 - 375"); o PO também ignora pontuação e
+  // maiúsculas ("po26100471", "PO26-10-0471" e "26-10-0471" acham "PO26-10-0471").
   return filtrarPorBusca(list, searchQuery.value);
 });
 
@@ -450,7 +454,9 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
                 id="processo-search"
                 v-model="searchQuery"
                 type="text"
-                placeholder="Buscar por paciente, pasta ou PO"
+                placeholder="Buscar em todos os campos"
+                :aria-label="BUSCA_DESCRICAO"
+                :title="BUSCA_DESCRICAO"
                 class="w-full rounded-md border border-hairline bg-paper px-3 py-[11px] pr-[68px] text-[13.5px] focus:bg-white focus:outline-2 focus:outline-accent-dark lg:py-2 lg:pr-8"
               />
               <button
