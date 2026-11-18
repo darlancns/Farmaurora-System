@@ -9,12 +9,14 @@ type Row = Record<string, unknown>;
 type Op = "select" | "insert" | "update" | "upsert" | "delete";
 interface Resultado {
   data: Row[] | Row | null;
-  error: { message: string } | null;
+  error: { message: string; code?: string } | null;
 }
 
 export class FakeSupabase {
   readonly tabelas: Record<string, Row[]> = {};
-  private falhas: Array<{ tabela: string; op: Op; mensagem: string }> = [];
+  private falhas: Array<{ tabela: string; op: Op; mensagem: string; code?: string }> = [];
+  // Colunas de chave única por tabela (opt-in, só para insert): inserir valor repetido devolve o erro 23505 do Postgres.
+  private chavesUnicas: Record<string, string> = {};
   readonly chamadas: Array<{ tabela: string; op: Op }> = [];
 
   semear(tabela: string, linhas: Row[]): void {
@@ -25,18 +27,28 @@ export class FakeSupabase {
     return this.tabelas[tabela] ?? [];
   }
 
-  falhar(tabela: string, op: Op, mensagem = "falha injetada"): void {
-    this.falhas.push({ tabela, op, mensagem });
+  falhar(tabela: string, op: Op, mensagem = "falha injetada", code?: string): void {
+    this.falhas.push({ tabela, op, mensagem, ...(code ? { code } : {}) });
+  }
+
+  // Liga a unicidade de `coluna` na `tabela` (como a chave primária do banco) para os insert.
+  chaveUnica(tabela: string, coluna: string): void {
+    this.chavesUnicas[tabela] = coluna;
   }
 
   from(tabela: string): Consulta {
     return new Consulta(this, tabela);
   }
 
-  tirarFalha(tabela: string, op: Op): string | null {
+  tirarFalha(tabela: string, op: Op): { mensagem: string; code?: string } | null {
     const i = this.falhas.findIndex((f) => f.tabela === tabela && f.op === op);
     if (i < 0) return null;
-    return this.falhas.splice(i, 1)[0]!.mensagem;
+    const { mensagem, code } = this.falhas.splice(i, 1)[0]!;
+    return { mensagem, ...(code ? { code } : {}) };
+  }
+
+  coluna(tabela: string): string | undefined {
+    return this.chavesUnicas[tabela];
   }
 
   asClient(): SupabaseClient {
@@ -117,12 +129,22 @@ class Consulta implements PromiseLike<Resultado> {
   private executar(): Resultado {
     this.db.chamadas.push({ tabela: this.tabela, op: this.op });
     const falha = this.db.tirarFalha(this.tabela, this.op);
-    if (falha) return { data: null, error: { message: falha } };
+    if (falha) return { data: null, error: { message: falha.mensagem, ...(falha.code ? { code: falha.code } : {}) } };
 
     const todas = (this.db.tabelas[this.tabela] ??= []);
     const casa = (r: Row) => this.filtros.every((f) => f(r));
 
     if (this.op === "insert") {
+      const unica = this.db.coluna(this.tabela);
+      if (unica && todas.some((r) => r[unica] === this.payload[unica])) {
+        return {
+          data: null,
+          error: {
+            message: `duplicate key value violates unique constraint "${this.tabela}_pkey"`,
+            code: "23505",
+          },
+        };
+      }
       const nova = { ...this.payload };
       todas.push(nova);
       return { data: this.retorna ? [{ ...nova }] : null, error: null };

@@ -1,4 +1,6 @@
+import { createError } from "h3";
 import type { NewProcessoDTO, Processo, ProcessoPatchDTO } from "../../shared/types/processo";
+import { MENSAGEM_PROCESSO_JA_CRIADO } from "../../shared/utils/idNovoProcesso";
 import { NUMERO_REMESSA_PADRAO, normalizarNumeroRemessa } from "../../shared/utils/numeroRemessa";
 import { createSupabaseAdminClient } from "./supabaseServerClient";
 import { erro, randomId } from "./storeKit";
@@ -45,10 +47,14 @@ export async function getProcesso(id: string): Promise<Processo | null> {
   return data ? montarProcesso(data as FollowUpRow) : null;
 }
 
+// `input.id` (opcional, já validado no endpoint como proc_<uuid>) é o id que o formulário gerou ao abrir. Só INSERT, nunca
+// upsert: se o id já existe (2º envio do mesmo formulário), a chave primária barra (23505) e vira 409 "já criado", SEM ler
+// nem devolver a linha existente. Sem `id`, o servidor gera o seu, como sempre.
 export async function createProcesso(input: NewProcessoDTO): Promise<Processo> {
   const db = createSupabaseAdminClient();
   const now = new Date().toISOString();
-  const id = randomId("proc_");
+  const idDoCliente = typeof input.id === "string" ? input.id : undefined; // null/ausente = o servidor gera
+  const id = idDoCliente ?? randomId("proc_");
 
   const { error } = await db.from(TABELA).insert({
     id,
@@ -56,11 +62,17 @@ export async function createProcesso(input: NewProcessoDTO): Promise<Processo> {
     created_at: now,
     updated_at: now,
   });
-  if (error) throw erro("criar processo", error);
+  if (error) {
+    if (idDoCliente && error.code === "23505") {
+      throw createError({ statusCode: 409, statusMessage: MENSAGEM_PROCESSO_JA_CRIADO });
+    }
+    throw erro("criar processo", error);
+  }
 
   // `statusOutro` (campo removido: o status "Outro" saiu), `codigoRastreio` (campo removido) e `ordem` (campo antigo,
   // coluna congelada) podem chegar de uma aba antiga: nenhum é gravado (colunasDeDTO os ignora) nem volta no retorno.
   const {
+    id: _idDoCliente,
     statusOutro: _statusOutroLegado,
     codigoRastreio: _rastreioLegado,
     ordem: _ordemLegada,

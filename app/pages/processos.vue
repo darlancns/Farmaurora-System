@@ -8,8 +8,10 @@ import type {
   ProcessoFormPatchPayload,
   StatusProcesso,
 } from "#shared/types/processo";
+import { MENSAGEM_PROCESSO_JA_CRIADO } from "#shared/utils/idNovoProcesso";
 import { useAberturaPorBusca } from "../composables/useAberturaPorBusca";
 import { useConflitoEdicaoProcesso } from "../composables/useConflitoEdicaoProcesso";
+import { useCriarProcesso } from "../composables/useCriarProcesso";
 import { useProcessos } from "../composables/useProcessos";
 import { useAuth } from "../composables/useAuth";
 import { useMoverProcesso } from "../composables/useMoverProcesso";
@@ -60,7 +62,6 @@ const {
   processos,
   error,
   fetchProcessos,
-  addProcesso,
   patchProcesso,
   removeProcesso,
   moverProcesso,
@@ -303,9 +304,14 @@ const {
   limpar: limparConflitoEdicao,
 } = useConflitoEdicaoProcesso(editingProcesso);
 
+// Criação com id gerado UMA vez ao abrir o formulário e reaproveitado em qualquer reenvio dele (o 2º POST com o mesmo id
+// recebe 409 em vez de criar outro). Um formulário novo gera outro id. Ver useCriarProcesso.
+const { iniciar: iniciarCriacao, encerrar: encerrarCriacao, criar: criarProcesso } = useCriarProcesso();
+
 function openCreateForm(): void {
   if (!canWriteProcessos.value) return;
   limparConflitoEdicao();
+  iniciarCriacao();
   editingProcesso.value = null;
   showFormModal.value = true;
 }
@@ -354,6 +360,7 @@ const {
 function closeForm(): void {
   showFormModal.value = false;
   editingProcesso.value = null;
+  encerrarCriacao();
   limparConflitoEdicao();
 }
 
@@ -376,8 +383,10 @@ async function handleSubmit(payload: NewProcessoDTO): Promise<void> {
   if (!canWriteProcessos.value) return;
   await executarEnvio(async () => {
     try {
-      await addProcesso(payload);
-      showToast("Processo adicionado");
+      const resultado = await criarProcesso(payload);
+      // "Já criado": o 1º envio deste formulário criou o processo (a lista é recarregada em segundo plano). Fecha com aviso
+      // neutro, sem o toast de sucesso duplicado.
+      showToast(resultado.tipo === "ja_criado" ? MENSAGEM_PROCESSO_JA_CRIADO : "Processo adicionado");
       closeForm();
     } catch (e) {
       showToast(getErrorMessage(e, "Erro ao adicionar processo"));

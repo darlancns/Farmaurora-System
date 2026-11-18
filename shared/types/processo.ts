@@ -142,8 +142,11 @@ export interface Processo {
 }
 
 // `numeroRemessa` é opcional na criação: ausente = 1 (o servidor preenche).
+// `id` é opcional na criação: o formulário "Novo processo" gera `proc_<uuid>` UMA vez ao abrir (shared/utils/idNovoProcesso.ts)
+// e reenvia o mesmo em tentativas repetidas; o 2º POST com o mesmo id recebe 409 (nunca cria outro). Ausente = o servidor gera.
 export type NewProcessoDTO = Omit<Processo, "id" | "createdAt" | "updatedAt" | "numeroRemessa"> & {
   numeroRemessa?: number;
+  id?: string;
 };
 
 // Payload de edição não inclui `atualizacoes` — a timeline é gerenciada à parte,
