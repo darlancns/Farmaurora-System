@@ -6,12 +6,16 @@ import type {
   NovoPorLista,
   PatchPorLista,
   CiaAerea,
+  Transportadora,
 } from "../../shared/types/Cadastro";
 import { chaveCadastro } from "../../shared/utils/cadastroNome";
 
 // Mapeadores puros linha (Supabase, tabelas `cadastro_*`) ↔ modelo — sem Supabase nem rede, testáveis isoladamente
 // (tests/unit/cadastroMappers.spec.ts). Convenção da DIR: no modelo, texto vazio é "" (nunca undefined); no banco é
 // NULL — na escrita "" vira NULL e na leitura NULL vira "".
+//
+// CHAVE PIX (dado financeiro): a leitura SÓ monta `chavePix` quando quem chama pede (`incluirPix`, decidido no handler por
+// podeVerPixCadastro). Sem o pedido o campo NÃO EXISTE no objeto devolvido (nem null).
 
 interface LinhaBase {
   id: string;
@@ -33,6 +37,11 @@ export interface DespachanteRow extends LinhaBase {
   contato_nome: string | null;
   telefone: string | null;
   email: string | null;
+  chave_pix?: string | null;
+}
+
+export interface TransportadoraRow extends LinhaBase {
+  chave_pix?: string | null;
 }
 
 export type CiaAereaRow = LinhaBase;
@@ -40,6 +49,7 @@ export type CiaAereaRow = LinhaBase;
 export interface CadastroRowPorLista {
   fornecedores: FornecedorRow;
   despachantes: DespachanteRow;
+  transportadoras: TransportadoraRow;
   "cias-aereas": CiaAereaRow;
 }
 
@@ -69,27 +79,39 @@ export function montarFornecedor(row: FornecedorRow): Fornecedor {
   };
 }
 
-export function montarDespachante(row: DespachanteRow): Despachante {
+/** Só com `incluirPix` o objeto ganha `chavePix` ("" quando não há chave); sem ele, a chave não existe no resultado. */
+export function montarDespachante(row: DespachanteRow, incluirPix = false): Despachante {
   return {
     ...base(row),
     contatoNome: row.contato_nome ?? "",
     telefone: row.telefone ?? "",
     email: row.email ?? "",
+    ...(incluirPix ? { chavePix: row.chave_pix ?? "" } : {}),
   };
+}
+
+export function montarTransportadora(row: TransportadoraRow, incluirPix = false): Transportadora {
+  return { ...base(row), ...(incluirPix ? { chavePix: row.chave_pix ?? "" } : {}) };
 }
 
 export function montarCiaAerea(row: CiaAereaRow): CiaAerea {
   return base(row);
 }
 
-const MONTADORES: { [L in ListaCadastro]: (row: CadastroRowPorLista[L]) => CadastroPorLista[L] } = {
-  fornecedores: montarFornecedor,
+const MONTADORES: { [L in ListaCadastro]: (row: CadastroRowPorLista[L], incluirPix: boolean) => CadastroPorLista[L] } = {
+  fornecedores: (row) => montarFornecedor(row),
   despachantes: montarDespachante,
-  "cias-aereas": montarCiaAerea,
+  transportadoras: montarTransportadora,
+  "cias-aereas": (row) => montarCiaAerea(row),
 };
 
-export function montarCadastro<L extends ListaCadastro>(lista: L, row: CadastroRowPorLista[L]): CadastroPorLista[L] {
-  return MONTADORES[lista](row);
+/** `incluirPix` (padrão false) só tem efeito em despachantes e transportadoras: ver o cabeçalho deste arquivo. */
+export function montarCadastro<L extends ListaCadastro>(
+  lista: L,
+  row: CadastroRowPorLista[L],
+  incluirPix = false,
+): CadastroPorLista[L] {
+  return MONTADORES[lista](row, incluirPix);
 }
 
 /** Colunas de um item NOVO (o servidor acrescenta id, datas e quem gravou). */
@@ -106,6 +128,9 @@ export function colunasNovoCadastro<L extends ListaCadastro>(lista: L, dto: Novo
     colunas.contato_nome = textoOuNulo(d.contatoNome);
     colunas.telefone = textoOuNulo(d.telefone);
     colunas.email = textoOuNulo(d.email);
+    colunas.chave_pix = textoOuNulo(d.chavePix);
+  } else if (lista === "transportadoras") {
+    colunas.chave_pix = textoOuNulo((dto as NovoPorLista["transportadoras"]).chavePix);
   }
   return colunas;
 }
@@ -129,6 +154,9 @@ export function colunasPatchCadastro<L extends ListaCadastro>(lista: L, patch: P
     if (p.contatoNome !== undefined) colunas.contato_nome = textoOuNulo(p.contatoNome as string);
     if (p.telefone !== undefined) colunas.telefone = textoOuNulo(p.telefone as string);
     if (p.email !== undefined) colunas.email = textoOuNulo(p.email as string);
+    if (p.chavePix !== undefined) colunas.chave_pix = textoOuNulo(p.chavePix as string);
+  } else if (lista === "transportadoras") {
+    if (p.chavePix !== undefined) colunas.chave_pix = textoOuNulo(p.chavePix as string);
   }
   return colunas;
 }

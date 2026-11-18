@@ -18,8 +18,10 @@ function middlewarePermite(role: Role, metodo: string, path: string): boolean {
 const CAMINHOS = [
   "/api/cadastros/fornecedores",
   "/api/cadastros/despachantes",
+  "/api/cadastros/transportadoras",
   "/api/cadastros/cias-aereas",
   "/api/cadastros/fornecedores/forn_1",
+  "/api/cadastros/transportadoras/transp_1",
   "/api/cadastros/cias-aereas/cia_1?x=1",
 ];
 

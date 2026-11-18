@@ -13,6 +13,7 @@ const BASE = { ativo: true, atualizadoPor: "", createdAt: "", updatedAt: "" };
 const DADOS: Record<string, Cadastro[]> = {
   fornecedores: [{ ...BASE, id: "f1", nome: "Poros", pais: "Turquia", prazoAlertaDias: 3, semAlerta: false } as Cadastro],
   despachantes: [{ ...BASE, id: "d1", nome: "STAR CUSTOMS", contatoNome: "", telefone: "", email: "" } as Cadastro],
+  transportadoras: [{ ...BASE, id: "t1", nome: "DHL" } as Cadastro],
   "cias-aereas": [{ ...BASE, id: "c1", nome: "Lufthansa" } as Cadastro],
 };
 
@@ -36,7 +37,7 @@ const texto = (el: Element | null) => (el?.textContent ?? "").replace(/\s+/g, " 
 const q = <T extends Element>(sel: string) => document.querySelector<T>(sel);
 
 beforeEach(() => {
-  useState<Record<string, Cadastro[]>>("cadastros").value = { fornecedores: [], despachantes: [], "cias-aereas": [] };
+  useState<Record<string, Cadastro[]>>("cadastros").value = { fornecedores: [], despachantes: [], transportadoras: [], "cias-aereas": [] };
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string) => {
@@ -55,22 +56,30 @@ afterEach(() => {
 });
 
 describe("CadastrosTab — blocos empilhados", () => {
-  it("administrador: 3 blocos, nesta ordem, cada um com título, botão '+ Novo …' e a sua lista", async () => {
+  it("administrador: 4 blocos, nesta ordem, cada um com título, botão '+ Novo …' e a sua lista", async () => {
     await montar("administrador");
     const ids = [...document.querySelectorAll("#cadastros-tab > section")].map((s) => s.id);
-    expect(ids).toEqual(["cadastro-bloco-fornecedores", "cadastro-bloco-despachantes", "cadastro-bloco-cias-aereas"]);
+    expect(ids).toEqual([
+      "cadastro-bloco-fornecedores",
+      "cadastro-bloco-despachantes",
+      "cadastro-bloco-transportadoras",
+      "cadastro-bloco-cias-aereas",
+    ]);
 
     expect(texto(q("#cadastro-titulo-fornecedores"))).toBe("Fornecedores");
     expect(texto(q("#cadastro-titulo-despachantes"))).toBe("Despachantes");
+    expect(texto(q("#cadastro-titulo-transportadoras"))).toBe("Transportadoras");
     expect(texto(q("#cadastro-titulo-cias-aereas"))).toBe("Cias aéreas");
 
     expect(texto(q("#btn-novo-cadastro-fornecedores"))).toBe("+ Novo fornecedor");
     expect(texto(q("#btn-novo-cadastro-despachantes"))).toBe("+ Novo despachante");
+    expect(texto(q("#btn-novo-cadastro-transportadoras"))).toBe("+ Nova transportadora");
     expect(texto(q("#btn-novo-cadastro-cias-aereas"))).toBe("+ Nova cia aérea");
 
     // Cada item aparece no SEU bloco.
     expect(q("#cadastro-bloco-fornecedores #cadastro-row-fornecedores-f1")).not.toBeNull();
     expect(q("#cadastro-bloco-despachantes #cadastro-row-despachantes-d1")).not.toBeNull();
+    expect(q("#cadastro-bloco-transportadoras #cadastro-row-transportadoras-t1")).not.toBeNull();
     expect(q("#cadastro-bloco-cias-aereas #cadastro-row-cias-aereas-c1")).not.toBeNull();
   });
 
@@ -98,7 +107,7 @@ describe("CadastrosTab — blocos empilhados", () => {
 
   it("quem não escreve não vê nenhum botão '+ Novo …' nem o menu de ações (só leitura)", async () => {
     await montar("socio");
-    expect(document.querySelectorAll("#cadastros-tab > section")).toHaveLength(3);
+    expect(document.querySelectorAll("#cadastros-tab > section")).toHaveLength(4);
     expect(document.querySelectorAll("[id^='btn-novo-cadastro-']")).toHaveLength(0);
     expect(document.querySelectorAll("[id^='btn-acoes-cadastro-']")).toHaveLength(0);
   });

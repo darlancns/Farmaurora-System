@@ -6,7 +6,7 @@ import { validarNovoCadastro } from "../../../../shared/utils/cadastroValidacao"
 import type { Cadastro } from "../../../../shared/types/Cadastro";
 import type { AuthUser } from "../../../../shared/types/auth";
 
-// Cria um item (nasce ativo). Só o administrador. 400 dados inválidos (inclui o nome reservado "Outro"),
+// Cria um item (nasce ativo). Só o administrador (inclusive a chave PIX, dado financeiro). 400 dados inválidos (inclui o nome reservado "Outro"),
 // 409 nome repetido (incluindo inativos).
 export default defineEventHandler(async (event): Promise<Cadastro> => {
   const user: AuthUser | null | undefined = event.context.user;
@@ -17,7 +17,8 @@ export default defineEventHandler(async (event): Promise<Cadastro> => {
   if (!dados.ok) throw createError({ statusCode: 400, statusMessage: dados.erro });
 
   try {
-    return await criarCadastro(lista, dados.valor, nomeParaAuditoria(user));
+    // Só o administrador chega aqui, e ele recebe a chave PIX de volta (incluirPix).
+    return await criarCadastro(lista, dados.valor, nomeParaAuditoria(user), { incluirPix: true });
   } catch (e) {
     return responderErroDeRegra(e);
   }

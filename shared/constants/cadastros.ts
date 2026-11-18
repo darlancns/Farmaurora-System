@@ -2,12 +2,16 @@ import type { ListaCadastro } from "../types/Cadastro";
 
 // Constantes dos Cadastros (Configurações → Cadastros).
 
-export const LISTAS_CADASTRO: readonly ListaCadastro[] = ["fornecedores", "despachantes", "cias-aereas"];
+export const LISTAS_CADASTRO: readonly ListaCadastro[] = ["fornecedores", "despachantes", "transportadoras", "cias-aereas"];
+
+/** Listas que guardam a chave PIX (dado financeiro: ver shared/utils/cadastroPix.ts). */
+export const LISTAS_COM_PIX: readonly ListaCadastro[] = ["despachantes", "transportadoras"];
 
 /** Rótulo da lista (título do bloco na tela). */
 export const LISTA_CADASTRO_ROTULO: Record<ListaCadastro, string> = {
   fornecedores: "Fornecedores",
   despachantes: "Despachantes",
+  transportadoras: "Transportadoras",
   "cias-aereas": "Cias aéreas",
 };
 
@@ -32,6 +36,12 @@ export const LISTA_CADASTRO_TEXTOS: Record<ListaCadastro, TextosItemCadastro> = 
     tituloEditar: "Editar despachante",
     criado: "Despachante criado.",
   },
+  transportadoras: {
+    novo: "+ Nova transportadora",
+    tituloNovo: "Nova transportadora",
+    tituloEditar: "Editar transportadora",
+    criado: "Transportadora criada.",
+  },
   "cias-aereas": {
     novo: "+ Nova cia aérea",
     tituloNovo: "Nova cia aérea",
@@ -40,10 +50,11 @@ export const LISTA_CADASTRO_TEXTOS: Record<ListaCadastro, TextosItemCadastro> = 
   },
 };
 
-/** Tabela de cada lista no Supabase (supabase/migrations/20261109200000_cadastros.sql). */
+/** Tabela de cada lista no Supabase (20261109200000_cadastros.sql e 20261118200000_cadastros_transportadoras_pix.sql). */
 export const TABELA_CADASTRO: Record<ListaCadastro, string> = {
   fornecedores: "cadastro_fornecedores",
   despachantes: "cadastro_despachantes",
+  transportadoras: "cadastro_transportadoras",
   "cias-aereas": "cadastro_cias_aereas",
 };
 
@@ -58,6 +69,8 @@ export const PAIS_CADASTRO_MAX = 60;
 export const CONTATO_CADASTRO_MAX = 120;
 export const TELEFONE_CADASTRO_MAX = 30;
 export const EMAIL_CADASTRO_MAX = 254;
+/** Chave PIX (o mesmo limite do CHECK das tabelas: length(chave_pix) <= 140). */
+export const CHAVE_PIX_CADASTRO_MAX = 140;
 
 // Prazo do alerta do fornecedor: dias corridos a partir da compra (o mesmo CHECK da tabela).
 export const PRAZO_ALERTA_MIN_DIAS = 1;

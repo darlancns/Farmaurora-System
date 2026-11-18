@@ -16,6 +16,8 @@ export class FakeSupabase {
   readonly tabelas: Record<string, Row[]> = {};
   private falhas: Array<{ tabela: string; op: Op; mensagem: string }> = [];
   readonly chamadas: Array<{ tabela: string; op: Op }> = [];
+  // Colunas pedidas em cada select puro (o argumento de `.select(colunas)`); o fake NÃO projeta as linhas por elas.
+  readonly selects: Array<{ tabela: string; colunas: string | undefined }> = [];
 
   semear(tabela: string, linhas: Row[]): void {
     this.tabelas[tabela] = [...(this.tabelas[tabela] ?? []), ...linhas.map((l) => ({ ...l }))];
@@ -61,8 +63,9 @@ class Consulta implements PromiseLike<Resultado> {
 
   // Depois de insert/update/delete, `.select()` pede as linhas afetadas de volta (PostgREST
   // `Prefer: return=representation`); num select puro não muda nada.
-  select(): this {
+  select(colunas?: string): this {
     if (this.op !== "select") this.retorna = true;
+    else this.db.selects.push({ tabela: this.tabela, colunas });
     return this;
   }
   insert(row: Row): this {

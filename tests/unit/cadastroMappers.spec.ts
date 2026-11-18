@@ -80,6 +80,7 @@ describe("colunasNovoCadastro", () => {
       contato_nome: "Fulano",
       telefone: null,
       email: null,
+      chave_pix: null,
     });
     expect(colunasNovoCadastro("cias-aereas", { nome: "Ambiente" })).toEqual({ nome: "Ambiente", nome_chave: "ambiente", ativo: true });
   });

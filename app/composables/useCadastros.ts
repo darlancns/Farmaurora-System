@@ -13,11 +13,12 @@ type EstadoCadastros = { [L in ListaCadastro]: CadastroPorLista[L][] };
 const ROTULO_FALHA: Record<ListaCadastro, string> = {
   fornecedores: "Falha ao carregar os fornecedores.",
   despachantes: "Falha ao carregar os despachantes.",
+  transportadoras: "Falha ao carregar as transportadoras.",
   "cias-aereas": "Falha ao carregar as cias aéreas.",
 };
 
 export function useCadastros() {
-  const itens = useState<EstadoCadastros>("cadastros", () => ({ fornecedores: [], despachantes: [], "cias-aereas": [] }));
+  const itens = useState<EstadoCadastros>("cadastros", () => ({ fornecedores: [], despachantes: [], transportadoras: [], "cias-aereas": [] }));
   const loading = useState<boolean>("cadastros-loading", () => false);
   const error = useState<string | null>("cadastros-error", () => null);
 
@@ -26,7 +27,7 @@ export function useCadastros() {
     itens.value = { ...itens.value, [lista]: ordenarCadastro(recebidos) };
   }
 
-  /** Carrega as três listas (ativos e inativos). */
+  /** Carrega as quatro listas (ativos e inativos). */
   async function fetchCadastros(): Promise<void> {
     loading.value = true;
     error.value = null;

@@ -30,6 +30,7 @@ const COLUNAS: Record<ListaCadastro, ColunaCadastro[]> = {
     { chave: "telefone", titulo: "Telefone", texto: (i) => ou((i as Despachante).telefone) },
     { chave: "email", titulo: "E-mail", texto: (i) => ou((i as Despachante).email) },
   ],
+  transportadoras: [],
   "cias-aereas": [],
 };
 

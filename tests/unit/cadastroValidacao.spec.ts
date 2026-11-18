@@ -74,7 +74,7 @@ describe("validarNovoCadastro — despachantes (só empresa; contato, telefone e
   it("só o nome basta", () => {
     expect(validarNovoCadastro("despachantes", { nome: "STAR CUSTOMS" })).toEqual({
       ok: true,
-      valor: { nome: "STAR CUSTOMS", contatoNome: "", telefone: "", email: "" },
+      valor: { nome: "STAR CUSTOMS", contatoNome: "", telefone: "", email: "", chavePix: "" },
     });
   });
 
@@ -87,7 +87,13 @@ describe("validarNovoCadastro — despachantes (só empresa; contato, telefone e
     });
     expect(ok).toEqual({
       ok: true,
-      valor: { nome: "SOUTH AMERICA", contatoNome: "Fulano de Tal", telefone: "+55 (11) 98888-7777", email: "contato@empresa.com" },
+      valor: {
+        nome: "SOUTH AMERICA",
+        contatoNome: "Fulano de Tal",
+        telefone: "+55 (11) 98888-7777",
+        email: "contato@empresa.com",
+        chavePix: "",
+      },
     });
     expect(erroDe(validarNovoCadastro("despachantes", { nome: "X", email: "sem-arroba" }))).toMatch(/e-mail/i);
     expect(erroDe(validarNovoCadastro("despachantes", { nome: "X", telefone: "abc" }))).toMatch(/telefone/i);

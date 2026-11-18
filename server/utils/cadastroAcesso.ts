@@ -2,6 +2,7 @@ import { createError, getRouterParam, type H3Event } from "h3";
 import { LISTAS_CADASTRO } from "../../shared/constants/cadastros";
 import type { ListaCadastro } from "../../shared/types/Cadastro";
 import type { AuthUser } from "../../shared/types/auth";
+import { podeVerPixCadastro } from "../../shared/utils/cadastroPix";
 
 // Apoio dos handlers de /api/cadastros/**.
 
@@ -17,7 +18,15 @@ export function exigirAdministradorNosCadastros(user: AuthUser | null | undefine
   return user;
 }
 
-/** A lista da rota (`/api/cadastros/:lista`): só as três conhecidas; qualquer outra é 404. */
+/**
+ * O usuário recebe a chave PIX nas respostas? Só o administrador e quem LÊ a seção Pagamentos (pelo mapa de permissões
+ * por página, quando houver; senão pela regra do cargo). A regra única está em shared/utils/cadastroPix.ts. Sem usuário: não.
+ */
+export function usuarioVePix(user: AuthUser | null | undefined): boolean {
+  return podeVerPixCadastro(user);
+}
+
+/** A lista da rota (`/api/cadastros/:lista`): só as quatro conhecidas; qualquer outra é 404. */
 export function listaDaRota(event: H3Event): ListaCadastro {
   const lista = getRouterParam(event, "lista");
   if (!lista || !(LISTAS_CADASTRO as readonly string[]).includes(lista)) {

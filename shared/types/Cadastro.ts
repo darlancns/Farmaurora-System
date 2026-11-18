@@ -1,10 +1,10 @@
-// Cadastros v1 (Configurações → Cadastros): três listas editáveis só pelo administrador (fornecedores, despachantes e
-// cias aéreas).
+// Cadastros (Configurações → Cadastros): quatro listas editáveis só pelo administrador (fornecedores, despachantes,
+// transportadoras e cias aéreas).
 //
 // Convenção (a mesma da DIR): no modelo, texto vazio é "" (nunca undefined); no banco é NULL.
 // "Remover" é desativar (`ativo: false`) — não existe exclusão. O NOME não muda depois de criado.
 
-export type ListaCadastro = "fornecedores" | "despachantes" | "cias-aereas";
+export type ListaCadastro = "fornecedores" | "despachantes" | "transportadoras" | "cias-aereas";
 
 interface CadastroBase {
   id: string;
@@ -25,12 +25,24 @@ export interface Fornecedor extends CadastroBase {
   semAlerta: boolean;
 }
 
+/**
+ * Chave PIX (despachantes e transportadoras): DADO FINANCEIRO. O campo `chavePix` só EXISTE na resposta da API para o
+ * administrador e para quem LÊ a seção Pagamentos (ver shared/utils/cadastroPix.ts); para os demais ele não vem, nem
+ * como null. Por isso é opcional no tipo: ausente = a pessoa não pode ver; "" = pode ver e não há chave cadastrada.
+ */
+interface ComChavePix {
+  chavePix?: string;
+}
+
 /** Despachante = EMPRESA; o contato é uma pessoa dessa empresa (tudo opcional). */
-export interface Despachante extends CadastroBase {
+export interface Despachante extends CadastroBase, ComChavePix {
   contatoNome: string;
   telefone: string;
   email: string;
 }
+
+/** Transportadora: nome, chave PIX (opcional, dado financeiro) e ativo. */
+export type Transportadora = CadastroBase & ComChavePix;
 
 /** Cia aérea: só nome e ativo. */
 export type CiaAerea = CadastroBase;
@@ -38,6 +50,7 @@ export type CiaAerea = CadastroBase;
 export interface CadastroPorLista {
   fornecedores: Fornecedor;
   despachantes: Despachante;
+  transportadoras: Transportadora;
   "cias-aereas": CiaAerea;
 }
 
@@ -58,6 +71,14 @@ export interface NovoDespachanteDTO {
   contatoNome?: string;
   telefone?: string;
   email?: string;
+  /** Dado financeiro: só o administrador grava. */
+  chavePix?: string;
+}
+
+export interface NovaTransportadoraDTO {
+  nome: string;
+  /** Dado financeiro: só o administrador grava. */
+  chavePix?: string;
 }
 
 export interface NovaCiaAereaDTO {
@@ -67,6 +88,7 @@ export interface NovaCiaAereaDTO {
 export interface NovoPorLista {
   fornecedores: NovoFornecedorDTO;
   despachantes: NovoDespachanteDTO;
+  transportadoras: NovaTransportadoraDTO;
   "cias-aereas": NovaCiaAereaDTO;
 }
 
@@ -87,6 +109,15 @@ export interface DespachantePatchDTO {
   contatoNome?: string;
   telefone?: string;
   email?: string;
+  /** "" limpa a chave (vira NULL no banco). */
+  chavePix?: string;
+  ativo?: boolean;
+}
+
+export interface TransportadoraPatchDTO {
+  nome?: string;
+  /** "" limpa a chave (vira NULL no banco). */
+  chavePix?: string;
   ativo?: boolean;
 }
 
@@ -98,5 +129,6 @@ export interface CiaAereaPatchDTO {
 export interface PatchPorLista {
   fornecedores: FornecedorPatchDTO;
   despachantes: DespachantePatchDTO;
+  transportadoras: TransportadoraPatchDTO;
   "cias-aereas": CiaAereaPatchDTO;
 }

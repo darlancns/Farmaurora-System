@@ -1,4 +1,5 @@
 import {
+  CHAVE_PIX_CADASTRO_MAX,
   CONTATO_CADASTRO_MAX,
   EMAIL_CADASTRO_MAX,
   NOME_CADASTRO_MAX,
@@ -55,12 +56,14 @@ function validarNome(v: unknown): ResultadoCadastro<string> {
   return { ok: true, valor: nome };
 }
 
-type CampoTexto = { nome: string; max: number; extra?: (valor: string) => string | null };
+type CampoTexto = { nome: string; max: number; invalido?: string; extra?: (valor: string) => string | null };
+
+const invalidoDe = (campo: CampoTexto): string => campo.invalido ?? `${campo.nome} inválido.`;
 
 // Texto opcional: ausente ou vazio vale "" ; preenchido é aparado e conferido.
 function textoOpcional(v: unknown, campo: CampoTexto): ResultadoCadastro<string> {
   if (v === undefined || v === null) return { ok: true, valor: "" };
-  if (typeof v !== "string") return erro(`${campo.nome} inválido.`);
+  if (typeof v !== "string") return erro(invalidoDe(campo));
   const texto = v.trim();
   if (texto.length > campo.max) return erro(`${campo.nome} pode ter no máximo ${campo.max} caracteres.`);
   const problema = texto === "" ? null : campo.extra?.(texto);
@@ -74,6 +77,8 @@ const CAMPO_TELEFONE: CampoTexto = {
   max: TELEFONE_CADASTRO_MAX,
   extra: (t) => (telefoneValido(t) ? null : MSG_TELEFONE),
 };
+// Chave PIX (dado financeiro): só se confere o tamanho. NENHUMA mensagem de erro cita o valor digitado.
+const CAMPO_PIX: CampoTexto = { nome: "A chave PIX", max: CHAVE_PIX_CADASTRO_MAX, invalido: "Chave PIX inválida." };
 const CAMPO_EMAIL: CampoTexto = {
   nome: "O e-mail",
   max: EMAIL_CADASTRO_MAX,
@@ -114,13 +119,15 @@ function chavesDesconhecidas(corpo: Record<string, unknown>, permitidas: readonl
 
 const CHAVES_NOVO: Record<ListaCadastro, readonly string[]> = {
   fornecedores: ["nome", "pais", "prazoAlertaDias", "semAlerta"],
-  despachantes: ["nome", "contatoNome", "telefone", "email"],
+  despachantes: ["nome", "contatoNome", "telefone", "email", "chavePix"],
+  transportadoras: ["nome", "chavePix"],
   "cias-aereas": ["nome"],
 };
 
 const CHAVES_PATCH: Record<ListaCadastro, readonly string[]> = {
   fornecedores: ["nome", "pais", "prazoAlertaDias", "semAlerta", "ativo"],
-  despachantes: ["nome", "contatoNome", "telefone", "email", "ativo"],
+  despachantes: ["nome", "contatoNome", "telefone", "email", "chavePix", "ativo"],
+  transportadoras: ["nome", "chavePix", "ativo"],
   "cias-aereas": ["nome", "ativo"],
 };
 
@@ -149,6 +156,8 @@ export function validarNovoCadastro<L extends ListaCadastro>(lista: L, corpo: un
     if (!telefone.ok) return telefone;
     const email = textoOpcional(o.email, CAMPO_EMAIL);
     if (!email.ok) return email;
+    const chavePix = textoOpcional(o.chavePix, CAMPO_PIX);
+    if (!chavePix.ok) return chavePix;
     return {
       ok: true,
       valor: {
@@ -156,8 +165,15 @@ export function validarNovoCadastro<L extends ListaCadastro>(lista: L, corpo: un
         contatoNome: contatoNome.valor,
         telefone: telefone.valor,
         email: email.valor,
+        chavePix: chavePix.valor,
       } as NovoPorLista[L],
     };
+  }
+
+  if (lista === "transportadoras") {
+    const chavePix = textoOpcional(o.chavePix, CAMPO_PIX);
+    if (!chavePix.ok) return chavePix;
+    return { ok: true, valor: { nome: nome.valor, chavePix: chavePix.valor } as NovoPorLista[L] };
   }
 
   return { ok: true, valor: { nome: nome.valor } as NovoPorLista[L] };
@@ -189,7 +205,7 @@ export function validarPatchCadastro<L extends ListaCadastro>(lista: L, corpo: u
 
   const copiarTexto = (chave: string, campo: CampoTexto): string | null => {
     if (!(chave in o)) return null;
-    if (o[chave] === undefined || o[chave] === null) return `${campo.nome} inválido.`;
+    if (o[chave] === undefined || o[chave] === null) return invalidoDe(campo);
     const r = textoOpcional(o[chave], campo);
     if (!r.ok) return r.erro;
     patch[chave] = r.valor;
@@ -209,7 +225,14 @@ export function validarPatchCadastro<L extends ListaCadastro>(lista: L, corpo: u
       patch.prazoAlertaDias = alerta.valor.prazoAlertaDias;
     }
   } else if (lista === "despachantes") {
-    problemas.push(copiarTexto("contatoNome", CAMPO_CONTATO), copiarTexto("telefone", CAMPO_TELEFONE), copiarTexto("email", CAMPO_EMAIL));
+    problemas.push(
+      copiarTexto("contatoNome", CAMPO_CONTATO),
+      copiarTexto("telefone", CAMPO_TELEFONE),
+      copiarTexto("email", CAMPO_EMAIL),
+      copiarTexto("chavePix", CAMPO_PIX),
+    );
+  } else if (lista === "transportadoras") {
+    problemas.push(copiarTexto("chavePix", CAMPO_PIX));
   }
 
   const problema = problemas.find((p) => p !== null);

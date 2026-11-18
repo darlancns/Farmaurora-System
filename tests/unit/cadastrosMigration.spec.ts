@@ -17,7 +17,11 @@ const sql = bruto
   .toLowerCase()
   .replace(/\s+/g, " ");
 
-const TABELAS = Object.values(TABELA_CADASTRO);
+// As tabelas DESTA migration (20261109): as três primeiras listas. A de transportadoras nasce na migration 20261118200000
+// (guardada em cadastrosTransportadorasPixMigration.spec.ts).
+const TABELAS = Object.entries(TABELA_CADASTRO)
+  .filter(([lista]) => lista !== "transportadoras")
+  .map(([, tabela]) => tabela);
 
 describe("migration dos Cadastros", () => {
   it("o arquivo existe, com o nome 20261109xxxxxx_cadastros.sql", () => {
