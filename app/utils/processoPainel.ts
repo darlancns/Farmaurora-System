@@ -27,6 +27,10 @@ export interface ItemMedicamentoPainel {
   linha: string;
   /** "Laboratório · Brand" (só as partes preenchidas), ou "" quando o item não tem nenhum dos dois. */
   extra: string;
+  /** Só a quantidade ("6 caixas"), ou "" sem quantidade. A `linha` é `${quantidade} — ${nome}`. (Campo aditivo.) */
+  quantidade: string;
+  /** Só o nome com a dosagem ("Opdivo 40mg"). (Campo aditivo.) */
+  nome: string;
 }
 
 /** Os itens do bloco Medicamento(s), na ordem da lista. Itens sem nome não aparecem. */
@@ -36,7 +40,7 @@ export function itensMedicamentos(medicamentos: readonly Medicamento[]): ItemMed
     .map((m) => {
       const nome = [m.nome.trim(), m.dosagem?.trim()].filter(Boolean).join(" ");
       const qtd = m.quantidade?.trim();
-      return { linha: qtd ? `${qtd} — ${nome}` : nome, extra: linhaLaboratorioBrand(m) };
+      return { linha: qtd ? `${qtd} — ${nome}` : nome, extra: linhaLaboratorioBrand(m), quantidade: qtd ?? "", nome };
     });
 }
 

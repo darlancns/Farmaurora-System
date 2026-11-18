@@ -3,7 +3,9 @@ import { computed } from "vue";
 import type { Processo } from "#shared/types/processo";
 import { rotuloPastaPo } from "#shared/utils/rotuloPasta";
 import { resumoMedicamentos } from "../../utils/processoFormatters";
-import { linhasInfoKanban, type ChaveCelulaKanban } from "../../utils/processoKanbanInfo";
+import { ICONES_CARD } from "../../utils/processoIcones";
+import { linhasInfoKanban } from "../../utils/processoKanbanInfo";
+import { etiquetaPagamentoDe } from "../../utils/processoPagamento";
 
 // Card de um processo no Kanban do Follow-Up. O <article> INTEIRO é o controle que abre o painel: role="button",
 // tabindex="0", Enter/Espaço abrem, foco visível — e NENHUM <button> dentro dele (a etiqueta de pagamento é só um
@@ -42,40 +44,10 @@ const emit = defineEmits<{
 const pastaPo = computed(() => rotuloPastaPo(props.processo.pasta, props.processo.numeroPo));
 
 // Pagamento ao FORNECEDOR: etiqueta só quando há valor (vazio = nenhuma etiqueta).
-const etiquetaPagamento = computed<{ texto: string; classe: string } | null>(() => {
-  if (props.processo.statusPagamento === "pago") return { texto: "Pago", classe: "bg-green-100 text-green-800" };
-  if (props.processo.statusPagamento === "pendente") return { texto: "Pendente", classe: "bg-amber-100 text-amber-800" };
-  return null;
-});
+const etiquetaPagamento = computed(() => etiquetaPagamentoDe(props.processo.statusPagamento));
 
 const medicamento = computed(() => resumoMedicamentos(props.processo.medicamentos));
 const linhasInfo = computed(() => linhasInfoKanban(props.processo));
-
-// Ícones dos bloquinhos (traço fino, 24x24, só <path>): usuário com check, usuário, alerta, prédio, prancheta com
-// check, avião.
-const ICONES_INFO: Record<ChaveCelulaKanban, string[]> = {
-  responsavel: ["M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2", "M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z", "m16 11 2 2 4-4"],
-  consultor: [
-    "M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z",
-  ],
-  pendencias: [
-    "M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z",
-  ],
-  fornecedor: [
-    "M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z",
-    "M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2",
-    "M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2",
-    "M10 6h4M10 10h4M10 14h4M10 18h4",
-  ],
-  despachante: [
-    "M9 2h6a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z",
-    "M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2",
-    "m9 14 2 2 4-4",
-  ],
-  aereo: [
-    "M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z",
-  ],
-};
 
 function abrir(): void {
   if (props.movendo) return;
@@ -176,7 +148,7 @@ function onKeydown(event: KeyboardEvent): void {
             stroke-linejoin="round"
             aria-hidden="true"
           >
-            <path v-for="(d, i) in ICONES_INFO[celula.chave]" :key="i" :d="d" />
+            <path v-for="(d, i) in ICONES_CARD[celula.chave]" :key="i" :d="d" />
           </svg>
           <span class="sr-only">{{ celula.rotulo }}: </span>
           <!-- Na célula aérea, só a cia corta com "…": a AWB fica inteira (só corta se sozinha passar da célula). -->
