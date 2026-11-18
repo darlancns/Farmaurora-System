@@ -71,7 +71,13 @@ describe("trava: o PO da DIR e o do Follow-Up usam a MESMA função de máscara"
       const fonte = lerFonte(arquivo);
       expect(fonte, arquivo).toMatch(/import \{ aplicarMascaraNumeroPo \} from "\.\.\/utils\/aplicarMascaraNumeroPo"/);
       expect(fonte, `${arquivo}: sem mascararNumeroPo direto`).not.toContain("mascararNumeroPo");
-      expect(fonte, `${arquivo}: sem setSelectionRange próprio`).not.toContain("setSelectionRange");
+      // useProcessoForm tem outro setSelectionRange, do campo de laboratório (nada a ver com o PO): vale só o do PO.
+      const trechoPo =
+        arquivo === "app/composables/useProcessoForm.ts"
+          ? (/function onNumeroPoInput[\s\S]*?\r?\n {2}\}\r?\n/.exec(fonte)?.[0] ?? "")
+          : fonte;
+      expect(trechoPo, `${arquivo}: trecho do PO não encontrado`).not.toBe("");
+      expect(trechoPo, `${arquivo}: sem setSelectionRange próprio no PO`).not.toContain("setSelectionRange");
     }
   });
 

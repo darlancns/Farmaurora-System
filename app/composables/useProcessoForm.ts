@@ -11,8 +11,8 @@ import type {
 } from "#shared/types/processo";
 import { ciaAereaValidaParaModal, EMPRESAS_PROCESSO, FORNECEDORES_PROCESSO } from "#shared/constants/processos";
 import { capitalizarIniciais, lerMedicamento, normalizarLaboratorio } from "#shared/utils/laboratorio";
-import { mascararNumeroPo } from "#shared/utils/numeroPo";
 import { NUMERO_REMESSA_PADRAO } from "#shared/utils/numeroRemessa";
+import { aplicarMascaraNumeroPo } from "../utils/aplicarMascaraNumeroPo";
 import { maskPastaCode } from "../utils/processoFormatters";
 import {
   montarPatchDiferencial,
@@ -293,22 +293,10 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
   }
 
   // PO: a máscara cuida do prefixo, dos números, dos hífens e das MAIÚSCULAS (PO26-10-0471); só o PO completo (ou vazio) salva. O input leva
-  // data-sem-maiuscula: o plugin global só capitaliza a 1ª letra e disputaria o valor). Roda em todo "input",
-  // inclusive colar. O valor mascarado é escrito de volta no campo, com o cursor no lugar certo (nada de
-  // pular para o fim ao digitar/apagar no meio).
+  // data-sem-maiuscula: o plugin global só capitaliza a 1ª letra e disputaria o valor). A ligação da máscara ao
+  // campo (digitar, colar, cursor) é a mesma da DIR: utils/aplicarMascaraNumeroPo.ts.
   function onNumeroPoInput(event: Event): void {
-    const target = event.target as HTMLInputElement;
-    const { valor, cursor } = mascararNumeroPo(target.value, {
-      anterior: form.numeroPo,
-      cursor: target.selectionStart,
-    });
-    form.numeroPo = valor;
-    if (target.value !== valor) target.value = valor;
-    try {
-      target.setSelectionRange(cursor, cursor);
-    } catch {
-      // sem seleção (campo fora do DOM): nada a restaurar
-    }
+    form.numeroPo = aplicarMascaraNumeroPo(event.target as HTMLInputElement, form.numeroPo);
   }
 
   function onMedicamentoNomeInput(index: number, event: Event): void {
