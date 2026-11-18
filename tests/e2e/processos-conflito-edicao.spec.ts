@@ -152,6 +152,23 @@ test.describe.serial("Conflito de versão na edição do processo", () => {
     expect((await linhaNoBanco()).pendencias).toEqual(["Pendência original", "Pendência do outro", "Refeita"]);
   });
 
+  test("duplo clique em Salvar (pendência): UM PATCH, grava uma vez e nunca mostra o aviso de conflito", async ({ page }) => {
+    await abrirEdicao(page);
+    const patchesEnviados: string[] = [];
+    page.on("request", (r) => {
+      if (r.method() === "PATCH" && r.url().includes(`/api/processos/${ID}`)) patchesEnviados.push(r.url());
+    });
+    await camposPendencia(page).first().fill("Pendência editada 2x");
+
+    await page.locator("#btn-save-processo").dblclick();
+    await expect(page.locator("#processo-form")).toHaveCount(0);
+    await expect(page.locator("#toast-notice")).toHaveText("Processo atualizado");
+    await page.waitForTimeout(300);
+    expect(patchesEnviados, "o 2º clique não envia um 2º PATCH").toHaveLength(1);
+    await expect(page.locator("#processo-conflito-aviso")).toHaveCount(0);
+    expect((await linhaNoBanco()).pendencias).toEqual(["Pendência editada 2x"]);
+  });
+
   test("sem conflito: salvar uma pendência grava e fecha o modal", async ({ page }) => {
     await abrirEdicao(page);
     await camposPendencia(page).first().fill("Pendência editada");

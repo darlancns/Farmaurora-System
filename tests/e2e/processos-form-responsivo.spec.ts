@@ -1,4 +1,5 @@
 import { test, expect, type Locator, type Page, type Request } from "@playwright/test";
+import { verificarEnvioRepetido } from "./_helpers/envioRepetido";
 import { fixarVisaoLista } from "./_helpers/visaoProcessos";
 
 // Formulário "Novo processo" / "Editar processo" (ProcessoFormModal.vue e filhos)
@@ -831,6 +832,10 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
             await campo(page, id).click(); // fecha
             await expect(lista).toHaveCount(0);
           }
+        });
+
+        test("Salvar: resposta atrasada + duplo clique/Enter = 1 requisição; botão desabilitado com a mesma largura; erro reabilita", async ({ page }) => {
+          await verificarEnvioRepetido(page, modo);
         });
 
         test("Cancelar fecha sem persistir; Salvar chama o mesmo endpoint de hoje", async ({ page }) => {

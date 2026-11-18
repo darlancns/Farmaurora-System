@@ -1,4 +1,5 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
+import { verificarEnvioRepetido } from "./_helpers/envioRepetido";
 import { fixarVisaoLista } from "./_helpers/visaoProcessos";
 
 // Formulário "Novo processo" / "Editar processo" em lg+ (>= 1024px): o refino mobile/tablet
@@ -520,6 +521,20 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
           // Altura de um campo de texto de antes: padding 8+8, borda 1+1 e a linha da fonte (sem piso de 44px).
           expect((await b("pf-paciente")).height).toBeLessThan(44);
           expect((await b("pf-paciente")).height).toBeGreaterThan(30);
+        });
+
+        test("Salvar: resposta atrasada + duplo clique/Enter = 1 requisição; botão desabilitado com a mesma largura; erro reabilita", async ({ page }) => {
+          // Nada é persistido: POST/PATCH de /api/processos são respondidos aqui (o 1º envio, atrasado e com 500, é do helper).
+          await page.route(/\/api\/processos(\/[^/?]+)?(\?.*)?$/, (route) => {
+            const metodo = route.request().method();
+            if (metodo !== "POST" && metodo !== "PATCH") return route.fallback();
+            return route.fulfill({
+              status: metodo === "POST" ? 201 : 200,
+              contentType: "application/json",
+              body: JSON.stringify({ id: processoId ?? "proc_teste", ...EDITAR, ...(route.request().postDataJSON() as object) }),
+            });
+          });
+          await verificarEnvioRepetido(page, modo);
         });
 
         test("lista do AppSelect: absoluta logo abaixo do campo, w-max, até 224px, como antes", async ({ page }) => {

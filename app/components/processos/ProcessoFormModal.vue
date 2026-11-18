@@ -38,6 +38,8 @@ const props = defineProps<{
   // Outra pessoa gravou o processo enquanto o formulário estava aberto (409): mostra o aviso e o botão de recarregar.
   conflito?: boolean;
   recarregando?: boolean;
+  // Envio em andamento (criar ou salvar): desabilita o botão principal e ignora novos envios (Enter, clique).
+  salvando?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -90,6 +92,8 @@ const bloqueioDatas = useProverBloqueioDatas();
 const textoSalvarCompleto = computed(() => (props.editingProcesso ? "Salvar alterações" : "+ Adicionar processo"));
 
 function handleSubmit(): void {
+  // Já está salvando: ignora Enter, Enter duplo e clique + Enter (a trava síncrona está em processos.vue).
+  if (props.salvando) return;
   if (!bloqueioDatas.liberado()) return;
   if (props.editingProcesso) {
     // Edição: só vai o que o usuário alterou (patch diferencial, ver montarPatchDiferencial).
@@ -148,7 +152,9 @@ function handleSubmit(): void {
           type="submit"
           form="processo-form"
           :aria-label="textoSalvarCompleto"
-          class="ml-auto min-h-11 shrink-0 rounded-lg bg-accent-dark px-3 py-2 text-[14px] font-semibold whitespace-nowrap text-white transition-colors hover:opacity-90 sm:px-4 lg:h-9 lg:min-h-auto lg:px-3.5 lg:py-0 lg:text-[13px]"
+          :disabled="salvando"
+          :aria-busy="salvando"
+          class="ml-auto min-h-11 shrink-0 rounded-lg bg-accent-dark px-3 py-2 text-[14px] font-semibold whitespace-nowrap text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 sm:px-4 lg:h-9 lg:min-h-auto lg:px-3.5 lg:py-0 lg:text-[13px]"
         >
           <span class="sm:hidden">{{ editingProcesso ? "Salvar" : "Adicionar" }}</span>
           <span class="hidden sm:inline">{{ textoSalvarCompleto }}</span>
@@ -426,6 +432,10 @@ function handleSubmit(): void {
           </button>
         </div>
       </form>
+
+      <!-- Anúncio para leitor de tela, sempre montado (região viva montada só depois não é lida). sr-only é absolute e
+           não ocupa espaço; o ancestral posicionado é o overlay do BaseModal (fixed), então não estica a página. -->
+      <p id="processo-salvando-anuncio" class="sr-only" role="status" aria-live="polite">{{ salvando ? "Salvando…" : "" }}</p>
     </div>
   </BaseModal>
 </template>

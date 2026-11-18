@@ -15,6 +15,7 @@ import { useAuth } from "../composables/useAuth";
 import { useMoverProcesso } from "../composables/useMoverProcesso";
 import { useRecarregarAoVoltar } from "../composables/useRecarregarAoVoltar";
 import { useToast } from "../composables/useToast";
+import { useTravaEnvio } from "../composables/useTravaEnvio";
 import { useVisaoProcessos } from "../composables/useVisaoProcessos";
 import type { VisaoProcessos } from "../utils/processoVisao";
 import type { AppSelectOption } from "../types/appSelect";
@@ -366,28 +367,37 @@ function handleUnchanged(): void {
   closeForm();
 }
 
+// Trava de envio do formulário (criar e editar): uma só. A flag síncrona do composable barra o 2º envio no mesmo
+// instante (duplo clique, Enter duplo, clique + Enter) antes de o Vue re-renderizar; o ref `salvando` desabilita o
+// botão. Libera no finally (sucesso, erro ou conflito). Fechar o modal NÃO é bloqueado durante o envio.
+const { emAndamento: salvando, executar: executarEnvio } = useTravaEnvio();
+
 async function handleSubmit(payload: NewProcessoDTO): Promise<void> {
   if (!canWriteProcessos.value) return;
-  try {
-    await addProcesso(payload);
-    showToast("Processo adicionado");
-    closeForm();
-  } catch (e) {
-    showToast(getErrorMessage(e, "Erro ao adicionar processo"));
-  }
+  await executarEnvio(async () => {
+    try {
+      await addProcesso(payload);
+      showToast("Processo adicionado");
+      closeForm();
+    } catch (e) {
+      showToast(getErrorMessage(e, "Erro ao adicionar processo"));
+    }
+  });
 }
 
 async function handleUpdate(id: string, payload: ProcessoFormPatchPayload): Promise<void> {
   if (!canWriteProcessos.value) return;
-  try {
-    const resultado = await salvarEdicao(id, payload);
-    // Conflito: o modal segue aberto com o aviso (nada foi gravado); a pessoa decide recarregar.
-    if (resultado.tipo === "conflito") return;
-    showToast("Processo atualizado");
-    closeForm();
-  } catch (e) {
-    showToast(getErrorMessage(e, "Erro ao atualizar processo"));
-  }
+  await executarEnvio(async () => {
+    try {
+      const resultado = await salvarEdicao(id, payload);
+      // Conflito: o modal segue aberto com o aviso (nada foi gravado); a pessoa decide recarregar.
+      if (resultado.tipo === "conflito") return;
+      showToast("Processo atualizado");
+      closeForm();
+    } catch (e) {
+      showToast(getErrorMessage(e, "Erro ao atualizar processo"));
+    }
+  });
 }
 
 // "Recarregar dados atuais": busca a linha atual, o formulário recarrega por ela e as alterações em andamento
@@ -655,6 +665,7 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
       :editing-processo="editingProcesso"
       :conflito="conflitoEdicao"
       :recarregando="recarregandoEdicao"
+      :salvando="salvando"
       @submit="handleSubmit"
       @update="handleUpdate"
       @recarregar="handleRecarregarEdicao"
