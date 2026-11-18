@@ -5,7 +5,7 @@ import type { Permissoes } from "#shared/utils/permissoesPagina";
 import { useAuth } from "../../app/composables/useAuth";
 
 // useAuth real; "#app" é o substituto de tests/unit/helpers/nuxtAppStub.ts (useState por chave, compartilhado).
-const SECOES: Section[] = ["patients", "processos", "pagamentos", "admin", "config", "recados"];
+const SECOES: Section[] = ["patients", "processos", "pagamentos", "dir", "admin", "config", "recados"];
 
 function entrar(role: Role, permissoes?: Permissoes): ReturnType<typeof useAuth> {
   const auth = useAuth();
@@ -19,7 +19,7 @@ function entrar(role: Role, permissoes?: Permissoes): ReturnType<typeof useAuth>
   return auth;
 }
 
-const TUDO_NENHUM: Permissoes = { processos: "nenhum", pagamentos: "nenhum", patients: "nenhum" };
+const TUDO_NENHUM: Permissoes = { processos: "nenhum", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum" };
 
 beforeEach(() => {
   useAuth().user.value = null;
@@ -45,11 +45,13 @@ describe("useAuth — canRead, canWrite e homeRoute", () => {
   });
 
   it("com mapa: 'ver' lê e não escreve (é o que vira readonly nas páginas); 'nenhum' não lê; 'editar' escreve", () => {
-    const auth = entrar("operacional", { processos: "ver", pagamentos: "nenhum", patients: "ver" });
+    const auth = entrar("operacional", { processos: "ver", pagamentos: "nenhum", dir: "editar", patients: "ver" });
     expect(auth.canRead("processos")).toBe(true);
     expect(auth.canWrite("processos")).toBe(false);
     expect(auth.canRead("pagamentos")).toBe(false);
     expect(auth.canWrite("pagamentos")).toBe(false);
+    expect(auth.canRead("dir")).toBe(true);
+    expect(auth.canWrite("dir")).toBe(true);
     expect(auth.canRead("patients")).toBe(true);
     expect(auth.canWrite("patients")).toBe(false);
   });
@@ -70,7 +72,7 @@ describe("useAuth — canRead, canWrite e homeRoute", () => {
 
   it("consultor e administrador ignoram o mapa", () => {
     const adm = entrar("administrador", TUDO_NENHUM);
-    expect(adm.canWrite("pagamentos")).toBe(true);
+    expect(adm.canWrite("dir")).toBe(true);
     expect(adm.homeRoute()).toBe("/processos");
     const consultor = entrar("consultor", TUDO_NENHUM);
     expect(consultor.canRead("processos")).toBe(true);
@@ -80,7 +82,7 @@ describe("useAuth — canRead, canWrite e homeRoute", () => {
   it("é reativo: trocar o usuário (ex.: recarregar /api/auth/me) muda a decisão", () => {
     const auth = entrar("operacional");
     expect(auth.canWrite("processos")).toBe(true);
-    entrar("operacional", { processos: "ver", pagamentos: "nenhum", patients: "nenhum" });
+    entrar("operacional", { processos: "ver", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum" });
     expect(auth.canWrite("processos")).toBe(false);
   });
 });

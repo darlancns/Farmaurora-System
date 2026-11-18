@@ -7,7 +7,7 @@
  * - consultor    → só Follow-up, somente leitura, filtrado pelo próprio nome.
  * - socio        → leitura + escrita de Patients, Processos e Pagamentos (tudo,
  *                  sem filtro). Em Configurações só tem "Minha conta": a lista
- *                  de contas (seção "admin") é só do administrador.
+ *                  de contas (seção "admin") e Cadastros são só do administrador.
  * - operacional  → leitura + escrita de Processos e de Pagamentos (todos) e da DIR.
  * - administrador → acesso total (comportamento legado), inclusive a DIR.
  *

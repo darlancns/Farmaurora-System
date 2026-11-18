@@ -33,6 +33,7 @@ import {
 } from "#shared/utils/permissoesPagina";
 
 const TODAS_AS_SECOES: Section[] = ["patients", "processos", "pagamentos", "admin", "config", "recados"];
+TODAS_AS_SECOES.push("dir"); // a DIR é uma seção a mais (admin e consultor ignoram o mapa também nela)
 const METODOS = ["GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE", "post", "patch"];
 const METODOS_ESCRITA = ["POST", "PUT", "PATCH", "DELETE"];
 
@@ -45,6 +46,10 @@ const PATHS_API = [
   "/api/processos/abc/chegada",
   "/api/pagamentos/banco",
   "/api/pagamentos/despachante/1/pagar",
+  "/api/dir",
+  "/api/dir/abc",
+  "/api/cadastros/fornecedores",
+  "/api/cadastros/fornecedores/abc",
   "/api/admin/users",
   "/api/admin/users/abc/reset-password",
   "/api/recados",
@@ -55,6 +60,9 @@ const PATHS_API = [
   "/api/auth/me",
   "/api/auth/conta/nome",
   // sem seção e fora da allowlist: nega por padrão
+  // (prefixos parecidos com /api/dir não valem)
+  "/api/directory",
+  "/api/dirx",
   "/api/health",
   "/api/authorized",
   "/api/",
@@ -212,6 +220,62 @@ describe("com mapa gravado (socio e operacional)", () => {
     }
   });
 
+  const mapaDir: Permissoes = { processos: "ver", pagamentos: "nenhum", dir: "ver", patients: "editar" };
+
+  it.each(COM_MAPA)("%s — DIR 'ver' libera só leitura: GET passa; POST/PUT/PATCH/DELETE dão 403", (role) => {
+    const u = usuario(role, mapaDir);
+    for (const path of ["/api/dir", "/api/dir/abc"]) {
+      for (const metodo of ["GET", "HEAD", "OPTIONS"]) {
+        expect(autorizarApi(u, path, metodo), `${metodo} ${path}`).toEqual({ permitido: true });
+      }
+      for (const metodo of METODOS_ESCRITA) {
+        expect(autorizarApi(u, path, metodo), `${metodo} ${path}`).toEqual({
+          permitido: false,
+          status: 403,
+          mensagem: MENSAGEM_API_SEM_PERMISSAO,
+        });
+      }
+    }
+    expect(podeLer(u, "dir")).toBe(true);
+    expect(podeEscrever(u, "dir")).toBe(false);
+  });
+
+  it.each(COM_MAPA)("%s — DIR 'nenhum' nega até o GET (e a escrita)", (role) => {
+    const u = usuario(role, { ...mapaDir, dir: "nenhum" });
+    for (const metodo of METODOS) {
+      expect(autorizarApi(u, "/api/dir", metodo), metodo).toMatchObject({ permitido: false, status: 403 });
+    }
+    expect(podeLer(u, "dir")).toBe(false);
+    expect(podeEscrever(u, "dir")).toBe(false);
+  });
+
+  it.each(COM_MAPA)("%s — DIR 'editar' libera leitura e escrita, mesmo para o sócio (que o cargo sozinho não tinha)", (role) => {
+    const u = usuario(role, { dir: "editar" });
+    for (const metodo of METODOS) {
+      expect(autorizarApi(u, "/api/dir/abc", metodo), metodo).toEqual({ permitido: true });
+    }
+    expect(podeEscrever(u, "dir")).toBe(true);
+  });
+
+  it.each(COM_MAPA)("%s — DIR ausente do mapa = 'nenhum' (fail-closed)", (role) => {
+    const parcial = usuario(role, { processos: "editar" });
+    expect(nivelDaSecao(parcial, "dir")).toBe("nenhum");
+    expect(podeLer(parcial, "dir")).toBe(false);
+    expect(podeEscrever(parcial, "dir")).toBe(false);
+  });
+
+  it.each(COM_MAPA)("%s — valor inválido na DIR = 'nenhum' (mesmo sem passar pela sanitização)", (role) => {
+    const u = usuario(role, { processos: "editar", dir: {} } as unknown as Permissoes);
+    expect(podeLer(u, "dir")).toBe(false);
+    expect(podeEscrever(u, "dir")).toBe(false);
+  });
+
+  it.each(COM_MAPA)("%s — Cadastros (config) lê e não escreve, com qualquer mapa", (role) => {
+    const tudoNenhum = usuario(role, mapaDe("nenhum"));
+    expect(autorizarApi(tudoNenhum, "/api/cadastros/fornecedores", "GET").permitido).toBe(true);
+    expect(autorizarApi(tudoNenhum, "/api/cadastros/fornecedores", "POST").permitido).toBe(false);
+  });
+
   it.each(COM_MAPA)("%s — valor inválido no mapa = 'nenhum' (mesmo sem passar pela sanitização)", (role) => {
     const sujo = { processos: "EDITAR", pagamentos: 1, patients: null } as unknown as Permissoes;
     const u = usuario(role, sujo);
@@ -276,6 +340,16 @@ describe("sanitizarPermissoes", () => {
     expect(sanitizarPermissoes({ processos: "ver", pagamentos: "editar", patients: "ver" })).toEqual({
       processos: "ver",
       pagamentos: "editar",
+      dir: "nenhum",
+      patients: "ver",
+    });
+  });
+
+  it("mapa válido com a DIR: devolve o nível da DIR", () => {
+    expect(sanitizarPermissoes({ processos: "ver", pagamentos: "editar", dir: "editar", patients: "ver" })).toEqual({
+      processos: "ver",
+      pagamentos: "editar",
+      dir: "editar",
       patients: "ver",
     });
   });
@@ -284,6 +358,7 @@ describe("sanitizarPermissoes", () => {
     expect(sanitizarPermissoes({ processos: "editar" })).toEqual({
       processos: "editar",
       pagamentos: "nenhum",
+      dir: "nenhum",
       patients: "nenhum",
     });
     expect(sanitizarPermissoes({})).toEqual(mapaDe("nenhum"));
@@ -296,11 +371,22 @@ describe("sanitizarPermissoes", () => {
     expect(sanitizarPermissoes({ processos: "", pagamentos: true, patients: " ver" })).toEqual(mapaDe("nenhum"));
   });
 
+  it("valor inválido na DIR vira 'nenhum'", () => {
+    for (const ruim of [null, {}, [], "EDITAR", " ver", 1, true]) {
+      expect(sanitizarPermissoes({ processos: "ver", dir: ruim })).toEqual({
+        processos: "ver",
+        pagamentos: "nenhum",
+        dir: "nenhum",
+        patients: "nenhum",
+      });
+    }
+  });
+
   it("descarta chaves desconhecidas e seções fora do mapa (admin, recados, config, __proto__)", () => {
     const r = sanitizarPermissoes(
       JSON.parse('{"processos":"ver","admin":"editar","recados":"nenhum","config":"editar","outra":"ver","__proto__":{"x":1}}'),
     );
-    expect(r).toEqual({ processos: "ver", pagamentos: "nenhum", patients: "nenhum" });
+    expect(r).toEqual({ processos: "ver", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum" });
     expect(Object.keys(r ?? {}).sort()).toEqual([...SECOES_COM_PERMISSAO].sort());
   });
 
@@ -318,12 +404,15 @@ describe("sanitizarPermissoes", () => {
 describe("paginaInicial — nunca devolve página proibida nem entra em loop", () => {
   const NIVEIS = NIVEIS_PERMISSAO;
   // Todas as 3^3 combinações de mapa.
+  // Depois, cada uma × 3 níveis da DIR = 3^4 (ver MAPAS_SEM_DIR abaixo).
   const MAPAS: Permissoes[] = [];
   for (const a of NIVEIS) {
     for (const b of NIVEIS) {
       for (const c of NIVEIS) MAPAS.push({ processos: a, pagamentos: b, patients: c });
     }
   }
+  const MAPAS_SEM_DIR = MAPAS.splice(0, MAPAS.length);
+  for (const mapa of MAPAS_SEM_DIR) for (const d of NIVEIS) MAPAS.push({ ...mapa, dir: d });
 
   // O guarda de navegação (authz.global.ts): sem leitura na seção da rota, vai para a página inicial.
   function aposGuarda(u: UsuarioRbac, rota: string): string {
@@ -346,6 +435,13 @@ describe("paginaInicial — nunca devolve página proibida nem entra em loop", (
     expect(paginaInicial(u({ patients: "ver" }))).toBe("/prestacao");
   });
 
+  it("com a DIR, a ordem do menu é processos, pagamentos, dir, prestação", () => {
+    const u = (permissoes: Permissoes) => usuario("operacional", permissoes);
+    expect(paginaInicial(u({ pagamentos: "ver", dir: "editar", patients: "editar" }))).toBe("/pagamentos");
+    expect(paginaInicial(u({ dir: "ver", patients: "editar" }))).toBe("/dir");
+    expect(paginaInicial(u({ dir: "nenhum", patients: "ver" }))).toBe("/prestacao");
+  });
+
   it("para qualquer mapa e cargo: a página inicial é legível e o guarda não a redireciona (zero ou um salto)", () => {
     for (const role of COM_MAPA) {
       for (const mapa of MAPAS) {
@@ -361,6 +457,7 @@ describe("paginaInicial — nunca devolve página proibida nem entra em loop", (
 
   it("de qualquer rota de página (e de '/'), no máximo um redirecionamento leva a uma página legível", () => {
     const rotas = ["/processos", "/pagamentos", "/prestacao", "/recados", "/configuracoes", "/"];
+    rotas.push("/dir");
     for (const role of ROLES) {
       for (const mapa of [undefined, ...MAPAS]) {
         const u = usuario(role, mapa);

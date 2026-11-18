@@ -349,7 +349,7 @@ test.describe("Configurações → Contas", () => {
     }
   });
 
-  test("8. socio em /configuracoes vê SÓ 'Minha conta': sem Contas e sem a lista de contas na API", async ({ page }) => {
+  test("8. socio em /configuracoes vê SÓ 'Minha conta': sem Contas, sem Cadastros e sem a lista de contas na API", async ({ page }) => {
     test.skip(!hasSocio, "defina E2E_SOCIO_EMAIL / E2E_SOCIO_PASSWORD");
 
     await login(page, socio.email, socio.password);
@@ -360,7 +360,7 @@ test.describe("Configurações → Contas", () => {
     await expect(page.locator("#contas-tab")).toHaveCount(0);
     await expect(page.locator("#btn-nova-conta")).toHaveCount(0);
     await expect(page.locator("[id^='btn-acoes-conta-']")).toHaveCount(0);
-    // A aba Cadastros é só do administrador: o sócio vê Contas, mas não Cadastros.
+    // Contas e Cadastros são só do administrador.
     await expect(page.locator("#tab-cadastros")).toHaveCount(0);
 
     // API: nem a leitura da lista de contas (antes liberada ao sócio) nem a criação passam.

@@ -1,22 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
   ROLES,
-  canReadSection,
-  canWriteSection,
-  isWriteMethod,
   sectionForApiPath,
   sectionForPageRoute,
   type Role,
 } from "../../shared/utils/rbac";
+import { autorizarApi } from "../../shared/utils/permissoesPagina";
 
-// RBAC dos Cadastros: /api/cadastros → seção "config" (todos leem, só o administrador escreve). A decisão do middleware
-// (server/middleware/auth.ts) é: método de escrita → canWriteSection, GET → canReadSection; aqui se reproduz exatamente
-// essa regra, cargo por cargo, porque o middleware em si depende do runtime do Nuxt.
+// RBAC dos Cadastros: /api/cadastros → seção "config" (todos leem, só o administrador escreve). A decisão é a da função
+// real que o middleware (server/middleware/auth.ts) chama, autorizarApi — não mais uma cópia da expressão. A fiação do
+// middleware em si é coberta por tests/unit/middlewareAuth.spec.ts.
 
 function middlewarePermite(role: Role, metodo: string, path: string): boolean {
-  const secao = sectionForApiPath(path);
-  if (!secao) return false;
-  return isWriteMethod(metodo) ? canWriteSection(role, secao) : canReadSection(role, secao);
+  return autorizarApi({ role }, path, metodo).permitido;
 }
 
 const CAMINHOS = [
@@ -69,8 +65,10 @@ describe("matriz por cargo (regra do middleware)", () => {
   });
 
   it("as outras seções não mudaram de acesso", () => {
-    expect(middlewarePermite("socio", "GET", "/api/admin/users")).toBe(true);
+    // Contas (/api/admin/**) é só do administrador, inclusive a leitura: o sócio leva 403 até no GET.
+    expect(middlewarePermite("socio", "GET", "/api/admin/users")).toBe(false);
     expect(middlewarePermite("socio", "POST", "/api/admin/users")).toBe(false);
+    expect(middlewarePermite("administrador", "GET", "/api/admin/users")).toBe(true);
     expect(middlewarePermite("consultor", "GET", "/api/dir")).toBe(false);
     expect(middlewarePermite("operacional", "GET", "/api/dir")).toBe(true);
   });

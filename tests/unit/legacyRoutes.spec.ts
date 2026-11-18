@@ -18,7 +18,7 @@ describe("redirectForRemovedPage", () => {
 
   it("com mapa de permissões vai para a primeira página legível, ou /recados com tudo 'nenhum' (sem loop)", () => {
     expect(redirectForRemovedPage("/inicio", { role: "operacional", permissoes: { pagamentos: "ver" } })).toBe("/pagamentos");
-    const tudoNenhum = { processos: "nenhum", pagamentos: "nenhum", patients: "nenhum" } as const;
+    const tudoNenhum = { processos: "nenhum", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum" } as const;
     expect(redirectForRemovedPage("/inicio", { role: "socio", permissoes: tudoNenhum })).toBe("/recados");
     // administrador ignora o mapa
     expect(redirectForRemovedPage("/inicio", { role: "administrador", permissoes: tudoNenhum })).toBe("/processos");

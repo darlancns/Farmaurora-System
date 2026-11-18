@@ -53,22 +53,35 @@ describe("resolveAuthUser — permissoes (leitura de app_metadata.permissoes)", 
       role,
       permissoes: { processos: "ver", pagamentos: "editar", patients: "ver" },
     });
-    expect(u.permissoes).toEqual({ processos: "ver", pagamentos: "editar", patients: "ver" });
+    expect(u.permissoes).toEqual({ processos: "ver", pagamentos: "editar", dir: "nenhum", patients: "ver" });
+  });
+
+  it.each(["socio", "operacional"] as const)("%s com mapa válido incluindo a DIR: lê o mapa completo", (role) => {
+    const u = resolver({ role, permissoes: { processos: "ver", pagamentos: "editar", dir: "ver", patients: "ver" } });
+    expect(u.permissoes).toEqual({ processos: "ver", pagamentos: "editar", dir: "ver", patients: "ver" });
+    expect(podeLer(u, "dir")).toBe(true);
+    expect(podeEscrever(u, "dir")).toBe(false);
   });
 
   it.each(["socio", "operacional"] as const)("%s com mapa parcial: seções ausentes viram 'nenhum'", (role) => {
     const u = resolver({ role, permissoes: { processos: "editar" } });
-    expect(u.permissoes).toEqual({ processos: "editar", pagamentos: "nenhum", patients: "nenhum" });
+    expect(u.permissoes).toEqual({ processos: "editar", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum" });
     expect(podeLer(u, "pagamentos")).toBe(false);
   });
 
   it.each(["socio", "operacional"] as const)("%s com valores inválidos: sanitizados para 'nenhum'", (role) => {
     const u = resolver({ role, permissoes: { processos: "EDITAR", pagamentos: 3, patients: "ver", extra: "editar" } });
-    expect(u.permissoes).toEqual({ processos: "nenhum", pagamentos: "nenhum", patients: "ver" });
+    expect(u.permissoes).toEqual({ processos: "nenhum", pagamentos: "nenhum", dir: "nenhum", patients: "ver" });
+  });
+
+  it.each(["socio", "operacional"] as const)("%s com valor inválido na DIR: sanitizado para 'nenhum'", (role) => {
+    const u = resolver({ role, permissoes: { processos: "ver", dir: null, patients: "ver" } });
+    expect(u.permissoes).toEqual({ processos: "ver", pagamentos: "nenhum", dir: "nenhum", patients: "ver" });
+    expect(podeLer(u, "dir")).toBe(false);
   });
 
   it.each(["socio", "operacional"] as const)("%s com mapa gravado vazio, ilegível ou de tipo errado: tudo 'nenhum'", (role) => {
-    const nenhum = { processos: "nenhum", pagamentos: "nenhum", patients: "nenhum" };
+    const nenhum = { processos: "nenhum", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum" };
     for (const lixo of [{}, "editar", 1, true, [], ["processos"]]) {
       const u = resolver({ role, permissoes: lixo });
       expect(u.permissoes, JSON.stringify(lixo)).toEqual(nenhum);
@@ -91,6 +104,8 @@ describe("resolveAuthUser — permissoes (leitura de app_metadata.permissoes)", 
     expect(adm).not.toHaveProperty("permissoes");
     expect(podeLer(consultor, "processos")).toBe(true);
     expect(podeEscrever(adm, "pagamentos")).toBe(true);
+    expect(podeEscrever(adm, "dir")).toBe(true);
+    expect(podeLer(consultor, "dir")).toBe(false);
   });
 
   it("administrador pelo fallback de e-mail (sem role gravado) também ignora a chave", () => {
@@ -111,6 +126,14 @@ describe("resolveAuthUser — permissoes (leitura de app_metadata.permissoes)", 
     expect(podeEscrever(u, "processos")).toBe(false);
     expect(podeEscrever(u, "pagamentos")).toBe(true);
     expect(podeLer(u, "patients")).toBe(false);
+  });
+
+  it("a decisão da DIR usa o AuthUser direto: 'editar' escreve, 'ver' só lê, 'nenhum' não lê", () => {
+    const u = resolver({ role: "socio", permissoes: { processos: "ver", dir: "editar" } });
+    expect(podeEscrever(u, "dir")).toBe(true);
+    expect(podeLer(resolver({ role: "socio", permissoes: { dir: "ver" } }), "dir")).toBe(true);
+    expect(podeEscrever(resolver({ role: "socio", permissoes: { dir: "ver" } }), "dir")).toBe(false);
+    expect(podeLer(resolver({ role: "operacional", permissoes: { processos: "ver" } }), "dir")).toBe(false);
   });
 });
 
@@ -136,7 +159,7 @@ describe("plugin authUser.server — permissoes chega ao front (useState 'auth-u
       email: "x@farmaurora.com.br",
       role: "operacional",
       nome: "Bruno Alves",
-      permissoes: { processos: "ver", pagamentos: "editar", patients: "nenhum" },
+      permissoes: { processos: "ver", pagamentos: "editar", dir: "nenhum", patients: "nenhum" },
       isAdmin: false,
     });
     expect((h.estados.get("auth-user-loaded") as Ref<boolean>).value).toBe(true);

@@ -119,7 +119,7 @@ describe("middleware — cache de sessão de 8 s preservado", () => {
 const COM_MAPA: Role[] = ["socio", "operacional"];
 
 describe("middleware — com permissoes gravadas (socio e operacional)", () => {
-  const ver: Permissoes = { processos: "ver", pagamentos: "nenhum", patients: "editar" };
+  const ver: Permissoes = { processos: "ver", pagamentos: "nenhum", patients: "editar", dir: "ver" };
 
   it.each(COM_MAPA)("%s com 'ver' em Processos: GET passa; POST/PUT/PATCH/DELETE levam 403 — inclusive /chegada e o PATCH de Mandado", async (role) => {
     const user = conta(role, { nome: "Bruno Alves", permissoes: ver });
@@ -157,20 +157,22 @@ describe("middleware — com permissoes gravadas (socio e operacional)", () => {
 
   it.each(COM_MAPA)("%s com mapa ilegível: nega tudo nas seções do mapa", async (role) => {
     const user = conta(role, { permissoes: "editar" });
-    for (const path of ["/api/processos", "/api/pagamentos/banco", "/api/patients"]) {
+    for (const path of ["/api/processos", "/api/pagamentos/banco", "/api/dir", "/api/patients"]) {
       expect((await chamar(path, "GET", user)).ok, path).toBe(false);
     }
   });
 
-  it.each(COM_MAPA)("%s com tudo 'nenhum': Recados e /api/auth continuam abertos", async (role) => {
-    const user = conta(role, { permissoes: { processos: "nenhum", pagamentos: "nenhum", patients: "nenhum" } });
+  it.each(COM_MAPA)("%s com tudo 'nenhum': Recados, /api/auth e Cadastros (GET) continuam abertos", async (role) => {
+    const user = conta(role, { permissoes: { processos: "nenhum", pagamentos: "nenhum", patients: "nenhum", dir: "nenhum" } });
     expect((await chamar("/api/recados", "POST", user)).ok).toBe(true);
     expect((await chamar("/api/notificacoes", "GET", user)).ok).toBe(true);
     expect((await chamar("/api/auth/me", "GET", user)).ok).toBe(true);
+    expect((await chamar("/api/cadastros/fornecedores", "GET", user)).ok).toBe(true);
+    expect((await chamar("/api/cadastros/fornecedores", "POST", user)).ok).toBe(false);
   });
 
   it("consultor e administrador NÃO são afetados por app_metadata.permissoes", async () => {
-    const tudoNenhum = { processos: "nenhum", pagamentos: "nenhum", patients: "nenhum" };
+    const tudoNenhum = { processos: "nenhum", pagamentos: "nenhum", patients: "nenhum", dir: "nenhum" };
     const consultor = conta("consultor", { consultorNome: "Dani", permissoes: tudoNenhum });
     expect((await chamar("/api/processos", "GET", consultor)).ok).toBe(true);
     expect((await chamar("/api/processos/abc", "PATCH", consultor)).ok).toBe(false); // consultor segue sem escrita
@@ -179,6 +181,7 @@ describe("middleware — com permissoes gravadas (socio e operacional)", () => {
     for (const [metodo, path] of [
       ["GET", "/api/processos"],
       ["POST", "/api/processos/abc/chegada"],
+      ["PATCH", "/api/dir/abc"],
       ["POST", "/api/pagamentos/banco"],
       ["DELETE", "/api/patients/abc"],
       ["POST", "/api/admin/users"],
@@ -196,8 +199,10 @@ describe("middleware — conta SEM mapa: mesma matriz de antes (cargo × path ×
     "/api/pagamentos/banco": { ler: ["socio", "operacional", "administrador"], escrever: ["socio", "operacional", "administrador"] },
     "/api/patients": { ler: ["socio", "administrador"], escrever: ["socio", "administrador"] },
     "/api/attachments/signed-urls": { ler: ["socio", "administrador"], escrever: ["socio", "administrador"] },
+    "/api/dir": { ler: ["operacional", "administrador"], escrever: ["operacional", "administrador"] },
     // Contas: só o administrador, inclusive a leitura (antes o sócio também lia).
     "/api/admin/users": { ler: ["administrador"], escrever: ["administrador"] },
+    "/api/cadastros/fornecedores": { ler: ["consultor", "socio", "operacional", "administrador"], escrever: ["administrador"] },
     "/api/recados": { ler: ["consultor", "socio", "operacional", "administrador"], escrever: ["consultor", "socio", "operacional", "administrador"] },
     "/api/contas": { ler: ["consultor", "socio", "operacional", "administrador"], escrever: ["consultor", "socio", "operacional", "administrador"] },
     "/api/lembretes": { ler: ["consultor", "socio", "operacional", "administrador"], escrever: ["consultor", "socio", "operacional", "administrador"] },
@@ -212,6 +217,18 @@ describe("middleware — conta SEM mapa: mesma matriz de antes (cargo × path ×
         }
         for (const metodo of ["POST", "PUT", "PATCH", "DELETE"]) {
           expect((await chamar(path, metodo, user)).ok, `${role} ${metodo} ${path}`).toBe(escrever.includes(role));
+        }
+      }
+    }
+  });
+
+  it("GET /api/cadastros/** continua aberto a todos os cargos, com e sem mapa", async () => {
+    const todosLeem = ["/api/cadastros/fornecedores", "/api/cadastros/despachantes", "/api/cadastros/cias-aereas", "/api/cadastros/fornecedores/forn_1"];
+    for (const role of ROLES) {
+      for (const permissoes of [undefined, { processos: "nenhum" }, { processos: "ver", dir: "editar" }]) {
+        const user = conta(role, permissoes ? { permissoes } : {});
+        for (const path of todosLeem) {
+          expect((await chamar(path, "GET", user)).ok, `${role} ${path} ${JSON.stringify(permissoes)}`).toBe(true);
         }
       }
     }

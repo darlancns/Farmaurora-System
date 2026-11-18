@@ -1,17 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
-import { canReadSection, ROLES, type Role } from "../../shared/utils/rbac";
+import { ROLES, type Role } from "../../shared/utils/rbac";
 import { splitBottomNavLinks } from "../../app/utils/bottomNavLinks";
 
 // useNavLinks importa useAuth (que depende do runtime do Nuxt, "#app"): aqui só usamos as listas
-// exportadas (MAIN_LINKS, CONFIG_LINK), então o useAuth real não precisa carregar.
+// exportadas (MAIN_LINKS e a função pura filtrarNavLinks), então o useAuth real não precisa carregar.
 vi.mock("../../app/composables/useAuth", () => ({ useAuth: () => ({}) }));
 
-const { MAIN_LINKS, CONFIG_LINK } = await import("../../app/composables/useNavLinks");
+const { MAIN_LINKS, filtrarNavLinks } = await import("../../app/composables/useNavLinks");
 
-// Mesma regra de useNavLinks(): MAIN_LINKS filtrado por canRead(section) + Configurações (se lê "config").
+// A função REAL que useNavLinks() usa (sem mapa de permissões: a regra do cargo, como sempre foi).
 function linksDoCargo(role: Role) {
-  const links = MAIN_LINKS.filter((l) => canReadSection(role, l.section));
-  return canReadSection(role, CONFIG_LINK.section) ? [...links, CONFIG_LINK] : links;
+  return filtrarNavLinks({ role }).allLinks;
 }
 
 const rotas = (role: Role) => linksDoCargo(role).map((l) => l.to);

@@ -74,9 +74,9 @@ const conta = (role: AuthUser["role"], nome?: string, permissoes?: Permissoes): 
   ...(permissoes ? { permissoes } : {}),
 });
 
-const VER: Permissoes = { processos: "ver", pagamentos: "nenhum", patients: "nenhum" };
-const EDITAR: Permissoes = { processos: "editar", pagamentos: "nenhum", patients: "nenhum" };
-const NENHUM: Permissoes = { processos: "nenhum", pagamentos: "editar", patients: "editar" };
+const VER: Permissoes = { processos: "ver", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum" };
+const EDITAR: Permissoes = { processos: "editar", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum" };
+const NENHUM: Permissoes = { processos: "nenhum", pagamentos: "editar", dir: "editar", patients: "editar" };
 
 // ── fetch simulado ───────────────────────────────────────────────────────────────────────────────────
 interface Chamada {

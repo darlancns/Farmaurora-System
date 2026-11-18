@@ -95,6 +95,7 @@ const conta = (role: AuthUser["role"], permissoes?: Permissoes): AuthUser => ({
 const MAPA = (patients: "nenhum" | "ver" | "editar"): Permissoes => ({
   processos: "nenhum",
   pagamentos: "nenhum",
+  dir: "nenhum",
   patients,
 });
 

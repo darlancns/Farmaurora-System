@@ -36,8 +36,8 @@ import emailHandler from "../../server/api/auth/conta/email.post";
 import nomeHandler from "../../server/api/auth/conta/nome.patch";
 import meHandler from "../../server/api/auth/me.get";
 
-const MAPA: Permissoes = { processos: "ver", pagamentos: "editar", patients: "ver" };
-const MAPA_FORJADO: Permissoes = { processos: "editar", pagamentos: "editar", patients: "editar" };
+const MAPA: Permissoes = { processos: "ver", pagamentos: "editar", dir: "nenhum", patients: "ver" };
+const MAPA_FORJADO: Permissoes = { processos: "editar", pagamentos: "editar", dir: "editar", patients: "editar" };
 
 function usuario(role: AuthUser["role"], extra: Partial<AuthUser> = {}): AuthUser {
   return { id: "u1", email: "fulano@farmaurora.com.br", role, nome: "Fulano de Tal", isAdmin: role === "administrador", ...extra };
@@ -88,7 +88,7 @@ describe("nome.patch — MERGE preserva as permissões gravadas", () => {
     const { app_metadata } = h.updateUserById.mock.calls[0]![1] as { app_metadata: Record<string, unknown> };
     expect(app_metadata.permissoes).toEqual(MAPA);
     expect(app_metadata.role).toBe("socio");
-    expect((app_metadata.permissoes as Permissoes).patients).toBe("ver"); // o forjado dava "editar" em tudo
+    expect((app_metadata.permissoes as Permissoes).dir).toBe("nenhum"); // o forjado dava "editar" em tudo
   });
 
   it("conta sem mapa continua sem mapa depois de renomear", async () => {
@@ -137,9 +137,9 @@ describe("email.post e senha.post — não tocam em app_metadata", () => {
 });
 
 describe("nenhum endpoint de /api/auth/** lê ou grava permissoes", () => {
-  function arquivos(pasta: string): string[] {
-    return readdirSync(pasta).flatMap((nome) => {
-      const caminho = join(pasta, nome);
+  function arquivos(dir: string): string[] {
+    return readdirSync(dir).flatMap((nome) => {
+      const caminho = join(dir, nome);
       return statSync(caminho).isDirectory() ? arquivos(caminho) : [caminho];
     });
   }

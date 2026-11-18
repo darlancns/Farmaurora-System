@@ -43,7 +43,7 @@ async function ir(path: string): Promise<Resultado> {
   return (await (guarda as unknown as (to: { path: string }) => Promise<Resultado>)({ path })) as Resultado;
 }
 
-const TUDO_NENHUM: Permissoes = { processos: "nenhum", pagamentos: "nenhum", patients: "nenhum" };
+const TUDO_NENHUM: Permissoes = { processos: "nenhum", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum" };
 
 beforeEach(() => {
   h.estados.clear();
@@ -55,12 +55,12 @@ beforeEach(() => {
 describe("guarda de rotas — conta SEM mapa: igual ao comportamento de antes, nos 4 cargos", () => {
   // Páginas que cada cargo NÃO abre (esperado escrito à mão, regra de antes desta mudança).
   const proibidas: Record<Role, string[]> = {
-    consultor: ["/pagamentos", "/prestacao"],
-    socio: [],
+    consultor: ["/pagamentos", "/dir", "/prestacao"],
+    socio: ["/dir"],
     operacional: ["/prestacao"],
     administrador: [],
   };
-  const todas = ["/processos", "/pagamentos", "/prestacao", "/recados", "/configuracoes", "/processos/abc"];
+  const todas = ["/processos", "/pagamentos", "/dir", "/prestacao", "/recados", "/configuracoes", "/processos/abc", "/dir/x"];
 
   it.each(ROLES)("%s: abre o que lia, e o resto redireciona para /processos", async (role) => {
     entrar(role);
@@ -89,7 +89,7 @@ describe("guarda de rotas — conta SEM mapa: igual ao comportamento de antes, n
 describe("guarda de rotas — com mapa gravado", () => {
   it.each(["socio", "operacional"] as const)("%s com tudo 'nenhum': vai para /recados e NÃO entra em loop", async (role) => {
     entrar(role, TUDO_NENHUM);
-    for (const rota of ["/processos", "/pagamentos", "/prestacao", "/", "/inicio", "/processos/abc"]) {
+    for (const rota of ["/processos", "/pagamentos", "/dir", "/prestacao", "/", "/inicio", "/processos/abc"]) {
       expect(await ir(rota), `${role} ${rota}`).toMatchObject({ redireciona: "/recados" });
     }
     // o destino do redirecionamento abre sem novo redirecionamento; Configurações e Recados seguem abertos
@@ -98,27 +98,30 @@ describe("guarda de rotas — com mapa gravado", () => {
   });
 
   it("vai para a primeira página legível, não para /processos", async () => {
-    entrar("operacional", { processos: "nenhum", pagamentos: "ver", patients: "nenhum" });
+    entrar("operacional", { processos: "nenhum", pagamentos: "ver", dir: "editar", patients: "nenhum" });
     expect(await ir("/processos")).toMatchObject({ redireciona: "/pagamentos" });
     expect(await ir("/")).toMatchObject({ redireciona: "/pagamentos" });
     expect(await ir("/pagamentos")).toBeUndefined();
+    expect(await ir("/dir")).toBeUndefined();
     expect(await ir("/prestacao")).toMatchObject({ redireciona: "/pagamentos" });
   });
 
   it("'ver' basta para abrir a página (a escrita é decidida dentro dela)", async () => {
-    entrar("socio", { processos: "ver", pagamentos: "nenhum", patients: "nenhum" });
+    entrar("socio", { processos: "ver", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum" });
     expect(await ir("/processos")).toBeUndefined();
     expect(await ir("/")).toMatchObject({ redireciona: "/processos" });
   });
 
-  it("operacional com 'editar' em Prestação abre a página (o cargo sozinho não abria)", async () => {
+  it("sócio com 'editar' na DIR e operacional com 'editar' em Prestação abrem essas páginas", async () => {
+    entrar("socio", { dir: "editar" });
+    expect(await ir("/dir")).toBeUndefined();
     entrar("operacional", { patients: "editar" });
     expect(await ir("/prestacao")).toBeUndefined();
   });
 
   it("consultor e administrador ignoram o mapa", async () => {
     entrar("administrador", TUDO_NENHUM);
-    for (const rota of ["/processos", "/pagamentos", "/prestacao"]) expect(await ir(rota), rota).toBeUndefined();
+    for (const rota of ["/processos", "/pagamentos", "/dir", "/prestacao"]) expect(await ir(rota), rota).toBeUndefined();
     expect(await ir("/")).toMatchObject({ redireciona: "/processos" });
     entrar("consultor", TUDO_NENHUM);
     expect(await ir("/processos")).toBeUndefined();

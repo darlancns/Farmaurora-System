@@ -31,9 +31,9 @@ export function isNivelPermissao(value: unknown): value is NivelPermissao {
 
 /**
  * Seções controladas pelo mapa, NA ORDEM em que `paginaInicial` as procura (a mesma ordem do menu).
- * Recados, Configurações e Contas (admin) ficam de fora de propósito.
+ * Recados, Configurações/Cadastros e Contas (admin) ficam de fora de propósito.
  */
-export const SECOES_COM_PERMISSAO = ["processos", "pagamentos", "patients"] as const satisfies readonly Section[];
+export const SECOES_COM_PERMISSAO = ["processos", "pagamentos", "dir", "patients"] as const satisfies readonly Section[];
 
 export type SecaoComPermissao = (typeof SECOES_COM_PERMISSAO)[number];
 
@@ -41,6 +41,7 @@ export type SecaoComPermissao = (typeof SECOES_COM_PERMISSAO)[number];
 export const ROTA_INICIAL_POR_SECAO: Record<SecaoComPermissao, string> = {
   processos: "/processos",
   pagamentos: "/pagamentos",
+  dir: "/dir",
   patients: "/prestacao",
 };
 

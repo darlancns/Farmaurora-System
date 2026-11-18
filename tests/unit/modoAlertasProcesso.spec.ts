@@ -6,6 +6,7 @@ import type { Permissoes } from "../../shared/utils/permissoesPagina";
 const mapa = (processos: "nenhum" | "ver" | "editar"): Permissoes => ({
   processos,
   pagamentos: "nenhum",
+  dir: "nenhum",
   patients: "nenhum",
 });
 
