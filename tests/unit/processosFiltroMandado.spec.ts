@@ -172,21 +172,25 @@ describe("página /processos — filtro 'Mandado de Segurança'", () => {
     expect(el!.querySelector("#sheet-filtro-mandado")).toBeNull();
   });
 
-  it("com processo com MS: aparece com o rótulo e as opções 'Todos' e 'Com MS'", async () => {
+  it("com processo com MS: aparece no padrão dos outros (nome dentro da caixa, sem rótulo solto) e com aria-label", async () => {
     await montarPagina();
-    expect(texto("label[for='filtro-mandado']")).toBe("Mandado de Segurança");
-    expect(await opcoesDe("filtro-mandado")).toEqual(["Todos", "Com MS"]);
+    expect(texto("#filtro-mandado")).toBe("Todos os mandados"); // fechado, como "Todas as cotações"
+    expect(el!.querySelector("label[for='filtro-mandado']")).toBeNull();
+    expect(el!.querySelector("#filtro-mandado")!.getAttribute("aria-label")).toBe("Mandado de Segurança");
+    // mesmas classes do select de Cotações (mesmo componente, nada de estilo novo)
+    expect(el!.querySelector("#filtro-mandado")!.className).toBe(el!.querySelector("#filtro-cotacao")!.className);
+    expect(await opcoesDe("filtro-mandado")).toEqual(["Todos os mandados", "Com Mandado de Segurança"]);
   });
 
-  it("'Com MS' mostra só os processos com MS, em Em andamento e em Entregues; 'Todos' volta tudo", async () => {
+  it("'Com Mandado de Segurança' mostra só os processos com MS, em Em andamento e em Entregues; 'Todos os mandados' volta tudo", async () => {
     await montarPagina();
     expect(linhas()).toEqual(["m1", "s1", "s2"]);
-    await escolher("filtro-mandado", "Com MS");
+    await escolher("filtro-mandado", "Com Mandado de Segurança");
     expect(linhas()).toEqual(["m1"]);
     el!.querySelector<HTMLButtonElement>("#tab-entregues")?.click();
     await nextTick();
     expect(entregues()).toEqual(["e1"]);
-    await escolher("filtro-mandado", "Todos");
+    await escolher("filtro-mandado", "Todos os mandados");
     expect(entregues()).toEqual(["e1", "e2"]);
   });
 
@@ -194,11 +198,13 @@ describe("página /processos — filtro 'Mandado de Segurança'", () => {
     await montarPagina();
     el!.querySelector<HTMLButtonElement>("#btn-filtros-processo")!.click();
     await nextTick();
-    expect(texto("label[for='sheet-filtro-mandado']")).toBe("Mandado de Segurança");
-    await escolher("sheet-filtro-mandado", "Com MS");
+    expect(el!.querySelector("label[for='sheet-filtro-mandado']")).toBeNull();
+    expect(el!.querySelector("#sheet-filtro-mandado")!.getAttribute("aria-label")).toBe("Mandado de Segurança");
+    expect(el!.querySelector("#sheet-filtro-mandado")!.className).toBe(el!.querySelector("#sheet-filtro-cotacao")!.className);
+    await escolher("sheet-filtro-mandado", "Com Mandado de Segurança");
     expect(linhas()).toEqual(["m1"]);
     expect(texto("#badge-filtros-ativos")).toBe("1");
-    expect(texto("#filtro-mandado")).toBe("Com MS"); // mesmo estado da barra
+    expect(texto("#filtro-mandado")).toBe("Com Mandado de Segurança"); // mesmo estado da barra
     el!.querySelector<HTMLButtonElement>("#btn-filtros-limpar")!.click();
     await nextTick();
     expect(linhas()).toEqual(["m1", "s1", "s2"]);
@@ -207,7 +213,7 @@ describe("página /processos — filtro 'Mandado de Segurança'", () => {
 
   it("se o último MS for apagado com o filtro ligado, o filtro volta a 'Todos' e o controle some", async () => {
     await montarPagina([proc("m1", "Maria Alves", { datas: { msAnexadoEm: "2026-11-10" } }), proc("s2", "Sílvia Rocha")]);
-    await escolher("filtro-mandado", "Com MS");
+    await escolher("filtro-mandado", "Com Mandado de Segurança");
     expect(linhas()).toEqual(["m1"]);
     estado.processos.value = [proc("m1", "Maria Alves"), proc("s2", "Sílvia Rocha")];
     await nextTick();
@@ -235,7 +241,7 @@ describe("página /processos — filtro 'Mandado de Segurança'", () => {
         .map((n) => n.id.replace("processo-card-", ""))
         .sort();
     expect(cards()).toEqual(["e1", "e2", "m1", "s1", "s2"]);
-    await escolher("filtro-mandado", "Com MS");
+    await escolher("filtro-mandado", "Com Mandado de Segurança");
     expect(cards()).toEqual(["e1", "m1"]);
   });
 });

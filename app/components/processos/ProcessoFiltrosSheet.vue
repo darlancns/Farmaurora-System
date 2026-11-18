@@ -100,10 +100,14 @@ onBeforeUnmount(() => {
           drop-up
         />
         <AppSelect v-if="showCotacao" id="sheet-filtro-cotacao" v-model="cotacao" :options="COTACAO_FILTER_OPTIONS" drop-up />
-        <div v-if="showMandado" class="flex flex-col gap-1">
-          <label for="sheet-filtro-mandado" class="text-[12px] text-ink-soft">Mandado de Segurança</label>
-          <AppSelect id="sheet-filtro-mandado" v-model="mandado" :options="MANDADO_FILTER_OPTIONS" drop-up />
-        </div>
+        <AppSelect
+          v-if="showMandado"
+          id="sheet-filtro-mandado"
+          v-model="mandado"
+          :options="MANDADO_FILTER_OPTIONS"
+          aria-label="Mandado de Segurança"
+          drop-up
+        />
 
         <button
           id="btn-filtros-aplicar"

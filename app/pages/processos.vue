@@ -523,9 +523,13 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
           </div>
 
           <!-- Mandado de Segurança: só com ao menos um processo com "MS Anexado em"; Lista (as duas abas) e Kanban. -->
-          <div v-if="mostrarFiltroMandado" id="filtro-mandado-campo" class="hidden shrink-0 items-center gap-2 lg:flex lg:w-fit">
-            <label for="filtro-mandado" class="text-[12px] whitespace-nowrap text-ink-soft">Mandado de Segurança</label>
-            <AppSelect id="filtro-mandado" v-model="mandadoFilter" :options="MANDADO_FILTER_OPTIONS" />
+          <div v-if="mostrarFiltroMandado" id="filtro-mandado-campo" class="hidden shrink-0 lg:block lg:w-fit">
+            <AppSelect
+              id="filtro-mandado"
+              v-model="mandadoFilter"
+              :options="MANDADO_FILTER_OPTIONS"
+              aria-label="Mandado de Segurança"
+            />
           </div>
 
           <!-- Abaixo de lg: só o "+" flutuante (FloatingAddButton) acima do BottomNav. Em lg+ o botão

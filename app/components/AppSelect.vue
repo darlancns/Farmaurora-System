@@ -12,12 +12,16 @@ const props = withDefaults(
     // Abre a lista pra cima — pra selects no rodapé da tela (ex.: bottom sheet
     // de filtros), onde abrir pra baixo cortaria as opções.
     dropUp?: boolean;
+    // Nome acessível do campo quando o rótulo visível não existe (o nome está DENTRO da caixa, como nos filtros).
+    // Opt-in: sem ela, nada muda.
+    ariaLabel?: string;
   }>(),
   {
     id: undefined,
     placeholder: "Selecione",
     disabled: false,
     dropUp: false,
+    ariaLabel: undefined,
   }
 );
 
@@ -153,6 +157,7 @@ onBeforeUnmount(() => {
       ref="buttonRef"
       type="button"
       role="combobox"
+      :aria-label="ariaLabel"
       aria-haspopup="listbox"
       :aria-expanded="open"
       :aria-controls="listboxId"

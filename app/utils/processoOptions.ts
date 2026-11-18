@@ -116,8 +116,9 @@ export const COTACAO_FILTER_OPTIONS: AppSelectOption<FiltroCotacao>[] = [
   { value: "asd", label: "Cotações ASD" },
 ];
 
-// Filtro "Mandado de Segurança" (rótulo visível ao lado/acima do select): só aparece quando há processo com MS.
+// Filtro "Mandado de Segurança": como os outros, o nome fica DENTRO da caixa ("Todos os mandados" fechado, igual a
+// "Todas as cotações"). Só aparece quando há processo com MS. aria-label "Mandado de Segurança" no select.
 export const MANDADO_FILTER_OPTIONS: AppSelectOption<FiltroMandado>[] = [
-  { value: "", label: "Todos" },
-  { value: "com_ms", label: "Com MS" },
+  { value: "", label: "Todos os mandados" },
+  { value: "com_ms", label: "Com Mandado de Segurança" },
 ];
