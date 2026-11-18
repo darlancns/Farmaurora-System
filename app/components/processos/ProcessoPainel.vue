@@ -5,6 +5,7 @@ import { useEscapeToClose } from "../../composables/useEscapeToClose";
 import { metaDoStatus } from "../../utils/processoStatus";
 import ProcessoMoverMenu from "./ProcessoMoverMenu.vue";
 import { useLockBodyScroll } from "../../composables/useLockBodyScroll";
+import { BOTAO_ICONE_CLASS } from "../../utils/botaoIcone";
 import { ICONES_PROCESSO, type ChaveIconePainel } from "../../utils/processoIcones";
 import { etiquetaPagamentoDe } from "../../utils/processoPagamento";
 import { camposDatasPreenchidos, focaveis, haModalAberto, itensMedicamentos } from "../../utils/processoPainel";
@@ -131,8 +132,7 @@ function confirmDelete(): void {
 }
 
 // Botões só de ícone do topo: 44x44 abaixo de lg (alvo de toque) e 36x36 em lg+, borda hairline, raio 8.
-const BOTAO_ICONE =
-  "pointer-events-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-hairline bg-paper-raised text-ink-soft transition-colors lg:h-9 lg:w-9";
+const BOTAO_ICONE = `pointer-events-auto ${BOTAO_ICONE_CLASS}`;
 // Espaço que os 3 ícones ocupam à direita (3×44 + 2×8 abaixo de lg; 3×36 + 2×8 em lg+) mais respiro: o texto da mesma
 // linha não passa por baixo deles.
 const RESERVA_ICONES = "pr-[156px] lg:pr-[132px]";

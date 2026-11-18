@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApp, defineComponent, h, nextTick, reactive } from "vue";
 import type { Processo } from "#shared/types/processo";
 import ProcessoPainel from "../../app/components/processos/ProcessoPainel.vue";
+import { BOTAO_FECHAR_HOVER_CLASS, BOTAO_ICONE_CLASS } from "../../app/utils/botaoIcone";
 import {
   BLOCOS_PAINEL,
   camposDatas,
@@ -764,5 +765,15 @@ describe("atualizações (variante painel) e Excluir processo", () => {
     expect(texto(botao)).toBe("Excluir processo");
     for (const c of ["border-[#efd3cc]", "text-[#9a3828]"]) expect(botao.className, c).toContain(c);
     expect(botao.querySelector("svg[aria-hidden='true']")).not.toBeNull();
+  });
+});
+
+describe("X do painel e X do formulário compartilham as classes", () => {
+  it("o botão Fechar do painel usa BOTAO_ICONE_CLASS (visual inalterado: 44px abaixo de lg, 36px em lg+, borda, raio 8)", () => {
+    painel(proc());
+    const cls = (document.querySelector("#btn-painel-fechar")!.getAttribute("class") ?? "").split(/\s+/);
+    for (const c of BOTAO_ICONE_CLASS.split(" ")) expect(cls, c).toContain(c);
+    for (const c of BOTAO_FECHAR_HOVER_CLASS.split(" ")) expect(cls, c).toContain(c);
+    expect(cls).toContain("pointer-events-auto");
   });
 });

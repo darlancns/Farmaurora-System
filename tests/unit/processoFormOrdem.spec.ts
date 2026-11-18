@@ -5,6 +5,8 @@ import type { Processo } from "#shared/types/processo";
 import { NUMERO_PO_EXEMPLO, NUMERO_PO_LIMITE } from "#shared/utils/numeroPo";
 import ProcessoFormMedicamentos from "../../app/components/processos/ProcessoFormMedicamentos.vue";
 import ProcessoFormModal from "../../app/components/processos/ProcessoFormModal.vue";
+import { BOTAO_FECHAR_HOVER_CLASS, BOTAO_ICONE_CLASS } from "../../app/utils/botaoIcone";
+import { ICONES_PROCESSO } from "../../app/utils/processoIcones";
 import { montarProcesso, type FollowUpRow } from "../../server/utils/processoMappers";
 import { linhaCompleta } from "./helpers/processoEdicaoFixtures";
 
@@ -512,6 +514,37 @@ describe("Botão principal no cabeçalho do modal", () => {
     const { el } = montarComEventos(null);
     await nextTick();
     expect((el.querySelector("#btn-save-processo") as HTMLButtonElement).form).toBe(el.querySelector("#processo-form"));
+  });
+
+  it("o X tem o MESMO visual do X da barra lateral (classes compartilhadas e ícone SVG), com title e nome 'Fechar'", async () => {
+    const { el } = montarComEventos(null);
+    await nextTick();
+    const fechar = el.querySelector("#btn-close-processo-form")!;
+    const cls = (fechar.getAttribute("class") ?? "").split(/\s+/);
+    for (const c of BOTAO_ICONE_CLASS.split(" ")) expect(cls, c).toContain(c);
+    for (const c of BOTAO_FECHAR_HOVER_CLASS.split(" ")) expect(cls, c).toContain(c);
+    for (const c of ["h-11", "w-11", "lg:h-9", "lg:w-9", "rounded-lg", "border", "border-hairline"]) expect(cls, c).toContain(c);
+    expect(cls.filter((c) => /(^|:)-?m[r]-/.test(c)), "sem margem negativa: a borda alinha com a margem do conteúdo").toEqual([]);
+    expect(cls.filter((c) => /(^|[:!])-?order-/.test(c))).toEqual([]);
+    expect(fechar.getAttribute("title")).toBe("Fechar");
+    expect(fechar.getAttribute("aria-label")).toBe("Fechar");
+    expect(fechar.getAttribute("type")).toBe("button");
+    const svg = fechar.querySelector("svg")!;
+    expect(svg.getAttribute("aria-hidden")).toBe("true");
+    expect(svg.getAttribute("class")).toContain("h-4");
+    expect(svg.getAttribute("stroke-width")).toBe("1.75");
+    expect([...svg.querySelectorAll("path")].map((p) => p.getAttribute("d"))).toEqual(ICONES_PROCESSO.fechar);
+    expect(texto(fechar)).toBe(""); // sem o glifo ✕
+    // Continua sendo o último item do cabeçalho, sem wrapper novo.
+    expect(fechar.parentElement!.lastElementChild).toBe(fechar);
+    expect(fechar.parentElement!.getAttribute("class")).toContain("gap-2");
+  });
+
+  it("o botão principal tem a altura do X em lg+ (36px) e 44px abaixo de lg", async () => {
+    const { el } = montarComEventos(null);
+    await nextTick();
+    const cls = (el.querySelector("#btn-save-processo")!.getAttribute("class") ?? "").split(/\s+/);
+    for (const c of ["min-h-11", "lg:h-9", "lg:min-h-auto", "lg:py-0"]) expect(cls, c).toContain(c);
   });
 
   it("Cancelar e o X fecham", async () => {

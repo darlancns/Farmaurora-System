@@ -3,6 +3,8 @@ import type { NewProcessoDTO, Processo, ProcessoFormPatchPayload } from "#shared
 import { computed } from "vue";
 import { MENSAGEM_CONFLITO_EDICAO } from "../../composables/useConflitoEdicaoProcesso";
 import { useProcessoForm } from "../../composables/useProcessoForm";
+import { BOTAO_FECHAR_HOVER_CLASS, BOTAO_ICONE_CLASS } from "../../utils/botaoIcone";
+import { ICONES_PROCESSO } from "../../utils/processoIcones";
 import { useProverBloqueioDatas } from "../../composables/useBloqueioDatas";
 import AppSelect from "../AppSelect.vue";
 import BaseModal from "../BaseModal.vue";
@@ -146,7 +148,7 @@ function handleSubmit(): void {
           type="submit"
           form="processo-form"
           :aria-label="textoSalvarCompleto"
-          class="ml-auto min-h-11 shrink-0 rounded-lg bg-accent-dark px-3 py-2 text-[14px] font-semibold whitespace-nowrap text-white transition-colors hover:opacity-90 sm:px-4 lg:min-h-auto lg:px-3.5 lg:py-1.5 lg:text-[13px]"
+          class="ml-auto min-h-11 shrink-0 rounded-lg bg-accent-dark px-3 py-2 text-[14px] font-semibold whitespace-nowrap text-white transition-colors hover:opacity-90 sm:px-4 lg:h-9 lg:min-h-auto lg:px-3.5 lg:py-0 lg:text-[13px]"
         >
           <span class="sm:hidden">{{ editingProcesso ? "Salvar" : "Adicionar" }}</span>
           <span class="hidden sm:inline">{{ textoSalvarCompleto }}</span>
@@ -155,10 +157,13 @@ function handleSubmit(): void {
           id="btn-close-processo-form"
           type="button"
           title="Fechar"
-          class="-mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-ink-soft transition-colors hover:text-danger lg:mr-0 lg:block lg:h-auto lg:w-auto lg:px-2 lg:py-1"
+          aria-label="Fechar"
+          :class="[BOTAO_ICONE_CLASS, BOTAO_FECHAR_HOVER_CLASS]"
           @click="emit('close')"
         >
-          ✕
+          <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path v-for="(d, i) in ICONES_PROCESSO.fechar" :key="i" :d="d" />
+          </svg>
         </button>
       </div>
 

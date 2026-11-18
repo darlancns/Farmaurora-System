@@ -324,6 +324,19 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
           expect(fechar.width).toBeGreaterThanOrEqual(44);
           expect(fechar.height).toBeGreaterThanOrEqual(44);
           expect(direita(fechar), "fechar dentro da viewport").toBeLessThanOrEqual(vw);
+          // O X tem o visual do X da barra lateral: quadrado de 44px com borda e raio 8, alinhado à margem de 16px do conteúdo.
+          expect(fechar.width).toBeCloseTo(44, 0);
+          expect(fechar.height).toBeCloseTo(44, 0);
+          expect(
+            await page.locator("#btn-close-processo-form").evaluate((el) => ({
+              borda: getComputedStyle(el).borderTopWidth,
+              raio: getComputedStyle(el).borderTopLeftRadius,
+              margem: getComputedStyle(el).marginRight,
+              titulo: el.getAttribute("title"),
+              svg: el.querySelector("svg") !== null,
+            })),
+          ).toEqual({ borda: "1px", raio: "8px", margem: "0px", titulo: "Fechar", svg: true });
+          await expect(page.locator("#btn-close-processo-form")).toHaveAccessibleName("Fechar");
           const cab = await page
             .locator("#btn-close-processo-form")
             .evaluate((el) => el.parentElement!.getBoundingClientRect().toJSON() as { top: number; bottom: number });

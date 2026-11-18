@@ -186,7 +186,7 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
           });
           await expect(page.locator("#bottom-nav")).toBeHidden();
 
-          // Cabeçalho: padding 16px 20px; fechar pequeno (não é o alvo de 44px do mobile).
+          // Cabeçalho: padding 16px 20px; fechar quadrado de 36px com borda e raio 8 (o mesmo X da barra lateral do processo).
           const fechar = page.locator("#btn-close-processo-form");
           const cab = fechar.locator("xpath=..");
           expect(await estilo(cab, ["padding-top", "padding-left", "border-bottom-width"])).toEqual({
@@ -194,10 +194,19 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
             "padding-left": "20px",
             "border-bottom-width": "1px",
           });
-          expect(await estilo(fechar, ["display", "padding-top", "padding-left"])).toEqual({ display: "block", "padding-top": "4px", "padding-left": "8px" });
+          expect(await estilo(fechar, ["display", "border-top-width", "border-top-left-radius", "margin-right"])).toEqual({
+            display: "flex",
+            "border-top-width": "1px",
+            "border-top-left-radius": "8px",
+            "margin-right": "0px",
+          });
           const fb = (await fechar.boundingBox())!;
-          expect(fb.width).toBeLessThan(40);
-          expect(fb.height).toBeLessThan(40);
+          expect(fb.width).toBeCloseTo(36, 0);
+          expect(fb.height).toBeCloseTo(36, 0);
+          // O ícone é um SVG de 16px (não mais o glifo ✕) e o botão continua com title e nome acessível.
+          expect(await fechar.locator("svg").evaluate((el) => el.getBoundingClientRect().width)).toBeCloseTo(16, 0);
+          expect(await fechar.getAttribute("title")).toBe("Fechar");
+          await expect(fechar).toHaveAccessibleName("Fechar");
 
           // Corpo: o próprio <form> rola, com padding de 20px e gap de 14px.
           const form = page.locator("#processo-form");
@@ -221,7 +230,8 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
           const sb = (await salvarBtn.boundingBox())!;
           expect(sb.x + sb.width, "Salvar à esquerda do X").toBeLessThanOrEqual(fb.x + 0.5);
           expect(Math.abs(sb.y + sb.height / 2 - (fb.y + fb.height / 2)), "Salvar e X na mesma linha").toBeLessThanOrEqual(1);
-          expect(sb.height, "Salvar compacto").toBeLessThan(40);
+          expect(sb.height, "Salvar com a altura do X (36px)").toBeCloseTo(36, 0);
+          expect(Math.abs(sb.y - fb.y), "Salvar e X alinhados pelo topo").toBeLessThanOrEqual(1);
           expect(await salvarBtn.evaluate((el) => (el as HTMLElement).innerText.trim())).toBe(modo === "editar" ? "Salvar alterações" : "+ Adicionar processo");
           await expect(salvarBtn).toHaveAccessibleName(modo === "editar" ? "Salvar alterações" : "+ Adicionar processo");
           expect(await estilo(salvarBtn, ["font-size", "min-height", "flex-shrink", "white-space"])).toEqual({
