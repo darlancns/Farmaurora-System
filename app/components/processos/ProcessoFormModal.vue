@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { NewProcessoDTO, Processo, ProcessoFormPatchPayload } from "#shared/types/processo";
+import { computed } from "vue";
 import { MENSAGEM_CONFLITO_EDICAO } from "../../composables/useConflitoEdicaoProcesso";
 import { useProcessoForm } from "../../composables/useProcessoForm";
 import { useProverBloqueioDatas } from "../../composables/useBloqueioDatas";
@@ -83,6 +84,9 @@ const {
 // "Corrija ou limpe a data" e recebe o foco. Ver useBloqueioDatas.ts.
 const bloqueioDatas = useProverBloqueioDatas();
 
+// Nome do botão principal (cabeçalho). Abaixo de sm a tela mostra a forma curta, mas o nome acessível é este.
+const textoSalvarCompleto = computed(() => (props.editingProcesso ? "Salvar alterações" : "+ Adicionar processo"));
+
 function handleSubmit(): void {
   if (!bloqueioDatas.liberado()) return;
   if (props.editingProcesso) {
@@ -114,30 +118,44 @@ function handleSubmit(): void {
   <!--
     Abaixo de lg o casco vira tela cheia (fixed inset-0 h-dvh, por cima do
     BottomNav — o overlay do BaseModal está em z-900 e o BottomNav em z-40):
-    cabeçalho fixo, corpo que rola por dentro e rodapé fixo (sticky) com
-    Cancelar + Salvar. Em lg+ as classes de lg: devolvem o modal de antes (o
-    corpo vira o próprio <form> rolável e o rodapé "some" via contents, deixando
-    só o botão de salvar no fim do formulário, como era).
+    cabeçalho fixo (texto pequeno, título, botão principal e fechar), corpo que
+    rola por dentro e rodapé fixo (sticky) só com Cancelar. Em lg+ as classes de
+    lg: devolvem o modal de antes (o corpo vira o próprio <form> rolável e o
+    rodapé "some" via contents: com o Cancelar escondido, não renderiza nada).
+    O botão principal (Salvar alterações / + Adicionar processo) mora no cabeçalho,
+    fora do <form>: `form="processo-form"` o liga ao mesmo @submit.prevent.
   -->
   <BaseModal id="processo-form-modal-overlay" @close="emit('close')">
     <div
       class="fixed inset-0 flex h-dvh w-full flex-col bg-paper-raised lg:static lg:inset-auto lg:h-auto lg:max-h-[90vh] lg:max-w-[720px] lg:rounded-[10px] lg:border lg:border-hairline"
     >
       <div
-        class="flex shrink-0 items-center justify-between border-b border-hairline py-2 lg:px-5 lg:py-4"
+        class="flex shrink-0 items-center justify-between gap-2 border-b border-hairline py-2 lg:px-5 lg:py-4"
         :class="MODAL_PAD_X_CLASS"
       >
-        <div>
+        <div class="min-w-0">
           <p class="mb-1 font-mono text-[11px] tracking-wider text-accent-dark uppercase">Follow-up</p>
-          <h2 class="font-display text-[18px] font-semibold text-ink">
+          <h2 class="font-display text-[18px] font-semibold break-words text-ink">
             {{ editingProcesso ? "Editar processo" : "Novo processo" }}
           </h2>
         </div>
+        <!-- Botão principal: antes do X no DOM (o Tab chega nele primeiro) e alinhado à direita por ml-auto, sem wrapper e
+             sem order-*. Abaixo de sm o texto é curto ("Salvar"/"Adicionar"); o nome acessível é sempre o completo. -->
+        <button
+          id="btn-save-processo"
+          type="submit"
+          form="processo-form"
+          :aria-label="textoSalvarCompleto"
+          class="ml-auto min-h-11 shrink-0 rounded-lg bg-accent-dark px-3 py-2 text-[14px] font-semibold whitespace-nowrap text-white transition-colors hover:opacity-90 sm:px-4 lg:min-h-auto lg:px-3.5 lg:py-1.5 lg:text-[13px]"
+        >
+          <span class="sm:hidden">{{ editingProcesso ? "Salvar" : "Adicionar" }}</span>
+          <span class="hidden sm:inline">{{ textoSalvarCompleto }}</span>
+        </button>
         <button
           id="btn-close-processo-form"
           type="button"
           title="Fechar"
-          class="-mr-2 flex h-11 w-11 items-center justify-center rounded-md text-ink-soft transition-colors hover:text-danger lg:mr-0 lg:block lg:h-auto lg:w-auto lg:px-2 lg:py-1"
+          class="-mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-ink-soft transition-colors hover:text-danger lg:mr-0 lg:block lg:h-auto lg:w-auto lg:px-2 lg:py-1"
           @click="emit('close')"
         >
           ✕
@@ -400,13 +418,6 @@ function handleSubmit(): void {
             @click="emit('close')"
           >
             Cancelar
-          </button>
-          <button
-            id="btn-save-processo"
-            type="submit"
-            class="min-h-11 flex-[2] rounded-lg bg-accent-dark px-4 py-2.5 text-[14px] font-semibold text-white transition-colors lg:mt-1 lg:min-h-auto lg:w-full lg:flex-[0_1_auto] lg:text-[13px]"
-          >
-            {{ editingProcesso ? "Salvar alterações" : "+ Adicionar processo" }}
           </button>
         </div>
       </form>

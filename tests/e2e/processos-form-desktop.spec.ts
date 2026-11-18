@@ -213,22 +213,30 @@ test.describe("/processos em lg+ — formulário Novo/Editar processo (idêntico
             "scroll-padding-bottom": "auto",
           });
 
-          // Rodapé "some" (contents) e Cancelar não existe visualmente: só o botão de salvar no fim do corpo.
+          // O botão principal está no CABEÇALHO, à esquerda do X, compacto (13px, sem altura mínima de 44px do mobile), na mesma
+          // linha do X e com o texto completo. O rodapé "some" (contents): o Cancelar não existe visualmente e não sobra
+          // nenhum botão (nem espaço vazio) no fim do corpo.
+          const salvarBtn = page.locator("#btn-save-processo");
+          expect(await salvarBtn.evaluate((el) => el.parentElement === document.querySelector("#btn-close-processo-form")!.parentElement)).toBe(true);
+          const sb = (await salvarBtn.boundingBox())!;
+          expect(sb.x + sb.width, "Salvar à esquerda do X").toBeLessThanOrEqual(fb.x + 0.5);
+          expect(Math.abs(sb.y + sb.height / 2 - (fb.y + fb.height / 2)), "Salvar e X na mesma linha").toBeLessThanOrEqual(1);
+          expect(sb.height, "Salvar compacto").toBeLessThan(40);
+          expect(await salvarBtn.evaluate((el) => (el as HTMLElement).innerText.trim())).toBe(modo === "editar" ? "Salvar alterações" : "+ Adicionar processo");
+          await expect(salvarBtn).toHaveAccessibleName(modo === "editar" ? "Salvar alterações" : "+ Adicionar processo");
+          expect(await estilo(salvarBtn, ["font-size", "min-height", "flex-shrink", "white-space"])).toEqual({
+            "font-size": "13px",
+            "min-height": "auto",
+            "flex-shrink": "0",
+            "white-space": "nowrap",
+          });
           await expect(page.locator("#btn-cancel-processo")).toBeHidden();
-          const rodape = page.locator("#btn-save-processo").locator("xpath=..");
+          const rodape = page.locator("#btn-cancel-processo").locator("xpath=..");
           expect(await estilo(rodape, ["display"])).toEqual({ display: "contents" });
           await form.evaluate((f) => { f.scrollTop = f.scrollHeight; });
-          const salvar = (await page.locator("#btn-save-processo").boundingBox())!;
           const fm = (await form.boundingBox())!;
-          expect(salvar.width, "salvar em largura total do corpo").toBeCloseTo(fm.width - 40, 0);
-          expect(Math.abs(embaixo(salvar) + 20 - embaixo(fm)), "salvar no fim do corpo, com o padding de 20px").toBeLessThanOrEqual(1);
-          expect(await estilo(page.locator("#btn-save-processo"), ["margin-top", "font-size", "flex-grow", "flex-shrink", "min-height"])).toEqual({
-            "margin-top": "4px",
-            "font-size": "13px",
-            "flex-grow": "0",
-            "flex-shrink": "1",
-            "min-height": "auto",
-          });
+          const ultimoBloco = (await page.locator("#btn-add-pendencia").locator("xpath=ancestor::fieldset").boundingBox())!;
+          expect(Math.abs(ultimoBloco.y + ultimoBloco.height + 20 - (fm.y + fm.height)), "o último bloco fecha o corpo, só com o padding de 20px").toBeLessThanOrEqual(1);
           // Sem overflow horizontal.
           expect(await form.evaluate((f) => f.scrollWidth > f.clientWidth + 1)).toBe(false);
         });

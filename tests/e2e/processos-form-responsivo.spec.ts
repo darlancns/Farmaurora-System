@@ -179,14 +179,20 @@ async function caixaNoCorpo(locator: Locator, nome: string): Promise<Caixa> {
 const campo = (page: Page, id: string): Locator => page.locator(`#${id}`);
 const boxCampo = (page: Page, id: string): Promise<Caixa> => box(campo(page, id), id);
 
-// Caixa da área visível do corpo: entre o cabeçalho (fixo) e o rodapé (fixo).
+// Caixa da área visível do corpo: entre o cabeçalho (fixo) e o rodapé (fixo). O rodapé só existe abaixo de lg (com o
+// Cancelar): então a base é o TOPO do rodapé; sem rodapé visível (lg+), a base é o fundo do próprio formulário.
 async function areaDoCorpo(page: Page): Promise<{ topo: number; base: number }> {
   const fechar = await box(page.locator("#btn-close-processo-form"), "fechar");
   const cabecalho = await page.locator("#btn-close-processo-form").evaluate((el) => el.parentElement!.getBoundingClientRect().bottom);
-  const salvar = await box(page.locator("#btn-save-processo"), "salvar");
-  // O rodapé tem 12px de respiro acima dos botões (pt-3).
   expect(fechar.y).toBeGreaterThanOrEqual(0);
-  return { topo: cabecalho, base: salvar.y - 12 };
+  const cancelar = page.locator("#btn-cancel-processo");
+  if (await cancelar.isVisible()) {
+    // O rodapé tem 12px de respiro acima do botão (pt-3).
+    const c = await box(cancelar, "cancelar");
+    return { topo: cabecalho, base: c.y - 12 };
+  }
+  const form = await box(page.locator("#processo-form"), "formulário");
+  return { topo: cabecalho, base: embaixo(form) };
 }
 
 async function abrirModal(page: Page, modo: Modo): Promise<void> {
@@ -326,19 +332,41 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
             modo === "editar" ? "Editar processo" : "Novo processo",
           );
 
-          // Rodapé: Cancelar + Salvar >= 44px, lado a lado, colados na base (safe-area = 0 aqui).
-          const cancelar = await box(page.locator("#btn-cancel-processo"), "cancelar");
+          // Botão principal no CABEÇALHO: à esquerda do X, sem sair do cabeçalho, >= 44px de altura, texto curto abaixo de sm
+          // ("Salvar"/"Adicionar") e completo de sm em diante; o nome acessível é sempre o completo.
           const salvar = await box(page.locator("#btn-save-processo"), "salvar");
-          for (const [nome, b] of [["cancelar", cancelar], ["salvar", salvar]] as const) {
-            expect(b.height, `altura de ${nome}`).toBeGreaterThanOrEqual(44);
-            expect(embaixo(b), `${nome} dentro da viewport`).toBeLessThanOrEqual(vh);
-          }
-          expect(Math.abs(cancelar.y - salvar.y)).toBeLessThanOrEqual(1);
-          expect(salvar.x).toBeGreaterThanOrEqual(direita(cancelar));
-          expect(vh - embaixo(salvar), "respiro abaixo dos botões").toBeLessThanOrEqual(16);
-          await expect(page.locator("#btn-save-processo")).toHaveText(
-            modo === "editar" ? "Salvar alterações" : "+ Adicionar processo",
+          expect(salvar.height, "altura do Salvar no cabeçalho").toBeGreaterThanOrEqual(44);
+          expect(embaixo(salvar), "Salvar dentro do cabeçalho").toBeLessThanOrEqual(cab.bottom + 0.5);
+          expect(salvar.y, "Salvar dentro do cabeçalho (topo)").toBeGreaterThanOrEqual(0);
+          expect(direita(salvar), "Salvar à esquerda do X").toBeLessThanOrEqual(fechar.x + 0.5);
+          expect(Math.abs(salvar.y + salvar.height / 2 - (fechar.y + fechar.height / 2)), "Salvar e X na mesma linha").toBeLessThanOrEqual(1);
+          const nomeCompleto = modo === "editar" ? "Salvar alterações" : "+ Adicionar processo";
+          const nomeCurto = modo === "editar" ? "Salvar" : "Adicionar";
+          await expect(page.locator("#btn-save-processo")).toHaveAccessibleName(nomeCompleto);
+          expect(await page.locator("#btn-save-processo").evaluate((el) => (el as HTMLElement).innerText.trim())).toBe(
+            viewport.width >= 640 ? nomeCompleto : nomeCurto,
           );
+          expect(await page.locator("#btn-save-processo").getAttribute("form")).toBe("processo-form");
+          expect(await page.locator("#btn-save-processo").getAttribute("type")).toBe("submit");
+          // O cabeçalho não passa da largura da tela e o título não é empurrado para fora: o botão, o título e o X cabem.
+          const cabecalhoLargura = await page.locator("#btn-close-processo-form").evaluate((el) => {
+            const c = el.parentElement!;
+            return { scroll: c.scrollWidth, client: c.clientWidth };
+          });
+          expect(cabecalhoLargura.scroll, "cabeçalho sem rolagem horizontal").toBeLessThanOrEqual(cabecalhoLargura.client + 1);
+          const titulo = await box(page.locator("#processo-form-modal-overlay h2"), "título");
+          expect(direita(titulo), "título não invade o botão").toBeLessThanOrEqual(salvar.x + 0.5);
+
+          // Rodapé (abaixo de lg): só o Cancelar, em largura total, >= 44px, colado na base (safe-area = 0 aqui). Não há
+          // mais um segundo botão ali (o Salvar mora no cabeçalho).
+          const cancelar = await box(page.locator("#btn-cancel-processo"), "cancelar");
+          expect(cancelar.height, "altura do Cancelar").toBeGreaterThanOrEqual(44);
+          expect(embaixo(cancelar), "Cancelar dentro da viewport").toBeLessThanOrEqual(vh);
+          const utilCelular = Math.min(viewport.width, 720) - 2 * (viewport.width >= 720 ? 20 : 16);
+          expect(cancelar.width, "Cancelar em largura total").toBeCloseTo(utilCelular, 0);
+          expect(vh - embaixo(cancelar), "respiro abaixo do botão").toBeLessThanOrEqual(16);
+          await expect(page.locator("#btn-save-processo")).toHaveCount(1);
+          expect(await page.locator("#btn-cancel-processo").locator("xpath=..").locator("button").count(), "rodapé só com o Cancelar").toBe(1);
 
           // Cabeçalho e rodapé não se mexem quando o corpo rola até o fim; a página atrás não rola.
           const antes = { cancelar, salvar, fechar };

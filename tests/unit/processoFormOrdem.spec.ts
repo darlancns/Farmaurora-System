@@ -178,16 +178,22 @@ describe("Formulário de processo — ordem dos campos no DOM", () => {
     }
   });
 
-  it("o bloco 'Pendências' (fieldset com legenda) vem logo antes do botão de adicionar, depois das datas, e o rodapé fecha o formulário", async () => {
+  it("o bloco 'Pendências' (fieldset com legenda) vem depois das datas, com o botão de adicionar dentro; o rodapé só tem o Cancelar", async () => {
     const el = abrir();
     await nextTick();
     const rotulo = [...el.querySelectorAll("#processo-form fieldset > legend")].find((l) => texto(l) === "Pendências")!;
     expect(rotulo).toBeTruthy();
     const ultimaData = el.querySelector("#pf-suposta-estimativa")!;
-    const salvar = el.querySelector("#btn-save-processo")!;
+    const cancelar = el.querySelector("#btn-cancel-processo")!;
     expect(ultimaData.compareDocumentPosition(rotulo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(rotulo.compareDocumentPosition(el.querySelector("#btn-add-pendencia")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(el.querySelector("#btn-add-pendencia")!.compareDocumentPosition(salvar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(el.querySelector("#btn-add-pendencia")!.compareDocumentPosition(cancelar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // O rodapé (último filho do form) não tem mais o botão principal: só o Cancelar (some em lg+).
+    const rodape = el.querySelector("#processo-form")!.lastElementChild!;
+    expect([...rodape.children].map((c) => c.id)).toEqual(["btn-cancel-processo"]);
+    expect(cancelar.getAttribute("type")).toBe("button");
+    expect(cancelar.getAttribute("class")).toContain("lg:hidden");
+    expect(rodape.getAttribute("class")).toContain("lg:contents");
   });
 
   it("condicional: 'Qual fornecedor?' logo depois do Fornecedor; 'Qual status?' não existe mais (nem com linha legada 'outro')", async () => {
@@ -369,6 +375,152 @@ describe("Formulário de processo — ordem dos campos no DOM", () => {
         .map((n) => `${n.tagName.toLowerCase()}${n.id ? `#${n.id}` : ""}.${n.getAttribute("class")}`);
       expect(comOrder).toEqual([]);
     }
+  });
+});
+
+describe("Botão principal no cabeçalho do modal", () => {
+  function montarComEventos(editingProcesso: Processo | null) {
+    const eventos = { submit: [] as unknown[], update: [] as unknown[][], invalid: [] as string[], unchanged: 0 };
+    const el = montar(
+      defineComponent({
+        render: () =>
+          h(ProcessoFormModal, {
+            editingProcesso,
+            onSubmit: (p: unknown) => eventos.submit.push(p),
+            onUpdate: (...a: unknown[]) => eventos.update.push(a),
+            onInvalid: (m: string) => eventos.invalid.push(m),
+            onUnchanged: () => eventos.unchanged++,
+          }),
+      }),
+    );
+    return { el, eventos };
+  }
+  // O clique num botão ligado ao form por form= dispara o submit de forma assíncrona no happy-dom: espera uma macrotarefa.
+  const aguardar = async () => {
+    await new Promise((r) => setTimeout(r, 0));
+    await nextTick();
+  };
+  // Sem o valor da transportadora: o happy-dom acha 1500 inválido num <input type=number step=0.01> e trava o submit por
+  // clique (validação nativa; o Chrome aceita). A validação nativa vale igual para o botão antigo dentro do form.
+  const processoEditavel = () => montarProcesso(linhaCompleta({ transportadora_nacional_valor: null }) as unknown as FollowUpRow);
+
+  it("fica no cabeçalho, ANTES do X (que é o último), fora do <form>, ligado a ele por form= e type=submit; só existe um", async () => {
+    for (const editando of [false, true]) {
+      const { el } = montarComEventos(editando ? processoEditavel() : null);
+      await nextTick();
+      const fechar = el.querySelector("#btn-close-processo-form")!;
+      const cabecalho = fechar.parentElement!;
+      const salvar = el.querySelector("#btn-save-processo")!;
+      expect(el.querySelectorAll("#btn-save-processo")).toHaveLength(1);
+      expect(salvar.parentElement, "sem wrapper novo: o cabeçalho é o pai dos dois").toBe(cabecalho);
+      expect(cabecalho.lastElementChild).toBe(fechar);
+      expect(salvar.compareDocumentPosition(fechar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(el.querySelector("#processo-form")!.contains(salvar)).toBe(false);
+      expect(el.querySelector("#processo-form")!.compareDocumentPosition(salvar) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+      expect(salvar.getAttribute("type")).toBe("submit");
+      expect(salvar.getAttribute("form")).toBe("processo-form");
+      expect(cabecalho.querySelector("h2")).not.toBeNull();
+    }
+  });
+
+  it("nome acessível = o texto completo de sempre; abaixo de sm o texto visível é curto e de sm em diante é o completo", async () => {
+    const novo = montarComEventos(null);
+    await nextTick();
+    const sNovo = novo.el.querySelector("#btn-save-processo")!;
+    expect(sNovo.getAttribute("aria-label")).toBe("+ Adicionar processo");
+    expect([...sNovo.querySelectorAll("span")].map((s) => [s.getAttribute("class"), texto(s)])).toEqual([
+      ["sm:hidden", "Adicionar"],
+      ["hidden sm:inline", "+ Adicionar processo"],
+    ]);
+    const edicao = montarComEventos(processoEditavel());
+    await nextTick();
+    const sEd = edicao.el.querySelector("#btn-save-processo")!;
+    expect(sEd.getAttribute("aria-label")).toBe("Salvar alterações");
+    expect([...sEd.querySelectorAll("span")].map((s) => [s.getAttribute("class"), texto(s)])).toEqual([
+      ["sm:hidden", "Salvar"],
+      ["hidden sm:inline", "Salvar alterações"],
+    ]);
+  });
+
+  it("estilo: azul escuro/texto branco, compacto (sem w-full), não encolhe nem quebra linha, 44px abaixo de lg, ml-auto, sem order-*", async () => {
+    const { el } = montarComEventos(null);
+    await nextTick();
+    const cls = (el.querySelector("#btn-save-processo")!.getAttribute("class") ?? "").split(/\s+/);
+    for (const c of ["bg-accent-dark", "text-white", "min-h-11", "lg:min-h-auto", "shrink-0", "whitespace-nowrap", "ml-auto"]) expect(cls, c).toContain(c);
+    expect(cls.filter((c) => /(^|:)w-/.test(c))).toEqual([]);
+    expect(cls.filter((c) => /(^|[:!])-?order-/.test(c))).toEqual([]);
+    // O título pode ceder espaço (min-w-0) e quebrar linha.
+    const bloco = el.querySelector("#btn-close-processo-form")!.parentElement!.firstElementChild!;
+    expect(bloco.getAttribute("class")).toContain("min-w-0");
+    expect(texto(el.querySelector("#processo-form-modal-overlay p"))).toBe("Follow-up");
+  });
+
+  it("Tab: o botão do cabeçalho é o primeiro item, depois o X, depois os campos (Paciente...)", async () => {
+    const { el } = montarComEventos(null);
+    await nextTick();
+    const focaveis = [...el.querySelectorAll<HTMLElement>("button:not([disabled]), input:not([disabled])")];
+    expect(focaveis.slice(0, 3).map((n) => n.id)).toEqual(["btn-save-processo", "btn-close-processo-form", "pf-paciente"]);
+    for (const n of el.querySelectorAll<HTMLElement>("[tabindex]")) expect(Number(n.getAttribute("tabindex"))).toBeLessThanOrEqual(0);
+  });
+
+  // Um formulário por vez: o botão do cabeçalho acha o form pelo id (form="processo-form"), então dois modais montados ao
+  // mesmo tempo (ids repetidos) confundiriam o clique.
+  it("o clique no botão do cabeçalho dispara o MESMO envio do submit do form: Novo vazio avisa o mesmo erro", async () => {
+    const porClique = montarComEventos(null);
+    await nextTick();
+    porClique.el.querySelector<HTMLButtonElement>("#btn-save-processo")!.click();
+    await aguardar();
+    expect(porClique.eventos.invalid, "o clique passa pela validação de sempre").toEqual(["Informe o nome do paciente."]);
+    expect(porClique.eventos.submit).toEqual([]);
+    const m = montados.pop()!;
+    m.unmount();
+    m.el.remove();
+
+    const porSubmit = montarComEventos(null);
+    await nextTick();
+    porSubmit.el.querySelector("#processo-form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    await aguardar();
+    expect(porSubmit.eventos.invalid).toEqual(porClique.eventos.invalid);
+  });
+
+  it("Editar sem mudança: o clique avisa 'unchanged' e não envia nada", async () => {
+    const sem = montarComEventos(processoEditavel());
+    await nextTick();
+    sem.el.querySelector<HTMLButtonElement>("#btn-save-processo")!.click();
+    await aguardar();
+    expect(sem.eventos.unchanged).toBe(1);
+    expect(sem.eventos.update).toEqual([]);
+  });
+
+  it("Editar com mudança: o clique envia só o que mudou (patch diferencial)", async () => {
+    const com = montarComEventos(processoEditavel());
+    await nextTick();
+    const awb = com.el.querySelector<HTMLInputElement>("#pf-awb")!;
+    awb.value = "ZZ999999999BR";
+    awb.dispatchEvent(new Event("input", { bubbles: true }));
+    await nextTick();
+    com.el.querySelector<HTMLButtonElement>("#btn-save-processo")!.click();
+    await aguardar();
+    expect(com.eventos.update).toHaveLength(1);
+    const [id, patch] = com.eventos.update[0]! as [string, Record<string, unknown>];
+    expect(id).toBe("proc_1");
+    expect(patch).toMatchObject({ numeroAwb: "ZZ999999999BR" });
+    expect(Object.keys(patch).filter((k) => !["numeroAwb", "versao", "parcial"].includes(k)), "só o que mudou").toEqual([]);
+  });
+
+  it("o botão está ligado ao form (button.form === #processo-form), requisito do Enter nos campos (envio implícito)", async () => {
+    const { el } = montarComEventos(null);
+    await nextTick();
+    expect((el.querySelector("#btn-save-processo") as HTMLButtonElement).form).toBe(el.querySelector("#processo-form"));
+  });
+
+  it("Cancelar e o X fecham", async () => {
+    let fechou = 0;
+    const el = montar(defineComponent({ render: () => h(ProcessoFormModal, { editingProcesso: null, onClose: () => fechou++ }) }));
+    await nextTick();
+    el.querySelector<HTMLButtonElement>("#btn-cancel-processo")!.click();
+    el.querySelector<HTMLButtonElement>("#btn-close-processo-form")!.click();
+    expect(fechou).toBe(2);
   });
 });
 
