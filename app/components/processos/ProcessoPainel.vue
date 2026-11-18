@@ -7,19 +7,20 @@ import ProcessoMoverMenu from "./ProcessoMoverMenu.vue";
 import { useLockBodyScroll } from "../../composables/useLockBodyScroll";
 import { ICONES_PROCESSO, type ChaveIconePainel } from "../../utils/processoIcones";
 import { etiquetaPagamentoDe } from "../../utils/processoPagamento";
+import { camposDatasPreenchidos, focaveis, haModalAberto, itensMedicamentos } from "../../utils/processoPainel";
 import {
-  camposDatasPreenchidos,
-  focaveis,
-  haModalAberto,
-  linhaTransportadora,
-  itensMedicamentos,
-  mostraDespachanteTransportadora,
-} from "../../utils/processoPainel";
-import { haLinhaDeCima } from "../../utils/processoPainelSecoes";
+  celulaNumeroProcesso,
+  celulasPessoas,
+  dataCabeNaCelula,
+  haLinhaDeCima,
+  secaoEntrega,
+  secaoEnvio,
+} from "../../utils/processoPainelSecoes";
 import { remessaVisivelNaLinha, type ContagemPorPasta } from "../../utils/remessaNaLinha";
 import { rotuloPastaPo } from "#shared/utils/rotuloPasta";
 import ConfirmDialog from "../ConfirmDialog.vue";
 import ProcessoAtualizacoes from "./ProcessoAtualizacoes.vue";
+import ProcessoPainelCelula from "./ProcessoPainelCelula.vue";
 
 // Painel lateral do Kanban (só para quem pode editar processos; quem decide é a página). Desktop: à direita, 600px,
 // sobre um overlay bg-ink/40 que cobre o quadro; abaixo de lg, tela cheia. z-index 880: ABAIXO do BaseModal (900),
@@ -65,8 +66,11 @@ const linhaDeCima = computed(() =>
 );
 // Cada item: a linha "Qtd. — nome" e, abaixo, "Laboratório · Brand" só quando houver um dos dois.
 const medicamentos = computed(() => itensMedicamentos(props.processo.medicamentos));
-const comDespachanteTransportadora = computed(() => mostraDespachanteTransportadora(props.processo));
-const transportadora = computed(() => linhaTransportadora(props.processo));
+// Seções (ver utils/processoPainelSecoes.ts): cada campo vazio some, cada seção vazia some (e o título junto).
+const pessoas = computed(() => celulasPessoas(props.processo));
+const envio = computed(() => secaoEnvio(props.processo));
+const entrega = computed(() => secaoEntrega(props.processo));
+const numeroProcesso = computed(() => celulaNumeroProcesso(props.processo));
 // Só as datas preenchidas (vazia não aparece; sem nenhuma, a seção some). Ver camposDatasPreenchidos.
 const datas = computed(() => camposDatasPreenchidos(props.processo));
 const deleteConfirmMessage = computed(
@@ -126,7 +130,6 @@ function confirmDelete(): void {
   emit("delete", props.processo.id);
 }
 
-const ROTULO = "text-[11px] text-ink-soft";
 // Botões só de ícone do topo: 44x44 abaixo de lg (alvo de toque) e 36x36 em lg+, borda hairline, raio 8.
 const BOTAO_ICONE =
   "pointer-events-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-hairline bg-paper-raised text-ink-soft transition-colors lg:h-9 lg:w-9";
@@ -137,10 +140,11 @@ const RESERVA_ICONES = "pr-[156px] lg:pr-[132px]";
 function caminhos(chave: ChaveIconePainel): string[] {
   return ICONES_PROCESSO[chave];
 }
-const VALOR = "text-[13px] text-ink break-words";
-const BLOCO = "border-b border-hairline px-5 py-4";
-// Cabeçalho: 24px laterais (16px abaixo de sm), 18px em cima e 20px embaixo; divisória fina (#e0e7e5) embaixo.
-const BLOCO_CABECALHO = "border-b border-[#e0e7e5] px-4 pt-[18px] pb-5 sm:px-6";
+
+// Seções: 24px laterais (16px abaixo de sm), 18px em cima e 20px embaixo. A divisória (#e0e7e5) vem do `divide-y` do
+// contêiner (só entre seções que existem). Título de seção: 11px/600 maiúsculo, no cinza do projeto.
+const SECAO = "px-4 pt-[18px] pb-5 sm:px-6";
+const TITULO_SECAO = "mb-2.5 text-[11px] font-semibold tracking-wide text-ink-soft uppercase";
 </script>
 
 <template>
@@ -201,14 +205,16 @@ const BLOCO_CABECALHO = "border-b border-[#e0e7e5] px-4 pt-[18px] pb-5 sm:px-6";
            código cinza, "Ordem N" e Pago/Pendente. Depois o NOME (o destaque: 22px/600). Sem a linha de cima, o nome sobe e
            ocupa a linha dos ícones. Embaixo, os medicamentos e, NA MESMA LINHA do último, a etiqueta de status à direita
            (irmã do bloco de medicamentos, rente ao fundo do cabeçalho). -->
-      <header id="painel-bloco-cabecalho" :class="BLOCO_CABECALHO">
+      <!-- Corpo: o `divide-y` põe a divisória só ENTRE as seções que existem (seção com v-if falso não ocupa nada). -->
+      <div id="painel-corpo" class="flex-none divide-y divide-[#e0e7e5]">
+      <header id="painel-bloco-cabecalho" :class="SECAO">
         <div
           v-if="linhaDeCima"
           id="painel-linha-cima"
           class="flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 lg:min-h-9"
           :class="RESERVA_ICONES"
         >
-          <span v-if="pastaPo" id="painel-pasta-po" class="font-mono text-[12px] break-all text-ink-soft">{{ pastaPo }}</span>
+          <span v-if="pastaPo" id="painel-pasta-po" class="font-mono text-[12px] break-words text-ink-soft">{{ pastaPo }}</span>
           <template v-if="ordem">
             <span v-if="pastaPo" class="font-mono text-[12px] text-ink-soft" aria-hidden="true">·</span>
             <span id="painel-ordem" class="font-mono text-[12px] text-ink-soft">{{ ordem }}</span>
@@ -255,63 +261,55 @@ const BLOCO_CABECALHO = "border-b border-[#e0e7e5] px-4 pt-[18px] pb-5 sm:px-6";
         </div>
       </header>
 
-      <!-- 4. Fornecedor · Envio -->
-      <section id="painel-bloco-fornecedor" :class="BLOCO" class="grid grid-cols-2 gap-x-4 gap-y-3">
-        <div>
-          <p :class="ROTULO">Fornecedor</p>
-          <p id="painel-fornecedor" :class="VALOR">{{ processo.fornecedor || "—" }}</p>
-        </div>
-        <div>
-          <p :class="ROTULO">Envio</p>
-          <p id="painel-envio" :class="VALOR">{{ processo.modalEnvio || "—" }}</p>
+      <!-- 2. Pessoas: Responsável / Consultor / Fornecedor (só o nome do fornecedor) numa linha de bloquinhos; abaixo de 640px
+           quebram de linha (mínimo 140px) em vez de cortar o nome. Campo vazio some; célula sozinha ocupa a linha. -->
+      <section v-if="pessoas.length" id="painel-bloco-pessoas" :class="SECAO">
+        <div class="flex flex-wrap gap-2">
+          <ProcessoPainelCelula v-for="c in pessoas" :key="c.id" :celula="c" truncar class="min-w-[140px] flex-1 basis-[140px]" />
         </div>
       </section>
 
-      <!-- 5. Cia. aérea · Nº AWB · Despachante (Despachante some no Courier Simples, como no formulário) -->
-      <section id="painel-bloco-envio" :class="BLOCO" class="grid grid-cols-2 gap-x-4 gap-y-3">
-        <div>
-          <p :class="ROTULO">Cia. aérea</p>
-          <p id="painel-cia" :class="VALOR">{{ processo.companhiaAerea || "—" }}</p>
-        </div>
-        <div>
-          <p :class="ROTULO">Nº AWB</p>
-          <p id="painel-awb" class="font-mono" :class="VALOR">{{ processo.numeroAwb || "—" }}</p>
-        </div>
-        <div v-if="comDespachanteTransportadora" class="col-span-2">
-          <p :class="ROTULO">Despachante</p>
-          <p id="painel-despachante" :class="VALOR">{{ processo.despachante || "—" }}</p>
+      <!-- 3. Envio e desembaraço: Envio | Cia. aérea; Nº AWB | Despachante (Despachante some no Courier Simples, como no
+           formulário). Linha sem células some; célula sozinha ocupa a linha; sem nenhum campo, nem o título aparece. -->
+      <section v-if="envio" id="painel-bloco-envio" :class="SECAO">
+        <h3 :class="TITULO_SECAO">{{ envio.titulo }}</h3>
+        <div class="flex flex-col gap-2">
+          <div v-for="(linha, i) in envio.linhas" :key="i" class="grid gap-2" :class="linha.length > 1 ? 'grid-cols-2' : 'grid-cols-1'">
+            <ProcessoPainelCelula v-for="c in linha" :key="c.id" :celula="c" />
+          </div>
         </div>
       </section>
 
-      <!-- 6. Transportadora (nome · cotação · valor; some no Courier Simples) · Local de entrega -->
-      <section id="painel-bloco-transportadora" :class="BLOCO" class="flex flex-col gap-3">
-        <div v-if="comDespachanteTransportadora">
-          <p :class="ROTULO">Transportadora</p>
-          <p id="painel-transportadora" :class="VALOR">{{ transportadora || "—" }}</p>
-        </div>
-        <div>
-          <p :class="ROTULO">Local de entrega</p>
-          <p id="painel-local-entrega" :class="VALOR">{{ processo.localEntrega || "—" }}</p>
+      <!-- 4. Entrega: Transportadora (nome · cotação · valor; some no Courier Simples) e Local de entrega, cada um numa linha. -->
+      <section v-if="entrega" id="painel-bloco-entrega" :class="SECAO">
+        <h3 :class="TITULO_SECAO">{{ entrega.titulo }}</h3>
+        <div class="flex flex-col gap-2">
+          <ProcessoPainelCelula v-for="c in entrega.linhas.flat()" :key="c.id" :celula="c" />
         </div>
       </section>
 
-      <!-- 7. Nº do processo -->
-      <section id="painel-bloco-numero-processo" :class="BLOCO">
-        <p :class="ROTULO">Nº do processo</p>
-        <p id="painel-numero-processo" class="font-mono break-all" :class="VALOR">{{ processo.numeroProcesso || "—" }}</p>
+      <!-- 5. Nº do processo: bloquinho de linha inteira, sem título, em fonte de código (quebra em qualquer ponto). -->
+      <section v-if="numeroProcesso" id="painel-bloco-numero-processo" :class="SECAO">
+        <ProcessoPainelCelula :celula="numeroProcesso" />
       </section>
 
-      <!-- 8. Datas: só as preenchidas (texto livre como está no banco, inclusive observações antigas; MS Anexado em e
-           Prazo da ANVISA com o ano). Sem nenhuma data, a seção não existe. -->
-      <section v-if="datas.length" id="painel-bloco-datas" :class="BLOCO">
-        <p class="mb-2 text-[11px] font-semibold tracking-wide text-ink-soft uppercase">Datas</p>
-        <div class="grid grid-cols-2 gap-x-4 gap-y-3">
-          <div v-for="campo in datas" :key="campo.id" :class="{ 'col-span-2': campo.larguraTotal }">
-            <p :class="ROTULO">{{ campo.rotulo }}</p>
+      <!-- 6. Datas: só as preenchidas (texto livre como está no banco, inclusive observações antigas; MS Anexado em e
+           Prazo da ANVISA com o ano). 3 colunas a partir de 640px, 2 abaixo. Valor que não é DD/MM nem DD/MM/AAAA, e a
+           Suposta estimativa, ocupam a linha inteira. Sem nenhuma data, a seção não existe. -->
+      <section v-if="datas.length" id="painel-bloco-datas" :class="SECAO">
+        <h3 :class="TITULO_SECAO">Datas</h3>
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div
+            v-for="campo in datas"
+            :key="campo.id"
+            class="min-w-0 rounded-[8px] border border-[#e0e7e5] bg-[#f6f8f8] px-2.5 py-2"
+            :class="{ 'col-span-full': campo.larguraTotal || !dataCabeNaCelula(campo.valor) }"
+          >
+            <p class="mb-[3px] text-[10.5px] leading-none font-semibold tracking-[0.04em] text-ink-soft">{{ campo.rotulo }}</p>
             <p
               :id="`painel-${campo.id}`"
-              class="text-[13px] break-words"
-              :class="campo.destaque && campo.valor ? 'font-semibold text-accent-dark' : 'text-ink'"
+              class="text-[13.5px] leading-snug font-semibold break-words"
+              :class="campo.destaque && campo.valor ? 'text-accent-dark' : 'text-ink'"
             >
               {{ campo.valor }}
             </p>
@@ -320,7 +318,7 @@ const BLOCO_CABECALHO = "border-b border-[#e0e7e5] px-4 pt-[18px] pb-5 sm:px-6";
       </section>
 
       <!-- 9. Pendências -->
-      <section id="painel-bloco-pendencias" :class="BLOCO">
+      <section id="painel-bloco-pendencias" :class="SECAO">
         <p
           class="mb-1.5 text-[11px] font-semibold tracking-wide uppercase"
           :class="processo.pendencias.length ? 'text-danger' : 'text-ink-soft'"
@@ -341,14 +339,14 @@ const BLOCO_CABECALHO = "border-b border-[#e0e7e5] px-4 pt-[18px] pb-5 sm:px-6";
            separa, então o seletor de filho os tira sem mexer no componente. -->
       <section
         id="painel-bloco-atualizacoes"
-        :class="BLOCO"
+        :class="SECAO"
         class="[&>div]:border-t-0 [&>div]:pt-0"
       >
         <ProcessoAtualizacoes :processo="processo" />
       </section>
 
       <!-- 11. Rodapé: excluir, com a MESMA confirmação da lixeira da Lista -->
-      <footer id="painel-bloco-rodape" class="mt-auto px-5 py-4">
+      <footer id="painel-bloco-rodape" :class="SECAO">
         <button
           id="btn-painel-excluir"
           type="button"
@@ -358,6 +356,7 @@ const BLOCO_CABECALHO = "border-b border-[#e0e7e5] px-4 pt-[18px] pb-5 sm:px-6";
           Excluir processo
         </button>
       </footer>
+      </div>
     </aside>
 
     <!-- Teleport pro <body>: o ConfirmDialog (BaseModal, z-900) fica fora do overlay do painel. -->

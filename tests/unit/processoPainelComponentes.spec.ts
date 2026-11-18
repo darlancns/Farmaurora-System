@@ -90,9 +90,9 @@ describe("ordem e conteúdo dos blocos", () => {
     expect(ids).toEqual([...BLOCOS_PAINEL]);
     expect(BLOCOS_PAINEL).toEqual([
       "cabecalho",
-      "fornecedor",
+      "pessoas",
       "envio",
-      "transportadora",
+      "entrega",
       "numero-processo",
       "datas",
       "pendencias",
@@ -131,7 +131,9 @@ describe("ordem e conteúdo dos blocos", () => {
   it("valores principais", () => {
     painel(proc());
     expect(texto(document.querySelector("#painel-pasta-po"))).toBe("Pasta 2026 - 366 · PO-26-0471");
-    expect(texto(document.querySelector("#painel-fornecedor"))).toBe("Poros - Turquia");
+    expect(texto(document.querySelector("#painel-fornecedor"))).toBe("Poros"); // só o nome, sem " - País"
+    expect(texto(document.querySelector("#painel-responsavel"))).toBe("Rebeca");
+    expect(texto(document.querySelector("#painel-consultor"))).toBe("Dani");
     expect(texto(document.querySelector("#painel-envio"))).toBe("Air Cargo");
     expect(texto(document.querySelector("#painel-awb"))).toBe("957-12345678");
     expect(document.querySelector("#painel-awb")!.className).toContain("font-mono");
@@ -505,6 +507,156 @@ describe("datas vazias escondidas no painel", () => {
 
   it("Suposta estimativa segue em largura total quando aparece", () => {
     painel(proc({ datas: { supostaEstimativa: "fim do mês" } }));
-    expect(document.querySelector("#painel-suposta-estimativa")!.parentElement!.className).toContain("col-span-2");
+    expect(document.querySelector("#painel-suposta-estimativa")!.parentElement!.className).toContain("col-span-full");
+  });
+});
+
+describe("blocos novos: pessoas, envio e desembaraço, entrega, nº do processo", () => {
+  const ids = (sel: string) => [...document.querySelectorAll(`${sel} [id^='painel-']`)].map((n) => n.id);
+
+  it("pessoas: Responsável, Consultor e Fornecedor numa linha de bloquinhos (flex-wrap, mínimo 140px, valor com ... e title)", () => {
+    painel(proc({ fornecedor: "Beldimed - Bélgica" }));
+    const bloco = document.querySelector("#painel-bloco-pessoas")!;
+    expect(ids("#painel-bloco-pessoas")).toEqual(["painel-responsavel", "painel-consultor", "painel-fornecedor"]);
+    expect(bloco.firstElementChild!.className).toContain("flex-wrap");
+    for (const celula of bloco.firstElementChild!.children) {
+      expect(celula.className).toContain("min-w-[140px]");
+      expect(celula.className).toContain("flex-1");
+      expect(celula.getAttribute("title")).toBeTruthy();
+      expect(celula.querySelector("svg[aria-hidden='true']")).not.toBeNull();
+    }
+    expect(document.querySelector("#painel-fornecedor")!.className).toContain("truncate");
+    expect(document.querySelector("#painel-fornecedor")!.closest("[title]")!.getAttribute("title")).toBe("Beldimed");
+    expect(texto(document.querySelector("#painel-bloco-pessoas"))).not.toContain("Bélgica");
+    // Mesmo estilo de bloquinho do card.
+    const estilo = bloco.querySelector("[title]")!.className;
+    for (const c of ["bg-[#f6f8f8]", "border-[#e0e7e5]", "rounded-[8px]"]) expect(estilo, c).toContain(c);
+  });
+
+  it("pessoas: campo vazio some; sem nenhum, a seção some", () => {
+    painel(proc({ consultor: "", fornecedor: undefined }));
+    expect(ids("#painel-bloco-pessoas")).toEqual(["painel-responsavel"]);
+    document.body.innerHTML = "";
+    painel(proc({ responsavelOperacional: undefined, consultor: "", fornecedor: "  " }));
+    expect(document.querySelector("#painel-bloco-pessoas")).toBeNull();
+  });
+
+  it("envio e desembaraço: título e 2 linhas (Envio | Cia.; AWB em fonte de código | Despachante)", () => {
+    painel(proc());
+    const bloco = document.querySelector("#painel-bloco-envio")!;
+    expect(texto(bloco.querySelector("h3"))).toBe("Envio e desembaraço");
+    expect(ids("#painel-bloco-envio")).toEqual(["painel-envio", "painel-cia", "painel-awb", "painel-despachante"]);
+    const linhas = [...bloco.querySelectorAll(":scope > div > div")];
+    expect(linhas.map((l) => [...l.querySelectorAll("[id^='painel-']")].map((n) => n.id))).toEqual([
+      ["painel-envio", "painel-cia"],
+      ["painel-awb", "painel-despachante"],
+    ]);
+    for (const l of linhas) expect(l.className).toContain("grid-cols-2");
+    expect(document.querySelector("#painel-awb")!.className).toContain("font-mono");
+    expect(texto(document.querySelector("#painel-envio"))).toBe("Air Cargo");
+    expect(texto(document.querySelector("#painel-cia"))).toBe("Lufthansa");
+  });
+
+  it("envio e desembaraço: célula sozinha ocupa a linha (1 coluna); linha sem células some; sem campo nenhum, nem o título", () => {
+    painel(proc({ companhiaAerea: undefined, despachante: undefined }));
+    const linhas = [...document.querySelectorAll("#painel-bloco-envio > div > div")];
+    expect(linhas).toHaveLength(2);
+    for (const l of linhas) expect(l.className).toContain("grid-cols-1");
+    document.body.innerHTML = "";
+    painel(proc({ modalEnvio: "Air Cargo", companhiaAerea: undefined, numeroAwb: undefined, despachante: undefined }));
+    expect([...document.querySelectorAll("#painel-bloco-envio > div > div")]).toHaveLength(1);
+    document.body.innerHTML = "";
+    painel(proc({ modalEnvio: undefined, companhiaAerea: undefined, numeroAwb: undefined, despachante: undefined }));
+    expect(document.querySelector("#painel-bloco-envio")).toBeNull();
+    expect(document.body.textContent).not.toContain("Envio e desembaraço");
+  });
+
+  it("entrega: Transportadora e Local de entrega, cada um numa linha inteira; vazios somem; seção some sem nenhum", () => {
+    painel(proc());
+    expect(texto(document.querySelector("#painel-bloco-entrega h3"))).toBe("Entrega");
+    expect(ids("#painel-bloco-entrega")).toEqual(["painel-transportadora", "painel-local-entrega"]);
+    expect(texto(document.querySelector("#painel-transportadora"))).toBe("AJC · COT-9 · R$ 1.500,00");
+    document.body.innerHTML = "";
+    painel(proc({ transportadoraNacional: undefined, localEntrega: undefined }));
+    expect(document.querySelector("#painel-bloco-entrega")).toBeNull();
+    document.body.innerHTML = "";
+    painel(proc({ transportadoraNacional: undefined }));
+    expect(ids("#painel-bloco-entrega")).toEqual(["painel-local-entrega"]);
+  });
+
+  it("nº do processo: bloquinho de linha inteira, sem título, em fonte de código com break-all; vazio some", () => {
+    painel(proc({ numeroProcesso: "25BR00001234567-8/2026-ABCDEFGHIJKLMNOPQRSTUVWXYZ" }));
+    const bloco = document.querySelector("#painel-bloco-numero-processo")!;
+    expect(bloco.querySelector("h3")).toBeNull();
+    const valor = document.querySelector("#painel-numero-processo")!;
+    expect(valor.className).toContain("font-mono");
+    expect(valor.className).toContain("break-all");
+    expect(texto(bloco)).toContain("Nº do processo");
+    document.body.innerHTML = "";
+    painel(proc({ numeroProcesso: "  " }));
+    expect(document.querySelector("#painel-bloco-numero-processo")).toBeNull();
+  });
+
+  it("nenhum campo vazio mostra '—' no painel", () => {
+    painel(proc({ companhiaAerea: undefined, numeroAwb: undefined, despachante: undefined, localEntrega: undefined, transportadoraNacional: undefined, numeroProcesso: undefined, datas: {} }));
+    // O "—" do cabeçalho é só o separador "quantidade — medicamento"; nas seções nenhum campo vazio vira "—".
+    const secoes = [...document.querySelectorAll("#painel-corpo > section")].map((n) => texto(n)).join(" ");
+    expect(secoes).not.toContain("—");
+    expect(secoes).not.toContain("–");
+  });
+});
+
+describe("datas em bloquinhos", () => {
+  it("3 colunas a partir de sm e 2 abaixo; bloquinho pequeno (rótulo 10,5px cinza + valor 13,5px/600)", () => {
+    painel(proc({ datas: { dataCompraPO: "05/08", dataEmbarque: "10/08/2026" } }));
+    const grade = document.querySelector("#painel-bloco-datas .grid")!;
+    expect(grade.className).toContain("grid-cols-2");
+    expect(grade.className).toContain("sm:grid-cols-3");
+    const valor = document.querySelector("#painel-data-compra-po")!;
+    expect(valor.className).toContain("text-[13.5px]");
+    expect(valor.className).toContain("font-semibold");
+    expect(valor.previousElementSibling!.className).toContain("text-[10.5px]");
+    expect(valor.previousElementSibling!.className).toContain("text-ink-soft");
+    expect(valor.parentElement!.className).not.toContain("col-span-full");
+  });
+
+  it("valor anotado (não é DD/MM nem DD/MM/AAAA) ocupa a linha inteira e quebra; DD/MM e DD/MM/AAAA ficam em 1 coluna", () => {
+    painel(proc({ datas: { dataCompraPO: "05/08", dataEmbarque: "10/08/2026", registroLpco: "09/10 - agd. análise do órgão", supostaEstimativa: "10/08" } }));
+    expect(document.querySelector("#painel-data-compra-po")!.parentElement!.className).not.toContain("col-span-full");
+    expect(document.querySelector("#painel-data-embarque")!.parentElement!.className).not.toContain("col-span-full");
+    expect(document.querySelector("#painel-registro-lpco")!.parentElement!.className).toContain("col-span-full");
+    expect(document.querySelector("#painel-registro-lpco")!.className).toContain("break-words");
+    // Suposta estimativa: sempre linha inteira, mesmo com valor curto.
+    expect(document.querySelector("#painel-suposta-estimativa")!.parentElement!.className).toContain("col-span-full");
+  });
+
+  it("previsão de entrega mantém o destaque; vazias não aparecem", () => {
+    painel(proc({ datas: { previsaoEntrega: "28/08" } }));
+    expect(document.querySelector("#painel-previsao-entrega")!.className).toContain("text-accent-dark");
+    expect(document.querySelectorAll("#painel-bloco-datas [id^='painel-']")).toHaveLength(1);
+  });
+});
+
+describe("divisórias só entre seções que existem", () => {
+  it("o corpo usa divide-y e as seções vazias nem entram no DOM (processo simples: só cabeçalho, pessoas, pendências, atualizações e rodapé)", () => {
+    painel(
+      proc({
+        modalEnvio: undefined, companhiaAerea: undefined, numeroAwb: undefined, despachante: undefined,
+        transportadoraNacional: undefined, localEntrega: undefined, numeroProcesso: undefined, datas: {},
+      }),
+    );
+    const corpo = document.querySelector("#painel-corpo")!;
+    expect(corpo.className).toContain("divide-y");
+    expect(corpo.className).toContain("divide-[#e0e7e5]");
+    const ids = [...corpo.children].map((c) => c.id.replace("painel-bloco-", ""));
+    expect(ids).toEqual(["cabecalho", "pessoas", "pendencias", "atualizacoes", "rodape"]);
+    // Nenhuma seção traz borda própria: as linhas vêm só do divide-y (assim não há linha dupla nem solta).
+    for (const filho of corpo.children) expect(filho.className).not.toMatch(/(^|\s)border-[bt](\s|$)/);
+  });
+
+  it("processo completo: todas as seções, na ordem", () => {
+    painel(proc({ datas: { dataCompraPO: "05/08" } }));
+    const ids = [...document.querySelector("#painel-corpo")!.children].map((c) => c.id.replace("painel-bloco-", ""));
+    expect(ids).toEqual([...BLOCOS_PAINEL]);
   });
 });

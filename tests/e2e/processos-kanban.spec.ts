@@ -99,8 +99,16 @@ test.describe("/processos — Kanban", () => {
     try {
       await login(page);
       ids = {
-        // Com uma data: o painel só mostra a seção Datas quando há data preenchida (o teste dos blocos a espera).
-        transito: await criar(page, dados("Kanban Transito", "2026 - 901", "em_transito", { datas: { previsaoEntrega: "28/08" } })),
+        // Com uma data, local de entrega e nº do processo: o painel só mostra as seções Datas, Entrega e Nº do processo quando
+        // há campo preenchido (o teste dos blocos as espera).
+        transito: await criar(
+          page,
+          dados("Kanban Transito", "2026 - 901", "em_transito", {
+            datas: { previsaoEntrega: "28/08" },
+            localEntrega: "Clínica X",
+            numeroProcesso: "25BR0001",
+          }),
+        ),
         origem: await criar(page, dados("Kanban Origem", "2026 - 902", "elaboracao_fornecedores", { statusPagamento: "pendente" })),
         conflito: await criar(page, dados("Kanban Conflito", "2026 - 903", "liberado")),
         arrastar: await criar(page, dados("Kanban Arrastar", "2026 - 904", "desembaraco")),
@@ -244,7 +252,7 @@ test.describe("/processos — Kanban", () => {
       await expect(painel).toBeVisible();
       const blocos = await painel.locator("[id^='painel-bloco-']").evaluateAll((els) => els.map((e) => e.id.replace("painel-bloco-", "")));
       expect(blocos).toEqual([
-        "cabecalho", "fornecedor", "envio", "transportadora",
+        "cabecalho", "pessoas", "envio", "entrega",
         "numero-processo", "datas", "pendencias", "atualizacoes", "rodape",
       ]);
       await expect(page.locator("#painel-status")).toHaveText("Em trânsito");

@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 import { ICONES_CARD, ICONES_PROCESSO } from "../../app/utils/processoIcones";
 import { etiquetaPagamentoDe } from "../../app/utils/processoPagamento";
 import { itensMedicamentos } from "../../app/utils/processoPainel";
-import { celulaNumeroProcesso, celulasPessoas, haLinhaDeCima, secaoEntrega, secaoEnvio } from "../../app/utils/processoPainelSecoes";
+import {
+  celulaNumeroProcesso,
+  celulasPessoas,
+  dataCabeNaCelula,
+  haLinhaDeCima,
+  secaoEntrega,
+  secaoEnvio,
+} from "../../app/utils/processoPainelSecoes";
 
 // Barra lateral do processo (Kanban): regras puras das seções. Vazio some, parcial mostra só o que há, completo mostra tudo.
 
@@ -125,5 +132,12 @@ describe("ícones compartilhados", () => {
     }
     expect(ICONES_PROCESSO.fechar).toEqual(["M18 6 6 18", "m6 6 12 12"]);
     expect(ICONES_PROCESSO.awb).toHaveLength(5);
+  });
+});
+
+describe("dataCabeNaCelula: só DD/MM e DD/MM/AAAA ficam em 1 coluna", () => {
+  it("datas curtas cabem; anotações não", () => {
+    for (const v of ["05/08", "5/8", "10/08/2026", "10/08/26", " 05/08 "]) expect(dataCabeNaCelula(v), v).toBe(true);
+    for (const v of ["09/10 - agd. análise", "fim do mês", "Entre 28/08 e 02/09", "", "2026-11-25"]) expect(dataCabeNaCelula(v), v).toBe(false);
   });
 });

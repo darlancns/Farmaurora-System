@@ -96,3 +96,9 @@ export function haLinhaDeCima(entradas: { pastaPo: string; ordem: string; pagame
   return Boolean(entradas.pastaPo || entradas.ordem || entradas.pagamento);
 }
 
+
+// Valor de data curto ("DD/MM" ou "DD/MM/AAAA"): cabe no bloquinho de 1 coluna. Qualquer outro texto (anotação antiga,
+// "09/10 - agd. análise") ocupa a linha inteira e quebra de linha.
+export function dataCabeNaCelula(valor: string): boolean {
+  return /^\d{1,2}\/\d{1,2}(\/\d{2,4})?$/.test(valor.trim());
+}
