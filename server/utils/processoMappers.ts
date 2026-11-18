@@ -77,6 +77,9 @@ export interface FollowUpRow {
   ms_anexado_em?: string | null;
   prazo_anvisa?: string | null;
   alerta_anvisa_ciente_prazo?: string | null;
+  // Instante em que entrou na coluna atual (timestamptz; gatilho follow_up_status_desde, migração 20261118212456). Opcional:
+  // linha sem a coluna (ou NULL) vale created_at. Nunca é gravada pelo código (colunasDeDTO não a conhece).
+  status_desde?: string | null;
   local_entrega: string | null;
   numero_processo: string | null;
   pendencias: string[] | null;
@@ -219,6 +222,7 @@ export function montarProcesso(row: FollowUpRow): Processo {
     atualizacoes: (row.atualizacoes ?? []).map((a) => ({ ...a })),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    statusDesde: row.status_desde ?? row.created_at,
   };
 
   if (row.numero_po != null) processo.numeroPo = row.numero_po;

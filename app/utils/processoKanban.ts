@@ -2,7 +2,7 @@ import { normalizarStatusProcesso, STATUS_PROCESSO_LABELS, STATUS_PROCESSO_ORDER
 import type { Processo, StatusProcesso } from "#shared/types/processo";
 
 // Regras puras do Kanban do Follow-Up (sem Vue): as 5 colunas, em que coluna cada processo cai e a ordem dentro
-// da coluna. Testadas em tests/unit/processoKanban.spec.ts.
+// da coluna (pelo MOMENTO em que o card entrou nela; a Pasta só desempata). Testadas em tests/unit/processoKanban.spec.ts.
 
 export interface ColunaKanban {
   // id estável (DOM e testes): kanban-coluna-<id>.
@@ -31,11 +31,12 @@ export function colunaDoProcesso(processo: Pick<Processo, "status">): StatusProc
   return normalizarStatusProcesso(processo.status);
 }
 
-// ── Ordem dentro da coluna: o mais ANTIGO em cima, por Pasta crescente ─────────────────────────────────────────
+// ── Desempate: Pasta crescente ────────────────────────────────────────────────────────────────────────────────
 // A Pasta é "AAAA - N" (ex.: "2026 - 366"): ordena pelo ano e depois pelo número (como números: "2026 - 9" vem antes
 // de "2026 - 10"). A leitura tolera espaços e o hífen colado ("2026-366", " 2026 -366 "). Depois das pastas no
 // padrão vêm as fora do padrão (texto, em ordem alfabética com números naturais) e, por último, sem Pasta (vazia).
 // Empate (mesma pasta, ex.: Nº Ordem 1 e 2 da mesma pasta) desempata pelo id, para a ordem nunca "pular".
+// É o critério de desempate de compararPorEntradaNaColuna (abaixo); a Lista não a usa (ordem do servidor).
 
 const PASTA_RE = /^\s*(\d{4})\s*-\s*(\d+)\s*$/;
 
@@ -71,6 +72,49 @@ export function compararPorPasta(a: Pick<Processo, "pasta" | "id">, b: Pick<Proc
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
+// ── Ordem dentro da coluna: pelo momento em que o card ENTROU nela ──────────────────────────────────────────────
+// `statusDesde` (gatilho do banco: now() quando o status normalizado muda) é o instante de entrada na coluna atual; sem ele
+// (ausente, nulo ou inválido) vale `createdAt`; se este também for inválido, o card vai para o FIM da coluna. Compara o INSTANTE
+// (Date.parse, número), nunca o texto: fusos e frações de segundo diferentes ordenam certo. Empate: Pasta crescente (sem
+// Pasta no fim) e depois id. Mais antigo em cima em todas as colunas, MENOS em Entregue (mais novo em cima).
+
+export type OrdemEntradaNaColuna = "antigo_primeiro" | "novo_primeiro";
+
+/** Em Entregue o mais NOVO fica em cima; nas outras 4 colunas, o mais antigo. */
+export const ORDEM_POR_COLUNA: Record<StatusProcesso, OrdemEntradaNaColuna> = {
+  elaboracao_fornecedores: "antigo_primeiro",
+  em_transito: "antigo_primeiro",
+  desembaraco: "antigo_primeiro",
+  liberado: "antigo_primeiro",
+  entregue: "novo_primeiro",
+};
+
+function instanteDe(valor: unknown): number | null {
+  if (typeof valor !== "string" || valor.trim() === "") return null;
+  const t = Date.parse(valor);
+  return Number.isNaN(t) ? null : t;
+}
+
+/** Instante (ms) em que o processo entrou na coluna atual: `statusDesde`, senão `createdAt`, senão `null` (vai para o fim). */
+export function instanteDeEntradaNaColuna(processo: Pick<Processo, "statusDesde" | "createdAt">): number | null {
+  return instanteDe(processo.statusDesde) ?? instanteDe(processo.createdAt);
+}
+
+export function compararPorEntradaNaColuna(
+  a: Pick<Processo, "statusDesde" | "createdAt" | "pasta" | "id">,
+  b: Pick<Processo, "statusDesde" | "createdAt" | "pasta" | "id">,
+  ordem: OrdemEntradaNaColuna = "antigo_primeiro",
+): number {
+  const ia = instanteDeEntradaNaColuna(a);
+  const ib = instanteDeEntradaNaColuna(b);
+  if (ia !== ib) {
+    if (ia === null) return 1; // sem instante válido: fim da coluna (nas duas direções)
+    if (ib === null) return -1;
+    return ordem === "antigo_primeiro" ? ia - ib : ib - ia;
+  }
+  return compararPorPasta(a, b);
+}
+
 // ── Mover de coluna (arrastar e menu "Mover para…") ──────────────────────────────────────────────────────────
 
 /** O destino é um dos 5 status e DIFERENTE da coluna atual? (soltar na mesma coluna não faz nada) */
@@ -92,12 +136,16 @@ export function textoConfirmacaoMover(paciente: string, de: StatusProcesso, para
 export type ProcessosPorColuna = Record<StatusProcesso, Processo[]>;
 
 /**
- * Agrupa por coluna numa passada só (não cinco `filter`) e ordena cada coluna por Pasta. Toda coluna existe no
- * resultado, mesmo vazia. A lista de entrada não é alterada.
+ * Agrupa por coluna numa passada só (não cinco `filter`) e ordena cada coluna pelo momento de entrada nela (ver
+ * compararPorEntradaNaColuna; Entregue com o mais novo em cima). Toda coluna existe no resultado, mesmo vazia. A lista de
+ * entrada não é alterada.
  */
 export function agruparPorColuna(processos: readonly Processo[]): ProcessosPorColuna {
   const grupos = Object.fromEntries(STATUS_PROCESSO_ORDER.map((s) => [s, [] as Processo[]])) as ProcessosPorColuna;
   for (const processo of processos) grupos[colunaDoProcesso(processo)].push(processo);
-  for (const status of STATUS_PROCESSO_ORDER) grupos[status].sort(compararPorPasta);
+  for (const status of STATUS_PROCESSO_ORDER) {
+    const ordem = ORDEM_POR_COLUNA[status];
+    grupos[status].sort((a, b) => compararPorEntradaNaColuna(a, b, ordem));
+  }
   return grupos;
 }

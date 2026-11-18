@@ -311,6 +311,37 @@ describe("ProcessoKanban (quadro)", () => {
     expect(asd.em_transito.map((p) => p.id)).toEqual(["a"]);
   });
 
+  it("ordem dos cards no DOM: pela entrada na coluna (mais antigo em cima; Entregue, mais novo em cima); mover manda para o fim/topo", async () => {
+    const t = (dia: number, hora = 12) => `2026-11-${String(dia).padStart(2, "0")}T${String(hora).padStart(2, "0")}:00:00.000Z`;
+    const lista = ref<Processo[]>([
+      proc("t3", { status: "em_transito", pasta: "2026 - 1", statusDesde: t(3) }),
+      proc("t1", { status: "em_transito", pasta: "2026 - 9", statusDesde: t(1) }),
+      proc("t2", { status: "em_transito", pasta: "2026 - 5", statusDesde: t(2) }),
+      proc("sem", { status: "em_transito", pasta: "", statusDesde: t(2) }),
+      proc("e1", { status: "entregue", statusDesde: t(1) }),
+      proc("e3", { status: "entregue", statusDesde: t(3) }),
+      proc("d1", { status: "desembaraco", statusDesde: t(1) }),
+    ]);
+    const el = montar(defineComponent({ setup: () => () => h(ProcessoKanban, { processos: lista.value }) }));
+    const ordem = (coluna: string) =>
+      [...el.querySelectorAll<HTMLElement>(`#kanban-coluna-${coluna} article[id^='processo-card-']`)].map((a) =>
+        a.id.replace("processo-card-", ""),
+      );
+    // Empate t2 x sem (mesmo instante): Pasta crescente, sem Pasta no fim.
+    expect(ordem("em-transito")).toEqual(["t1", "t2", "sem", "t3"]);
+    expect(ordem("entregue")).toEqual(["e3", "e1"]);
+
+    // Mover "t1" (o do topo) para Desembaraço e "t3" para Entregue: a resposta do servidor traz status e statusDesde novos.
+    const agora = "2026-11-18T15:30:00.000Z";
+    lista.value = lista.value.map((p) =>
+      p.id === "t1" ? { ...p, status: "desembaraco", statusDesde: agora } : p.id === "t3" ? { ...p, status: "entregue", statusDesde: agora } : p,
+    );
+    await nextTick();
+    expect(ordem("desembaraco")).toEqual(["d1", "t1"]); // no FIM da coluna nova
+    expect(ordem("entregue")).toEqual(["t3", "e3", "e1"]); // no TOPO de Entregue
+    expect(ordem("em-transito")).toEqual(["t2", "sem"]);
+  });
+
   it("realce do ?processo=<id> (focoId) só no card certo", () => {
     const el = montar(
       defineComponent({ setup: () => () => h(ProcessoKanban, { processos: [proc("a"), proc("b")], focoId: "b" }) }),

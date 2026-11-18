@@ -126,6 +126,18 @@ describe("colunasDeDTO", () => {
   });
 });
 
+describe("colunasDeDTO — status_desde é do gatilho", () => {
+  it("nem statusDesde nem status_desde viram coluna, em nenhum formato (criação, PATCH, parcial)", () => {
+    const src = { paciente: "X", status: "liberado", statusDesde: "2020-01-01T00:00:00Z", status_desde: "2020-01-01T00:00:00Z" } as never;
+    for (const opcoes of [{}, { parcial: true }]) {
+      const col = colunasDeDTO(src, opcoes);
+      expect(Object.keys(col)).not.toContain("status_desde");
+      expect(Object.keys(col)).not.toContain("statusDesde");
+      expect(col.status).toBe("liberado");
+    }
+  });
+});
+
 describe("montarProcesso", () => {
   function buildFullRow(): FollowUpRow {
     return {
@@ -197,7 +209,23 @@ describe("montarProcesso", () => {
       atualizacoes: [{ data: "2026-01-10", texto: "chegou" }],
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-10T00:00:00.000Z",
+      // a linha do teste não traz status_desde: vale created_at
+      statusDesde: "2026-01-01T00:00:00.000Z",
     });
+  });
+
+  it("statusDesde: vem de status_desde; ausente ou NULL cai em created_at (tolera a coluna que ainda não existe)", () => {
+    const entrou = "2026-03-05T15:00:00.123456+00:00";
+    expect(montarProcesso({ ...buildFullRow(), status_desde: entrou }).statusDesde).toBe(entrou);
+    expect(montarProcesso({ ...buildFullRow(), status_desde: null }).statusDesde).toBe("2026-01-01T00:00:00.000Z");
+    expect(montarProcesso(buildFullRow()).statusDesde).toBe("2026-01-01T00:00:00.000Z");
+  });
+
+  it("status legado: statusDesde é o da linha (o gatilho já conta o status normalizado); o status sai normalizado", () => {
+    const row = { ...buildFullRow(), status: "aguardando_inicio" as const, status_desde: "2026-02-02T09:00:00.000Z" };
+    const p = montarProcesso(row);
+    expect(p.status).toBe("elaboracao_fornecedores");
+    expect(p.statusDesde).toBe("2026-02-02T09:00:00.000Z");
   });
 
   it("row que ainda traz codigo_rastreio (coluna a ser apagada) não vira codigoRastreio no objeto", () => {

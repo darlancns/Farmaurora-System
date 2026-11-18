@@ -86,8 +86,9 @@ export default defineEventHandler(async (event): Promise<Processo> => {
     numeroPo: _poBruto,
     numeroRemessa: _remessaBruta,
     ordem: _ordemLegada,
+    statusDesde: _statusDesdeDoCliente, // do gatilho do banco: valor vindo do cliente é descartado
     ...resto
-  } = body as typeof body & { ordem?: unknown };
+  } = body as typeof body & { ordem?: unknown; statusDesde?: unknown };
   const criado = await createProcesso({
     ...resto,
     // Laboratório normalizado (cada palavra com maiúscula) e Brand ("" quando ausente) em todo item.

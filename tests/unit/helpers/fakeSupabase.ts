@@ -7,6 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 type Row = Record<string, unknown>;
 type Op = "select" | "insert" | "update" | "upsert" | "delete";
+type Gatilho = (op: "insert" | "update", antiga: Record<string, unknown> | null, nova: Record<string, unknown>) => void;
 interface Resultado {
   data: Row[] | Row | null;
   error: { message: string; code?: string } | null;
@@ -17,6 +18,8 @@ export class FakeSupabase {
   private falhas: Array<{ tabela: string; op: Op; mensagem: string; code?: string }> = [];
   // Colunas de chave única por tabela (opt-in, só para insert): inserir valor repetido devolve o erro 23505 do Postgres.
   private chavesUnicas: Record<string, string> = {};
+  // Gatilhos BEFORE INSERT/UPDATE por tabela (opt-in): recebem (op, linha antiga | null, linha nova) e podem alterar a nova.
+  private gatilhos: Record<string, Gatilho> = {};
   readonly chamadas: Array<{ tabela: string; op: Op }> = [];
 
   semear(tabela: string, linhas: Row[]): void {
@@ -29,6 +32,16 @@ export class FakeSupabase {
 
   falhar(tabela: string, op: Op, mensagem = "falha injetada", code?: string): void {
     this.falhas.push({ tabela, op, mensagem, ...(code ? { code } : {}) });
+  }
+
+  // Liga um gatilho BEFORE INSERT OR UPDATE na `tabela` (ex.: gatilhoStatusDesde, helpers/gatilhoStatusDesde.ts).
+  gatilho(tabela: string, fn: Gatilho | null): void {
+    if (fn) this.gatilhos[tabela] = fn;
+    else delete this.gatilhos[tabela];
+  }
+
+  aplicarGatilho(tabela: string, op: "insert" | "update", antiga: Row | null, nova: Row): void {
+    this.gatilhos[tabela]?.(op, antiga, nova);
   }
 
   // Liga a unicidade de `coluna` na `tabela` (como a chave primária do banco) para os insert.
@@ -146,6 +159,7 @@ class Consulta implements PromiseLike<Resultado> {
         };
       }
       const nova = { ...this.payload };
+      this.db.aplicarGatilho(this.tabela, "insert", null, nova);
       todas.push(nova);
       return { data: this.retorna ? [{ ...nova }] : null, error: null };
     }
@@ -160,7 +174,9 @@ class Consulta implements PromiseLike<Resultado> {
       const afetadas: Row[] = [];
       for (const r of todas) {
         if (!casa(r)) continue;
-        Object.assign(r, this.payload);
+        const nova = { ...r, ...this.payload };
+        this.db.aplicarGatilho(this.tabela, "update", r, nova);
+        Object.assign(r, nova);
         afetadas.push({ ...r });
       }
       return { data: this.retorna ? afetadas : null, error: null };

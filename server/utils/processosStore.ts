@@ -79,7 +79,9 @@ export async function createProcesso(input: NewProcessoDTO): Promise<Processo> {
     ...resto
   } = input as NewProcessoDTO & { statusOutro?: unknown; codigoRastreio?: unknown; ordem?: unknown };
   const numeroRemessa = normalizarNumeroRemessa(input.numeroRemessa) ?? NUMERO_REMESSA_PADRAO;
-  return { ...resto, numeroRemessa, id, createdAt: now, updatedAt: now };
+  // statusDesde = now: é o que o gatilho grava no INSERT (created_at). Depois de `...resto`, para um valor vindo do corpo
+  // nunca aparecer na resposta.
+  return { ...resto, numeroRemessa, id, createdAt: now, updatedAt: now, statusDesde: now };
 }
 
 export async function patchProcesso(
