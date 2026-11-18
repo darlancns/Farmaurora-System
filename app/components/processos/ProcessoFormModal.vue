@@ -128,7 +128,7 @@ function handleSubmit(): void {
         :class="MODAL_PAD_X_CLASS"
       >
         <div>
-          <p class="mb-1 font-mono text-[11px] tracking-wider text-accent-dark uppercase">Processo</p>
+          <p class="mb-1 font-mono text-[11px] tracking-wider text-accent-dark uppercase">Follow-up</p>
           <h2 class="font-display text-[18px] font-semibold text-ink">
             {{ editingProcesso ? "Editar processo" : "Novo processo" }}
           </h2>

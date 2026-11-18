@@ -313,7 +313,7 @@ test.describe("/processos abaixo de lg — formulário Novo/Editar processo", ()
             expect(dono, `ponto ${fx} da barra inferior pertence ao modal`).toBe(true);
           }
 
-          // Cabeçalho: encostado no topo, com "PROCESSO", título e fechar >= 44px.
+          // Cabeçalho: encostado no topo, com "FOLLOW-UP", título e fechar >= 44px.
           const fechar = await box(page.locator("#btn-close-processo-form"), "fechar");
           expect(fechar.width).toBeGreaterThanOrEqual(44);
           expect(fechar.height).toBeGreaterThanOrEqual(44);
