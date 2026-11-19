@@ -1,8 +1,8 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
 
-// Configurações → Cadastros (Fornecedores, Despachantes, Transportadoras, Cias aéreas): só o administrador vê a aba e
-// edita; todos os cargos leem a API (a chave PIX só vai para o administrador e para quem lê Pagamentos). A tela tem QUATRO
-// seções recolhíveis, todas fechadas ao abrir; busca por nome no topo; painel lateral de criar/editar; chave "Ativo" que
+// Configurações → Cadastros (Fornecedores, Despachantes, Transportadoras, Cias aéreas, Consultores, Temperaturas e Medicamentos): só o administrador vê a aba e
+// edita; todos os cargos leem a API (a chave PIX só vai para o administrador e para quem lê Pagamentos). A tela tem SETE
+// seções recolhíveis, todas fechadas ao abrir (as linhas só existem no DOM com a seção aberta, em páginas de 50); busca por nome no topo; painel lateral de criar/editar; chave "Ativo" que
 // aplica na hora com "Desativado. Desfazer". Remover = desativar (não existe exclusão); o nome não muda depois de criado.
 //
 // ESCRITO, NÃO EXECUTADO nesta rodada (a integração local aponta para produção; o e2e só roda no Supabase falso local).
@@ -15,8 +15,8 @@ import { test, expect, type APIRequestContext, type Page } from "@playwright/tes
 // select/insert/update), os itens de teste ficam no banco do harness local, com nomes "TESTE e2e <timestamp>"
 // (únicos, para não colidir com a unicidade por nome). Só roda no Supabase local do harness: a guarda
 // tests/e2e/_guards/globalSetup.ts aborta a suíte se a URL do Supabase não for de loopback. Nunca contra produção.
-// Pré-requisito: as migrations supabase/migrations/*_cadastros.sql e *_cadastros_transportadoras_pix.sql aplicadas no
-// Supabase local. As chaves PIX usadas aqui são FICTÍCIAS e nunca são impressas.
+// Pré-requisito: as migrations supabase/migrations/*_cadastros.sql e *_cadastros_transportadoras_pix.sql, *_cadastro_consultores.sql e
+// *_cadastro_temperaturas_medicamentos.sql aplicadas no Supabase local. As chaves PIX usadas aqui são FICTÍCIAS e nunca são impressas.
 
 const cred = (prefixo: string) => ({
   email: process.env[`E2E_${prefixo}_EMAIL`] ?? "",
@@ -52,7 +52,7 @@ async function irParaCadastros(page: Page): Promise<void> {
   await expect(page.locator("#cadastros-tab")).toBeVisible();
 }
 
-const LISTAS = ["fornecedores", "despachantes", "transportadoras", "cias-aereas"] as const;
+const LISTAS = ["fornecedores", "despachantes", "transportadoras", "cias-aereas", "consultores", "temperaturas", "medicamentos"] as const;
 
 /** Abre a seção (se estiver fechada) e devolve o botão do título. */
 async function abrirSecao(page: Page, lista: (typeof LISTAS)[number]): Promise<void> {
@@ -67,7 +67,7 @@ test.describe("Configurações → Cadastros (administrador)", () => {
   test.describe.configure({ retries: 2 });
   test.skip(!tem(admin), "defina E2E_ADMIN_EMAIL / E2E_ADMIN_PASSWORD");
 
-  test("1. a aba Cadastros aparece depois de Contas, com 4 seções recolhíveis, todas FECHADAS (sem abas internas)", async ({ page }) => {
+  test("1. a aba Cadastros aparece depois de Contas, com 7 seções recolhíveis, todas FECHADAS (sem abas internas)", async ({ page }) => {
     await login(page, admin.email, admin.password);
     await page.goto("/configuracoes", { waitUntil: "networkidle" });
     await expect(page.locator("[id^='tab-']")).toHaveText(["Minha conta", "Contas", "Cadastros"]);
@@ -76,8 +76,16 @@ test.describe("Configurações → Cadastros (administrador)", () => {
     await expect(page).toHaveURL(/\/configuracoes\?aba=cadastros$/);
     await expect(page.locator("#cadastros-tab")).toBeVisible();
     const secoes = page.locator("#cadastros-tab > section");
-    await expect(secoes).toHaveCount(4);
-    await expect(secoes.locator("h2")).toHaveText(["Fornecedores", "Despachantes", "Transportadoras", "Cias aéreas"]);
+    await expect(secoes).toHaveCount(LISTAS.length);
+    await expect(secoes.locator("h2")).toHaveText([
+      "Fornecedores",
+      "Despachantes",
+      "Transportadoras",
+      "Cias aéreas",
+      "Consultores",
+      "Temperaturas",
+      "Medicamentos",
+    ]);
     for (const lista of LISTAS) {
       await expect(page.locator(`#btn-secao-${lista}`)).toHaveAttribute("aria-expanded", "false");
       await expect(page.locator(`#btn-secao-${lista}`)).toHaveAttribute("aria-controls", `cadastro-corpo-${lista}`);
@@ -324,6 +332,166 @@ test.describe("Configurações → Cadastros (administrador)", () => {
       for (const item of itens) expect(item, l).not.toHaveProperty("chavePix");
     }
   });
+
+  test("9. temperatura: cria pela tela; o painel só mostra o nome (que não muda); desativa pela chave; duplicado 409; nome não muda (422)", async ({ page }) => {
+    await login(page, admin.email, admin.password);
+    await irParaCadastros(page);
+    const nome = nomeUnico("Temp");
+
+    await page.locator("#btn-adicionar-cadastro-temperaturas").click();
+    await expect(page.locator("#cadastro-painel-titulo")).toHaveText("Nova temperatura");
+    await page.locator("#cadastro-form-nome").fill(nome);
+    await page.locator("#btn-cadastro-salvar").click();
+    await expect(page.locator("#cadastro-painel")).toBeHidden();
+    await expect(page.locator("#btn-secao-temperaturas")).toHaveAttribute("aria-expanded", "true");
+    const linha = linhaDe(page, "temperaturas", nome);
+    await expect(linha).toBeVisible();
+    const id = (await linha.getAttribute("id"))!.replace("cadastro-row-temperaturas-", "");
+
+    await linha.click();
+    await expect(page.locator("#cadastro-painel-titulo")).toHaveText("Editar temperatura");
+    await expect(page.locator("#cadastro-form-nome")).toBeDisabled();
+    await expect(page.locator("#cadastro-form-so-nome")).toContainText("chave Ativo");
+    await expect(page.locator("#btn-cadastro-salvar")).toHaveCount(0);
+    await page.locator("#btn-cadastro-cancelar").click(); // vira "Fechar"
+    await expect(page.locator("#cadastro-painel")).toBeHidden();
+
+    const chave = page.locator(`#cadastro-switch-temperaturas-${id}`);
+    await chave.click();
+    await expect(linha).toContainText("(inativo)");
+    await page.locator("#btn-cadastro-desfazer").click();
+    await expect(chave).toHaveAttribute("aria-checked", "true");
+
+    const req = page.request;
+    expect((await apiCriar(req, "temperaturas", { nome: nome.toLowerCase() })).status).toBe(409);
+    expect((await apiCriar(req, "temperaturas", { nome: "OUTRO" })).status).toBe(400);
+    const trocaNome = await req.patch(`/api/cadastros/temperaturas/${id}`, { data: { nome: `${nome} X` } });
+    expect(trocaNome.status()).toBe(422);
+  });
+
+  test("10. medicamento pela tela: nome em MAIÚSCULAS, temperatura só entre as ATIVAS, duplicado com Reativar, renomear e desativar", async ({ page }) => {
+    await login(page, admin.email, admin.password);
+    const req = page.request;
+    const temp = nomeUnico("TempMed");
+    const tempInativa = nomeUnico("TempInativa");
+    expect((await apiCriar(req, "temperaturas", { nome: temp })).status).toBe(200);
+    const inativa = await apiCriar(req, "temperaturas", { nome: tempInativa });
+    await req.patch(`/api/cadastros/temperaturas/${String(inativa.json.id)}`, { data: { ativo: false } });
+    await irParaCadastros(page);
+    const nome = nomeUnico("Medicamento").toUpperCase();
+    const opcao = (texto: string) => page.locator("#cadastro-form-temperatura-listbox [role=option]", { hasText: texto });
+
+    await page.locator("#btn-adicionar-cadastro-medicamentos").click();
+    await expect(page.locator("#cadastro-painel-titulo")).toHaveText("Novo medicamento");
+    // Digitar em minúsculas: o campo converte para MAIÚSCULAS.
+    await page.locator("#cadastro-form-nome").fill(nome.toLowerCase());
+    await expect(page.locator("#cadastro-form-nome")).toHaveValue(nome);
+    // Sem temperatura não salva (aviso por toast, o painel continua aberto).
+    await page.locator("#btn-cadastro-salvar").click();
+    await expect(page.locator("#toast-notice")).toContainText("Informe a temperatura.");
+    await expect(page.locator("#cadastro-painel")).toBeVisible();
+    // O select oferece a temperatura ativa e NÃO oferece a inativa.
+    await page.locator("#cadastro-form-temperatura").click();
+    await expect(opcao(temp)).toBeVisible();
+    await expect(opcao(tempInativa)).toHaveCount(0);
+    await opcao(temp).click();
+    await page.locator("#btn-cadastro-salvar").click();
+    await expect(page.locator("#cadastro-painel")).toBeHidden();
+
+    const linha = linhaDe(page, "medicamentos", nome);
+    await expect(linha).toContainText(temp);
+    const id = (await linha.getAttribute("id"))!.replace("cadastro-row-medicamentos-", "");
+
+    // Desativar pela chave e tentar criar de novo o mesmo nome: avisa e oferece Reativar.
+    await page.locator(`#cadastro-switch-medicamentos-${id}`).click();
+    await expect(linha).toContainText("(inativo)");
+    await page.locator("#btn-adicionar-cadastro-medicamentos").click();
+    await page.locator("#cadastro-form-nome").fill(nome.toLowerCase());
+    await expect(page.locator("#cadastro-form-aviso-duplicado")).toContainText("Reative-o");
+    await expect(page.locator("#btn-cadastro-salvar")).toBeDisabled();
+    await page.locator("#btn-cadastro-reativar-duplicado").click();
+    await expect(page.locator("#cadastro-painel")).toBeHidden();
+    await expect(linha).not.toContainText("(inativo)");
+
+    // Renomear: o nome é editável, a dica diz que só muda este cadastro e NÃO há janela de confirmação de consultor.
+    await linha.click();
+    await expect(page.locator("#cadastro-painel-titulo")).toHaveText("Editar medicamento");
+    await expect(page.locator("#cadastro-form-nome")).toBeEnabled();
+    await expect(page.locator("#cadastro-form-nome-dica")).toContainText("muda só este cadastro");
+    await expect(page.locator("#btn-cadastro-salvar")).toBeDisabled(); // nada mudou
+    const novoNome = `${nome} RENOMEADO`;
+    await page.locator("#cadastro-form-nome").fill(novoNome.toLowerCase());
+    await page.locator("#btn-cadastro-salvar").click();
+    await expect(page.locator("#confirm-dialog-overlay")).toHaveCount(0);
+    await expect(page.locator("#cadastro-painel")).toBeHidden();
+    await expect(linhaDe(page, "medicamentos", novoNome)).toBeVisible();
+  });
+
+  test("11. API de medicamentos: MAIÚSCULAS, temperatura ativa (422), duplicado 409, renomear (409 se for de outro), rotas de consultor são 404", async ({ page }) => {
+    await login(page, admin.email, admin.password);
+    const req = page.request;
+    const temp = nomeUnico("TempApi");
+    const tempInativa = nomeUnico("TempApiInativa");
+    expect((await apiCriar(req, "temperaturas", { nome: temp })).status).toBe(200);
+    const inativa = await apiCriar(req, "temperaturas", { nome: tempInativa });
+    await req.patch(`/api/cadastros/temperaturas/${String(inativa.json.id)}`, { data: { ativo: false } });
+
+    const nome = nomeUnico("MedApi");
+    const criado = await apiCriar(req, "medicamentos", { nome, temperatura: temp });
+    expect(criado.status).toBe(200);
+    expect(criado.json.nome).toBe(nome.toUpperCase());
+    expect(criado.json.temperatura).toBe(temp);
+    const id = String(criado.json.id);
+
+    // Temperatura que não existe e temperatura inativa: 422; sem temperatura: 400.
+    expect((await apiCriar(req, "medicamentos", { nome: nomeUnico("MedSemTemp"), temperatura: "-999°C inexistente" })).status).toBe(422);
+    expect((await apiCriar(req, "medicamentos", { nome: nomeUnico("MedInativa"), temperatura: tempInativa })).status).toBe(422);
+    expect((await apiCriar(req, "medicamentos", { nome: nomeUnico("MedSemCampo") })).status).toBe(400);
+    expect((await apiCriar(req, "medicamentos", { nome: nome.toLowerCase(), temperatura: temp })).status).toBe(409);
+
+    // Renomear: um UPDATE só; nome de OUTRO medicamento é 409.
+    const outro = await apiCriar(req, "medicamentos", { nome: nomeUnico("MedOutro"), temperatura: temp });
+    const renomeado = await req.patch(`/api/cadastros/medicamentos/${id}`, { data: { nome: `${nome} v2` } });
+    expect(renomeado.status()).toBe(200);
+    expect(((await renomeado.json()) as { nome: string }).nome).toBe(`${nome} v2`.toUpperCase());
+    const tomado = await req.patch(`/api/cadastros/medicamentos/${id}`, { data: { nome: String(outro.json.nome).toLowerCase() } });
+    expect(tomado.status()).toBe(409);
+    // Trocar para temperatura inativa: 422.
+    const paraInativa = await req.patch(`/api/cadastros/medicamentos/${id}`, { data: { temperatura: tempInativa } });
+    expect(paraInativa.status()).toBe(422);
+
+    // As rotas de impacto e de renomear contas são SÓ dos consultores.
+    expect((await req.get(`/api/cadastros/medicamentos/${id}/impacto`)).status()).toBe(404);
+    expect((await req.post(`/api/cadastros/medicamentos/${id}/renomear-contas`, { data: { nomeAntigo: "X" } })).status()).toBe(404);
+    expect((await req.delete(`/api/cadastros/medicamentos/${id}`)).status()).toBeGreaterThanOrEqual(400);
+  });
+
+  test("12. com mais de 50 medicamentos: a seção desenha 50 por vez e 'Mostrar mais (N de M)' soma outra página; fechar volta aos 50", async ({ page }) => {
+    await login(page, admin.email, admin.password);
+    const req = page.request;
+    const temp = nomeUnico("TempPag");
+    expect((await apiCriar(req, "temperaturas", { nome: temp })).status).toBe(200);
+    // Completa até 51 medicamentos (no banco local, que não apaga nada: só cria os que faltam).
+    const existentes = (await (await req.get("/api/cadastros/medicamentos")).json()) as unknown[];
+    for (let i = existentes.length; i < 51; i++) {
+      expect((await apiCriar(req, "medicamentos", { nome: nomeUnico(`MedPag${i}`), temperatura: temp })).status).toBe(200);
+    }
+    const total = ((await (await req.get("/api/cadastros/medicamentos")).json()) as unknown[]).length;
+    await irParaCadastros(page);
+
+    // Fechada: nenhuma linha no DOM (o corpo existe, escondido).
+    await expect(page.locator("[id^='cadastro-row-medicamentos-']")).toHaveCount(0);
+    await page.locator("#btn-secao-medicamentos").click();
+    await expect(page.locator("#cadastro-lista-medicamentos tbody tr")).toHaveCount(50);
+    await expect(page.locator("#btn-mostrar-mais-medicamentos")).toHaveText(`Mostrar mais (${Math.min(50, total - 50)} de ${total - 50})`);
+    await page.locator("#btn-mostrar-mais-medicamentos").click();
+    await expect(page.locator("#cadastro-lista-medicamentos tbody tr")).toHaveCount(Math.min(100, total));
+    // Fechar e abrir de novo volta aos 50 primeiros.
+    await page.locator("#btn-secao-medicamentos").click();
+    await expect(page.locator("[id^='cadastro-row-medicamentos-']")).toHaveCount(0);
+    await page.locator("#btn-secao-medicamentos").click();
+    await expect(page.locator("#cadastro-lista-medicamentos tbody tr")).toHaveCount(50);
+  });
 });
 
 for (const [rotulo, conta] of [
@@ -343,7 +511,7 @@ for (const [rotulo, conta] of [
       await expect(page.locator("#cadastros-tab")).toHaveCount(0);
     });
 
-    test(`o ${rotulo} lê as 4 listas (200) e leva 403 ao criar e ao alterar, inclusive com chave PIX`, async ({ page }) => {
+    test(`o ${rotulo} lê as 7 listas (200) e leva 403 ao criar e ao alterar, inclusive com chave PIX`, async ({ page }) => {
       await login(page, conta.email, conta.password);
       const req = page.request;
       for (const lista of LISTAS) {
@@ -352,6 +520,9 @@ for (const [rotulo, conta] of [
         expect(Array.isArray(await res.json())).toBe(true);
       }
       expect((await apiCriar(req, "cias-aereas", { nome: nomeUnico("Proibido") })).status).toBe(403);
+      expect((await apiCriar(req, "temperaturas", { nome: nomeUnico("Proibido") })).status).toBe(403);
+      expect((await apiCriar(req, "medicamentos", { nome: nomeUnico("Proibido"), temperatura: "Ambiente" })).status).toBe(403);
+      expect((await req.patch("/api/cadastros/medicamentos/qualquer", { data: { nome: "TESTE" } })).status()).toBe(403);
       expect((await apiCriar(req, "transportadoras", { nome: nomeUnico("Proibido"), chavePix: pixFicticio() })).status).toBe(403);
       expect((await req.patch("/api/cadastros/cias-aereas/qualquer", { data: { ativo: false } })).status()).toBe(403);
       expect((await req.patch("/api/cadastros/despachantes/qualquer", { data: { chavePix: "" } })).status()).toBe(403);

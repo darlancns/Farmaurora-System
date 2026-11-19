@@ -122,6 +122,7 @@ Detalhes:
 | Processos / Follow-Up | Supabase Postgres — tabela `follow_up` |
 | Pagamentos (lotes de banco, lançamentos, grupos) | Supabase Postgres — `pagamento_lotes_banco`, `pagamento_lancamentos_banco`, `pagamento_grupos` |
 | Chave PIX por despachante / transportadora | Lida dos Cadastros (`chave_pix` em `cadastro_despachantes` e `cadastro_transportadoras`), só leitura em Pagamentos; quem edita é o administrador, em Configurações → Cadastros. A tabela antiga `pagamento_pix_chaves` não é mais lida (a remover na etapa 3) |
+| Cadastros (Configurações → Cadastros) | Supabase Postgres — `cadastro_fornecedores`, `cadastro_despachantes`, `cadastro_transportadoras`, `cadastro_cias_aereas`, `cadastro_consultores`, `cadastro_temperaturas` e `cadastro_medicamentos`; todos leem a API, só o administrador escreve; remover é desativar (não há exclusão). O medicamento tem nome em MAIÚSCULAS (renomeável pelo administrador, sem propagação) e a temperatura é cópia do nome de uma temperatura **ativa**; o nome da temperatura não muda. A tela desenha as linhas só com a seção aberta, 50 por vez ("Mostrar mais") |
 | Anexos de paciente (invoice, câmbio, despachante, transporte, serviço) | **Supabase Storage** — bucket privado `attachments`, `<patientId>/<slot>.png` (ver "Anexos de prestação") |
 
 Todo acesso ao Postgres é feito com a **service role key** (sem RLS) — ver seção "Como
@@ -175,6 +176,9 @@ ALLOW_REAL_DB=1 npm run test:integration
 > 3. `npm run e2e:setup-users` — cria admin, operacional, sócio e consultor (`app_metadata` no mesmo
 >    formato do app), grava o consultor da conta em `cadastro_consultores` e escreve as `E2E_*` no `.env.e2e`.
 > 4. `npx playwright test`. Sem `.env.e2e`, sem chave ou com URL não local, a config lança e nada sobe.
+>
+> Os specs de Cadastros precisam das migrations `*_cadastros.sql`, `*_cadastros_transportadoras_pix.sql`, `*_cadastro_consultores.sql` e
+> `*_cadastro_temperaturas_medicamentos.sql` no Supabase local (as duas últimas só espelham o que já está em produção).
 >
 > O Supabase local precisa do schema da produção. Hoje `supabase/migrations/` só versiona parte das
 > tabelas (ver "RLS versionado" em Pendências) — gerar o baseline é uma etapa à parte.

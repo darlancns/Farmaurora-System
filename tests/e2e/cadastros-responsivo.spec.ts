@@ -28,7 +28,7 @@ async function login(page: Page): Promise<void> {
 const semOverflowHorizontal = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
 
-const LISTAS = ["fornecedores", "despachantes", "transportadoras", "cias-aereas"] as const;
+const LISTAS = ["fornecedores", "despachantes", "transportadoras", "cias-aereas", "consultores", "temperaturas", "medicamentos"] as const;
 
 const viewports = [
   { nome: "390px (celular)", width: 390, height: 844, cards: true, abaixoDeLg: true },
@@ -47,6 +47,13 @@ test.describe("Responsividade de Configurações → Cadastros", () => {
       let nomeItem = "";
       let idItem = "";
 
+      // Cada seção mostra 50 itens por vez e o banco local acumula itens de teste: para achar o item deste teste a busca vem
+      // primeiro (ela abre sozinha a seção que tem resultado).
+      async function abrirFornecedorDoTeste(page: Page): Promise<void> {
+        await page.locator("#cadastros-busca").fill(nomeItem);
+        await expect(page.locator("#btn-secao-fornecedores")).toHaveAttribute("aria-expanded", "true");
+      }
+
       test.beforeEach(async ({ page }) => {
         await page.setViewportSize({ width: vp.width, height: vp.height });
         await login(page);
@@ -60,13 +67,16 @@ test.describe("Responsividade de Configurações → Cadastros", () => {
           data: { nome: `${nomeItem} T`, chavePix: `e2e-chave-ficticia-${vp.width}-${Date.now()}` },
         });
         expect(transp.status()).toBe(200);
+        // Uma temperatura ATIVA própria deste teste (o painel de medicamentos só oferece as ativas).
+        const temperatura = await page.request.post("/api/cadastros/temperaturas", { data: { nome: `${nomeItem} TEMP` } });
+        expect(temperatura.status()).toBe(200);
         await page.goto("/configuracoes?aba=cadastros", { waitUntil: "networkidle" });
         await expect(page.locator("#cadastros-tab")).toBeVisible();
       });
 
-      test("as 4 seções aparecem empilhadas, fechadas, com a mesma largura e sem rolagem horizontal", async ({ page }) => {
+      test("as 7 seções aparecem empilhadas, fechadas, com a mesma largura e sem rolagem horizontal", async ({ page }) => {
         const secoes = page.locator("#cadastros-tab > section");
-        await expect(secoes).toHaveCount(4);
+        await expect(secoes).toHaveCount(LISTAS.length);
         for (const lista of LISTAS) await expect(page.locator(`#btn-secao-${lista}`)).toHaveAttribute("aria-expanded", "false");
         const caixas = await secoes.evaluateAll((els) =>
           els.map((e) => {
@@ -83,14 +93,14 @@ test.describe("Responsividade de Configurações → Cadastros", () => {
         expect(await semOverflowHorizontal(page)).toBe(true);
       });
 
-      test("abertas, as 4 seções continuam sem rolagem horizontal", async ({ page }) => {
+      test("abertas, as 7 seções continuam sem rolagem horizontal", async ({ page }) => {
         for (const lista of LISTAS) await page.locator(`#btn-secao-${lista}`).click();
         for (const lista of LISTAS) await expect(page.locator(`#cadastro-corpo-${lista}`)).toBeVisible();
         expect(await semOverflowHorizontal(page)).toBe(true);
       });
 
       test(`${vp.cards ? "itens de duas linhas visíveis e tabela oculta" : "tabela visível e itens ocultos"}`, async ({ page }) => {
-        await page.locator("#btn-secao-fornecedores").click();
+        await abrirFornecedorDoTeste(page);
         const tabela = page.locator("#cadastro-lista-fornecedores");
         const item = page.locator(`#cadastro-card-fornecedores-${idItem}`);
         await expect(page.locator(`#cadastro-row-fornecedores-${idItem}, #cadastro-card-fornecedores-${idItem}`).first()).toBeAttached();
@@ -130,7 +140,7 @@ test.describe("Responsividade de Configurações → Cadastros", () => {
       });
 
       test("a chave Ativo tem alvo >= 44px de altura abaixo de lg e o clique nela não abre o painel", async ({ page }) => {
-        await page.locator("#btn-secao-fornecedores").click();
+        await abrirFornecedorDoTeste(page);
         const chave = page.locator(vp.cards ? `#cadastro-switch-card-fornecedores-${idItem}` : `#cadastro-switch-fornecedores-${idItem}`);
         await expect(chave).toBeVisible();
         await expect(chave).toHaveAttribute("role", "switch");
@@ -178,7 +188,7 @@ test.describe("Responsividade de Configurações → Cadastros", () => {
       });
 
       test("editar: o painel mostra o nome desabilitado e, ao fechar, o foco volta à linha", async ({ page }) => {
-        await page.locator("#btn-secao-fornecedores").click();
+        await abrirFornecedorDoTeste(page);
         await page.locator(vp.cards ? `#cadastro-card-fornecedores-${idItem}` : `#cadastro-row-fornecedores-${idItem}`).click();
         await expect(page.locator("#cadastro-form-nome")).toBeDisabled();
         await expect(page.locator("#cadastro-form-nome")).toHaveValue(nomeItem);
@@ -186,6 +196,33 @@ test.describe("Responsividade de Configurações → Cadastros", () => {
         await page.keyboard.press("Escape");
         await expect(page.locator("#cadastro-painel")).toBeHidden();
         await expect(page.locator(vp.cards ? `#cadastro-abrir-card-fornecedores-${idItem}` : `#cadastro-abrir-fornecedores-${idItem}`)).toBeFocused();
+      });
+
+      test("painel de medicamento: nome e Temperatura (select) cabem, com alvos >= 44px abaixo de lg e sem overflow", async ({ page }) => {
+        await page.locator("#btn-adicionar-cadastro-medicamentos").click();
+        const painel = page.locator("#cadastro-painel");
+        await expect(painel).toBeVisible();
+        await expect(page.locator("#cadastro-painel-titulo")).toHaveText("Novo medicamento");
+        expect(await semOverflowHorizontal(page)).toBe(true);
+        const caixa = (await painel.boundingBox())!;
+        expect(caixa.y + caixa.height).toBeLessThanOrEqual(vp.height + 0.5);
+        if (vp.abaixoDeLg) {
+          for (const id of ["#cadastro-form-nome", "#cadastro-form-temperatura", "#btn-cadastro-cancelar", "#btn-cadastro-salvar"]) {
+            expect((await page.locator(id).boundingBox())!.height, id).toBeGreaterThanOrEqual(43.99);
+          }
+        }
+        // O nome sai em MAIÚSCULAS e a lista de temperaturas abre inteira dentro da tela.
+        await page.locator("#cadastro-form-nome").fill(`${nomeItem} med`);
+        await expect(page.locator("#cadastro-form-nome")).toHaveValue(`${nomeItem} med`.toUpperCase());
+        await page.locator("#cadastro-form-temperatura").click();
+        const lista = page.locator("#cadastro-form-temperatura-listbox");
+        await expect(lista).toBeVisible();
+        const caixaLista = (await lista.boundingBox())!;
+        expect(caixaLista.x).toBeGreaterThanOrEqual(-0.5);
+        expect(caixaLista.x + caixaLista.width).toBeLessThanOrEqual(vp.width + 0.5);
+        expect(caixaLista.y + caixaLista.height).toBeLessThanOrEqual(vp.height + 0.5);
+        await page.keyboard.press("Escape");
+        expect(await semOverflowHorizontal(page)).toBe(true);
       });
 
       test("chave PIX da transportadora: campo oculto no painel, 'Mostrar' e 'Copiar' cabem e têm >= 44px abaixo de lg", async ({ page }) => {
