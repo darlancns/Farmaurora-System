@@ -7,10 +7,11 @@ import type {
   PatchPorLista,
   CiaAerea,
   Consultor,
+  MedicamentoCadastro,
   TemperaturaCadastro,
   Transportadora,
 } from "../../shared/types/Cadastro";
-import { chaveCadastro } from "../../shared/utils/cadastroNome";
+import { chaveCadastro, nomeEmMaiusculas } from "../../shared/utils/cadastroNome";
 
 // Mapeadores puros linha (Supabase, tabelas `cadastro_*`) ↔ modelo — sem Supabase nem rede, testáveis isoladamente
 // (tests/unit/cadastroMappers.spec.ts). Convenção da DIR: no modelo, texto vazio é "" (nunca undefined); no banco é
@@ -52,6 +53,10 @@ export type ConsultorRow = LinhaBase;
 
 export type TemperaturaRow = LinhaBase;
 
+export interface MedicamentoRow extends LinhaBase {
+  temperatura: string | null;
+}
+
 export interface CadastroRowPorLista {
   fornecedores: FornecedorRow;
   despachantes: DespachanteRow;
@@ -59,6 +64,7 @@ export interface CadastroRowPorLista {
   "cias-aereas": CiaAereaRow;
   consultores: ConsultorRow;
   temperaturas: TemperaturaRow;
+  medicamentos: MedicamentoRow;
 }
 
 function textoOuNulo(v: string | undefined): string | null {
@@ -114,6 +120,10 @@ export function montarTemperatura(row: TemperaturaRow): TemperaturaCadastro {
   return base(row);
 }
 
+export function montarMedicamento(row: MedicamentoRow): MedicamentoCadastro {
+  return { ...base(row), temperatura: row.temperatura ?? "" };
+}
+
 const MONTADORES: { [L in ListaCadastro]: (row: CadastroRowPorLista[L], incluirPix: boolean) => CadastroPorLista[L] } = {
   fornecedores: (row) => montarFornecedor(row),
   despachantes: montarDespachante,
@@ -121,6 +131,7 @@ const MONTADORES: { [L in ListaCadastro]: (row: CadastroRowPorLista[L], incluirP
   "cias-aereas": (row) => montarCiaAerea(row),
   consultores: (row) => montarConsultor(row),
   temperaturas: (row) => montarTemperatura(row),
+  medicamentos: (row) => montarMedicamento(row),
 };
 
 /** `incluirPix` (padrão false) só tem efeito em despachantes e transportadoras: ver o cabeçalho deste arquivo. */
@@ -149,13 +160,19 @@ export function colunasNovoCadastro<L extends ListaCadastro>(lista: L, dto: Novo
     colunas.chave_pix = textoOuNulo(d.chavePix);
   } else if (lista === "transportadoras") {
     colunas.chave_pix = textoOuNulo((dto as NovoPorLista["transportadoras"]).chavePix);
+  } else if (lista === "medicamentos") {
+    // Nome SEMPRE em MAIÚSCULAS (a chave sai do mesmo texto, então não muda). A temperatura é a CÓPIA do nome da temperatura
+    // ativa: o store a troca pelo nome gravado no Cadastro de Temperaturas antes de chegar aqui.
+    const m = dto as NovoPorLista["medicamentos"];
+    colunas.nome = nomeEmMaiusculas(m.nome);
+    colunas.temperatura = m.temperatura;
   }
   return colunas;
 }
 
 /**
- * Colunas de uma ALTERAÇÃO: só as chaves presentes no patch. `nome` e `nome_chave` NUNCA entram (o nome não muda depois
- * de criado — o store recusa a troca antes de chegar aqui).
+ * Colunas de uma ALTERAÇÃO: só as chaves presentes no patch. `nome` e `nome_chave` NUNCA entram aqui (o nome não muda depois
+ * de criado — o store recusa a troca antes de chegar; o medicamento, que pode ser renomeado, usa `colunasRenomearMedicamento`).
  */
 export function colunasPatchCadastro<L extends ListaCadastro>(lista: L, patch: PatchPorLista[L]): Record<string, unknown> {
   const colunas: Record<string, unknown> = {};
@@ -175,7 +192,18 @@ export function colunasPatchCadastro<L extends ListaCadastro>(lista: L, patch: P
     if (p.chavePix !== undefined) colunas.chave_pix = textoOuNulo(p.chavePix as string);
   } else if (lista === "transportadoras") {
     if (p.chavePix !== undefined) colunas.chave_pix = textoOuNulo(p.chavePix as string);
+  } else if (lista === "medicamentos") {
+    if (p.temperatura !== undefined) colunas.temperatura = p.temperatura;
   }
   return colunas;
+}
+
+/**
+ * Colunas de um RENOMEAR (só `medicamentos`; o consultor renomeia por RPC): o nome novo em MAIÚSCULAS e a chave dele. É um caminho à
+ * parte de `colunasPatchCadastro`, que nunca emite nome: nas outras listas o nome é imutável.
+ */
+export function colunasRenomearMedicamento(nome: string): { nome: string; nome_chave: string } {
+  const maiusculo = nomeEmMaiusculas(nome);
+  return { nome: maiusculo, nome_chave: chaveCadastro(maiusculo) };
 }
 

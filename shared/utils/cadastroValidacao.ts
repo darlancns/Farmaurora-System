@@ -2,6 +2,8 @@ import {
   CHAVE_PIX_CADASTRO_MAX,
   CONTATO_CADASTRO_MAX,
   EMAIL_CADASTRO_MAX,
+  LISTAS_NOME_MAIUSCULO,
+  LISTAS_RENOMEAVEIS,
   NOME_CADASTRO_MAX,
   NOME_RESERVADO_CADASTRO,
   PAIS_CADASTRO_MAX,
@@ -12,7 +14,7 @@ import {
   TELEFONE_DIGITOS_MIN,
 } from "../constants/cadastros";
 import type { ListaCadastro, NovoPorLista, PatchPorLista } from "../types/Cadastro";
-import { nomeReservadoCadastro } from "./cadastroNome";
+import { nomeEmMaiusculas, nomeReservadoCadastro } from "./cadastroNome";
 
 // Validação PURA dos Cadastros — o servidor (handlers) e o formulário da tela usam as mesmas regras, então as
 // mensagens são as que a pessoa lê. Devolve o objeto já LIMPO (texto aparado, só as chaves conhecidas) ou a mensagem.
@@ -54,6 +56,24 @@ function validarNome(v: unknown): ResultadoCadastro<string> {
     return erro(`"${NOME_RESERVADO_CADASTRO}" é um nome reservado (é a opção de digitar um valor fora da lista).`);
   }
   return { ok: true, valor: nome };
+}
+
+// Nome de um item da lista: as regras de sempre e, nas listas de nome em MAIÚSCULAS (medicamentos), o valor já sai em maiúsculas.
+function validarNomeDaLista(lista: ListaCadastro, v: unknown): ResultadoCadastro<string> {
+  const nome = validarNome(v);
+  if (!nome.ok) return nome;
+  return LISTAS_NOME_MAIUSCULO.includes(lista) ? { ok: true, valor: nomeEmMaiusculas(nome.valor) } : nome;
+}
+
+// Temperatura do medicamento: obrigatória, só o texto (aparado, espaços colapsados). Se ela existe e está ATIVA no Cadastro de
+// Temperaturas quem confere é o servidor (que lê o banco), não esta função pura.
+export const MSG_TEMPERATURA_OBRIGATORIA = "Informe a temperatura.";
+
+function validarTemperatura(v: unknown): ResultadoCadastro<string> {
+  if (typeof v !== "string" || v.trim() === "") return erro(MSG_TEMPERATURA_OBRIGATORIA);
+  const temperatura = v.trim().replace(/\s+/g, " ");
+  if (temperatura.length > NOME_CADASTRO_MAX) return erro(`A temperatura pode ter no máximo ${NOME_CADASTRO_MAX} caracteres.`);
+  return { ok: true, valor: temperatura };
 }
 
 type CampoTexto = { nome: string; max: number; invalido?: string; extra?: (valor: string) => string | null };
@@ -124,6 +144,7 @@ const CHAVES_NOVO: Record<ListaCadastro, readonly string[]> = {
   "cias-aereas": ["nome"],
   consultores: ["nome"],
   temperaturas: ["nome"],
+  medicamentos: ["nome", "temperatura"],
 };
 
 const CHAVES_PATCH: Record<ListaCadastro, readonly string[]> = {
@@ -133,6 +154,7 @@ const CHAVES_PATCH: Record<ListaCadastro, readonly string[]> = {
   "cias-aereas": ["nome", "ativo"],
   consultores: ["nome", "ativo"],
   temperaturas: ["nome", "ativo"],
+  medicamentos: ["nome", "temperatura", "ativo"],
 };
 
 /** Corpo de criação de um item da lista; o item nasce ativo. */
@@ -142,8 +164,14 @@ export function validarNovoCadastro<L extends ListaCadastro>(lista: L, corpo: un
   const desconhecida = chavesDesconhecidas(o, CHAVES_NOVO[lista]);
   if (desconhecida) return erro(desconhecida);
 
-  const nome = validarNome(o.nome);
+  const nome = validarNomeDaLista(lista, o.nome);
   if (!nome.ok) return nome;
+
+  if (lista === "medicamentos") {
+    const temperatura = validarTemperatura(o.temperatura);
+    if (!temperatura.ok) return temperatura;
+    return { ok: true, valor: { nome: nome.valor, temperatura: temperatura.valor } as NovoPorLista[L] };
+  }
 
   if (lista === "fornecedores") {
     const pais = textoOpcional(o.pais, CAMPO_PAIS);
@@ -185,8 +213,8 @@ export function validarNovoCadastro<L extends ListaCadastro>(lista: L, corpo: un
 
 /**
  * Corpo de alteração parcial. Só as chaves presentes são conferidas e devolvidas. `nome` é aceito aqui (aparado) só
- * para o servidor comparar com o gravado e RECUSAR a troca (422) — o nome não muda depois de criado, EXCETO nos consultores,
- * cujo nome novo é validado como o de um item novo e vira um renomear. `prazoAlertaDias`
+ * para o servidor comparar com o gravado e RECUSAR a troca (422) — o nome não muda depois de criado, EXCETO nos consultores e nos
+ * medicamentos (LISTAS_RENOMEAVEIS), cujo nome novo é validado como o de um item novo e vira um renomear. `prazoAlertaDias`
  * e `semAlerta` vão juntos (os dois ou nenhum) e passam pela mesma regra de decidir do cadastro.
  */
 export function validarPatchCadastro<L extends ListaCadastro>(lista: L, corpo: unknown): ResultadoCadastro<PatchPorLista[L]> {
@@ -199,9 +227,10 @@ export function validarPatchCadastro<L extends ListaCadastro>(lista: L, corpo: u
   const patch: Record<string, unknown> = {};
 
   if ("nome" in o) {
-    if (lista === "consultores") {
-      // Consultor pode ser RENOMEADO: o nome novo passa pelas regras de nome de um item novo ("Outro" reservado, tamanho).
-      const nome = validarNome(o.nome);
+    if (LISTAS_RENOMEAVEIS.includes(lista)) {
+      // Consultor e medicamento podem ser RENOMEADOS: o nome novo passa pelas regras de nome de um item novo ("Outro" reservado,
+      // tamanho e, no medicamento, MAIÚSCULAS).
+      const nome = validarNomeDaLista(lista, o.nome);
       if (!nome.ok) return nome;
       patch.nome = nome.valor;
     } else {
@@ -225,7 +254,13 @@ export function validarPatchCadastro<L extends ListaCadastro>(lista: L, corpo: u
   };
 
   const problemas: Array<string | null> = [];
-  if (lista === "fornecedores") {
+  if (lista === "medicamentos") {
+    if ("temperatura" in o) {
+      const temperatura = validarTemperatura(o.temperatura);
+      if (!temperatura.ok) return temperatura;
+      patch.temperatura = temperatura.valor;
+    }
+  } else if (lista === "fornecedores") {
     problemas.push(copiarTexto("pais", CAMPO_PAIS));
     const temSem = "semAlerta" in o;
     const temPrazo = "prazoAlertaDias" in o;

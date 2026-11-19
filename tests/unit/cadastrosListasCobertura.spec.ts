@@ -51,6 +51,23 @@ const CORPO_NOVO: Record<ListaCadastro, Record<string, unknown>> = {
   "cias-aereas": { nome: "TESTE Cia" },
   consultores: { nome: "TESTE Consultor" },
   temperaturas: { nome: "TESTE TEMP" },
+  medicamentos: { nome: "teste medicamento", temperatura: "TESTE TEMP" },
+};
+
+// O que a lista precisa já existir no banco para criar um item (o medicamento exige uma temperatura ATIVA).
+const PREPARAR: Partial<Record<ListaCadastro, () => void>> = {
+  medicamentos: () =>
+    fake.semear(TABELA_CADASTRO.temperaturas, [
+      {
+        id: "temp_pre",
+        nome: "TESTE TEMP",
+        nome_chave: "teste temp",
+        ativo: true,
+        atualizado_por: null,
+        created_at: "2026-11-01T00:00:00.000Z",
+        updated_at: "2026-11-01T00:00:00.000Z",
+      },
+    ]),
 };
 
 const PREFIXO_ID: Record<ListaCadastro, string> = {
@@ -60,6 +77,7 @@ const PREFIXO_ID: Record<ListaCadastro, string> = {
   "cias-aereas": "cia_",
   consultores: "cons_",
   temperaturas: "temp_",
+  medicamentos: "med_",
 };
 
 beforeEach(() => {
@@ -68,6 +86,13 @@ beforeEach(() => {
 });
 
 describe("LISTAS_CADASTRO × os Records das listas", () => {
+  it("toda lista tem um corpo de criação e um prefixo de id neste spec (lista nova sem entrada reprova aqui)", () => {
+    for (const lista of LISTAS_CADASTRO) {
+      expect(CORPO_NOVO[lista], lista).toBeDefined();
+      expect(PREFIXO_ID[lista], lista).toMatch(/_$/);
+    }
+  });
+
   it("o array tem exatamente as listas de TABELA_CADASTRO, sem repetir (esquecer uma deixaria a rota em 404)", () => {
     expect([...LISTAS_CADASTRO].sort()).toEqual(Object.keys(TABELA_CADASTRO).sort());
     expect(new Set(LISTAS_CADASTRO).size).toBe(LISTAS_CADASTRO.length);
@@ -89,6 +114,7 @@ describe("LISTAS_CADASTRO × os Records das listas", () => {
 describe("cada lista atravessa a API (GET, POST, PATCH): nenhuma responde 404 de 'lista desconhecida'", () => {
   for (const lista of [...LISTAS_CADASTRO]) {
     it(`${lista}: lista vazia, cria, aparece na lista, desativa`, async () => {
+      PREPARAR[lista]?.();
       expect(await chamar(listar, { lista }), "GET vazio").toEqual([]);
 
       const criado = (await chamar(criar, { lista }, CORPO_NOVO[lista])) as { id: string; nome: string; ativo: boolean };

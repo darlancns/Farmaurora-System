@@ -27,6 +27,8 @@ const CAMINHOS = [
   "/api/cadastros/consultores/cons_1",
   "/api/cadastros/temperaturas",
   "/api/cadastros/temperaturas/temp_1",
+  "/api/cadastros/medicamentos",
+  "/api/cadastros/medicamentos/med_1",
 ];
 
 describe("sectionForApiPath — /api/cadastros", () => {

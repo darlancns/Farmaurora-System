@@ -16,6 +16,11 @@ export function chaveCadastro(valor: string): string {
     .toLowerCase();
 }
 
+/** Nome de medicamento: sempre em MAIÚSCULAS (o mesmo `toUpperCase` dos campos de medicamento do Follow-Up e da DIR). */
+export function nomeEmMaiusculas(nome: string): string {
+  return nome.toUpperCase();
+}
+
 /** "Outro" (em qualquer caixa/acento) é o sentinela dos selects das telas, não um item da lista. */
 export function nomeReservadoCadastro(nome: string): boolean {
   return chaveCadastro(nome) === chaveCadastro(NOME_RESERVADO_CADASTRO);

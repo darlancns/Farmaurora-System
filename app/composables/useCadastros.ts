@@ -24,6 +24,7 @@ const ROTULO_FALHA: Record<ListaCadastro, string> = {
   "cias-aereas": "Falha ao carregar as cias aéreas.",
   consultores: "Falha ao carregar os consultores.",
   temperaturas: "Falha ao carregar as temperaturas.",
+  medicamentos: "Falha ao carregar os medicamentos.",
 };
 
 export function useCadastros() {
@@ -34,6 +35,7 @@ export function useCadastros() {
     "cias-aereas": [],
     consultores: [],
     temperaturas: [],
+    medicamentos: [],
   }));
   const loading = useState<boolean>("cadastros-loading", () => false);
   const error = useState<string | null>("cadastros-error", () => null);

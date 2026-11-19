@@ -43,6 +43,11 @@ function dadosIniciais(): Record<string, Array<Record<string, unknown>>> {
       { ...BASE, id: "p1", nome: "2°C - 8°C" },
       { ...BASE, id: "p2", nome: "-20°C", ativo: false },
     ],
+    // Sem a letra "a" nos nomes, pelo mesmo motivo.
+    medicamentos: [
+      { ...BASE, id: "m1", nome: "TIMOLOL 5 MG", temperatura: "2°C - 8°C" },
+      { ...BASE, id: "m2", nome: "ZOLPIDEM 10 MG", temperatura: "-20°C", ativo: false },
+    ],
   };
 }
 
@@ -147,7 +152,7 @@ const texto = (el: Element | null) => (el?.textContent ?? "").replace(/\s+/g, " 
 const q = <T extends Element>(sel: string) => document.querySelector<T>(sel);
 const toast = () => useState<string | null>("toast-message").value;
 const aberta = (lista: string) => q(`#btn-secao-${lista}`)!.getAttribute("aria-expanded") === "true";
-const SECOES = ["fornecedores", "despachantes", "transportadoras", "cias-aereas", "consultores", "temperaturas"] as const;
+const SECOES = ["fornecedores", "despachantes", "transportadoras", "cias-aereas", "consultores", "temperaturas", "medicamentos"] as const;
 
 async function clicar(sel: string): Promise<void> {
   q<HTMLElement>(sel)!.click();
@@ -187,11 +192,11 @@ afterEach(() => {
 });
 
 describe("CadastrosTab — seções recolhíveis", () => {
-  it("administrador: 6 seções, nesta ordem, cada uma com título, contagem e '+ Adicionar'", async () => {
+  it("administrador: 7 seções, nesta ordem, cada uma com título, contagem e '+ Adicionar'", async () => {
     await montar();
     expect([...document.querySelectorAll("#cadastros-tab > section")].map((s) => s.id)).toEqual(SECOES.map((l) => `cadastro-secao-${l}`));
-    expect(SECOES.map((l) => texto(q(`#cadastro-titulo-${l}`)))).toEqual(["Fornecedores", "Despachantes", "Transportadoras", "Cias aéreas", "Consultores", "Temperaturas"]);
-    expect(SECOES.map((l) => texto(q(`#cadastro-contagem-${l}`)))).toEqual(["2 · 1 ativo", "2 · 2 ativos", "2 · 1 ativo", "2 · 2 ativos", "2 · 1 ativo", "2 · 1 ativo"]);
+    expect(SECOES.map((l) => texto(q(`#cadastro-titulo-${l}`)))).toEqual(["Fornecedores", "Despachantes", "Transportadoras", "Cias aéreas", "Consultores", "Temperaturas", "Medicamentos"]);
+    expect(SECOES.map((l) => texto(q(`#cadastro-contagem-${l}`)))).toEqual(["2 · 1 ativo", "2 · 2 ativos", "2 · 1 ativo", "2 · 2 ativos", "2 · 1 ativo", "2 · 1 ativo", "2 · 1 ativo"]);
     for (const l of SECOES) expect(texto(q(`#btn-adicionar-cadastro-${l}`)), l).toBe("+ Adicionar");
     expect(servidor.chamadas.filter((c) => c.metodo === "GET").map((c) => c.url).sort()).toEqual(
       SECOES.map((l) => `/api/cadastros/${l}`).sort(),
@@ -257,7 +262,7 @@ describe("CadastrosTab — busca por nome", () => {
     await montar();
     await digitar("#cadastros-busca", "dhl");
     expect(aberta("transportadoras")).toBe(true);
-    for (const l of ["fornecedores", "despachantes", "cias-aereas", "consultores", "temperaturas"]) expect(aberta(l), l).toBe(false);
+    for (const l of ["fornecedores", "despachantes", "cias-aereas", "consultores", "temperaturas", "medicamentos"]) expect(aberta(l), l).toBe(false);
     const contagem = q<HTMLElement>("#cadastro-contagem-transportadoras")!;
     expect(texto(contagem)).toBe("1 encontrado");
     expect(contagem.className).toContain("font-semibold");

@@ -12,6 +12,7 @@ import { chaveCadastro, ordenarCadastro } from "../../shared/utils/cadastroNome"
 import {
   colunasNovoCadastro,
   colunasPatchCadastro,
+  colunasRenomearMedicamento,
   montarCadastro,
   type CadastroRowPorLista,
 } from "./cadastroMappers";
@@ -20,7 +21,7 @@ import { erro, randomId } from "./storeKit";
 
 /**
  * Persistência dos Cadastros (Configurações → Cadastros) — tabelas `cadastro_fornecedores`, `cadastro_despachantes`,
- * `cadastro_transportadoras`, `cadastro_cias_aereas`, `cadastro_consultores` e `cadastro_temperaturas` (supabase/migrations/
+ * `cadastro_transportadoras`, `cadastro_cias_aereas`, `cadastro_consultores`, `cadastro_temperaturas` e `cadastro_medicamentos` (supabase/migrations/
  * 20261109200000_cadastros.sql, 20261118200000_cadastros_transportadoras_pix.sql, 20261118210000_cadastro_consultores.sql e
  * 20261119160000_cadastro_temperaturas_medicamentos.sql). Mesmo molde de dirStore.ts: cliente admin do servidor, criar e
  * alterar são cada um UM comando numa única linha.
@@ -28,7 +29,10 @@ import { erro, randomId } from "./storeKit";
  * Regras:
  *  - NÃO existe exclusão: remover é desativar (`ativo = false`, um update). O service_role nem tem permissão de exclusão.
  *  - O NOME não muda depois de criado: alterar com um nome diferente do gravado é 422. Para corrigir, cria-se um item
- *    novo e desativa-se o antigo.
+ *    novo e desativa-se o antigo. EXCEÇÕES (LISTAS_RENOMEAVEIS): o consultor (RPC, abaixo) e o MEDICAMENTO (um UPDATE só, ver
+ *    alterarMedicamento).
+ *  - MEDICAMENTO: o nome é gravado em MAIÚSCULAS e a temperatura (texto, cópia do nome) precisa ser de uma temperatura ATIVA do
+ *    Cadastro de Temperaturas (422 se não existe ou está inativa).
  *  - Nome repetido (pela `nome_chave`, incluindo inativos) é 409.
  *  - A lista sai em ordem alfabética pt-BR, ativos primeiro e inativos depois.
  *  - CHAVE PIX (despachantes e transportadoras) é dado financeiro: só sai do banco e entra no resultado com
@@ -43,6 +47,7 @@ const ID_PREFIXO: Record<ListaCadastro, string> = {
   "cias-aereas": "cia_",
   consultores: "cons_",
   temperaturas: "temp_",
+  medicamentos: "med_",
 };
 
 /** Opções de leitura/gravação. `incluirPix` (padrão false): ler e devolver a chave PIX (só quem pode: ver cadastroPix.ts). */
@@ -131,6 +136,12 @@ export async function criarCadastro<L extends ListaCadastro>(
   const tabela = TABELA_CADASTRO[lista];
   const chave = chaveCadastro(dto.nome);
 
+  // Medicamento: a temperatura precisa ser de uma temperatura ATIVA; o que se grava é o NOME dela como está no Cadastro.
+  if (lista === "medicamentos") {
+    const m = dto as NovoPorLista["medicamentos"];
+    dto = { ...m, temperatura: await temperaturaAtivaDoCadastro(db, m.temperatura) } as NovoPorLista[L];
+  }
+
   const { data: existentes, error: erroBusca } = await db.from(tabela).select("id, ativo").eq("nome_chave", chave);
   if (erroBusca) throw erroDaLista(lista, `verificar nome duplicado em ${lista}`, erroBusca);
   const existente = ((existentes ?? []) as Array<{ id: string; ativo: boolean }>)[0];
@@ -163,6 +174,10 @@ export async function alterarCadastro<L extends ListaCadastro>(
   por: string,
   opcoes: OpcoesCadastro = {},
 ): Promise<CadastroPorLista[L] | null> {
+  // Medicamento: caminho próprio (renomear, trocar a temperatura e ativar/desativar num UPDATE só).
+  if (lista === "medicamentos") {
+    return (await alterarMedicamento(id, patch as PatchPorLista["medicamentos"], por)) as CadastroPorLista[L] | null;
+  }
   const incluirPix = opcoes.incluirPix === true;
   const colunasDeLeitura = colunasLidas(lista, incluirPix);
   const db = createSupabaseAdminClient();
@@ -191,6 +206,82 @@ export async function alterarCadastro<L extends ListaCadastro>(
 
   const row = ((data ?? []) as unknown as CadastroRowPorLista[L][])[0];
   return row ? montarCadastro(lista, row, incluirPix) : null;
+}
+
+// ── Medicamentos: temperatura validada e renomear ──────────────────────────────────────────────────────────
+
+export const MENSAGEM_TEMPERATURA_INEXISTENTE = "Temperatura não encontrada no Cadastro de Temperaturas.";
+export const MENSAGEM_TEMPERATURA_INATIVA = "Essa temperatura está inativa. Escolha uma temperatura ativa.";
+
+/**
+ * A temperatura enviada precisa existir no Cadastro de Temperaturas (comparação pela chave: sem acento nem caixa) e estar ATIVA, senão
+ * 422. Devolve o NOME dela como está no Cadastro (é essa a cópia que o medicamento guarda).
+ */
+async function temperaturaAtivaDoCadastro(db: ReturnType<typeof createSupabaseAdminClient>, enviada: string): Promise<string> {
+  const { data, error } = await db
+    .from(TABELA_CADASTRO.temperaturas)
+    .select("nome, ativo")
+    .eq("nome_chave", chaveCadastro(enviada));
+  if (error) throw erro("conferir a temperatura", error);
+
+  const achada = ((data ?? []) as Array<{ nome: string; ativo: boolean }>)[0];
+  if (!achada) throw new CadastroRegraError(MENSAGEM_TEMPERATURA_INEXISTENTE, 422);
+  if (achada.ativo !== true) throw new CadastroRegraError(MENSAGEM_TEMPERATURA_INATIVA, 422);
+  return achada.nome;
+}
+
+/**
+ * Altera um medicamento: renomear, trocar a temperatura e/ou ativar/desativar, tudo num ÚNICO UPDATE (nome, nome_chave, temperatura,
+ * ativo, updated_at e atualizado_por). Sem RPC e sem propagação (a Compra, no futuro, guarda cópia do texto). null = não existe (404).
+ *  - nome igual ao gravado (em MAIÚSCULAS) é ignorado; trocar só acento/caixa (mesma chave) vale; nome que é de OUTRO medicamento é 409;
+ *  - temperatura igual à gravada é ignorada (um medicamento cuja temperatura foi desativada depois continua editável); uma temperatura
+ *    DIFERENTE precisa ser de uma temperatura ativa (422);
+ *  - a corrida (23505 do índice único em nome_chave) também vira 409.
+ */
+async function alterarMedicamento(id: string, patch: PatchPorLista["medicamentos"], por: string): Promise<CadastroPorLista["medicamentos"] | null> {
+  const db = createSupabaseAdminClient();
+  const tabela = TABELA_CADASTRO.medicamentos;
+
+  const { data: atuais, error: erroBusca } = await db.from(tabela).select("*").eq("id", id);
+  if (erroBusca) throw erro("buscar medicamento", erroBusca);
+  const atual = ((atuais ?? []) as CadastroRowPorLista["medicamentos"][])[0];
+  if (!atual) return null;
+
+  const colunas: Record<string, unknown> = colunasPatchCadastro("medicamentos", { ativo: patch.ativo });
+
+  if (patch.temperatura !== undefined && patch.temperatura !== (atual.temperatura ?? "")) {
+    colunas.temperatura = await temperaturaAtivaDoCadastro(db, patch.temperatura);
+  }
+
+  if (patch.nome !== undefined) {
+    const novo = colunasRenomearMedicamento(patch.nome);
+    if (novo.nome !== atual.nome) {
+      const { data: mesmaChave, error: erroChave } = await db.from(tabela).select("id, ativo").eq("nome_chave", novo.nome_chave);
+      if (erroChave) throw erro("verificar nome duplicado em medicamentos", erroChave);
+      const outro = ((mesmaChave ?? []) as Array<{ id: string; ativo: boolean }>).find((r) => r.id !== id);
+      if (outro) throw new CadastroRegraError(mensagemDuplicadoNoRenomear(outro.ativo === true), 409);
+      Object.assign(colunas, novo);
+    }
+  }
+
+  if (Object.keys(colunas).length === 0) return montarCadastro("medicamentos", atual);
+
+  const { data, error } = await db
+    .from(tabela)
+    .update({ ...colunas, atualizado_por: por, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select("*");
+  if (error) {
+    if (error.code === CODIGO_UNICO_VIOLADO) throw new CadastroRegraError(mensagemDuplicadoNoRenomear(true), 409);
+    throw erro("atualizar medicamento", error);
+  }
+
+  const row = ((data ?? []) as CadastroRowPorLista["medicamentos"][])[0];
+  return row ? montarCadastro("medicamentos", row) : null;
+}
+
+function mensagemDuplicadoNoRenomear(outroAtivo: boolean): string {
+  return outroAtivo ? "Já existe outro medicamento com esse nome." : "Já existe outro medicamento inativo com esse nome.";
 }
 
 // ── Consultores: renomear (a ÚNICA lista cujo nome pode mudar) ───────────────────────────────────────────────

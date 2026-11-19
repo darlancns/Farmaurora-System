@@ -9,7 +9,17 @@ export const LISTAS_CADASTRO: readonly ListaCadastro[] = [
   "cias-aereas",
   "consultores",
   "temperaturas",
+  "medicamentos",
 ];
+
+/**
+ * Listas cujo NOME pode ser alterado depois de criado (as demais têm nome imutável: 422). O consultor propaga o texto (RPC no banco);
+ * o medicamento só muda o próprio nome (um UPDATE; nada é propagado).
+ */
+export const LISTAS_RENOMEAVEIS: readonly ListaCadastro[] = ["consultores", "medicamentos"];
+
+/** Listas cujo nome é SEMPRE gravado em MAIÚSCULAS (a `nome_chave` continua sem acento e em minúsculas). */
+export const LISTAS_NOME_MAIUSCULO: readonly ListaCadastro[] = ["medicamentos"];
 
 /** Listas que guardam a chave PIX (dado financeiro: ver shared/utils/cadastroPix.ts). */
 export const LISTAS_COM_PIX: readonly ListaCadastro[] = ["despachantes", "transportadoras"];
@@ -22,6 +32,7 @@ export const LISTA_CADASTRO_ROTULO: Record<ListaCadastro, string> = {
   "cias-aereas": "Cias aéreas",
   consultores: "Consultores",
   temperaturas: "Temperaturas",
+  medicamentos: "Medicamentos",
 };
 
 /** Textos de UM item da lista, já com o gênero certo (títulos do painel e aviso de criado). */
@@ -62,6 +73,11 @@ export const LISTA_CADASTRO_TEXTOS: Record<ListaCadastro, TextosItemCadastro> = 
     tituloEditar: "Editar temperatura",
     criado: "Temperatura criada.",
   },
+  medicamentos: {
+    tituloNovo: "Novo medicamento",
+    tituloEditar: "Editar medicamento",
+    criado: "Medicamento criado.",
+  },
 };
 
 /**
@@ -75,6 +91,7 @@ export const TABELA_CADASTRO: Record<ListaCadastro, string> = {
   "cias-aereas": "cadastro_cias_aereas",
   consultores: "cadastro_consultores",
   temperaturas: "cadastro_temperaturas",
+  medicamentos: "cadastro_medicamentos",
 };
 
 // "Outro" é o sentinela dos selects das telas (digitar um valor fora da lista), não um item: o nome é reservado.

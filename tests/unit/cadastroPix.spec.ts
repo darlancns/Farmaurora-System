@@ -58,10 +58,19 @@ describe("listas com PIX", () => {
     expect(listaTemPix("cias-aereas")).toBe(false);
     expect(listaTemPix("consultores")).toBe(false);
     expect(listaTemPix("temperaturas")).toBe(false);
+    expect(listaTemPix("medicamentos")).toBe(false);
   });
 
   it("as listas, na ordem da tela", () => {
-    expect([...LISTAS_CADASTRO]).toEqual(["fornecedores", "despachantes", "transportadoras", "cias-aereas", "consultores", "temperaturas"]);
+    expect([...LISTAS_CADASTRO]).toEqual([
+      "fornecedores",
+      "despachantes",
+      "transportadoras",
+      "cias-aereas",
+      "consultores",
+      "temperaturas",
+      "medicamentos",
+    ]);
   });
 });
 
@@ -120,13 +129,14 @@ describe("validação da chave PIX (despachantes e transportadoras)", () => {
     expect(validarPatchCadastro("transportadoras", { chavePix: "  " })).toEqual({ ok: true, valor: { chavePix: "" } });
   });
 
-  it("fornecedores, cias aéreas e temperaturas NÃO aceitam chavePix (campo desconhecido, sem repetir o valor)", () => {
+  it("fornecedores, cias aéreas, temperaturas e medicamentos NÃO aceitam chavePix (campo desconhecido, sem repetir o valor)", () => {
     const corpos = {
       fornecedores: { nome: "N", prazoAlertaDias: 3, semAlerta: false, chavePix: PIX },
       "cias-aereas": { nome: "N", chavePix: PIX },
       temperaturas: { nome: "N", chavePix: PIX },
+      medicamentos: { nome: "N", temperatura: "T", chavePix: PIX },
     } as const;
-    for (const lista of ["fornecedores", "cias-aereas", "temperaturas"] as const) {
+    for (const lista of ["fornecedores", "cias-aereas", "temperaturas", "medicamentos"] as const) {
       const novo = validarNovoCadastro(lista, corpos[lista]);
       expect(novo.ok, lista).toBe(false);
       expect(erroDe(novo)).toMatch(/Campo desconhecido: chavePix/);
@@ -202,7 +212,7 @@ describe("mapeadores: a chave PIX só existe no resultado quando pedida", () => 
   });
 
   it("nenhuma lista fora de despachantes/transportadoras escreve chave_pix", () => {
-    const todas: ListaCadastro[] = ["fornecedores", "cias-aereas", "temperaturas"];
+    const todas: ListaCadastro[] = ["fornecedores", "cias-aereas", "temperaturas", "medicamentos"];
     for (const l of todas) {
       expect(JSON.stringify(colunasNovoCadastro(l, { nome: "N", prazoAlertaDias: 3, semAlerta: false } as never)), l).not.toContain("chave_pix");
     }

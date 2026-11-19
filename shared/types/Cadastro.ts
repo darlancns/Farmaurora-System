@@ -1,5 +1,5 @@
 // Cadastros (Configurações → Cadastros): listas editáveis só pelo administrador (fornecedores, despachantes,
-// transportadoras, cias aéreas, consultores e temperaturas).
+// transportadoras, cias aéreas, consultores, temperaturas e medicamentos).
 //
 // Convenção (a mesma da DIR): no modelo, texto vazio é "" (nunca undefined); no banco é NULL.
 // "Remover" é desativar (`ativo: false`) — não existe exclusão. O NOME não muda depois de criado.
@@ -10,7 +10,8 @@ export type ListaCadastro =
   | "transportadoras"
   | "cias-aereas"
   | "consultores"
-  | "temperaturas";
+  | "temperaturas"
+  | "medicamentos";
 
 interface CadastroBase {
   id: string;
@@ -66,6 +67,16 @@ export type Consultor = CadastroBase;
  */
 export type TemperaturaCadastro = CadastroBase;
 
+/**
+ * Medicamento do Cadastro (base da futura página de Compras): nome SEMPRE em MAIÚSCULAS e a temperatura, que é uma CÓPIA do texto do nome
+ * de uma temperatura ATIVA do Cadastro de Temperaturas (texto, sem chave estrangeira: renomear a temperatura é proibido justamente por isso).
+ * O nome pode ser RENOMEADO pelo administrador; nada é propagado (a Compra, no futuro, também guarda cópia).
+ * Chama-se MedicamentoCadastro porque `Medicamento` já é o item de um processo do Follow-Up (shared/types/processo.ts).
+ */
+export interface MedicamentoCadastro extends CadastroBase {
+  temperatura: string;
+}
+
 /** Uma conta de login que não foi atualizada no renomear (a tela lista e permite tentar de novo). */
 export interface ContaNaoAtualizada {
   id: string;
@@ -106,6 +117,7 @@ export interface CadastroPorLista {
   "cias-aereas": CiaAerea;
   consultores: Consultor;
   temperaturas: TemperaturaCadastro;
+  medicamentos: MedicamentoCadastro;
 }
 
 export type Cadastro = CadastroPorLista[ListaCadastro];
@@ -147,6 +159,13 @@ export interface NovaTemperaturaDTO {
   nome: string;
 }
 
+export interface NovoMedicamentoDTO {
+  /** Gravado em MAIÚSCULAS. */
+  nome: string;
+  /** Nome de uma temperatura ATIVA do Cadastro de Temperaturas. */
+  temperatura: string;
+}
+
 export interface NovoPorLista {
   fornecedores: NovoFornecedorDTO;
   despachantes: NovoDespachanteDTO;
@@ -154,6 +173,7 @@ export interface NovoPorLista {
   "cias-aereas": NovaCiaAereaDTO;
   consultores: NovoConsultorDTO;
   temperaturas: NovaTemperaturaDTO;
+  medicamentos: NovoMedicamentoDTO;
 }
 
 /**
@@ -200,6 +220,14 @@ export interface TemperaturaPatchDTO {
   ativo?: boolean;
 }
 
+export interface MedicamentoPatchDTO {
+  /** Renomear (só o administrador, como toda escrita dos Cadastros). Gravado em MAIÚSCULAS. */
+  nome?: string;
+  /** Outra temperatura ATIVA do Cadastro de Temperaturas. */
+  temperatura?: string;
+  ativo?: boolean;
+}
+
 export interface PatchPorLista {
   fornecedores: FornecedorPatchDTO;
   despachantes: DespachantePatchDTO;
@@ -207,4 +235,5 @@ export interface PatchPorLista {
   "cias-aereas": CiaAereaPatchDTO;
   consultores: ConsultorPatchDTO;
   temperaturas: TemperaturaPatchDTO;
+  medicamentos: MedicamentoPatchDTO;
 }
