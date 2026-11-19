@@ -5,6 +5,7 @@ import type { GrupoPagamento } from "#shared/types/Pagamento";
 import { EMPRESA_PAGAMENTO_LABEL } from "#shared/constants/pagamentos";
 import { formatCurrency } from "../../../utils/formatters";
 import { EMPRESA_EXPORT_HEADER_CLASS } from "../../../utils/pagamentoExport";
+import { fontePixCss, pixEmLinhaPropria } from "../../../utils/pixExport";
 
 const props = defineProps<{
   grupo: GrupoPagamento;
@@ -17,6 +18,12 @@ const props = defineProps<{
 const total = computed<number>(() => props.grupo.itens.reduce((soma, i) => soma + i.valor, 0));
 
 const dataLabel = computed<string>(() => formatarDataBR(dataBrasiliaDe(props.dataExibicao)));
+
+// Chave PIX sempre em uma linha: fonte reduzida por largura (mín. 10px); chaves muito
+// longas ocupam a linha inteira acima do TOTAL. Regras em utils/pixExport.ts.
+const tamanhoPix = computed<number>(() => (props.grupo.chavePix ?? "").length);
+const fontePix = computed<string>(() => fontePixCss(tamanhoPix.value));
+const pixEmLinha = computed<boolean>(() => pixEmLinhaPropria(tamanhoPix.value));
 
 const nOrdensLabel = computed<string>(() =>
   props.grupo.itens.length === 1 ? "1 pagamento" : `${props.grupo.itens.length} pagamentos`
@@ -58,12 +65,18 @@ const nOrdensLabel = computed<string>(() =>
       </li>
     </ul>
 
-    <div class="flex items-end justify-between gap-4 border-t-2 border-hairline px-5 py-3.5">
-      <span v-if="grupo.chavePix" class="min-w-0 text-[11.5px] text-ink-soft">
-        PIX<br /><span class="font-mono text-[13px] break-all text-ink">{{ grupo.chavePix }}</span>
+    <div class="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-t-2 border-hairline px-5 py-3.5">
+      <!-- Coluna do PIX: largura própria (flex-1 + basis-0), então o container query (@container)
+           mede o espaço real e a fonte encolhe até caber — sem quebrar a chave em duas linhas. -->
+      <span
+        v-if="grupo.chavePix"
+        :class="pixEmLinha ? 'basis-full' : 'basis-0'"
+        class="@container min-w-0 flex-1 text-[11.5px] text-ink-soft"
+      >
+        PIX<br /><span class="block font-mono whitespace-nowrap text-ink" :style="{ fontSize: fontePix }">{{ grupo.chavePix }}</span>
       </span>
       <span v-else aria-hidden="true"></span>
-      <span class="shrink-0 text-right">
+      <span class="ml-auto shrink-0 text-right">
         <span class="block whitespace-nowrap text-[12px] text-ink-soft">TOTAL</span>
         <span class="block whitespace-nowrap font-display text-[20px] font-semibold text-ink">R$ {{ formatCurrency(total) }}</span>
       </span>
