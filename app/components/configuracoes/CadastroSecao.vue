@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { Cadastro, ListaCadastro } from "#shared/types/Cadastro";
-import { LISTA_CADASTRO_ROTULO, ROTULO_INATIVO_CADASTRO } from "#shared/constants/cadastros";
-import { colunasDaLista, linhaSecundaria, textoContagem, textoEncontrados } from "../../utils/cadastroColunas";
+import { CADASTRO_TAMANHO_PAGINA, LISTA_CADASTRO_ROTULO, ROTULO_INATIVO_CADASTRO } from "#shared/constants/cadastros";
+import { colunasDaLista, linhaSecundaria, paginaDaLista, textoContagem, textoEncontrados, textoMostrarMais } from "../../utils/cadastroColunas";
 import CadastroSwitch from "./CadastroSwitch.vue";
 
 // UMA seção RECOLHÍVEL de Cadastros (Fornecedores, Despachantes, Transportadoras, Cias aéreas ou Consultores). Fechada por padrão: o
@@ -16,8 +16,13 @@ import CadastroSwitch from "./CadastroSwitch.vue";
 // volta do foco ao fechar o painel); clicar em qualquer lugar da linha também abre o painel.
 //
 // A coluna PIX diz só "Cadastrada" ou "—" (nunca a chave) e só aparece para quem recebe o campo (`podeVerPix`).
+//
+// LINHAS SÓ COM A SEÇÃO ABERTA e em páginas: o corpo (`#cadastro-corpo-*`, alvo do aria-controls) fica sempre no DOM, mas o que há
+// dentro dele — tabela, lista do celular e "Mostrar mais" — só é desenhado enquanto a seção está aberta, e só os primeiros `limite`
+// itens (50 por vez; "Mostrar mais (N de M)" soma outra página). Antes todos os itens ficavam no DOM, escondidos, e os medicamentos
+// já passam de 400 (cada item é uma linha da tabela E um item do celular). A contagem do cabeçalho segue sendo a da lista inteira.
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   lista: ListaCadastro;
   /** Todos os itens da lista (para a contagem). */
   itens: Cadastro[];
@@ -31,13 +36,16 @@ const props = defineProps<{
   podeVerPix: boolean;
   /** Valor pedido e ainda não confirmado de cada chave Ativo (`lista:id` → ligado), para a chave responder na hora. */
   pendentes: Record<string, boolean>;
-}>();
+  /** Quantos itens desenhar agora (a página atual, múltiplo de CADASTRO_TAMANHO_PAGINA); quem manda é o pai. */
+  limite?: number;
+}>(), { limite: CADASTRO_TAMANHO_PAGINA });
 
 const emit = defineEmits<{
   alternar: [];
   adicionar: [];
   abrir: [item: Cadastro];
   ativo: [item: Cadastro, valor: boolean];
+  mostrarMais: [];
 }>();
 
 const rotulo = computed(() => LISTA_CADASTRO_ROTULO[props.lista]);
@@ -46,6 +54,7 @@ const colunas = computed(() => colunasDaLista(props.lista, props.podeVerPix));
 const totalColunas = computed(() => colunas.value.length + 2);
 const primeiraCarga = computed(() => props.carregando && props.itens.length === 0);
 const contagem = computed(() => (props.buscaAtiva ? textoEncontrados(props.visiveis.length) : textoContagem(props.itens)));
+const pagina = computed(() => paginaDaLista(props.visiveis, props.limite));
 const semItens = computed(() => !props.carregando && props.visiveis.length === 0);
 const textoVazio = computed(() => (props.buscaAtiva ? "Nenhum item encontrado." : "Nenhum item cadastrado."));
 
@@ -116,94 +125,107 @@ const rotuloSwitch = (item: Cadastro): string => `Ativo: ${item.nome}`;
     <!-- Corpo: sempre no DOM (aria-controls aponta para ele); `hidden` quando fechado. @container: a partir de 700px de
          largura da própria seção aparece a tabela; abaixo, a lista de itens de duas linhas (cabe em 360px). -->
     <div :id="`cadastro-corpo-${lista}`" :hidden="!aberta" class="@container border-t border-hairline">
-      <table :id="`cadastro-lista-${lista}`" class="hidden w-full text-left text-[13px] @[700px]:table">
-        <thead class="border-b border-hairline bg-paper text-[11px] tracking-wide text-ink-soft uppercase">
-          <tr>
-            <th class="px-3.5 py-2 font-semibold">Nome</th>
-            <th v-for="coluna in colunas" :key="coluna.chave" class="px-3.5 py-2 font-semibold">{{ coluna.titulo }}</th>
-            <th class="w-20 px-3.5 py-2 text-right font-semibold">Ativo</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="primeiraCarga">
-            <td :colspan="totalColunas" class="px-3.5 py-5 text-center text-ink-soft">Carregando…</td>
-          </tr>
-          <tr v-else-if="semItens">
-            <td :colspan="totalColunas" class="px-3.5 py-5 text-center text-ink-soft">{{ textoVazio }}</td>
-          </tr>
-          <tr
-            v-for="item in visiveis"
-            :id="`cadastro-row-${lista}-${item.id}`"
+      <template v-if="aberta">
+        <table :id="`cadastro-lista-${lista}`" class="hidden w-full text-left text-[13px] @[700px]:table">
+          <thead class="border-b border-hairline bg-paper text-[11px] tracking-wide text-ink-soft uppercase">
+            <tr>
+              <th class="px-3.5 py-2 font-semibold">Nome</th>
+              <th v-for="coluna in colunas" :key="coluna.chave" class="px-3.5 py-2 font-semibold">{{ coluna.titulo }}</th>
+              <th class="w-20 px-3.5 py-2 text-right font-semibold">Ativo</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="primeiraCarga">
+              <td :colspan="totalColunas" class="px-3.5 py-5 text-center text-ink-soft">Carregando…</td>
+            </tr>
+            <tr v-else-if="semItens">
+              <td :colspan="totalColunas" class="px-3.5 py-5 text-center text-ink-soft">{{ textoVazio }}</td>
+            </tr>
+            <tr
+              v-for="item in pagina.itens"
+              :id="`cadastro-row-${lista}-${item.id}`"
+              :key="item.id"
+              class="border-b border-hairline last:border-b-0"
+              :class="podeEditar ? 'cursor-pointer hover:bg-paper' : ''"
+              @click="podeEditar && emit('abrir', item)"
+            >
+              <td class="px-3.5 py-1.5" :class="item.ativo ? '' : 'opacity-60'">
+                <button
+                  v-if="podeEditar"
+                  :id="`cadastro-abrir-${lista}-${item.id}`"
+                  type="button"
+                  class="cursor-pointer rounded-sm text-left font-medium break-words text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-dark"
+                >
+                  {{ item.nome }}
+                </button>
+                <span v-else class="font-medium text-ink">{{ item.nome }}</span>
+                <span v-if="!item.ativo" class="ml-1 text-[11.5px] font-normal text-ink-soft">{{ ROTULO_INATIVO_CADASTRO }}</span>
+              </td>
+              <td v-for="coluna in colunas" :key="coluna.chave" class="px-3.5 py-1.5" :class="item.ativo ? '' : 'opacity-60'">
+                {{ coluna.texto(item) }}
+              </td>
+              <td class="px-3.5 py-0.5 text-right">
+                <CadastroSwitch
+                  v-if="podeEditar"
+                  :id="`cadastro-switch-${lista}-${item.id}`"
+                  :model-value="valorAtivo(item)"
+                  :label="rotuloSwitch(item)"
+                  @alternar="emit('ativo', item, $event)"
+                />
+                <span v-else class="text-[11.5px] text-ink-soft">{{ item.ativo ? "Ativo" : "Inativo" }}</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <ul class="flex flex-col @[700px]:hidden">
+          <li v-if="primeiraCarga" class="px-3.5 py-5 text-center text-[13px] text-ink-soft">Carregando…</li>
+          <li v-else-if="semItens" class="px-3.5 py-5 text-center text-[13px] text-ink-soft">{{ textoVazio }}</li>
+          <li
+            v-for="item in pagina.itens"
+            :id="`cadastro-card-${lista}-${item.id}`"
             :key="item.id"
-            class="border-b border-hairline last:border-b-0"
-            :class="podeEditar ? 'cursor-pointer hover:bg-paper' : ''"
+            class="flex items-center justify-between gap-2 border-b border-hairline px-3.5 py-1.5 last:border-b-0"
+            :class="podeEditar ? 'cursor-pointer active:bg-paper' : ''"
             @click="podeEditar && emit('abrir', item)"
           >
-            <td class="px-3.5 py-1.5" :class="item.ativo ? '' : 'opacity-60'">
+            <div class="min-w-0 py-1" :class="item.ativo ? '' : 'opacity-60'">
               <button
                 v-if="podeEditar"
-                :id="`cadastro-abrir-${lista}-${item.id}`"
+                :id="`cadastro-abrir-card-${lista}-${item.id}`"
                 type="button"
-                class="cursor-pointer rounded-sm text-left font-medium break-words text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-dark"
+                class="block max-w-full cursor-pointer rounded-sm text-left text-[13.5px] font-medium break-words text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-dark"
               >
                 {{ item.nome }}
               </button>
-              <span v-else class="font-medium text-ink">{{ item.nome }}</span>
-              <span v-if="!item.ativo" class="ml-1 text-[11.5px] font-normal text-ink-soft">{{ ROTULO_INATIVO_CADASTRO }}</span>
-            </td>
-            <td v-for="coluna in colunas" :key="coluna.chave" class="px-3.5 py-1.5" :class="item.ativo ? '' : 'opacity-60'">
-              {{ coluna.texto(item) }}
-            </td>
-            <td class="px-3.5 py-0.5 text-right">
-              <CadastroSwitch
-                v-if="podeEditar"
-                :id="`cadastro-switch-${lista}-${item.id}`"
-                :model-value="valorAtivo(item)"
-                :label="rotuloSwitch(item)"
-                @alternar="emit('ativo', item, $event)"
-              />
-              <span v-else class="text-[11.5px] text-ink-soft">{{ item.ativo ? "Ativo" : "Inativo" }}</span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      <ul class="flex flex-col @[700px]:hidden">
-        <li v-if="primeiraCarga" class="px-3.5 py-5 text-center text-[13px] text-ink-soft">Carregando…</li>
-        <li v-else-if="semItens" class="px-3.5 py-5 text-center text-[13px] text-ink-soft">{{ textoVazio }}</li>
-        <li
-          v-for="item in visiveis"
-          :id="`cadastro-card-${lista}-${item.id}`"
-          :key="item.id"
-          class="flex items-center justify-between gap-2 border-b border-hairline px-3.5 py-1.5 last:border-b-0"
-          :class="podeEditar ? 'cursor-pointer active:bg-paper' : ''"
-          @click="podeEditar && emit('abrir', item)"
-        >
-          <div class="min-w-0 py-1" :class="item.ativo ? '' : 'opacity-60'">
-            <button
+              <p v-else class="text-[13.5px] font-medium break-words text-ink">{{ item.nome }}</p>
+              <p v-if="!item.ativo || linhaSecundaria(lista, item, podeVerPix)" class="text-[12px] break-words text-ink-soft">
+                {{ linhaSecundaria(lista, item, podeVerPix) }}
+                <span v-if="!item.ativo">{{ ROTULO_INATIVO_CADASTRO }}</span>
+              </p>
+            </div>
+            <CadastroSwitch
               v-if="podeEditar"
-              :id="`cadastro-abrir-card-${lista}-${item.id}`"
-              type="button"
-              class="block max-w-full cursor-pointer rounded-sm text-left text-[13.5px] font-medium break-words text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-dark"
-            >
-              {{ item.nome }}
-            </button>
-            <p v-else class="text-[13.5px] font-medium break-words text-ink">{{ item.nome }}</p>
-            <p v-if="!item.ativo || linhaSecundaria(lista, item, podeVerPix)" class="text-[12px] break-words text-ink-soft">
-              {{ linhaSecundaria(lista, item, podeVerPix) }}
-              <span v-if="!item.ativo">{{ ROTULO_INATIVO_CADASTRO }}</span>
-            </p>
-          </div>
-          <CadastroSwitch
-            v-if="podeEditar"
-            :id="`cadastro-switch-card-${lista}-${item.id}`"
-            :model-value="valorAtivo(item)"
-            :label="rotuloSwitch(item)"
-            @alternar="emit('ativo', item, $event)"
-          />
-          <span v-else class="shrink-0 text-[11.5px] text-ink-soft">{{ item.ativo ? "Ativo" : "Inativo" }}</span>
-        </li>
-      </ul>
+              :id="`cadastro-switch-card-${lista}-${item.id}`"
+              :model-value="valorAtivo(item)"
+              :label="rotuloSwitch(item)"
+              @alternar="emit('ativo', item, $event)"
+            />
+            <span v-else class="shrink-0 text-[11.5px] text-ink-soft">{{ item.ativo ? "Ativo" : "Inativo" }}</span>
+          </li>
+        </ul>
+
+        <div v-if="pagina.restantes > 0" class="flex justify-center border-t border-hairline px-3.5 py-3">
+          <button
+            :id="`btn-mostrar-mais-${lista}`"
+            type="button"
+            class="min-h-11 rounded-lg border border-hairline bg-paper-raised px-5 py-2 text-[13.5px] font-semibold text-accent-dark transition-colors hover:bg-paper lg:min-h-0"
+            @click="emit('mostrarMais')"
+          >
+            {{ textoMostrarMais(pagina.restantes) }}
+          </button>
+        </div>
+      </template>
     </div>
   </section>
 </template>

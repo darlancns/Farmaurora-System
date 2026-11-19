@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from "vue";
-import { LISTA_CADASTRO_TEXTOS, LISTAS_CADASTRO } from "#shared/constants/cadastros";
+import { CADASTRO_TAMANHO_PAGINA, LISTA_CADASTRO_TEXTOS, LISTAS_CADASTRO } from "#shared/constants/cadastros";
 import type {
   Cadastro,
   ConsultorAtualizado,
@@ -15,7 +15,7 @@ import { podeVerPixCadastro } from "#shared/utils/cadastroPix";
 import { useAuth } from "../../composables/useAuth";
 import { useCadastros } from "../../composables/useCadastros";
 import { useToast } from "../../composables/useToast";
-import { filtrarPorNome } from "../../utils/cadastroColunas";
+import { filtrarPorNome, limiteParaMostrar } from "../../utils/cadastroColunas";
 import { mensagemConfirmarRenomear, mensagemContasNaoAtualizadas } from "../../utils/cadastroConsultor";
 import { getErrorMessage } from "../../utils/errorMessages";
 import ConfirmDialog from "../ConfirmDialog.vue";
@@ -29,6 +29,10 @@ import CadastroSecao from "./CadastroSecao.vue";
 // abre o mesmo painel vazio. A chave "Ativo" da linha aplica na hora ("Desativado. Desfazer" / "Reativado."), sem
 // confirmação. Remover = DESATIVAR (nunca apagar); o nome não muda depois de criado. Quem escreve é só o administrador
 // (canWrite("config"), a mesma regra do servidor); a autorização real está na API.
+//
+// Linhas só com a seção aberta e em páginas de 50 ("Mostrar mais (N de M)", em CadastroSecao.vue): cada seção tem o seu `limite`
+// (quantos itens desenhar). Ele volta a 50 quando a busca muda, quando a seção fecha e de volta ao abrir; depois de criar, renomear ou
+// reativar, cresce o suficiente para o item aparecer (a ordem é alfabética e ele pode cair além da primeira página).
 //
 // Chave PIX (dado financeiro): o painel só mostra o campo, e a tabela só a coluna "Cadastrada/—", para quem a API entrega
 // (administrador ou quem lê Pagamentos: podeVerPixCadastro, a mesma função do servidor). A chave nunca vai para toast.
@@ -64,6 +68,29 @@ const visiveis = computed(() => {
   return mapa;
 });
 
+// Quantos itens cada seção desenha agora.
+const limites = reactive<Record<ListaCadastro, number>>(
+  Object.fromEntries(LISTAS_CADASTRO.map((l) => [l, CADASTRO_TAMANHO_PAGINA])) as Record<ListaCadastro, number>,
+);
+
+function voltarAPrimeiraPagina(lista?: ListaCadastro): void {
+  for (const l of lista ? [lista] : LISTAS_CADASTRO) limites[l] = CADASTRO_TAMANHO_PAGINA;
+}
+
+function mostrarMais(lista: ListaCadastro): void {
+  limites[lista] += CADASTRO_TAMANHO_PAGINA;
+}
+
+// Garante que o item `id` (já na lista, depois de criar/renomear/reativar) esteja entre os desenhados.
+function mostrarItem(lista: ListaCadastro, id: string): void {
+  void nextTick(() => {
+    limites[lista] = limiteParaMostrar(
+      visiveis.value[lista].findIndex((i) => i.id === id),
+      limites[lista],
+    );
+  });
+}
+
 function secaoAberta(lista: ListaCadastro): boolean {
   if (buscaAtiva.value) return visiveis.value[lista].length > 0 && !fechadasNaBusca.has(lista);
   return abertas.has(lista);
@@ -72,21 +99,31 @@ function secaoAberta(lista: ListaCadastro): boolean {
 function alternarSecao(lista: ListaCadastro): void {
   if (buscaAtiva.value) {
     if (visiveis.value[lista].length === 0) return; // sem resultado, não há o que abrir
-    if (fechadasNaBusca.has(lista)) fechadasNaBusca.delete(lista);
-    else fechadasNaBusca.add(lista);
+    if (fechadasNaBusca.has(lista)) {
+      fechadasNaBusca.delete(lista);
+    } else {
+      fechadasNaBusca.add(lista);
+      voltarAPrimeiraPagina(lista);
+    }
     return;
   }
-  if (abertas.has(lista)) abertas.delete(lista);
-  else abertas.add(lista);
+  if (abertas.has(lista)) {
+    abertas.delete(lista);
+    voltarAPrimeiraPagina(lista);
+  } else {
+    abertas.add(lista);
+  }
 }
 
 function digitarBusca(): void {
   fechadasNaBusca.clear();
+  voltarAPrimeiraPagina();
 }
 
 function limparBusca(): void {
   busca.value = "";
   fechadasNaBusca.clear();
+  voltarAPrimeiraPagina();
   void nextTick(() => document.getElementById("cadastros-busca")?.focus());
 }
 
@@ -157,17 +194,19 @@ async function executar(acao: () => Promise<void>, sucesso: string, falha: strin
 async function handleCriar(payload: NovoPorLista[ListaCadastro]): Promise<void> {
   const lista = painelLista.value;
   if (!lista) return;
+  let criadoId = "";
   const ok = await executar(
     async () => {
-      await criar(lista, payload);
+      criadoId = (await criar(lista, payload)).id;
     },
     LISTA_CADASTRO_TEXTOS[lista].criado,
     "Erro ao criar o item.",
   );
   if (ok) {
-    // O item novo aparece: abre a seção (e, se havia busca, ela deixa de esconder a seção).
+    // O item novo aparece: abre a seção (e, se havia busca, ela deixa de esconder a seção) já na página dele.
     abertas.add(lista);
     fechadasNaBusca.delete(lista);
+    mostrarItem(lista, criadoId);
     fecharPainel();
   }
 }
@@ -187,7 +226,10 @@ async function handleAtualizar(id: string, patch: PatchPorLista[ListaCadastro]):
     "Alterações salvas.",
     "Erro ao salvar as alterações.",
   );
-  if (ok) fecharPainel();
+  if (ok) {
+    mostrarItem(lista, id); // renomear (medicamento) muda a posição na ordem alfabética
+    fecharPainel();
+  }
 }
 
 // ── Renomear consultor: confirmação com contagens e contas de login que não foram atualizadas ───────────────────────
@@ -246,6 +288,7 @@ async function confirmarRenomear(): Promise<void> {
     };
   }
   abertas.add("consultores");
+  mostrarItem("consultores", resultado.id);
   fecharPainel();
 }
 
@@ -281,6 +324,7 @@ async function reativarDoPainel(item: Cadastro): Promise<void> {
   );
   if (ok) {
     abertas.add(lista);
+    mostrarItem(lista, item.id);
     fecharPainel();
   }
 }
@@ -436,7 +480,9 @@ async function desfazerDesativacao(): Promise<void> {
       :pode-editar="podeEditar"
       :pode-ver-pix="podeVerPix"
       :pendentes="pendentes"
+      :limite="limites[lista]"
       @alternar="alternarSecao(lista)"
+      @mostrar-mais="mostrarMais(lista)"
       @adicionar="abrirNovo(lista)"
       @abrir="abrirItem(lista, $event)"
       @ativo="(item, valor) => alternarAtivo(lista, item, valor)"

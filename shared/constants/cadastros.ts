@@ -100,6 +100,9 @@ export const NOME_RESERVADO_CADASTRO = "Outro";
 // Sufixo do rótulo de um item desativado ("Speciality (inativo)"), o mesmo texto que as telas já usam.
 export const ROTULO_INATIVO_CADASTRO = "(inativo)";
 
+/** Itens que cada seção da tela mostra por vez ("Mostrar mais" soma outra página). Os medicamentos já passam de 400. */
+export const CADASTRO_TAMANHO_PAGINA = 50;
+
 export const NOME_CADASTRO_MAX = 120;
 export const PAIS_CADASTRO_MAX = 60;
 export const CONTATO_CADASTRO_MAX = 120;

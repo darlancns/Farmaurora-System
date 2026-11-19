@@ -940,3 +940,106 @@ describe("CadastrosTab — Temperaturas e Medicamentos (6ª e 7ª listas)", () =
     expect(gravacoes()).toEqual([{ metodo: "PATCH", url: "/api/cadastros/temperaturas/p1", corpo: { ativo: false } }]);
   });
 });
+
+describe("CadastrosTab — 414 medicamentos: linhas só com a seção aberta e 'Mostrar mais' de 50 em 50", () => {
+  const nomeMed = (n: number) => `MED ${String(n).padStart(3, "0")}`;
+  const quatrocentosEQuatorze = (): Cadastro[] =>
+    Array.from({ length: 414 }, (_, i) => ({ ...BASE, id: `med_${i + 1}`, nome: nomeMed(i + 1), temperatura: "2°C - 8°C" }) as unknown as Cadastro);
+
+  async function montarComMedicamentos(): Promise<void> {
+    await montar();
+    const estado = useState<Record<string, Cadastro[]>>("cadastros");
+    estado.value = { ...estado.value, medicamentos: quatrocentosEQuatorze() };
+    await assentar();
+  }
+  const linhasTabela = () => document.querySelectorAll("#cadastro-lista-medicamentos tbody tr").length;
+  const itensCelular = () => document.querySelectorAll("#cadastro-corpo-medicamentos ul > li").length;
+  const botaoMais = () => q<HTMLButtonElement>("#btn-mostrar-mais-medicamentos");
+
+  it("fechada: NENHUMA linha de nenhuma lista no DOM (nem escondida), mas o corpo do aria-controls existe e a contagem é a da lista inteira", async () => {
+    await montarComMedicamentos();
+    expect(texto(q("#cadastro-contagem-medicamentos"))).toBe("414 · 414 ativos");
+    expect(q("#btn-secao-medicamentos")!.getAttribute("aria-controls")).toBe("cadastro-corpo-medicamentos");
+    expect(q<HTMLElement>("#cadastro-corpo-medicamentos")!.hasAttribute("hidden")).toBe(true);
+    expect(document.querySelectorAll("[id^='cadastro-row-'], [id^='cadastro-card-']")).toHaveLength(0);
+    expect(q("#cadastro-lista-medicamentos")).toBeNull();
+    expect(botaoMais()).toBeNull();
+  });
+
+  it("aberta: só 50 linhas na tabela e 50 itens do celular, e o botão 'Mostrar mais (50 de 364)'", async () => {
+    await montarComMedicamentos();
+    await clicar("#btn-secao-medicamentos");
+    expect(linhasTabela()).toBe(50);
+    expect(itensCelular()).toBe(50);
+    expect(texto(botaoMais())).toBe("Mostrar mais (50 de 364)");
+    expect(q("#cadastro-row-medicamentos-med_1")).not.toBeNull();
+    expect(q("#cadastro-row-medicamentos-med_51")).toBeNull();
+    expect(texto(q("#cadastro-contagem-medicamentos"))).toBe("414 · 414 ativos");
+  });
+
+  it("'Mostrar mais' soma 50 por vez até o fim (a última página diz '14 de 14') e some quando acaba", async () => {
+    await montarComMedicamentos();
+    await clicar("#btn-secao-medicamentos");
+    await clicar("#btn-mostrar-mais-medicamentos");
+    expect(linhasTabela()).toBe(100);
+    expect(texto(botaoMais())).toBe("Mostrar mais (50 de 314)");
+    for (let i = 0; i < 6; i++) await clicar("#btn-mostrar-mais-medicamentos"); // 150, 200, 250, 300, 350, 400
+    expect(linhasTabela()).toBe(400);
+    expect(texto(botaoMais())).toBe("Mostrar mais (14 de 14)");
+    await clicar("#btn-mostrar-mais-medicamentos");
+    expect(linhasTabela()).toBe(414);
+    expect(itensCelular()).toBe(414);
+    expect(botaoMais()).toBeNull();
+  });
+
+  it("fechar e abrir de novo volta aos 50 primeiros", async () => {
+    await montarComMedicamentos();
+    await clicar("#btn-secao-medicamentos");
+    await clicar("#btn-mostrar-mais-medicamentos");
+    expect(linhasTabela()).toBe(100);
+    await clicar("#btn-secao-medicamentos");
+    expect(linhasTabela()).toBe(0);
+    await clicar("#btn-secao-medicamentos");
+    expect(linhasTabela()).toBe(50);
+  });
+
+  it("a busca filtra os 414 pelo nome, mostra só os 50 primeiros do resultado e voltar a digitar reinicia a página", async () => {
+    await montarComMedicamentos();
+    await digitar("#cadastros-busca", "med 1"); // casa MED 100 a MED 199 (100 itens)
+    expect(aberta("medicamentos")).toBe(true);
+    const total = quatrocentosEQuatorze().filter((m) => m.nome.toLowerCase().includes("med 1")).length;
+    expect(texto(q("#cadastro-contagem-medicamentos"))).toBe(`${total} encontrados`);
+    expect(linhasTabela()).toBe(50);
+    expect(texto(botaoMais())).toBe(`Mostrar mais (50 de ${total - 50})`);
+
+    await clicar("#btn-mostrar-mais-medicamentos");
+    expect(linhasTabela()).toBe(100);
+    await digitar("#cadastros-busca", "med 10"); // 10 itens: MED 100-109
+    expect(texto(q("#cadastro-contagem-medicamentos"))).toBe("10 encontrados");
+    expect(linhasTabela()).toBe(10);
+    expect(botaoMais()).toBeNull();
+
+    await digitar("#cadastros-busca", "med 1");
+    expect(linhasTabela()).toBe(50); // a página voltou a 50 (não ficou nos 100 de antes)
+  });
+
+  it("criar um medicamento que cai DEPOIS da primeira página: a lista cresce até ele aparecer", async () => {
+    await montarComMedicamentos();
+    await clicar("#btn-adicionar-cadastro-medicamentos");
+    await digitar("#cadastro-form-nome", "zzz teste");
+    // As temperaturas vêm do estado compartilhado; a do estado inicial é "2°C - 8°C".
+    q<HTMLButtonElement>("#cadastro-form-temperatura")!.click();
+    await assentar();
+    [...document.querySelectorAll<HTMLElement>("#cadastro-form-temperatura-listbox [role='option']")]
+      .find((li) => texto(li) === "2°C - 8°C")!
+      .dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    await assentar();
+    await salvar();
+    expect(gravacoes()).toHaveLength(1);
+    const novo = document.querySelector("[id^='cadastro-row-medicamentos-novo_']");
+    expect(novo, "o item novo está entre as linhas desenhadas").not.toBeNull();
+    expect(texto(novo)).toContain("ZZZ TESTE");
+    expect(linhasTabela()).toBe(415);
+    expect(botaoMais()).toBeNull();
+  });
+});

@@ -1,4 +1,5 @@
 import type { Cadastro, Despachante, Fornecedor, ListaCadastro, MedicamentoCadastro } from "#shared/types/Cadastro";
+import { CADASTRO_TAMANHO_PAGINA } from "#shared/constants/cadastros";
 import { chaveCadastro } from "#shared/utils/cadastroNome";
 
 // Colunas, contagem, busca e linha de resumo de cada lista na aba Cadastros. Funções PURAS (testadas em
@@ -99,6 +100,29 @@ export function textoContagem(itens: readonly Pick<Cadastro, "ativo">[]): string
 /** Com busca ativa: "2 encontrados" (ou "1 encontrado", "0 encontrados"). */
 export function textoEncontrados(quantidade: number): string {
   return `${quantidade} ${quantidade === 1 ? "encontrado" : "encontrados"}`;
+}
+
+/**
+ * "Mostrar mais": os primeiros `limite` itens e quantos ainda faltam. Os ids e a ordem vêm da lista recebida (ativos primeiro, depois
+ * inativos). `limite` menor que 1 mostra a primeira página.
+ */
+export function paginaDaLista<T>(itens: readonly T[], limite: number, tamanhoPagina = CADASTRO_TAMANHO_PAGINA): { itens: T[]; restantes: number } {
+  const teto = Math.max(limite, tamanhoPagina);
+  return { itens: itens.slice(0, teto), restantes: Math.max(0, itens.length - teto) };
+}
+
+/** Texto do botão "Mostrar mais": "Mostrar mais (50 de 364)" — quantos vêm agora de quantos faltam (o molde da DIR). */
+export function textoMostrarMais(restantes: number, tamanhoPagina = CADASTRO_TAMANHO_PAGINA): string {
+  return `Mostrar mais (${Math.min(tamanhoPagina, restantes)} de ${restantes})`;
+}
+
+/**
+ * O menor `limite` (múltiplo da página) que mostra o item na posição `indice` da lista; o `limite` atual se ele já cabe. Usado depois
+ * de criar, renomear ou reativar: o item pode cair além da primeira página (ordem alfabética) e a pessoa precisa vê-lo.
+ */
+export function limiteParaMostrar(indice: number, limiteAtual: number, tamanhoPagina = CADASTRO_TAMANHO_PAGINA): number {
+  if (indice < 0) return limiteAtual;
+  return Math.max(limiteAtual, Math.ceil((indice + 1) / tamanhoPagina) * tamanhoPagina);
 }
 
 /**
