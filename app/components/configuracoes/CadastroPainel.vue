@@ -25,6 +25,7 @@ import {
   listaTemEdicao,
   montarAlteracao,
   montarNovo,
+  nomeNormalizado,
   type FormCadastro,
 } from "../../utils/cadastroForm";
 import { ICONES_PROCESSO } from "../../utils/processoIcones";
@@ -37,6 +38,8 @@ import { focaveis } from "../../utils/processoPainel";
 //  - Novo ("+ Adicionar"): o mesmo painel, vazio. Se o nome já existe (ativo ou inativo) o botão de criar fica
 //    desabilitado; quando o existente é INATIVO oferece "Reativar" (em vez de criar outro).
 //  - Editar: o NOME aparece desabilitado, com a dica de que não muda (para corrigir: criar um novo e desativar este).
+//    EXCEÇÃO: o consultor pode ser RENOMEADO (o campo fica editável; só mudar acento/caixa também vale). Salvar abre uma
+//    confirmação com as contagens (CadastrosTab.vue) porque o nome novo vale em todo o sistema.
 //  - Fornecedor: o prazo do alerta precisa ser DECIDIDO — "Número de dias" (1 a 365) OU "Sem alerta".
 //  - Chave PIX (despachantes e transportadoras): dado financeiro, só para quem recebe o campo (`podeVerPix`). O input
 //    vem oculto (type=password), com "Mostrar/Ocultar" e "Copiar". A chave nunca vai para log nem para mensagem.
@@ -76,10 +79,28 @@ const somenteLeitura = computed(() => isEdit.value && !listaTemEdicao(props.list
 const form = reactive<FormCadastro>(props.editando ? formDeItem(props.lista, props.editando) : formVazio());
 const pixVisivel = ref(false);
 
-// Nome já usado por outro item (só na criação).
-const duplicado = computed<Cadastro | null>(() => (isEdit.value ? null : itemComMesmoNome(props.existentes, form.nome)));
-const nomeReservado = computed<boolean>(() => !isEdit.value && form.nome.trim() !== "" && nomeReservadoCadastro(form.nome));
-const bloqueado = computed<boolean>(() => props.busy || duplicado.value !== null || nomeReservado.value);
+// O nome é digitável ao criar e, na edição, só no consultor (renomear); nas outras listas o nome não muda.
+const nomeEditavel = computed<boolean>(() => !isEdit.value || props.lista === "consultores");
+// Renomear consultor sem mudar nada (nem acento nem caixa): nada a salvar.
+const nomeSemMudanca = computed<boolean>(
+  () => isEdit.value && props.lista === "consultores" && props.editando !== null && nomeNormalizado(form.nome) === props.editando.nome,
+);
+
+// Nome já usado por outro item: ao criar, qualquer item da lista; ao renomear um consultor, qualquer OUTRO (o próprio, com a
+// mesma chave, é a correção de acento/caixa e vale).
+const duplicado = computed<Cadastro | null>(() => {
+  if (!isEdit.value) return itemComMesmoNome(props.existentes, form.nome);
+  if (props.lista !== "consultores" || props.editando === null) return null;
+  const meuId = props.editando.id;
+  return itemComMesmoNome(
+    props.existentes.filter((i) => i.id !== meuId),
+    form.nome,
+  );
+});
+const nomeReservado = computed<boolean>(() => nomeEditavel.value && form.nome.trim() !== "" && nomeReservadoCadastro(form.nome));
+const bloqueado = computed<boolean>(
+  () => props.busy || duplicado.value !== null || nomeReservado.value || nomeSemMudanca.value,
+);
 
 function handleSubmit(): void {
   if (bloqueado.value || somenteLeitura.value) return;
@@ -203,19 +224,27 @@ const CLASSE_BOTAO_PIX =
               type="text"
               autocomplete="off"
               :maxlength="NOME_CADASTRO_MAX"
-              :disabled="isEdit"
+              :disabled="!nomeEditavel"
               :aria-describedby="isEdit ? 'cadastro-form-nome-dica' : undefined"
               :class="CLASSE_CAMPO"
             />
-            <p v-if="isEdit" id="cadastro-form-nome-dica" class="mt-1 text-[10.5px] text-ink-soft">
+            <p v-if="isEdit && !nomeEditavel" id="cadastro-form-nome-dica" class="mt-1 text-[10.5px] text-ink-soft">
               O nome não pode ser alterado. Para corrigir, crie um novo e desative este.
               <span v-if="editando && !editando.ativo">{{ ROTULO_INATIVO_CADASTRO }}</span>
             </p>
-            <p v-else-if="nomeReservado" id="cadastro-form-aviso-reservado" class="mt-1 text-[11.5px] font-medium text-danger">
+            <p v-if="isEdit && nomeEditavel" id="cadastro-form-nome-dica" class="mt-1 text-[10.5px] text-ink-soft">
+              Renomear atualiza o consultor em todo o sistema (Follow-Up, Prestação, DIR e contas de login). Você confirma antes de salvar.
+              <span v-if="editando && !editando.ativo">{{ ROTULO_INATIVO_CADASTRO }}</span>
+            </p>
+            <!-- Avisos de nome (reservado / repetido): cadeia própria, para valer também ao RENOMEAR um consultor. -->
+            <p v-if="nomeReservado" id="cadastro-form-aviso-reservado" class="mt-1 text-[11.5px] font-medium text-danger">
               "{{ NOME_RESERVADO_CADASTRO }}" é um nome reservado (é a opção de digitar um valor fora da lista).
             </p>
             <div v-else-if="duplicado" id="cadastro-form-aviso-duplicado" class="mt-1.5 flex flex-col gap-1.5 text-[11.5px]">
               <p v-if="duplicado.ativo" class="font-medium text-danger">Já existe "{{ duplicado.nome }}" nesta lista.</p>
+              <p v-else-if="isEdit" class="font-medium text-danger">
+                Já existe "{{ duplicado.nome }}" {{ ROTULO_INATIVO_CADASTRO }} nesta lista. Escolha outro nome.
+              </p>
               <template v-else>
                 <p class="font-medium text-warning-gold">
                   Já existe "{{ duplicado.nome }}" {{ ROTULO_INATIVO_CADASTRO }}. Reative-o em vez de criar outro.
@@ -365,7 +394,7 @@ const CLASSE_BOTAO_PIX =
             Cia aérea só tem o nome. Para desativar ou reativar, use a chave Ativo na lista.
           </p>
           <p v-else-if="lista === 'consultores' && isEdit" id="cadastro-form-so-nome" class="text-[12.5px] text-ink-soft">
-            Consultor só tem o nome. Para desativar ou reativar, use a chave Ativo na lista.
+            Consultor só tem o nome (que pode ser renomeado). Para desativar ou reativar, use a chave Ativo na lista.
           </p>
           <p v-else-if="lista === 'transportadoras' && isEdit && !mostrarPix" id="cadastro-form-so-nome" class="text-[12.5px] text-ink-soft">
             Transportadora só tem o nome e a chave PIX. Para desativar ou reativar, use a chave Ativo na lista.

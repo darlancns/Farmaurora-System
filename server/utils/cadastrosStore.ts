@@ -1,6 +1,13 @@
 import { createError } from "h3";
 import { LISTAS_COM_PIX, TABELA_CADASTRO } from "../../shared/constants/cadastros";
-import type { CadastroPorLista, ListaCadastro, NovoPorLista, PatchPorLista } from "../../shared/types/Cadastro";
+import type {
+  CadastroPorLista,
+  Consultor,
+  ConsultorPatchDTO,
+  ListaCadastro,
+  NovoPorLista,
+  PatchPorLista,
+} from "../../shared/types/Cadastro";
 import { chaveCadastro, ordenarCadastro } from "../../shared/utils/cadastroNome";
 import {
   colunasNovoCadastro,
@@ -165,4 +172,119 @@ export async function alterarCadastro<L extends ListaCadastro>(
 
   const row = ((data ?? []) as unknown as CadastroRowPorLista[L][])[0];
   return row ? montarCadastro(lista, row, incluirPix) : null;
+}
+
+// ── Consultores: renomear (a ÚNICA lista cujo nome pode mudar) ───────────────────────────────────────────────
+// O nome do consultor é gravado como TEXTO em follow_up.consultor, prestacao_pacientes.consultor e dir.vendedor (e nas contas, em
+// app_metadata.consultorNome). Renomear precisa mudar tudo junto: a função SQL `renomear_consultor` (supabase/migrations/
+// 20261118231000_renomear_consultor.sql) faz, NUMA transação, o cadastro e as três tabelas, e devolve as contagens. As contas de
+// login são atualizadas depois, pelo handler (server/utils/consultorContas.ts), porque o Auth não entra na transação do banco.
+
+/** Contagens devolvidas pela função SQL (linhas atualizadas por tabela). */
+export interface RenomeacaoNoBanco {
+  nomeAntigo: string;
+  followUp: number;
+  prestacao: number;
+  dir: number;
+}
+
+// Códigos do PostgREST/Postgres quando a função ainda não existe no banco (migration pendente).
+const CODIGOS_FUNCAO_AUSENTE = ["42883", "PGRST202"];
+
+/**
+ * Renomeia o consultor `id` (e propaga o texto) numa transação do banco. null quando o consultor não existe. 409 se o nome (pela
+ * chave) é de OUTRO consultor; 503 se a função ainda não foi aplicada. Corrigir só acento/caixa (mesma chave) é permitido.
+ */
+export async function renomearConsultor(id: string, nomeNovo: string, por: string): Promise<RenomeacaoNoBanco | null> {
+  const db = createSupabaseAdminClient();
+  const { data, error } = await db.rpc("renomear_consultor", {
+    p_id: id,
+    p_nome_novo: nomeNovo,
+    p_nome_chave: chaveCadastro(nomeNovo),
+    p_por: por,
+  });
+  if (error) {
+    if (error.code === CODIGO_UNICO_VIOLADO) throw new CadastroRegraError("Já existe outro consultor com esse nome.", 409);
+    if (error.code === "P0002") return null;
+    if (error.code && CODIGOS_FUNCAO_AUSENTE.includes(error.code)) {
+      throw new CadastroRegraError("Renomear ainda não está disponível: a função renomear_consultor não foi aplicada no banco.", 503);
+    }
+    throw erro("renomear o consultor", error);
+  }
+
+  const r = (data ?? {}) as Record<string, unknown>;
+  const n = (v: unknown): number => (typeof v === "number" ? v : Number(v ?? 0) || 0);
+  return { nomeAntigo: String(r.nomeAntigo ?? ""), followUp: n(r.followUp), prestacao: n(r.prestacao), dir: n(r.dir) };
+}
+
+/**
+ * Altera um consultor: `ativo` como nas outras listas e, SÓ aqui, o `nome` (renomear). Nome igual ao gravado é ignorado. O item
+ * volta sempre lido do banco depois de tudo. `renomeacao` vem preenchida só quando o nome mudou. consultor null = 404.
+ */
+export async function alterarConsultor(
+  id: string,
+  patch: ConsultorPatchDTO,
+  por: string,
+): Promise<{ consultor: Consultor | null; renomeacao: RenomeacaoNoBanco | null }> {
+  const db = createSupabaseAdminClient();
+  const tabela = TABELA_CADASTRO.consultores;
+
+  const { data: atuais, error: erroBusca } = await db.from(tabela).select("*").eq("id", id);
+  if (erroBusca) throw erro("buscar consultor", erroBusca);
+  const atual = ((atuais ?? []) as CadastroRowPorLista["consultores"][])[0];
+  if (!atual) return { consultor: null, renomeacao: null };
+
+  const { nome, ...resto } = patch;
+  let renomeacao: RenomeacaoNoBanco | null = null;
+  if (nome !== undefined && nome !== atual.nome) {
+    renomeacao = await renomearConsultor(id, nome, por);
+    if (!renomeacao) return { consultor: null, renomeacao: null };
+  }
+
+  if (Object.keys(resto).length > 0) {
+    return { consultor: await alterarCadastro("consultores", id, resto, por), renomeacao };
+  }
+
+  const { data: depois, error: erroLeitura } = await db.from(tabela).select("*").eq("id", id);
+  if (erroLeitura) throw erro("buscar consultor", erroLeitura);
+  const row = ((depois ?? []) as CadastroRowPorLista["consultores"][])[0];
+  return { consultor: row ? montarCadastro("consultores", row) : null, renomeacao };
+}
+
+/** Item do Cadastro de consultores pelo id (só leitura); null se não existe. */
+export async function buscarConsultor(id: string): Promise<Consultor | null> {
+  const db = createSupabaseAdminClient();
+  const { data, error } = await db.from(TABELA_CADASTRO.consultores).select("*").eq("id", id);
+  if (error) throw erro("buscar consultor", error);
+  const row = ((data ?? []) as CadastroRowPorLista["consultores"][])[0];
+  return row ? montarCadastro("consultores", row) : null;
+}
+
+/** Existe OUTRO consultor (id diferente) com exatamente este nome? Usado ao religar contas de um nome antigo. */
+export async function existeOutroConsultorComNome(nome: string, idIgnorado: string): Promise<boolean> {
+  const db = createSupabaseAdminClient();
+  const { data, error } = await db.from(TABELA_CADASTRO.consultores).select("id").eq("nome", nome);
+  if (error) throw erro("conferir o nome do consultor", error);
+  return ((data ?? []) as Array<{ id: string }>).some((r) => r.id !== idIgnorado);
+}
+
+/** Quantos registros do banco têm o nome do consultor `id` (só leitura): follow_up, prestacao_pacientes e dir. null = não existe. */
+export async function contarImpactoConsultor(
+  id: string,
+): Promise<{ nome: string; processos: number; pacientes: number; dir: number } | null> {
+  const consultor = await buscarConsultor(id);
+  if (!consultor) return null;
+
+  const db = createSupabaseAdminClient();
+  async function contar(tabela: string, coluna: string): Promise<number> {
+    const { count, error } = await db.from(tabela).select("id", { count: "exact", head: true }).eq(coluna, consultor!.nome);
+    if (error) throw erro(`contar registros de ${tabela}`, error);
+    return count ?? 0;
+  }
+  const [processos, pacientes, dir] = await Promise.all([
+    contar("follow_up", "consultor"),
+    contar("prestacao_pacientes", "consultor"),
+    contar("dir", "vendedor"),
+  ]);
+  return { nome: consultor.nome, processos, pacientes, dir };
 }

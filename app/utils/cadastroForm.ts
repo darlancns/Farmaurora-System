@@ -89,8 +89,13 @@ export function montarNovo(
   return validarNovoCadastro(lista, { nome: form.nome });
 }
 
+/** Nome como o servidor grava: aparado e com espaços repetidos colapsados. */
+export function nomeNormalizado(nome: string): string {
+  return nome.trim().replace(/\s+/g, " ");
+}
+
 /**
- * Corpo do PATCH da edição: só os campos editáveis (o NOME nunca vai — não muda depois de criado). A chave PIX só vai
+ * Corpo do PATCH da edição: só os campos editáveis (o NOME nunca vai — não muda depois de criado — EXCETO no consultor, que pode ser renomeado). A chave PIX só vai
  * com `incluirPix` E se mudou em relação ao item original ("" limpa a chave).
  */
 export function montarAlteracao(
@@ -114,15 +119,20 @@ export function montarAlteracao(
   if (lista === "transportadoras") {
     return validarPatchCadastro(lista, pixMudou ? { chavePix: form.chavePix } : {});
   }
+  if (lista === "consultores") {
+    // Consultor: o único campo é o NOME (renomear; a propagação e a confirmação são do servidor e da tela). Sem mudança, nada vai.
+    if (original && nomeNormalizado(form.nome) === original.nome) return { ok: false, erro: "Nenhuma alteração informada." };
+    return validarPatchCadastro(lista, { nome: form.nome });
+  }
   return { ok: false, erro: "Esta lista não tem campos editáveis além do nome." };
 }
 
 /**
- * A lista tem algum campo editável depois de criada? Cia aérea e consultor só têm o nome (só se desativa/reativa);
- * transportadora só tem a chave PIX, então só edita quem pode vê-la (`podeVerPix`).
+ * A lista tem algum campo editável depois de criada? Cia aérea só tem o nome (só se desativa/reativa); consultor tem o nome
+ * (renomear, com confirmação); transportadora só tem a chave PIX, então só edita quem pode vê-la (`podeVerPix`).
  */
 export function listaTemEdicao(lista: ListaCadastro, podeVerPix = true): boolean {
-  if (lista === "cias-aereas" || lista === "consultores") return false;
+  if (lista === "cias-aereas") return false;
   if (lista === "transportadoras") return podeVerPix;
   return true;
 }

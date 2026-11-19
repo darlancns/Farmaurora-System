@@ -53,6 +53,10 @@ interface Servidor {
   /** Se definida, segura as respostas de PATCH até ser chamada (para provar a resposta otimista da chave). */
   segurar: { liberar: () => void } | null;
   comPix: boolean;
+  /** Consultores: o que o GET /impacto devolve, o resultado das contas no PATCH de renomear e no "tentar de novo". */
+  impacto: Record<string, unknown>;
+  contasNoPatch: { atualizadas: number; falhas: Array<{ id: string; email: string }> };
+  contasNoRetry: { atualizadas: number; falhas: Array<{ id: string; email: string }> };
 }
 
 let servidor: Servidor;
@@ -63,13 +67,25 @@ const json = (corpo: unknown, status = 200) =>
 
 function instalarServidor(role: AuthUser["role"]): void {
   // Como o servidor real: a chave só vai para o administrador e para quem lê Pagamentos (sócio e operacional, sem mapa).
-  servidor = { dados: dadosIniciais(), chamadas: [], falhas: [], segurar: null, comPix: role !== "consultor" };
+  servidor = {
+    dados: dadosIniciais(),
+    chamadas: [],
+    falhas: [],
+    segurar: null,
+    comPix: role !== "consultor",
+    impacto: { nome: "Mateus Morais", processos: 25, pacientes: 4, dir: 106, contas: 1 },
+    contasNoPatch: { atualizadas: 1, falhas: [] },
+    contasNoRetry: { atualizadas: 1, falhas: [] },
+  };
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, opts?: RequestInit) => {
       const metodo = (opts?.method ?? "GET").toUpperCase();
       const corpo = opts?.body ? (JSON.parse(String(opts.body)) as Record<string, unknown>) : null;
       servidor.chamadas.push({ metodo, url: String(url), corpo });
+      // Consultores: impacto (só leitura) e "tentar de novo" das contas de login.
+      if (/^\/api\/cadastros\/consultores\/[\w-]+\/impacto$/.test(String(url))) return json(servidor.impacto);
+      if (/^\/api\/cadastros\/consultores\/[\w-]+\/renomear-contas$/.test(String(url))) return json(servidor.contasNoRetry);
       const [, lista, id] = /^\/api\/cadastros\/([\w-]+)(?:\/([\w-]+))?$/.exec(String(url)) ?? [];
       const itens = servidor.dados[lista!] ?? [];
       const falha = servidor.falhas.findIndex((f) => f.metodo === metodo);
@@ -91,7 +107,12 @@ function instalarServidor(role: AuthUser["role"]): void {
       }
       const alvo = itens.find((i) => i.id === id);
       if (!alvo) return json({ statusMessage: "Item não encontrado." }, 404);
+      const nomeAntigo = String(alvo.nome);
       Object.assign(alvo, corpo);
+      // Renomear consultor: o servidor devolve também o que mudou e o resultado das contas de login.
+      if (lista === "consultores" && corpo && "nome" in corpo && corpo.nome !== nomeAntigo) {
+        return json({ ...visivel(alvo), renomeacao: { nomeAntigo, processos: 25, pacientes: 4, dir: 106, contas: servidor.contasNoPatch } });
+      }
       return json(visivel(alvo));
     }),
   );
@@ -614,18 +635,16 @@ describe("CadastrosTab — chave PIX (dado financeiro)", () => {
   });
 });
 
-describe("CadastrosTab — Consultores (5ª lista; por enquanto vale só para a DIR)", () => {
-  const AVISO = "Por enquanto esta lista vale só para a DIR. Follow-Up, Prestação e contas de login ainda usam a lista antiga.";
 
-  it("a seção Consultores é a quinta, recolhível, com o aviso exato; as outras listas não têm aviso", async () => {
+describe("CadastrosTab — Consultores (5ª lista; a ÚNICA fonte de consultores do sistema)", () => {
+  it("a seção Consultores é a quinta, recolhível e SEM o aviso antigo (só valia para a DIR); tabela compacta Nome + Ativo, ativo antes do inativo", async () => {
     await montar();
     expect([...document.querySelectorAll("#cadastros-tab > section")].map((s) => s.id).at(-1)).toBe("cadastro-secao-consultores");
     expect(aberta("consultores")).toBe(false);
     await clicar("#btn-secao-consultores");
     expect(aberta("consultores")).toBe(true);
-    expect(texto(q("#cadastro-aviso-consultores"))).toBe(AVISO);
-    expect(document.querySelectorAll("[id^='cadastro-aviso-']")).toHaveLength(1);
-    // tabela compacta: Nome + Ativo (sem colunas extras) e os dois itens, ativo primeiro e inativo no fim
+    expect(q("[id^='cadastro-aviso-']")).toBeNull();
+    expect(document.body.textContent).not.toContain("Por enquanto esta lista vale só para a DIR");
     expect([...document.querySelectorAll("#cadastro-lista-consultores thead th")].map((th) => texto(th))).toEqual(["Nome", "Ativo"]);
     expect([...document.querySelectorAll("#cadastro-lista-consultores tbody tr")].map((tr) => tr.id)).toEqual([
       "cadastro-row-consultores-k1",
@@ -634,7 +653,7 @@ describe("CadastrosTab — Consultores (5ª lista; por enquanto vale só para a 
     expect(texto(q("#cadastro-row-consultores-k2"))).toContain("(inativo)");
   });
 
-  it("'+ Adicionar' cria só com o nome (POST /api/cadastros/consultores), aviso 'Consultor criado.' e a contagem sobe", async () => {
+  it("+ Adicionar cria só com o nome (POST /api/cadastros/consultores), aviso 'Consultor criado.' e a contagem sobe", async () => {
     await montar();
     await clicar("#btn-adicionar-cadastro-consultores");
     expect(texto(q("#cadastro-painel-titulo"))).toBe("Novo consultor");
@@ -643,45 +662,23 @@ describe("CadastrosTab — Consultores (5ª lista; por enquanto vale só para a 
     expect(gravacoes()).toEqual([{ metodo: "POST", url: "/api/cadastros/consultores", corpo: { nome: "Consultor Teste" } }]);
     expect(toast()).toBe("Consultor criado.");
     expect(q("#cadastro-painel")).toBeNull();
-    expect(aberta("consultores")).toBe(true);
     expect(texto(q("#cadastro-contagem-consultores"))).toBe("3 · 2 ativos");
-    expect(texto(q("#cadastro-corpo-consultores"))).toContain("Consultor Teste");
   });
 
-  it("editar: o nome fica desabilitado, não há campo extra nem 'Salvar' (só se desativa/reativa pela chave Ativo)", async () => {
-    await montar();
-    await clicar("#btn-secao-consultores");
-    await clicar("#cadastro-row-consultores-k1");
-    expect(texto(q("#cadastro-painel-titulo"))).toBe("Editar consultor");
-    expect(q<HTMLInputElement>("#cadastro-form-nome")!.value).toBe("Mateus Morais");
-    expect(q<HTMLInputElement>("#cadastro-form-nome")!.disabled).toBe(true);
-    expect(texto(q("#cadastro-form-so-nome"))).toContain("Consultor só tem o nome");
-    expect(q("#btn-cadastro-salvar")).toBeNull();
-    expect(q("#cadastro-form-pix-bloco")).toBeNull();
-  });
-
-  it("nome repetido de consultor ATIVO: aviso e botão Criar desabilitado (nenhuma gravação)", async () => {
+  it("nome repetido de consultor ATIVO: aviso e botão Criar desabilitado; de INATIVO: o painel oferece Reativar", async () => {
     await montar();
     await clicar("#btn-adicionar-cadastro-consultores");
     await digitar("#cadastro-form-nome", "mateus morais");
     expect(texto(q("#cadastro-form-aviso-duplicado"))).toMatch(/Já existe "Mateus Morais"/);
     expect(q<HTMLButtonElement>("#btn-cadastro-salvar")!.disabled).toBe(true);
-    await salvar();
-    expect(gravacoes()).toEqual([]);
-  });
-
-  it("nome repetido de consultor INATIVO: o painel oferece Reativar, que reativa e fecha", async () => {
-    await montar();
-    await clicar("#btn-adicionar-cadastro-consultores");
     await digitar("#cadastro-form-nome", "junior");
     expect(texto(q("#cadastro-form-aviso-duplicado"))).toMatch(/Reative-o/);
     await clicar("#btn-cadastro-reativar-duplicado");
     expect(gravacoes()).toEqual([{ metodo: "PATCH", url: "/api/cadastros/consultores/k2", corpo: { ativo: true } }]);
     expect(toast()).toBe('"Junior" reativado.');
-    expect(texto(q("#cadastro-contagem-consultores"))).toBe("2 · 2 ativos");
   });
 
-  it('"Outro" é reservado: aviso e nenhuma gravação', async () => {
+  it("Outro é reservado: aviso e nenhuma gravação", async () => {
     await montar();
     await clicar("#btn-adicionar-cadastro-consultores");
     await digitar("#cadastro-form-nome", "outro");
@@ -689,7 +686,7 @@ describe("CadastrosTab — Consultores (5ª lista; por enquanto vale só para a 
     expect(q<HTMLButtonElement>("#btn-cadastro-salvar")!.disabled).toBe(true);
   });
 
-  it("remover = desativar pela chave Ativo (PATCH { ativo:false }), com 'Desativado. Desfazer'; nunca DELETE", async () => {
+  it("remover = desativar pela chave Ativo (PATCH { ativo:false }); nunca DELETE", async () => {
     await montar();
     await clicar("#btn-secao-consultores");
     await clicar("#cadastro-switch-consultores-k1");
@@ -698,12 +695,150 @@ describe("CadastrosTab — Consultores (5ª lista; por enquanto vale só para a 
     expect(gravacoes().some((c) => c.metodo === "DELETE")).toBe(false);
   });
 
-  it("quem não é administrador vê a lista e o aviso, mas sem '+ Adicionar' nem chave Ativo", async () => {
+  it("quem não é administrador vê a lista, mas sem + Adicionar, sem chave Ativo e sem abrir o painel", async () => {
     await montar("operacional");
     expect(q("#btn-adicionar-cadastro-consultores")).toBeNull();
     await clicar("#btn-secao-consultores");
-    expect(texto(q("#cadastro-aviso-consultores"))).toBe(AVISO);
     expect(texto(q("#cadastro-corpo-consultores"))).toContain("Mateus Morais");
     expect(q("#cadastro-switch-consultores-k1")).toBeNull();
+    expect(q("#cadastro-abrir-consultores-k1")).toBeNull();
+  });
+});
+
+describe("CadastrosTab — renomear consultor (só consultores; com confirmação e contagens)", () => {
+  async function abrirEdicaoDoMateus(): Promise<void> {
+    await montar();
+    await clicar("#btn-secao-consultores");
+    await clicar("#cadastro-row-consultores-k1");
+  }
+
+  it("o painel do consultor deixa o NOME editável (e só o nome); nas outras listas o nome continua travado", async () => {
+    await abrirEdicaoDoMateus();
+    expect(texto(q("#cadastro-painel-titulo"))).toBe("Editar consultor");
+    const nome = q<HTMLInputElement>("#cadastro-form-nome")!;
+    expect(nome.value).toBe("Mateus Morais");
+    expect(nome.disabled).toBe(false);
+    expect(texto(q("#cadastro-form-nome-dica"))).toMatch(/Renomear atualiza o consultor em todo o sistema/);
+    expect(q("#cadastro-form-pix-bloco")).toBeNull();
+    await clicar("#btn-cadastro-cancelar");
+    await clicar("#btn-secao-fornecedores");
+    await clicar("#cadastro-row-fornecedores-f1");
+    expect(q<HTMLInputElement>("#cadastro-form-nome")!.disabled).toBe(true);
+  });
+
+  it("sem mudar o nome o Salvar fica desabilitado e nada é enviado; mudar só acento/caixa vale", async () => {
+    await abrirEdicaoDoMateus();
+    expect(q<HTMLButtonElement>("#btn-cadastro-salvar")!.disabled).toBe(true);
+    await salvar();
+    expect(servidor.chamadas.filter((c) => c.url.includes("impacto"))).toEqual([]);
+    expect(gravacoes()).toEqual([]);
+    await digitar("#cadastro-form-nome", "MATEUS MORAIS");
+    expect(q<HTMLButtonElement>("#btn-cadastro-salvar")!.disabled).toBe(false);
+  });
+
+  it("nome de OUTRO consultor (ativo ou inativo) bloqueia o salvar com aviso; Outro também; o próprio nome com outra caixa não conta como repetido", async () => {
+    await abrirEdicaoDoMateus();
+    await digitar("#cadastro-form-nome", "junior");
+    expect(texto(q("#cadastro-form-aviso-duplicado"))).toMatch(/Já existe "Junior"/);
+    expect(q("#btn-cadastro-reativar-duplicado")).toBeNull();
+    expect(q<HTMLButtonElement>("#btn-cadastro-salvar")!.disabled).toBe(true);
+    await digitar("#cadastro-form-nome", "outro");
+    expect(q("#cadastro-form-aviso-reservado")).not.toBeNull();
+    expect(q<HTMLButtonElement>("#btn-cadastro-salvar")!.disabled).toBe(true);
+    await digitar("#cadastro-form-nome", "mateus morais");
+    expect(q("#cadastro-form-aviso-duplicado")).toBeNull();
+    expect(q<HTMLButtonElement>("#btn-cadastro-salvar")!.disabled).toBe(false);
+  });
+
+  it("Salvar com nome novo NÃO grava: pede as contagens (GET, só leitura) e abre a confirmação com os números", async () => {
+    await abrirEdicaoDoMateus();
+    await digitar("#cadastro-form-nome", "Mateus Teste");
+    await salvar();
+    expect(servidor.chamadas.filter((c) => c.url.endsWith("/impacto")).map((c) => c.metodo)).toEqual(["GET"]);
+    expect(gravacoes()).toEqual([]);
+    expect(texto(q("#confirm-dialog-title"))).toBe("Renomear consultor");
+    expect(texto(q("#confirm-dialog-message"))).toBe(
+      'Renomear "Mateus Morais" para "Mateus Teste"? O novo nome passa a valer em 25 processos do Follow-Up, 4 prestações, 106 POs da DIR e 1 conta de login. Vale para todo o sistema e não é desfeito automaticamente.',
+    );
+    expect(q("#cadastro-painel")).not.toBeNull(); // o painel continua aberto até confirmar
+  });
+
+  it("Cancelar na confirmação: nada é gravado e o painel segue aberto", async () => {
+    await abrirEdicaoDoMateus();
+    await digitar("#cadastro-form-nome", "Mateus Teste");
+    await salvar();
+    await clicar("#btn-confirm-dialog-cancel");
+    expect(q("#confirm-dialog-message")).toBeNull();
+    expect(gravacoes()).toEqual([]);
+    expect(q("#cadastro-painel")).not.toBeNull();
+    expect(texto(q("#cadastro-row-consultores-k1"))).toContain("Mateus Morais");
+  });
+
+  it("Confirmar: PATCH só com o nome, aviso 'Consultor renomeado.', o painel fecha e a lista mostra o nome novo", async () => {
+    await abrirEdicaoDoMateus();
+    await digitar("#cadastro-form-nome", "Mateus Teste");
+    await salvar();
+    await clicar("#btn-confirm-dialog-confirm");
+    expect(gravacoes()).toEqual([{ metodo: "PATCH", url: "/api/cadastros/consultores/k1", corpo: { nome: "Mateus Teste" } }]);
+    expect(toast()).toBe("Consultor renomeado.");
+    expect(q("#cadastro-painel")).toBeNull();
+    expect(q("#cadastros-contas-falha")).toBeNull();
+    expect(texto(q("#cadastro-row-consultores-k1"))).toContain("Mateus Teste");
+    // A resposta traz `renomeacao`, mas ela não vai parar no item da lista.
+    const item = useState<Record<string, Cadastro[]>>("cadastros").value.consultores!.find((i) => i.id === "k1")!;
+    expect(item).not.toHaveProperty("renomeacao");
+  });
+
+  it("se alguma conta de login não foi atualizada, a tela LISTA quais e oferece 'Tentar de novo' (que some quando tudo certo)", async () => {
+    await abrirEdicaoDoMateus();
+    servidor.contasNoPatch = { atualizadas: 0, falhas: [{ id: "c1", email: "conta.teste@x.com" }] };
+    servidor.contasNoRetry = { atualizadas: 1, falhas: [] };
+    await digitar("#cadastro-form-nome", "Mateus Teste");
+    await salvar();
+    await clicar("#btn-confirm-dialog-confirm");
+
+    expect(texto(q("#cadastros-contas-falha-texto"))).toBe("Consultor renomeado, mas 1 conta de login não foi atualizada. Tente de novo:");
+    expect(texto(q("#cadastros-contas-falha"))).toContain("conta.teste@x.com");
+    await clicar("#btn-cadastros-contas-tentar-de-novo");
+    expect(servidor.chamadas.at(-1)).toEqual({
+      metodo: "POST",
+      url: "/api/cadastros/consultores/k1/renomear-contas",
+      corpo: { nomeAntigo: "Mateus Morais" },
+    });
+    expect(q("#cadastros-contas-falha")).toBeNull();
+    expect(toast()).toBe("Contas de login atualizadas.");
+  });
+
+  it("tentar de novo e ainda falhar: a lista de pendentes é atualizada e o aviso continua", async () => {
+    await abrirEdicaoDoMateus();
+    servidor.contasNoPatch = {
+      atualizadas: 0,
+      falhas: [
+        { id: "c1", email: "um@x.com" },
+        { id: "c2", email: "dois@x.com" },
+      ],
+    };
+    servidor.contasNoRetry = { atualizadas: 1, falhas: [{ id: "c2", email: "dois@x.com" }] };
+    await digitar("#cadastro-form-nome", "Mateus Teste");
+    await salvar();
+    await clicar("#btn-confirm-dialog-confirm");
+    expect(texto(q("#cadastros-contas-falha-texto"))).toBe("Consultor renomeado, mas 2 contas de login não foram atualizadas. Tente de novo:");
+    await clicar("#btn-cadastros-contas-tentar-de-novo");
+    expect(texto(q("#cadastros-contas-falha-texto"))).toBe("Consultor renomeado, mas 1 conta de login não foi atualizada. Tente de novo:");
+    expect(texto(q("#cadastros-contas-falha"))).toContain("dois@x.com");
+    expect(texto(q("#cadastros-contas-falha"))).not.toContain("um@x.com");
+    await clicar("#btn-cadastros-contas-falha-fechar");
+    expect(q("#cadastros-contas-falha")).toBeNull();
+  });
+
+  it("409 do servidor (nome tomado numa corrida): avisa com a mensagem da API e o painel continua aberto", async () => {
+    await abrirEdicaoDoMateus();
+    await digitar("#cadastro-form-nome", "Mateus Teste");
+    await salvar();
+    servidor.falhas.push({ metodo: "PATCH", status: 409, mensagem: "Já existe outro consultor com esse nome." });
+    await clicar("#btn-confirm-dialog-confirm");
+    expect(toast()).toBe("Já existe outro consultor com esse nome.");
+    expect(q("#cadastro-painel")).not.toBeNull();
+    expect(q("#cadastros-contas-falha")).toBeNull();
   });
 });

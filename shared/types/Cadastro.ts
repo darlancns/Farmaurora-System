@@ -48,10 +48,43 @@ export type Transportadora = CadastroBase & ComChavePix;
 export type CiaAerea = CadastroBase;
 
 /**
- * Consultor: só nome e ativo. Etapa 1: a lista vale só para a DIR (o campo Consultor/vendedor). O valor é gravado como
- * TEXTO nos registros da DIR, por isso o nome não muda depois de criado.
+ * Consultor: só nome e ativo. É a ÚNICA fonte de consultores (Contas, Follow-Up, Prestação e DIR). O valor é gravado como TEXTO
+ * nos registros; só o consultor pode ser RENOMEADO (o administrador, com a propagação transacional no banco).
  */
 export type Consultor = CadastroBase;
+
+/** Uma conta de login que não foi atualizada no renomear (a tela lista e permite tentar de novo). */
+export interface ContaNaoAtualizada {
+  id: string;
+  email: string;
+}
+
+/** Resultado de atualizar `app_metadata.consultorNome` das contas que tinham o nome antigo (idempotente). */
+export interface ResultadoContasConsultor {
+  atualizadas: number;
+  falhas: ContaNaoAtualizada[];
+}
+
+/** O que o renomear de um consultor mudou: contagens do banco (feitas numa transação) e o resultado das contas de login. */
+export interface RenomeacaoConsultor {
+  nomeAntigo: string;
+  processos: number;
+  pacientes: number;
+  dir: number;
+  contas: ResultadoContasConsultor;
+}
+
+/** Resposta do PATCH de um consultor: o item, e a renomeação quando o nome mudou. */
+export type ConsultorAtualizado = Consultor & { renomeacao?: RenomeacaoConsultor };
+
+/** Quantos registros o renomear de um consultor vai atualizar (só leitura; a tela mostra antes de confirmar). */
+export interface ImpactoRenomearConsultor {
+  nome: string;
+  processos: number;
+  pacientes: number;
+  dir: number;
+  contas: number;
+}
 
 export interface CadastroPorLista {
   fornecedores: Fornecedor;
@@ -106,7 +139,7 @@ export interface NovoPorLista {
 
 /**
  * Alteração parcial. `nome` existe no tipo só para o servidor poder RECUSAR a troca (422): o valor igual ao gravado é
- * ignorado. `prazoAlertaDias` e `semAlerta` andam juntos (os dois ou nenhum), e continuam obedecendo à regra de decidir.
+ * ignorado (EXCETO nos consultores, que podem ser renomeados). `prazoAlertaDias` e `semAlerta` andam juntos (os dois ou nenhum), e continuam obedecendo à regra de decidir.
  */
 export interface FornecedorPatchDTO {
   nome?: string;

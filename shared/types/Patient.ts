@@ -1,14 +1,5 @@
 export type EmpresaCodigo = "FARMAURORA" | "MAINZFARMA";
 
-export type ConsultorNome =
-  | "André Vitório"
-  | "Mateus Morais"
-  | "Paulo Braga"
-  | "Thiago Guedes"
-  | "Gabriela Megda"
-  | "Gabriela Santana"
-  | "Vinícius Alves";
-
 export type AttachmentSlotKey = string;
 
 /** Andamento da prestação (marca manual, salva no banco). */
@@ -27,7 +18,8 @@ export interface Patient {
   descricaoResumo: string;
   medicamentos: MedicamentoItem[];
   empresa: EmpresaCodigo;
-  consultor: ConsultorNome | "";
+  /** Nome de um consultor do Cadastro (texto); "" = sem consultor. Valor antigo fora da lista ativa continua válido. */
+  consultor: string;
   alvara: number;
   custoImportacao: number;
   despesaTotal: number;

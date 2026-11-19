@@ -9,6 +9,7 @@ import GlobalHeader from "../components/GlobalHeader.vue";
 import PagamentosFiltrosSheet from "../components/pagamentos/PagamentosFiltrosSheet.vue";
 import { usePatients } from "../composables/usePatients";
 import { useAuth } from "../composables/useAuth";
+import { useConsultores } from "../composables/useConsultores";
 import { useAttachments } from "../composables/useAttachments";
 import { useDocxGenerator } from "../composables/useDocxGenerator";
 import { useWhatsappShare } from "../composables/useWhatsappShare";
@@ -76,8 +77,14 @@ const editingPatient = computed<PatientComputed | null>(
   () => rows.value.find((p) => p.id === editingPatientId.value) ?? null
 );
 
+// Consultores do Cadastro: as opções do formulário (a lista é a mesma de Follow-Up, DIR e Contas).
+const { consultores, carregarConsultores } = useConsultores();
+
 onMounted(() => {
   fetchPatients();
+  void carregarConsultores().then((falha) => {
+    if (falha) showToast(falha);
+  });
 });
 
 function openCreateForm(): void {
@@ -315,6 +322,7 @@ async function handleCopyWhatsapp(patient: PatientComputed): Promise<void> {
     <PatientForm
       v-if="canWritePatients && showForm"
       :editing-patient="editingPatient"
+      :consultores="consultores"
       :saving="salvando"
       @submit="handleSubmit"
       @update="handleUpdate"

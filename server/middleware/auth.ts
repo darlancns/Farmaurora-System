@@ -3,6 +3,7 @@ import { defineEventHandler, createError, getMethod, parseCookies, type H3Event 
 import { useRuntimeConfig } from "#imports";
 import { createSupabaseServerClient } from "../utils/supabaseServerClient";
 import { resolveAuthUser, parseAdminEmails } from "../utils/authUser";
+import { conferirConsultorDaSessao } from "../utils/contaConsultor";
 import { autorizarApi } from "#shared/utils/permissoesPagina";
 import type { AuthUser } from "#shared/types/auth";
 
@@ -108,7 +109,8 @@ export default defineEventHandler(async (event) => {
         } = await supabase.auth.getUser();
 
         if (user) {
-          authUser = resolveAuthUser(user, parseAdminEmails(config.adminEmails));
+          // Conta de consultor: o nome precisa existir no Cadastro (cache curto de acertos); senão fica sem nome válido.
+          authUser = await conferirConsultorDaSessao(resolveAuthUser(user, parseAdminEmails(config.adminEmails)));
         }
       } catch {
         authUser = null;

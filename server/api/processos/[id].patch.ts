@@ -21,6 +21,7 @@ import {
 import { normalizarNumeroPo } from "../../../shared/utils/numeroPo";
 import { assertPodeResolverMandado, patchTocaAlertaMandado } from "../../utils/processoMandadoAuth";
 import { avisarConsultorDeItensNovos } from "../../utils/notificacoesProcesso";
+import { erroDoConsultorEnviado } from "../../utils/consultoresCadastro";
 import type { AuthUser } from "../../../shared/types/auth";
 import type { Processo, ProcessoPatchDTO } from "../../../shared/types/processo";
 
@@ -74,6 +75,16 @@ export default defineEventHandler(async (event): Promise<Processo> => {
     return armazenado;
   }
 
+  // Consultor no patch: só um consultor ATIVO do Cadastro (fonte única de consultores); o valor IGUAL ao já gravado (consultor
+  // desativado, valor antigo) é aceito para salvar os outros campos. A linha só é lida quando o enviado não é um ativo.
+  const consultorEnviado = (body as Record<string, unknown>).consultor;
+  if (typeof consultorEnviado === "string") {
+    const erroConsultor = await erroDoConsultorEnviado(consultorEnviado.trim(), async () => (await linhaArmazenada()).consultor);
+    if (erroConsultor) {
+      throw createError({ statusCode: 400, statusMessage: erroConsultor });
+    }
+  }
+
   // PO no patch (preenchido) precisa ser o PO completo no formato da DIR, PO26-10-0471 (incompleto é recusado). Vazio/null
   // limpa; sem a chave, nada é conferido. Só valida se o valor MUDOU: um valor já gravado fora da regra (de antes
   // dela) reenviado igual não impede salvar os outros campos. A linha só é lida quando o formato falha.
@@ -112,6 +123,9 @@ export default defineEventHandler(async (event): Promise<Processo> => {
 
   // `versao` e `parcial` não são colunas: saem do patch antes de gravar.
   const { versao, parcial, ...patch } = body as ProcessoPatchDTO & { versao?: string };
+
+  // Consultor: grava sem espaços nas pontas (o mesmo texto que o Cadastro tem).
+  if (typeof patch.consultor === "string") patch.consultor = patch.consultor.trim();
 
   // Pasta: sem espaços nas pontas; "" limpa (grava ""), nunca null. Sem a chave, a coluna não é tocada.
   if ("pasta" in patch) patch.pasta = pastaCanonica(patch.pasta) ?? "";

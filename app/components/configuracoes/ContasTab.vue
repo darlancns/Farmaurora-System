@@ -2,6 +2,7 @@
 import { computed, onMounted } from "vue";
 import { ROLE_LABEL } from "#shared/constants/roles";
 import { useAuth } from "../../composables/useAuth";
+import { useConsultores } from "../../composables/useConsultores";
 import { useContasAdmin } from "../../composables/useContasAdmin";
 import { useToast } from "../../composables/useToast";
 import ActionsMenu, { type ActionsMenuItem } from "../ActionsMenu.vue";
@@ -40,8 +41,14 @@ const {
   copiarSenha,
 } = useContasAdmin();
 
+// Consultores do Cadastro (as opções do select de consultor do formulário de conta).
+const { consultores, carregarConsultores } = useConsultores();
+
 onMounted(() => {
   fetchContas();
+  void carregarConsultores().then((falha) => {
+    if (falha) showToast(falha);
+  });
 });
 
 const meuId = computed(() => user.value?.id ?? null);
@@ -227,6 +234,7 @@ function itemsPara(conta: AdminUserSummary): ActionsMenuItem[] {
       v-if="showFormModal"
       :editing-conta="editingConta"
       :consultores-em-uso="consultoresEmUso"
+      :consultores="consultores"
       :busy="formBusy"
       @create="handleCreate"
       @update="handleUpdate"

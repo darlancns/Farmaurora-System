@@ -1,7 +1,6 @@
 import {
   BRANDS_MEDICAMENTO,
   ciasAereasDoModal,
-  CONSULTORES_PROCESSO,
   DESPACHANTES_PROCESSO,
   EMPRESAS_PROCESSO,
   FORNECEDORES_PROCESSO,
@@ -16,7 +15,6 @@ import type { FiltroCotacao, FiltroMandado } from "./processoListas";
 import type { AppSelectOption } from "../types/appSelect";
 import type {
   BrandMedicamento,
-  ConsultorProcesso,
   DespachanteProcesso,
   EmpresaProcesso,
   FornecedorProcesso,
@@ -24,11 +22,6 @@ import type {
   StatusPagamentoProcesso,
   StatusProcesso,
 } from "#shared/types/processo";
-
-export const CONSULTOR_OPTIONS: AppSelectOption<ConsultorProcesso | "">[] = [
-  { value: "", label: "Selecione" },
-  ...CONSULTORES_PROCESSO.map((nome) => ({ value: nome, label: nome })),
-];
 
 // Brand do medicamento: "Selecione" (vazio = não informado) + os valores da constante única, com os rótulos dela.
 export const BRAND_MEDICAMENTO_OPTIONS: AppSelectOption<BrandMedicamento | "">[] = [

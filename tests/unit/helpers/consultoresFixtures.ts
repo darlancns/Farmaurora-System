@@ -1,3 +1,4 @@
+import type { ItemConsultor } from "../../../shared/utils/consultorRegra";
 import type { FakeSupabase } from "./fakeSupabase";
 
 // Fixtures SINTÉTICAS de `cadastro_consultores` para os testes que passam pelo dirStore (que lê os consultores ativos do
@@ -5,10 +6,19 @@ import type { FakeSupabase } from "./fakeSupabase";
 
 export const TABELA_CONSULTORES = "cadastro_consultores";
 
-/** Consultores ativos semeados: os nomes que as fixtures da DIR usam (novoDirDTO: "Mateus Morais"). */
-export const CONSULTORES_ATIVOS_FIXTURE = ["André Vitório", "Mateus Morais", "Paulo Braga"] as const;
+/**
+ * Consultores ativos semeados (em ordem alfabética, como o Cadastro devolve): os nomes que as fixtures dos testes usam (DIR e
+ * Follow-Up: "Mateus Morais", "Dani", "Flávia"…).
+ */
+export const CONSULTORES_ATIVOS_FIXTURE = ["André Vitório", "Bolívar", "Dani", "Flávia", "Mateus Morais", "Paulo Braga"] as const;
 /** Um consultor INATIVO no Cadastro (como o "Junior" de produção). */
 export const CONSULTOR_INATIVO_FIXTURE = "Junior";
+
+/** A mesma lista como o app a recebe do Cadastro (ativos e o inativo), para as props `consultores` dos componentes. */
+export const CONSULTORES_FIXTURE: ItemConsultor[] = [
+  ...CONSULTORES_ATIVOS_FIXTURE.map((nome) => ({ nome, ativo: true })),
+  { nome: CONSULTOR_INATIVO_FIXTURE, ativo: false },
+];
 
 export function linhaConsultor(nome: string, ativo = true, extra: Record<string, unknown> = {}): Record<string, unknown> {
   return {

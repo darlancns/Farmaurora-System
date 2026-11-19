@@ -34,24 +34,9 @@ export type StatusProcessoLegado = "aguardando_inicio" | "liberado_parcial" | "o
 
 export type EmpresaProcesso = "FARMAURORA" | "MAINZFARMA";
 
-// Tipo independente de shared/types/Patient.ts (ConsultorNome) — Processo não tem
-// nenhuma relação/FK com Patient, ver server/utils/processosStore.ts. É um
-// SUPERCONJUNTO de ConsultorNome: os 7 de Pacientes + os consultores que só
-// existem no Follow-Up. Também é o tipo do nome de consultor das contas (RBAC).
-export type ConsultorProcesso =
-  | "Alessandra"
-  | "André Vitório"
-  | "Bolívar"
-  | "Bráulio"
-  | "Dani"
-  | "Flávia"
-  | "Gabriela Megda"
-  | "Gabriela Santana"
-  | "Mateus Morais"
-  | "Paulinho"
-  | "Paulo Braga"
-  | "Thiago Guedes"
-  | "Vinícius Alves";
+// O consultor do processo é TEXTO: o nome de um consultor do Cadastro (lista "consultores", Configurações → Cadastros), a única
+// fonte de consultores do sistema. Valor antigo que não está na lista ativa continua válido no registro (ver
+// shared/utils/consultorRegra.ts). Também é o tipo do nome de consultor das contas (RBAC).
 
 // Tipo usado apenas pra montar as opções do select — o campo Processo.modalEnvio
 // em si fica com tipo largo (string), porque registros migrados do doc antigo têm
@@ -104,7 +89,7 @@ export interface Processo {
   numeroPo?: string;
   pasta: string; // ex: "2026 - 234" (renomeado de "codigo"). OPCIONAL no formulário: "" = sem pasta (nunca null)
   empresa: EmpresaProcesso;
-  consultor: ConsultorProcesso;
+  consultor: string;
   responsavelOperacional?: string; // Bruno, Rebeca
   despachante?: string; // um dos DespachanteProcesso, ou valor legado não migrado (ver tipo)
   fornecedor?: string; // um dos FornecedorProcesso, texto livre quando "Outro", ou valor legado

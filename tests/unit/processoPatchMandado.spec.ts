@@ -21,6 +21,9 @@ vi.mock("../../server/utils/processosStore", () => ({
   patchProcesso: h.patchProcesso,
 }));
 
+// O consultor ativo do Cadastro tem spec próprio (consultorValidacaoServidor); este patch nem mexe no consultor.
+vi.mock("../../server/utils/consultoresCadastro", () => ({ erroDoConsultorEnviado: vi.fn(async () => null) }));
+
 // O aviso ao consultor (nova pendência/atualização) tem spec próprio; aqui o patch não mexe nesses campos.
 vi.mock("../../server/utils/notificacoesProcesso", () => ({ avisarConsultorDeItensNovos: vi.fn() }));
 

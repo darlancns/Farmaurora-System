@@ -37,7 +37,8 @@ export function nomeEmUmaLinha(nome: string): string {
 }
 
 // Quem pode editar o PRÓPRIO nome:
-// - consultor: o nome vira entidade única do sistema (fase própria) — por enquanto só o administrador;
+// - consultor: o nome é o do Cadastro de consultores (a fonte única; só o administrador o renomeia, em Configurações → Cadastros,
+//   e a troca vale para processos, prestações, DIR e para a própria conta) — a pessoa não edita o próprio nome aqui;
 // - operacional: o primeiro nome liga a conta ao alerta de Mandado de Segurança
 //   (shared/utils/mandadoPermissao.ts) — trocar quebraria o vínculo;
 // - sócio e administrador: livre.
@@ -48,6 +49,6 @@ export function podeEditarNomeDaConta(role: Role): boolean {
 }
 
 export const MENSAGEM_NOME_BLOQUEADO: Readonly<Partial<Record<Role, string>>> = {
-  consultor: "O nome do consultor é compartilhado pelo sistema. Peça ao administrador para alterá-lo.",
+  consultor: "O nome do consultor é compartilhado pelo sistema (Cadastro de consultores). Peça ao administrador para alterá-lo.",
   operacional: "O seu nome está ligado aos alertas dos processos. Peça ao administrador para alterá-lo.",
 };

@@ -1,5 +1,4 @@
-import type { ConsultorNome, NewPatientDTO, PatientStatus } from "../../shared/types/Patient";
-import { CONSULTORES } from "../../shared/constants/consultores";
+import type { NewPatientDTO, PatientStatus } from "../../shared/types/Patient";
 import { isPatientStatus } from "../../shared/constants/prestacaoStatus";
 
 function isMedicamentoItem(value: unknown): value is { qtd: string; medicamento: string } {
@@ -18,7 +17,9 @@ export function isValidPatientPayload(body: unknown): body is Omit<NewPatientDTO
     b.descricaoCompra.trim().length > 0 &&
     typeof b.descricaoResumo === "string" &&
     b.descricaoResumo.trim().length > 0 &&
-    (b.consultor === "" || CONSULTORES.includes(b.consultor as ConsultorNome)) &&
+    // Consultor: só a forma aqui ("" = sem consultor, ou um texto). Que seja um consultor ATIVO do Cadastro (ou o valor já
+    // gravado) é conferido pelos handlers, que leem o Cadastro (server/utils/consultoresCadastro.ts).
+    typeof b.consultor === "string" &&
     typeof b.alvara === "number" &&
     typeof b.custoImportacao === "number" &&
     typeof b.despesaTotal === "number" &&

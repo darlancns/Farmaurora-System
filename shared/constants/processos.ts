@@ -2,7 +2,6 @@ import type {
   BrandMedicamento,
   CampoProcessoLimpavel,
   ProcessoDatas,
-  ConsultorProcesso,
   DespachanteProcesso,
   EmpresaProcesso,
   FornecedorProcesso,
@@ -12,12 +11,10 @@ import type {
   StatusProcessoLegado,
 } from "../types/processo";
 
-// Lista canônica de consultores do Follow-Up (e das contas com cargo consultor).
-// Inclui os 7 nomes do cadastro de paciente (shared/types/Patient.ts,
-// ConsultorNome) + os que só existem no Follow-Up — Processo não importa nada de
-// Patient, e Pacientes continua só com os 7 (shared/constants/consultores.ts).
-// Ordem alfabética (pt-BR); espelha o enum `consultor_nome` do Postgres.
-export const CONSULTORES_PROCESSO: ConsultorProcesso[] = [
+// Lista dos consultores usada SÓ pelos scripts da CARGA histórica (scripts/migration/*: parser e dry-runs do Follow-Up, que
+// normalizam os nomes da planilha). O APP NÃO USA esta lista: a fonte de consultores de Contas, Follow-Up, Prestação e DIR é o
+// Cadastro (lista "consultores", Configurações → Cadastros; ver shared/utils/consultorRegra.ts). Não espelha o Cadastro.
+export const CONSULTORES_PROCESSO: string[] = [
   "Alessandra",
   "André Vitório",
   "Bolívar",

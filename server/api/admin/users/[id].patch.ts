@@ -8,6 +8,7 @@ import {
   assertNotLastAdmin,
   valorPermissoesNoMetadata,
 } from "../../../utils/authUser";
+import { exigirConsultorDaContaNoCadastro } from "../../../utils/contaConsultor";
 import type { AuthUser, AdminUserSummary } from "#shared/types/auth";
 
 interface PatchBody {
@@ -46,6 +47,8 @@ export default defineEventHandler(async (event): Promise<AdminUserSummary> => {
 
   const body = (await readBody(event)) as PatchBody;
   const { role, consultorNome, permissoes } = parseContaInput(body, "edicao");
+  // O consultor da conta precisa existir no Cadastro (ativo ou inativo).
+  await exigirConsultorDaContaNoCadastro(role, consultorNome);
   // Nome não é obrigatório na edição — contas antigas podem ficar sem nome até serem preenchidas
   // manualmente pela mesma tela. Omitido, o nome atual da conta é PRESERVADO (roleAppMetadataEdicao).
   const nome = parseNomeInput(body, { required: false });

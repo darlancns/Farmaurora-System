@@ -1,5 +1,5 @@
 import { reactive, computed, ref, watch, type ComputedRef, type Ref } from "vue";
-import type { ConsultorNome, MedicamentoItem, NewPatientDTO, Patient } from "#shared/types/Patient";
+import type { MedicamentoItem, NewPatientDTO, Patient } from "#shared/types/Patient";
 import {
   formatCurrency,
   maskCurrencyDigits,
@@ -18,7 +18,8 @@ import { useTitleCaseInput } from "./useTitleCaseInput";
 export interface FormState {
   data: string;
   paciente: string;
-  consultor: ConsultorNome | "";
+  // Texto: o nome de um consultor do Cadastro ("" = sem consultor).
+  consultor: string;
   alvara: string;
   custoImportacao: string;
   remessas: string;
@@ -255,7 +256,7 @@ export function usePatientForm(options: UsePatientFormOptions): UsePatientFormRe
       options.onInvalid("Informe os valores de alvará e custo de importação.");
       return;
     }
-    const consultor: ConsultorNome | "" = form.consultor;
+    const consultor: string = form.consultor;
 
     const descricaoCompra = buildDescricaoCompra(medicamentos);
     const descricaoResumo = buildDescricaoResumo(medicamentos);

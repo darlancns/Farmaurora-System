@@ -1,18 +1,19 @@
 <script setup lang="ts">
 import type { NewProcessoDTO, Processo, ProcessoFormPatchPayload } from "#shared/types/processo";
+import type { ItemConsultor } from "#shared/utils/consultorRegra";
 import { computed } from "vue";
 import { MENSAGEM_CONFLITO_EDICAO } from "../../composables/useConflitoEdicaoProcesso";
 import { useProcessoForm } from "../../composables/useProcessoForm";
 import { BOTAO_FECHAR_HOVER_CLASS, BOTAO_ICONE_CLASS } from "../../utils/botaoIcone";
 import { ICONES_PROCESSO } from "../../utils/processoIcones";
 import { useProverBloqueioDatas } from "../../composables/useBloqueioDatas";
+import { montarConsultorOptions } from "../../utils/consultorOptions";
 import AppSelect from "../AppSelect.vue";
 import BaseModal from "../BaseModal.vue";
 import ProcessoFormDatas from "./ProcessoFormDatas.vue";
 import ProcessoFormMedicamentos from "./ProcessoFormMedicamentos.vue";
 import ProcessoRemessaStepper from "./ProcessoRemessaStepper.vue";
 import {
-  CONSULTOR_OPTIONS,
   DESPACHANTE_OPTIONS,
   EMPRESA_OPTIONS,
   FORNECEDOR_OPTIONS,
@@ -38,6 +39,9 @@ const props = defineProps<{
   // Outra pessoa gravou o processo enquanto o formulário estava aberto (409): mostra o aviso e o botão de recarregar.
   conflito?: boolean;
   recarregando?: boolean;
+  // Consultores do Cadastro (ativos e inativos): as opções do select são os ativos; o consultor atual do processo aparece
+  // mesmo se já estiver inativo ou fora do Cadastro, sem apagar o dado.
+  consultores?: ItemConsultor[];
 }>();
 
 const emit = defineEmits<{
@@ -81,6 +85,9 @@ const {
   validar,
   validarEdicao,
 } = useProcessoForm(() => props.editingProcesso);
+
+// Consultor: os ATIVOS do Cadastro (+ o valor atual do processo, se inativo ou fora do Cadastro).
+const consultorOptions = computed(() => montarConsultorOptions(form.consultor, props.consultores ?? []));
 
 // Datas com erro ("Data inexistente"/"incompleta") bloqueiam o Salvar (e o Enter): nada é enviado, o campo mostra
 // "Corrija ou limpe a data" e recebe o foco. Ver useBloqueioDatas.ts.
@@ -295,7 +302,7 @@ function handleSubmit(): void {
             </div>
             <div :class="SELECT_CAMPO_CLASS">
               <label for="pf-consultor" :class="LABEL_CLASS">Consultor</label>
-              <AppSelect id="pf-consultor" v-model="form.consultor" :options="CONSULTOR_OPTIONS" />
+              <AppSelect id="pf-consultor" v-model="form.consultor" :options="consultorOptions" />
             </div>
             <div :class="SELECT_CAMPO_CLASS">
               <label for="pf-fornecedor" :class="LABEL_CLASS">Fornecedor</label>

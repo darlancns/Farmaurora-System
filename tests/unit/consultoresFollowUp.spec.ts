@@ -1,26 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { CONSULTORES } from "#shared/constants/consultores";
 import { CONSULTORES_PROCESSO } from "#shared/constants/processos";
-import type { ConsultorNome } from "#shared/types/Patient";
-import type { ConsultorProcesso } from "#shared/types/processo";
 import { isValidProcessoPatch, isValidProcessoPayload } from "../../server/utils/processoValidation";
 
-// Pacientes NÃO ganha consultores novos: a lista de Pacientes fica travada nos 7
-// originais mesmo que o Follow-Up cresça. Qualquer mudança aqui tem que ser uma
-// decisão consciente (e mexe em PatientForm/patientValidation).
-const SETE_ORIGINAIS = [
-  "André Vitório",
-  "Gabriela Megda",
-  "Gabriela Santana",
-  "Mateus Morais",
-  "Paulo Braga",
-  "Thiago Guedes",
-  "Vinícius Alves",
-] as const satisfies readonly ConsultorNome[];
+// O app NÃO tem mais lista de consultores no código: a fonte única é o Cadastro (lista "consultores"; ver consultorRegra.spec.ts e
+// consultorValidacaoServidor.spec.ts). CONSULTORES_PROCESSO sobrou SÓ para os scripts da carga histórica (scripts/migration/*), que
+// normalizam os nomes da planilha; estes testes travam essa lista da carga. A validação de Processo confere só a FORMA do consultor
+// (texto não vazio): que seja um consultor ativo do Cadastro (ou o valor já gravado) é conferido pelo handler.
 
-const NOVOS_NO_FOLLOW_UP = ["Alessandra", "Bolívar", "Bráulio", "Dani", "Flávia", "Paulinho"] as const;
+const NOVOS_NA_CARGA = ["Alessandra", "Bolívar", "Bráulio", "Dani", "Flávia", "Paulinho"] as const;
 
-const ORDEM_ESPERADA: ConsultorProcesso[] = [
+const ORDEM_ESPERADA: string[] = [
   "Alessandra",
   "André Vitório",
   "Bolívar",
@@ -36,53 +25,7 @@ const ORDEM_ESPERADA: ConsultorProcesso[] = [
   "Vinícius Alves",
 ];
 
-// Em build-time: todo ConsultorNome é um ConsultorProcesso (vue-tsc quebra se não).
-const _subconjunto: ConsultorProcesso = "André Vitório" as ConsultorNome;
-void _subconjunto;
-
-describe("Pacientes: CONSULTORES travado nos 7 originais", () => {
-  it("exatamente os 7 nomes originais", () => {
-    expect([...CONSULTORES].sort()).toEqual([...SETE_ORIGINAIS].sort());
-  });
-
-  it("não contém nenhum consultor exclusivo do Follow-Up", () => {
-    for (const nome of NOVOS_NO_FOLLOW_UP) {
-      expect(CONSULTORES as string[]).not.toContain(nome);
-    }
-  });
-});
-
-describe("Follow-Up: CONSULTORES_PROCESSO", () => {
-  it("todo ConsultorNome (Pacientes) é subconjunto de ConsultorProcesso", () => {
-    for (const nome of CONSULTORES) {
-      expect(CONSULTORES_PROCESSO as string[]).toContain(nome);
-    }
-  });
-
-  it("tem os 13 nomes aprovados, sem duplicatas", () => {
-    expect(CONSULTORES_PROCESSO).toHaveLength(13);
-    expect(new Set(CONSULTORES_PROCESSO).size).toBe(13);
-    expect([...CONSULTORES_PROCESSO].sort()).toEqual([...ORDEM_ESPERADA].sort());
-  });
-
-  it("está em ordem alfabética pt-BR", () => {
-    const ordenada = [...CONSULTORES_PROCESSO].sort((a, b) => a.localeCompare(b, "pt-BR"));
-    expect(CONSULTORES_PROCESSO).toEqual(ordenada);
-    expect(CONSULTORES_PROCESSO).toEqual(ORDEM_ESPERADA);
-  });
-
-  it("não inclui Flavinha (é a mesma pessoa que Flávia)", () => {
-    expect(CONSULTORES_PROCESSO as string[]).not.toContain("Flavinha");
-    expect(CONSULTORES_PROCESSO as string[]).toContain("Flávia");
-  });
-
-  it("não inclui nomes que só aparecem no cabeçalho do doc (Rodrigão, Daniel)", () => {
-    expect(CONSULTORES_PROCESSO as string[]).not.toContain("Rodrigão");
-    expect(CONSULTORES_PROCESSO as string[]).not.toContain("Daniel");
-  });
-});
-
-function payload(consultor: string): Record<string, unknown> {
+function payload(consultor: unknown): Record<string, unknown> {
   return {
     paciente: "Fulano de Tal",
     pasta: "2026 - 400",
@@ -96,29 +39,48 @@ function payload(consultor: string): Record<string, unknown> {
   };
 }
 
-describe("validação de Processo com consultor", () => {
-  it("criação aceita consultor novo", () => {
-    for (const nome of NOVOS_NO_FOLLOW_UP) {
+describe("CONSULTORES_PROCESSO: só a lista da CARGA histórica (o app lê o Cadastro)", () => {
+  it("tem os 13 nomes aprovados da carga, sem duplicatas", () => {
+    expect(CONSULTORES_PROCESSO).toHaveLength(13);
+    expect(new Set(CONSULTORES_PROCESSO).size).toBe(13);
+    expect([...CONSULTORES_PROCESSO].sort()).toEqual([...ORDEM_ESPERADA].sort());
+  });
+
+  it("está em ordem alfabética pt-BR", () => {
+    const ordenada = [...CONSULTORES_PROCESSO].sort((a, b) => a.localeCompare(b, "pt-BR"));
+    expect(CONSULTORES_PROCESSO).toEqual(ordenada);
+    expect(CONSULTORES_PROCESSO).toEqual(ORDEM_ESPERADA);
+  });
+
+  it("não inclui Flavinha (é a mesma pessoa que Flávia)", () => {
+    expect(CONSULTORES_PROCESSO).not.toContain("Flavinha");
+    expect(CONSULTORES_PROCESSO).toContain("Flávia");
+  });
+
+  it("não inclui nomes que só aparecem no cabeçalho do doc (Rodrigão, Daniel)", () => {
+    expect(CONSULTORES_PROCESSO).not.toContain("Rodrigão");
+    expect(CONSULTORES_PROCESSO).not.toContain("Daniel");
+  });
+});
+
+describe("validação de Processo com consultor: só a forma (o Cadastro é conferido pelo handler)", () => {
+  it("criação aceita qualquer texto não vazio, inclusive consultores novos e 'Flavinha' (quem decide é o Cadastro)", () => {
+    for (const nome of [...NOVOS_NA_CARGA, "André Vitório", "Flavinha", "Rodrigão"]) {
       expect(isValidProcessoPayload(payload(nome)), nome).toBe(true);
     }
   });
 
-  it("criação continua aceitando os 7 antigos", () => {
-    for (const nome of SETE_ORIGINAIS) {
-      expect(isValidProcessoPayload(payload(nome)), nome).toBe(true);
+  it("criação rejeita consultor vazio, só com espaços ou que não é texto", () => {
+    for (const valor of ["", "   ", undefined, null, 7, {}]) {
+      expect(isValidProcessoPayload(payload(valor)), String(valor)).toBe(false);
     }
   });
 
-  it("criação rejeita consultor fora da lista", () => {
-    for (const nome of ["Rodrigão", "Daniel", "Fulano", "Flavinha", ""]) {
-      expect(isValidProcessoPayload(payload(nome)), nome).toBe(false);
-    }
-  });
-
-  it("edição (patch) aceita consultor novo e rejeita desconhecido", () => {
+  it("edição (patch): consultor texto não vazio passa; vazio e não-texto não; sem a chave, nada é conferido", () => {
     expect(isValidProcessoPatch({ consultor: "Flávia" })).toBe(true);
     expect(isValidProcessoPatch({ consultor: "Paulinho" })).toBe(true);
-    expect(isValidProcessoPatch({ consultor: "Flavinha" })).toBe(false);
-    expect(isValidProcessoPatch({ consultor: "Rodrigão" })).toBe(false);
+    expect(isValidProcessoPatch({ consultor: "" })).toBe(false);
+    expect(isValidProcessoPatch({ consultor: 3 })).toBe(false);
+    expect(isValidProcessoPatch({ paciente: "Outro" })).toBe(true);
   });
 });

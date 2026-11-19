@@ -6,16 +6,11 @@ import { createApp, defineComponent, h, nextTick } from "vue";
 import * as constantesDir from "#shared/constants/dir";
 import DirFormModal from "../../app/components/dir/DirFormModal.vue";
 import { useDirForm } from "../../app/composables/useDirForm";
-import { montarVendedorDirOptions } from "../../app/utils/dirOptions";
-import {
-  VENDEDOR_DIR_ERRO,
-  erroVendedorDir,
-  nomesConsultoresAtivos,
-  vendedorDirValido,
-} from "../../shared/utils/dirVendedor";
+import { CONSULTOR_ERRO as VENDEDOR_DIR_ERRO } from "../../shared/utils/consultorRegra";
 import { novoDir, novoDirDTO } from "./helpers/dirFixtures";
 import { FakeSupabase } from "./helpers/fakeSupabase";
 import {
+  CONSULTORES_FIXTURE,
   CONSULTORES_ATIVOS_FIXTURE,
   CONSULTOR_INATIVO_FIXTURE,
   TABELA_CONSULTORES,
@@ -59,85 +54,6 @@ const ATIVOS = [...CONSULTORES_ATIVOS_FIXTURE]; // André Vitório, Mateus Morai
 const INATIVO = CONSULTOR_INATIVO_FIXTURE; // "Junior"
 const A_DEFINIR = "A ser definido";
 const LITERAL = "Braulio (3RB)";
-
-// ── Regra pura ──────────────────────────────────────────────────────────────────────────────────────────
-
-describe("dirVendedor — regra pura", () => {
-  it("nomesConsultoresAtivos: só os ativos, em ordem alfabética pt-BR (acento e caixa não atrapalham)", () => {
-    const itens = [
-      { nome: "Vinícius Teste", ativo: true },
-      { nome: "Junior", ativo: false },
-      { nome: "álvaro Teste", ativo: true },
-      { nome: "Bolívar Teste", ativo: true },
-      { nome: "Zeca Teste", ativo: false },
-    ];
-    expect(nomesConsultoresAtivos(itens)).toEqual(["álvaro Teste", "Bolívar Teste", "Vinícius Teste"]);
-    expect(nomesConsultoresAtivos([])).toEqual([]);
-  });
-
-  it("vendedorDirValido: exatamente o nome de um ativo (aparado, sensível a caixa); vazio e inativo não", () => {
-    expect(vendedorDirValido("Mateus Morais", ATIVOS)).toBe(true);
-    expect(vendedorDirValido("  Mateus Morais ", ATIVOS)).toBe(true);
-    expect(vendedorDirValido("mateus morais", ATIVOS)).toBe(false);
-    expect(vendedorDirValido(INATIVO, ATIVOS)).toBe(false);
-    expect(vendedorDirValido("", ATIVOS)).toBe(false);
-    expect(vendedorDirValido(null, ATIVOS)).toBe(false);
-    expect(vendedorDirValido(undefined, ATIVOS)).toBe(false);
-  });
-
-  it("erroVendedorDir: valor NOVO de consultor ativo passa; valor novo inativo ou fora da lista é recusado", () => {
-    expect(erroVendedorDir({ vendedor: "Paulo Braga" }, ATIVOS)).toBeNull();
-    expect(erroVendedorDir({ vendedor: INATIVO }, ATIVOS)).toBe(VENDEDOR_DIR_ERRO);
-    expect(erroVendedorDir({ vendedor: A_DEFINIR }, ATIVOS)).toBe(VENDEDOR_DIR_ERRO);
-    expect(erroVendedorDir({ vendedor: LITERAL }, ATIVOS)).toBe(VENDEDOR_DIR_ERRO);
-    expect(erroVendedorDir({ vendedor: "" }, ATIVOS)).toBe(VENDEDOR_DIR_ERRO);
-  });
-
-  it("erroVendedorDir: o valor que o registro JÁ tem é aceito mesmo fora da lista; outro valor fora da lista não", () => {
-    for (const antigo of [INATIVO, A_DEFINIR, LITERAL, "ASD"]) {
-      expect(erroVendedorDir({ vendedor: antigo }, ATIVOS, { vendedor: antigo }), antigo).toBeNull();
-      expect(erroVendedorDir({ vendedor: ` ${antigo} ` }, ATIVOS, { vendedor: antigo }), `${antigo} (espaços)`).toBeNull();
-      expect(erroVendedorDir({ vendedor: "Rodrigo" }, ATIVOS, { vendedor: antigo }), `${antigo} → Rodrigo`).toBe(VENDEDOR_DIR_ERRO);
-    }
-    expect(erroVendedorDir({ vendedor: INATIVO }, ATIVOS, { vendedor: "Mateus Morais" })).toBe(VENDEDOR_DIR_ERRO);
-    expect(erroVendedorDir({ vendedor: INATIVO }, ATIVOS, { vendedor: null })).toBe(VENDEDOR_DIR_ERRO);
-  });
-
-  it("erroVendedorDir: corpo sem a chave `vendedor` não é conferido", () => {
-    expect(erroVendedorDir({}, ATIVOS)).toBeNull();
-    expect(erroVendedorDir({}, [], { vendedor: A_DEFINIR })).toBeNull();
-  });
-});
-
-// ── Opções do select ────────────────────────────────────────────────────────────────────────────────────
-
-describe("montarVendedorDirOptions — o select Consultor", () => {
-  const rotulos = (o: ReturnType<typeof montarVendedorDirOptions>) => o.map((x) => x.label);
-
-  it('"Selecione" + os consultores ativos, na ordem recebida, SEM "Outro"', () => {
-    const o = montarVendedorDirOptions("", ATIVOS);
-    expect(rotulos(o)).toEqual(["Selecione", ...ATIVOS]);
-    expect(o[0]).toEqual({ value: "", label: "Selecione" });
-    expect(rotulos(o)).not.toContain("Outro");
-  });
-
-  it("valor atual de consultor ativo não duplica nem ganha '(inativo)'", () => {
-    expect(rotulos(montarVendedorDirOptions("Mateus Morais", ATIVOS))).toEqual(["Selecione", ...ATIVOS]);
-  });
-
-  it('valor atual fora da lista ativa (inativo, "A ser definido", "Braulio (3RB)") entra como "<valor> (inativo)" e mantém o valor', () => {
-    for (const antigo of [INATIVO, A_DEFINIR, LITERAL]) {
-      const o = montarVendedorDirOptions(antigo, ATIVOS);
-      expect(o.at(-1), antigo).toEqual({ value: antigo, label: `${antigo} (inativo)` });
-      expect(o, antigo).toHaveLength(ATIVOS.length + 2);
-    }
-  });
-
-  it("sem lista carregada: só 'Selecione' e, se houver, o valor atual como inativo (nunca vira vazio)", () => {
-    expect(rotulos(montarVendedorDirOptions("", []))).toEqual(["Selecione"]);
-    expect(rotulos(montarVendedorDirOptions(A_DEFINIR, []))).toEqual(["Selecione", `${A_DEFINIR} (inativo)`]);
-  });
-});
 
 // ── Formulário (useDirForm.validar) ─────────────────────────────────────────────────────────────────────
 
@@ -363,12 +279,12 @@ describe("/api/dir — respostas HTTP", () => {
 
 const montados: Array<{ unmount: () => void; el: HTMLElement }> = [];
 
-function montarModal(editingDir: ReturnType<typeof novoDir> | null, consultoresAtivos: readonly string[] = ATIVOS, readonly = false): void {
+function montarModal(editingDir: ReturnType<typeof novoDir> | null, consultores = CONSULTORES_FIXTURE, readonly = false): void {
   const el = document.createElement("div");
   document.body.appendChild(el);
   const app = createApp(
     defineComponent({
-      render: () => h(DirFormModal, { editingDir, contagemPorPo: new Map<string, number>(), consultoresAtivos, readonly }),
+      render: () => h(DirFormModal, { editingDir, contagemPorPo: new Map<string, number>(), consultores, readonly }),
     }),
   );
   app.mount(el);
@@ -411,12 +327,16 @@ describe("DirFormModal — select Consultor", () => {
     expect(await opcoesAbertas()).toEqual(["Selecione", ...ATIVOS]);
   });
 
-  it('registro com valor fora da lista ativa (inativo, "A ser definido", "Braulio (3RB)"): aparece "<valor> (inativo)", selecionado, nunca vazio', async () => {
-    for (const antigo of [INATIVO, A_DEFINIR, LITERAL]) {
+  it('registro com consultor INATIVO do Cadastro: aparece "<valor> (inativo)"; valor que o Cadastro não conhece ("A ser definido", "Braulio (3RB)") aparece como está; sempre selecionado, nunca vazio', async () => {
+    for (const [antigo, rotulo] of [
+      [INATIVO, `${INATIVO} (inativo)`],
+      [A_DEFINIR, A_DEFINIR],
+      [LITERAL, LITERAL],
+    ] as const) {
       montarModal(novoDir({ vendedor: antigo }));
       await nextTick();
-      expect(textoBotao(), antigo).toBe(`${antigo} (inativo)`);
-      expect(await opcoesAbertas(), antigo).toEqual(["Selecione", ...ATIVOS, `${antigo} (inativo)`]);
+      expect(textoBotao(), antigo).toBe(rotulo);
+      expect(await opcoesAbertas(), antigo).toEqual(["Selecione", ...ATIVOS, rotulo]);
       expect(document.getElementById("df-vendedor-outro")).toBeNull();
       montados.pop()!.unmount();
       document.body.innerHTML = "";
@@ -431,7 +351,7 @@ describe("DirFormModal — select Consultor", () => {
   });
 
   it("somente leitura: o select aparece desabilitado e mostra o valor", async () => {
-    montarModal(novoDir({ vendedor: "Paulo Braga" }), ATIVOS, true);
+    montarModal(novoDir({ vendedor: "Paulo Braga" }), CONSULTORES_FIXTURE, true);
     await nextTick();
     expect(botao().disabled).toBe(true);
     expect(textoBotao()).toBe("Paulo Braga");
@@ -453,16 +373,18 @@ describe("a DIR não tem mais lista própria de consultores", () => {
     }
   });
 
-  it("a página da DIR carrega só a lista de consultores (fetchLista) e entrega os ativos ao modal", () => {
+  it("a página da DIR carrega só a lista de consultores (useConsultores) e entrega ao modal", () => {
     const pagina = readFileSync(join(process.cwd(), "app/pages/dir.vue"), "utf-8");
-    expect(pagina).toContain('fetchLista("consultores")');
-    expect(pagina).toContain(":consultores-ativos=\"consultoresAtivos\"");
-    expect(pagina).toContain("nomesConsultoresAtivos(cadastros.value.consultores)");
+    expect(pagina).toContain("useConsultores()");
+    expect(pagina).toContain("carregarConsultores()");
+    expect(pagina).toContain(':consultores="consultores"');
   });
 
-  it("o servidor da DIR lê os consultores pelo util próprio (fora do store dos Cadastros) e só as colunas nome e ativo", () => {
-    const util = readFileSync(join(process.cwd(), "server/utils/consultoresAtivos.ts"), "utf-8");
+  it("o servidor da DIR lê os consultores pelo util único (fora do store dos Cadastros) e só as colunas nome e ativo", () => {
+    const util = readFileSync(join(process.cwd(), "server/utils/consultoresCadastro.ts"), "utf-8");
     expect(util).toContain('.select("nome, ativo").eq("ativo", true)');
     expect(util).not.toMatch(/chave_pix/);
+    const store = readFileSync(join(process.cwd(), "server/utils/dirStore.ts"), "utf-8");
+    expect(store).toContain('from "./consultoresCadastro"');
   });
 });

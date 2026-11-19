@@ -1,4 +1,4 @@
-import type { EmpresaCodigo, ConsultorNome, MedicamentoItem, NewPatientDTO, Patient } from "../../shared/types/Patient";
+import type { EmpresaCodigo, MedicamentoItem, NewPatientDTO, Patient } from "../../shared/types/Patient";
 import { normalizarPatientStatus } from "../../shared/constants/prestacaoStatus";
 import { num } from "./storeKit";
 
@@ -30,7 +30,7 @@ export interface PacienteRow {
   descricao_compra: string;
   descricao_resumo: string;
   empresa: EmpresaCodigo;
-  consultor: ConsultorNome | null;
+  consultor: string | null;
   alvara: number | string;
   custo_importacao: number | string;
   despesa_total: number | string;

@@ -1,7 +1,6 @@
 import { createError } from "h3";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { AuthUser, AdminUserSummary, ContaSummary } from "#shared/types/auth";
-import type { ConsultorProcesso } from "#shared/types/processo";
 import { isRole, type Role } from "#shared/utils/rbac";
 import {
   ROLES_COM_PERMISSAO,
@@ -10,7 +9,6 @@ import {
   validarPermissoesEstrito,
   type Permissoes,
 } from "#shared/utils/permissoesPagina";
-import { CONSULTORES_PROCESSO } from "#shared/constants/processos";
 
 export function parseAdminEmails(raw: unknown): string[] {
   return String(raw ?? "")
@@ -19,20 +17,24 @@ export function parseAdminEmails(raw: unknown): string[] {
     .filter(Boolean);
 }
 
-function isConsultorNome(value: unknown): value is ConsultorProcesso {
-  return typeof value === "string" && (CONSULTORES_PROCESSO as string[]).includes(value);
+/** `consultorNome` de um corpo/metadata: texto não vazio (aparado). Que o nome exista no Cadastro é conferido à parte. */
+function consultorNomeTexto(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const nome = value.trim();
+  return nome === "" ? undefined : nome;
 }
 
 /**
  * Valida `role` (+ `consultorNome` quando o cargo é consultor) a partir de um
  * body cru. Regra única compartilhada por POST e PATCH de contas:
- * - `consultorNome` obrigatório e restrito a CONSULTORES_PROCESSO SÓ para consultor;
+ * - `consultorNome` obrigatório (texto não vazio) SÓ para consultor; que o nome EXISTA no Cadastro (ativo ou inativo) é conferido
+ *   pelos handlers, que leem o Cadastro (server/utils/contaConsultor.ts);
  * - para os demais cargos, `consultorNome` é sempre ignorado.
  * Lança 400 (h3) em caso de valor inválido.
  */
 export function parseRoleInput(body: { role?: unknown; consultorNome?: unknown }): {
   role: Role;
-  consultorNome?: ConsultorProcesso;
+  consultorNome?: string;
 } {
   if (!isRole(body.role)) {
     throw createError({
@@ -44,14 +46,15 @@ export function parseRoleInput(body: { role?: unknown; consultorNome?: unknown }
   const role: Role = body.role;
 
   if (role === "consultor") {
-    if (!isConsultorNome(body.consultorNome)) {
+    const consultorNome = consultorNomeTexto(body.consultorNome);
+    if (consultorNome === undefined) {
       throw createError({
         statusCode: 400,
         statusMessage:
           "Para o cargo consultor, informe um consultorNome válido (um dos consultores cadastrados).",
       });
     }
-    return { role, consultorNome: body.consultorNome };
+    return { role, consultorNome };
   }
 
   return { role };
@@ -121,7 +124,7 @@ export function parsePermissoesInput(
 export function parseContaInput(
   body: { role?: unknown; consultorNome?: unknown; permissoes?: unknown },
   modo: "criacao" | "edicao",
-): { role: Role; consultorNome?: ConsultorProcesso; permissoes: AcaoPermissoes } {
+): { role: Role; consultorNome?: string; permissoes: AcaoPermissoes } {
   const { role, consultorNome } = parseRoleInput(body);
   return { role, consultorNome, permissoes: parsePermissoesInput(body, role, modo) };
 }
@@ -136,7 +139,7 @@ export function parseContaInput(
  */
 export function roleAppMetadata(
   role: Role,
-  consultorNome?: ConsultorProcesso,
+  consultorNome?: string,
   nome?: string,
   permissoes?: Permissoes,
 ): Record<string, unknown> {
@@ -157,7 +160,7 @@ export function roleAppMetadata(
  */
 export function roleAppMetadataEdicao(
   role: Role,
-  consultorNome?: ConsultorProcesso,
+  consultorNome?: string,
   nome?: string,
   permissoes?: Permissoes | null,
 ): Record<string, unknown> {
@@ -255,8 +258,9 @@ export async function assertNotLastAdmin(
 export function toAdminUserSummary(user: User): AdminUserSummary {
   const meta = (user.app_metadata ?? {}) as Record<string, unknown>;
   const role: Role = isRole(meta.role) ? meta.role : "consultor";
-  const consultorNome =
-    role === "consultor" && isConsultorNome(meta.consultorNome) ? meta.consultorNome : undefined;
+  // Só exibição: o nome gravado na conta, exatamente como está (a tela de Contas mostra o valor real, mesmo que o consultor tenha
+  // sido desativado ou renomeado e a conta ainda não tenha sido atualizada).
+  const consultorNome = role === "consultor" ? consultorNomeTexto(meta.consultorNome) : undefined;
   const nome = typeof meta.nome === "string" && meta.nome.trim() ? meta.nome : undefined;
   // Só socio e operacional usam o mapa; sem a chave (ou para os outros cargos) a conta aparece com `null`.
   const permissoes = ROLES_COM_PERMISSAO.includes(role) ? (sanitizarPermissoes(meta.permissoes) ?? null) : null;
@@ -296,10 +300,9 @@ export function resolveAuthUser(user: User, adminEmails: string[]): AuthUser {
     role = "consultor";
   }
 
-  let consultorNome: ConsultorProcesso | undefined;
-  if (role === "consultor" && isConsultorNome(meta.consultorNome)) {
-    consultorNome = meta.consultorNome;
-  }
+  // O nome é lido como está gravado; que ele EXISTA no Cadastro é conferido por `conferirConsultorDaSessao`
+  // (server/utils/contaConsultor.ts), no middleware, com cache curto de acertos.
+  const consultorNome = role === "consultor" ? consultorNomeTexto(meta.consultorNome) : undefined;
 
   const nome = typeof meta.nome === "string" && meta.nome.trim() ? meta.nome : undefined;
 

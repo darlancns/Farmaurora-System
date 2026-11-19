@@ -14,6 +14,7 @@ import { useProcessos } from "../composables/useProcessos";
 import { useAuth } from "../composables/useAuth";
 import { useMoverProcesso } from "../composables/useMoverProcesso";
 import { useRecarregarAoVoltar } from "../composables/useRecarregarAoVoltar";
+import { useConsultores } from "../composables/useConsultores";
 import { useToast } from "../composables/useToast";
 import { useVisaoProcessos } from "../composables/useVisaoProcessos";
 import type { VisaoProcessos } from "../utils/processoVisao";
@@ -265,7 +266,15 @@ async function irParaProcesso(id: string): Promise<void> {
   }, DESTAQUE_PROCESSO_MS);
 }
 
+// Consultores do Cadastro (formulário e ordem dos grupos). O cargo consultor vê lista plana e não edita: não precisa deles.
+const { consultores, carregarConsultores } = useConsultores();
+
 onMounted(async () => {
+  if (!flatList.value) {
+    void carregarConsultores().then((falha) => {
+      if (falha) showToast(falha);
+    });
+  }
   await fetchProcessos();
   const id = processoIdDaQuery(route.query[QUERY_PROCESSO]);
   if (id) await irParaProcesso(id);
@@ -595,6 +604,7 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
       :foco-id="focoId"
       :contagem-pasta="contagemPasta"
       :abertura="aberturaAndamento"
+      :consultores="consultores"
       @edit="openEditForm"
       @delete="handleDelete"
     />
@@ -653,6 +663,7 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
     <ProcessoFormModal
       v-if="showFormModal && canWriteProcessos"
       :editing-processo="editingProcesso"
+      :consultores="consultores"
       :conflito="conflitoEdicao"
       :recarregando="recarregandoEdicao"
       @submit="handleSubmit"

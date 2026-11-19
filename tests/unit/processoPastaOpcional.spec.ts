@@ -9,6 +9,7 @@ import { montarAvisosItensNovos } from "../../server/utils/notificacoesProcesso"
 import { montarTextoAvisoChegada } from "../../shared/utils/avisoChegada";
 import { pacienteComPasta, pastaLimpa, rotuloPastaPo, temPasta } from "../../shared/utils/rotuloPasta";
 import { FakeSupabase } from "./helpers/fakeSupabase";
+import { semearConsultores } from "./helpers/consultoresFixtures";
 import { MEDICAMENTOS, editado, estadoCompleto, formCompleto, linhaCompleta } from "./helpers/processoEdicaoFixtures";
 
 // Pasta OPCIONAL no Follow-Up (decisões da Cris): sem pasta = "" (texto vazio, NUNCA null); preenchida, a máscara de
@@ -17,6 +18,8 @@ import { MEDICAMENTOS, editado, estadoCompleto, formCompleto, linhaCompleta } fr
 
 const h = vi.hoisted(() => ({ body: {} as unknown }));
 const fake = new FakeSupabase();
+// O servidor confere o consultor contra os ativos do Cadastro (cadastro_consultores).
+semearConsultores(fake);
 
 vi.mock("h3", async (importOriginal) => {
   const real = await importOriginal<typeof import("h3")>();

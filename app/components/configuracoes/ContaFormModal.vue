@@ -2,13 +2,13 @@
 import { computed, reactive, ref, watch } from "vue";
 import type { AdminUserSummary, UpdateUserRoleDTO } from "#shared/types/auth";
 import type { Role } from "#shared/utils/rbac";
-import type { ConsultorProcesso } from "#shared/types/processo";
+import type { ItemConsultor } from "#shared/utils/consultorRegra";
 import type { NivelPermissao, SecaoComPermissao } from "#shared/utils/permissoesPagina";
 import { ROLE_OPTIONS } from "#shared/constants/roles";
-import { CONSULTORES_PROCESSO } from "#shared/constants/processos";
 import AppSelect from "../AppSelect.vue";
 import BaseModal from "../BaseModal.vue";
 import type { AppSelectOption } from "../../types/appSelect";
+import { montarConsultorOptions } from "../../utils/consultorOptions";
 import { generatePassword } from "../../utils/generatePassword";
 import { useTitleCaseInput } from "../../composables/useTitleCaseInput";
 import type { NovaContaDTO } from "../../composables/useContas";
@@ -27,10 +27,13 @@ const props = withDefaults(
     editingConta?: AdminUserSummary | null;
     // nome do consultor -> e-mail da conta que já o usa (só para aviso visual)
     consultoresEmUso?: Record<string, string>;
+    // Consultores do Cadastro (ativos e inativos): as opções do select são os ativos; o consultor atual da conta aparece
+    // mesmo se já estiver inativo ou fora do Cadastro.
+    consultores?: ItemConsultor[];
     // controlado pelo pai enquanto a chamada de rede está em andamento
     busy?: boolean;
   }>(),
-  { editingConta: null, consultoresEmUso: () => ({}), busy: false },
+  { editingConta: null, consultoresEmUso: () => ({}), consultores: () => [], busy: false },
 );
 
 const emit = defineEmits<{
@@ -47,13 +50,11 @@ const form = reactive({
   password: "",
   nome: props.editingConta?.nome ?? "",
   role: (props.editingConta?.role ?? "consultor") as Role,
-  consultorNome: (props.editingConta?.consultorNome ?? "") as ConsultorProcesso | "",
+  consultorNome: props.editingConta?.consultorNome ?? "",
 });
 
-const consultorOptions: AppSelectOption<ConsultorProcesso | "">[] = CONSULTORES_PROCESSO.map((nome) => ({
-  value: nome,
-  label: nome,
-}));
+// Select: "Selecione" + os consultores ATIVOS do Cadastro; o valor atual da conta (se inativo ou fora do Cadastro) entra como opção extra.
+const consultorOptions = computed<AppSelectOption<string>[]>(() => montarConsultorOptions(form.consultorNome, props.consultores));
 
 const showConsultor = computed(() => form.role === "consultor");
 
@@ -160,7 +161,7 @@ function handleSubmit(): void {
   }
 
   const consultorNome =
-    form.role === "consultor" ? (form.consultorNome as ConsultorProcesso) : undefined;
+    form.role === "consultor" ? form.consultorNome : undefined;
 
   const envio = permissoesParaEnvio({
     modo: isEdit.value ? "edicao" : "criacao",

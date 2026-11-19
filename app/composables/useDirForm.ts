@@ -18,7 +18,7 @@ import {
 } from "#shared/utils/contratoCambio";
 import { NUMERO_PO_REGEX as PO_RE } from "#shared/utils/numeroPo";
 import { ENVIO_DIR_ERRO, envioDirValido } from "#shared/utils/dirEnvio";
-import { VENDEDOR_DIR_ERRO, vendedorDirValido } from "#shared/utils/dirVendedor";
+import { CONSULTOR_ERRO, consultorAtivoValido } from "#shared/utils/consultorRegra";
 import { aplicarMascaraNumeroPo } from "../utils/aplicarMascaraNumeroPo";
 import { aplicarMaiusculasNoCampo } from "../utils/aplicarMaiusculasNoCampo";
 import { aplicarTransformacaoNoCampo } from "../utils/aplicarTransformacaoNoCampo";
@@ -190,8 +190,8 @@ export function useDirForm(editando: () => Dir | null | undefined, consultoresAt
     if (!vendedor) return { valido: false, erro: "Informe o consultor." };
     // Consultor: só um ativo do Cadastro. O valor que o registro JÁ tem (inativo, "A ser definido", "Braulio (3RB)"…) não
     // impede salvar os outros campos (o select o mostra como "(inativo)"); qualquer outro valor fora da lista é recusado.
-    if (consultoresAtivos && !vendedorDirValido(vendedor, consultoresAtivos()) && vendedor !== (editando()?.vendedor ?? "").trim()) {
-      return { valido: false, erro: VENDEDOR_DIR_ERRO };
+    if (consultoresAtivos && !consultorAtivoValido(vendedor, consultoresAtivos()) && vendedor !== (editando()?.vendedor ?? "").trim()) {
+      return { valido: false, erro: CONSULTOR_ERRO };
     }
     // Valor antigo (anotação em texto de antes da regra) igual ao já gravado não impede salvar os outros campos.
     const contratoCambio = normalizarContratoCambio(form.contratoCambio);

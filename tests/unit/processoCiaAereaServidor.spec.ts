@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { validarProcessoForm } from "../../app/utils/processoFormPayload";
 import { FakeSupabase } from "./helpers/fakeSupabase";
+import { semearConsultores } from "./helpers/consultoresFixtures";
 import { ATUALIZACOES, MEDICAMENTOS, VERSAO, formCompleto, linhaCompleta } from "./helpers/processoEdicaoFixtures";
 
 // Item 6 do lote Follow-Up — servidor: a cia aérea precisa combinar com o modal de envio.
@@ -8,6 +9,8 @@ import { ATUALIZACOES, MEDICAMENTOS, VERSAO, formCompleto, linhaCompleta } from 
 
 const h = vi.hoisted(() => ({ body: {} as unknown }));
 const fake = new FakeSupabase();
+// O servidor confere o consultor contra os ativos do Cadastro (cadastro_consultores).
+semearConsultores(fake);
 
 vi.mock("h3", async (importOriginal) => {
   const real = await importOriginal<typeof import("h3")>();

@@ -61,23 +61,6 @@ export const TEMPERATURA_DIR_OPTIONS = opcoesComOutro(TEMPERATURAS_DIR);
 export const OBSERVACAO_DIR_OPTIONS = opcoesComOutro(OBSERVACOES_DIR);
 
 /**
- * Select "Consultor" (vendedor) do formulário: "Selecione" + os consultores ATIVOS do Cadastro (já em ordem alfabética;
- * fonte única: lista "consultores", Configurações → Cadastros). Sem "Outro". Valor atual fora da lista ativa (consultor
- * desativado, "A ser definido", "Braulio (3RB)"…) entra como opção extra "<valor> (inativo)": continua visível e
- * selecionado, nunca vira vazio, até a pessoa trocá-lo. Só os consultores ativos podem ser escolhidos como valor novo.
- */
-export function montarVendedorDirOptions(atual: string, ativos: readonly string[]): AppSelectOption<string>[] {
-  const opcoes: AppSelectOption<string>[] = [
-    { value: "", label: "Selecione" },
-    ...ativos.map((nome) => ({ value: nome, label: nome })),
-  ];
-  if (atual.trim() !== "" && !ativos.includes(atual)) {
-    opcoes.push({ value: atual, label: `${atual.trim()} (inativo)` });
-  }
-  return opcoes;
-}
-
-/**
  * Select "Cia aérea" do formulário: "Selecione" + a lista de companhias do Follow-Up (fonte única,
  * shared/constants/processos.ts). Sem "Outro" (o Follow-Up também não tem). Valor atual fora da lista (dado antigo) entra
  * como opção extra "<valor> (inativo)": continua visível e selecionado, nunca vira vazio, até a pessoa trocá-lo.

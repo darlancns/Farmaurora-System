@@ -203,22 +203,22 @@ describe("resolveAuthUser — cargo a partir de app_metadata", () => {
     expect(u.consultorNome).toBe("Dani");
   });
 
-  it("consultorNome 'Flavinha' (removido da lista) é descartado", () => {
-    const u = resolveAuthUser(
-      { ...base, app_metadata: { role: "consultor", consultorNome: "Flavinha" } } as never,
-      [],
-    );
-    expect(u.role).toBe("consultor");
-    expect(u.consultorNome).toBeUndefined();
+  // A lista de consultores deixou de ser uma constante do código: resolveAuthUser lê o nome COMO ESTÁ GRAVADO na conta e quem confere
+  // que ele existe no Cadastro é conferirConsultorDaSessao (server/utils/contaConsultor.ts, no middleware, com cache de acertos).
+  // "Flavinha" e nomes que o Cadastro não tem são descartados lá — ver consultorValidacaoServidor.spec.ts.
+  it("consultorNome 'Flavinha' ou fora do Cadastro: resolveAuthUser só lê o texto (a conferência é da sessão)", () => {
+    for (const nome of ["Flavinha", "Fulano"]) {
+      const u = resolveAuthUser({ ...base, app_metadata: { role: "consultor", consultorNome: nome } } as never, []);
+      expect(u.role).toBe("consultor");
+      expect(u.consultorNome).toBe(nome);
+    }
   });
 
-  it("consultorNome fora da lista de consultores é descartado", () => {
-    const u = resolveAuthUser(
-      { ...base, app_metadata: { role: "consultor", consultorNome: "Fulano" } } as never,
-      [],
-    );
-    expect(u.role).toBe("consultor");
-    expect(u.consultorNome).toBeUndefined();
+  it("consultorNome em branco ou que não é texto é descartado", () => {
+    for (const nome of ["", "   ", 42, null, {}]) {
+      const u = resolveAuthUser({ ...base, app_metadata: { role: "consultor", consultorNome: nome } } as never, []);
+      expect(u.consultorNome, String(nome)).toBeUndefined();
+    }
   });
 
   it("fallback: sem role no metadata + e-mail admin → administrador", () => {
@@ -259,13 +259,16 @@ describe("parseRoleInput — validação compartilhada POST/PATCH de contas", ()
     });
   });
 
-  it("consultor com nome que nunca entrou na lista (Rodrigão, Daniel) → 400", () => {
-    expect(() => parseRoleInput({ role: "consultor", consultorNome: "Rodrigão" })).toThrowError();
-    expect(() => parseRoleInput({ role: "consultor", consultorNome: "Daniel" })).toThrowError();
+  // Que o nome EXISTA no Cadastro (Rodrigão, Daniel, Fulano → 400) é conferido pelos handlers, que leem o Cadastro:
+  // exigirConsultorDaContaNoCadastro (consultorValidacaoServidor.spec.ts). Aqui só a forma do corpo.
+  it("consultor com nome em branco ou que não é texto → 400", () => {
+    for (const nome of ["", "   ", 7, null, undefined, {}]) {
+      expect(() => parseRoleInput({ role: "consultor", consultorNome: nome }), String(nome)).toThrowError();
+    }
   });
 
-  it("consultor com nome fora da lista de consultores → 400", () => {
-    expect(() => parseRoleInput({ role: "consultor", consultorNome: "Fulano" })).toThrowError();
+  it("o nome do consultor é aparado", () => {
+    expect(parseRoleInput({ role: "consultor", consultorNome: "  Bolívar " })).toEqual({ role: "consultor", consultorNome: "Bolívar" });
   });
 
   it("consultor com nome válido → ok", () => {

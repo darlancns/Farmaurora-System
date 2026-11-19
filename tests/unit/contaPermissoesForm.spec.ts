@@ -17,6 +17,7 @@ import {
 } from "../../app/utils/contaPermissoesForm";
 import { parseContaInput } from "../../server/utils/authUser";
 import ContaFormModal from "../../app/components/configuracoes/ContaFormModal.vue";
+import { CONSULTORES_FIXTURE } from "./helpers/consultoresFixtures";
 import ContasTab from "../../app/components/configuracoes/ContasTab.vue";
 import { useAuth } from "../../app/composables/useAuth";
 import { useContas } from "../../app/composables/useContas";
@@ -73,6 +74,7 @@ function abrir(editingConta: AdminUserSummary | null): Eventos {
     h(ContaFormModal, {
       editingConta,
       consultoresEmUso: {},
+      consultores: CONSULTORES_FIXTURE,
       busy: false,
       onCreate: (p: NovaContaDTO) => ev.create.push(p),
       onUpdate: (id: string, payload: UpdateUserRoleDTO) => ev.update.push({ id, payload }),

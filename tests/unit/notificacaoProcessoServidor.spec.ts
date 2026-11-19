@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthUser } from "../../shared/types/auth";
 import { FakeSupabase } from "./helpers/fakeSupabase";
+import { semearConsultores } from "./helpers/consultoresFixtures";
 
 // Aviso ao CONSULTOR (sino) de nova pendência / nova atualização: POST /api/processos, PATCH /api/processos/:id
 // (parcial, legado e versionado) e POST /api/processos/:id/chegada. Handlers, stores e o fan-out são os REAIS;
@@ -15,6 +16,8 @@ const h = vi.hoisted(() => ({
   falhaNoListUsers: false,
 }));
 const fake = new FakeSupabase();
+// O servidor confere o consultor contra os ativos do Cadastro (cadastro_consultores).
+semearConsultores(fake);
 
 vi.mock("h3", async (importOriginal) => {
   const real = await importOriginal<typeof import("h3")>();

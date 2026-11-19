@@ -51,14 +51,6 @@ export const LISTA_CADASTRO_TEXTOS: Record<ListaCadastro, TextosItemCadastro> = 
   },
 };
 
-/**
- * Aviso fixo no topo do corpo de uma seção (só as listas que precisam). Consultores: etapa 1, a lista vale só para a DIR.
- */
-export const LISTA_CADASTRO_AVISO: Partial<Record<ListaCadastro, string>> = {
-  consultores:
-    "Por enquanto esta lista vale só para a DIR. Follow-Up, Prestação e contas de login ainda usam a lista antiga.",
-};
-
 /** Tabela de cada lista no Supabase (20261109200000_cadastros.sql, 20261118200000_cadastros_transportadoras_pix.sql e 20261118210000_cadastro_consultores.sql). */
 export const TABELA_CADASTRO: Record<ListaCadastro, string> = {
   fornecedores: "cadastro_fornecedores",

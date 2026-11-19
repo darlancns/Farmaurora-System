@@ -57,13 +57,15 @@ describe("a chave PIX dos Cadastros só sai por /api/cadastros", () => {
     expect(violacoes).toEqual([]);
   });
 
-  it("só três rotas de API usam o store dos Cadastros: GET, POST e PATCH de /api/cadastros/:lista", () => {
+  it("só cinco rotas de API usam o store dos Cadastros: GET, POST e PATCH de /api/cadastros/:lista, mais impacto e renomear-contas dos consultores", () => {
     const usam = todos
       .filter((a) => a.caminho.startsWith("server/api/") && /cadastrosStore/.test(a.texto))
       .map((a) => a.caminho)
       .sort();
     expect(usam).toEqual([
       "server/api/cadastros/[lista]/[id].patch.ts",
+      "server/api/cadastros/[lista]/[id]/impacto.get.ts",
+      "server/api/cadastros/[lista]/[id]/renomear-contas.post.ts",
       "server/api/cadastros/[lista]/index.get.ts",
       "server/api/cadastros/[lista]/index.post.ts",
     ]);

@@ -101,7 +101,8 @@ Detalhes:
 - **`consultor` é *row-scoped*** — só enxerga Processos cujo `consultor` bate com o
   `consultorNome` gravado no seu `app_metadata`. O filtro é aplicado **na query da API**
   (`server/api/processos/index.get.ts` e `[id].get.ts` respondem 404 para processo de outro),
-  não só na UI. Sem `consultorNome` definido, não vê nada.
+  não só na UI. Sem `consultorNome` definido — ou com um nome que não existe no **Cadastro de
+  consultores** (a fonte única de consultores: Contas, Follow-Up, Prestação e DIR leem dele) —, não vê nada.
 - **Rota de entrada por cargo** (`defaultRouteForRole`): todos os cargos caem em `/processos`;
   `"/"` redireciona pra lá.
 - **Rede de segurança de migração**: uma conta sem `app_metadata.role` definido, cujo e-mail
@@ -172,7 +173,7 @@ ALLOW_REAL_DB=1 npm run test:integration
 > 2. `cp .env.e2e.example .env.e2e` e preencher `NUXT_PUBLIC_SUPABASE_URL` (loopback),
 >    `NUXT_PUBLIC_SUPABASE_ANON_KEY` e `NUXT_SUPABASE_SERVICE_ROLE_KEY`. O `.env.e2e` é ignorado pelo git.
 > 3. `npm run e2e:setup-users` — cria admin, operacional, sócio e consultor (`app_metadata` no mesmo
->    formato do app) e escreve as `E2E_*` no `.env.e2e`.
+>    formato do app), grava o consultor da conta em `cadastro_consultores` e escreve as `E2E_*` no `.env.e2e`.
 > 4. `npx playwright test`. Sem `.env.e2e`, sem chave ou com URL não local, a config lança e nada sobe.
 >
 > O Supabase local precisa do schema da produção. Hoje `supabase/migrations/` só versiona parte das
@@ -333,7 +334,7 @@ app/
 
 shared/                               # compartilhado entre client e server (alias #shared)
 ├─ types/                             # Patient.ts, processo.ts, Pagamento.ts, auth.ts
-├─ constants/                         # consultores, empresas, processos, pagamentos, roles
+├─ constants/                         # empresas, processos, pagamentos, roles, cadastros (os consultores vêm do Cadastro)
 └─ utils/                             # rbac.ts (política de acesso), attachments.ts, dataBrasilia.ts (hoje/datas em Brasília)
 
 server/

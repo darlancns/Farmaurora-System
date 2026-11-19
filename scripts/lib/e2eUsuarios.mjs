@@ -8,10 +8,43 @@ import { parseEnv } from "node:util";
 export const DOMINIO_PADRAO = "farmaurora.com.br";
 
 /**
- * Consultor das contas de cargo `consultor`. Tem que ser um dos CONSULTORES_PROCESSO
- * (shared/constants/processos.ts) — tests/unit/e2eUsuarios.spec.ts garante isso.
+ * Consultor das contas de cargo `consultor`. A conta só vale se o nome EXISTE no Cadastro (cadastro_consultores): o setup grava
+ * este consultor lá (linhaConsultorE2E) para o Supabase local de teste. É um dos nomes da carga (CONSULTORES_PROCESSO,
+ * shared/constants/processos.ts) — tests/unit/e2eUsuarios.spec.ts garante isso.
  */
 export const CONSULTOR_NOME_PADRAO = "Alessandra";
+
+/**
+ * Consultores que os specs e2e usam ao criar processo, prestação ou PO: o globalSetup (tests/e2e/_guards/globalSetup.ts) os grava
+ * como ATIVOS no Cadastro do Supabase LOCAL (gravar um valor novo exige consultor ativo). Só nomes de consultor, nenhum dado real.
+ */
+export const CONSULTORES_E2E = [
+  "Alessandra",
+  "André Vitório",
+  "Bolívar",
+  "Dani",
+  "Flávia",
+  "Gabriela Megda",
+  "Gabriela Santana",
+  "Mateus Morais",
+  "Paulo Braga",
+  "Thiago Guedes",
+  "Vinícius Alves",
+];
+
+/**
+ * Linha de `cadastro_consultores` do consultor das contas e2e (mesma chave de shared/utils/cadastroNome.ts: sem acento, sem
+ * diferença de caixa, espaços colapsados). Id fixo para o setup ser idempotente.
+ */
+export function linhaConsultorE2E(nome = CONSULTOR_NOME_PADRAO) {
+  const chave = nome
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+  return { id: `cons_e2e_${chave.replace(/\W+/g, "_")}`, nome, nome_chave: chave, ativo: true, atualizado_por: "e2e" };
+}
 
 /**
  * As 4 contas dedicadas de teste, uma por cargo. `chave` vira o prefixo das variáveis (E2E_<CHAVE>_EMAIL,

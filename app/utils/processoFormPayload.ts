@@ -1,5 +1,4 @@
 import type {
-  ConsultorProcesso,
   EmpresaProcesso,
   Medicamento,
   ProcessoDatas,
@@ -34,7 +33,7 @@ export interface ProcessoFormState {
   numeroPo: string; // PO, como mascarado no campo: PO26-10-0471; vazio ou completo (incompleto é recusado ao salvar)
   pasta: string;
   empresa: EmpresaProcesso;
-  consultor: ConsultorProcesso | "";
+  consultor: string;
   responsavelOperacional: string;
   despachante: string;
   transportadoraNome: string;
@@ -107,7 +106,7 @@ export function buildBasePayload(
     numeroPo: normalizarNumeroPo(form.numeroPo) ?? undefined,
     pasta: form.pasta.trim(),
     empresa: form.empresa,
-    consultor: form.consultor as ConsultorProcesso,
+    consultor: form.consultor,
     responsavelOperacional: form.responsavelOperacional.trim() || undefined,
     despachante: form.despachante.trim() || undefined,
     fornecedor: fornecedor || undefined,

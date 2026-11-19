@@ -1,4 +1,3 @@
-import type { ConsultorProcesso } from "./processo";
 import type { Role } from "../utils/rbac";
 import type { Permissoes } from "../utils/permissoesPagina";
 
@@ -18,7 +17,7 @@ export interface AuthUser {
   email: string;
   role: Role;
   /** Presente só quando `role === "consultor"`. */
-  consultorNome?: ConsultorProcesso;
+  consultorNome?: string;
   /** Nome genérico de exibição da conta. Contas antigas podem não ter. */
   nome?: string;
   /**
@@ -38,7 +37,7 @@ export interface AdminUserSummary {
   id: string;
   email: string;
   role: Role;
-  consultorNome?: ConsultorProcesso;
+  consultorNome?: string;
   nome?: string;
   /**
    * Mapa de permissões por página gravado na conta (socio e operacional), completo e sanitizado; `null` quando a
@@ -52,7 +51,7 @@ export interface AdminUserSummary {
 /** Body do PATCH /api/admin/users/[id]. */
 export interface UpdateUserRoleDTO {
   role: Role;
-  consultorNome?: ConsultorProcesso;
+  consultorNome?: string;
   nome?: string;
   /**
    * Só socio/operacional. AUSENTE = não mexe nas permissões da conta; `null` = apaga o mapa (volta ao padrão do

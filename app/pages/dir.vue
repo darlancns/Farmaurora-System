@@ -2,9 +2,8 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { DIR_TAMANHO_PAGINA } from "#shared/constants/dir";
 import type { Dir, DirPatchDTO, NewDirDTO } from "#shared/types/dir";
-import { nomesConsultoresAtivos } from "#shared/utils/dirVendedor";
 import { useAuth } from "../composables/useAuth";
-import { useCadastros } from "../composables/useCadastros";
+import { useConsultores } from "../composables/useConsultores";
 import { useDir } from "../composables/useDir";
 import { useToast } from "../composables/useToast";
 import { getErrorMessage } from "../utils/errorMessages";
@@ -43,13 +42,14 @@ const podeEditar = computed<boolean>(() => canWrite("dir"));
 const { registros, loading, error, fetchDir, addDir, patchDir, removeDir } = useDir();
 const { showToast } = useToast();
 
-// Consultor do formulário: os consultores ATIVOS do Cadastro (só essa lista é carregada; a DIR não usa as outras).
-const { itens: cadastros, fetchLista } = useCadastros();
-const consultoresAtivos = computed<string[]>(() => nomesConsultoresAtivos(cadastros.value.consultores));
+// Consultor do formulário: os consultores do Cadastro (só essa lista é carregada; a DIR não usa as outras).
+const { consultores, carregarConsultores } = useConsultores();
 
 onMounted(() => {
   fetchDir();
-  fetchLista("consultores").catch(() => showToast("Não foi possível carregar a lista de consultores."));
+  void carregarConsultores().then((falha) => {
+    if (falha) showToast(falha);
+  });
 });
 
 type Tab = "em_aberto" | "encerradas" | "fechamentos";
@@ -403,7 +403,7 @@ async function handleDelete(id: string): Promise<void> {
       :editing-dir="editingDir"
       :contagem-por-po="contagemPorPo"
       :readonly="!podeEditar"
-      :consultores-ativos="consultoresAtivos"
+      :consultores="consultores"
       @submit="handleSubmit"
       @update="handleUpdate"
       @patch="handlePatch"

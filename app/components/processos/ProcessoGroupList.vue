@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, watch } from "vue";
-import type { ConsultorProcesso, Processo } from "#shared/types/processo";
+import type { ItemConsultor } from "#shared/utils/consultorRegra";
+import type { Processo } from "#shared/types/processo";
 import { useAberturaPorBusca, type AberturaPorBusca } from "../../composables/useAberturaPorBusca";
 import { agruparProcessosPorConsultor, type ProcessoGroup } from "../../utils/agruparProcessosPorConsultor";
 import type { ContagemPorPasta } from "../../utils/remessaNaLinha";
+import { ROTULO_INATIVO_CADASTRO } from "#shared/constants/cadastros";
 import ProcessoRow from "./ProcessoRow.vue";
 
 const props = withDefaults(
@@ -22,8 +24,11 @@ const props = withDefaults(
     // Pasta → quantos processos a têm, sobre TODOS os carregados (Andamento + Entregues), nunca só os filtrados pela
     // busca. Decide se a linha mostra "Remessa N" (ver utils/remessaNaLinha.ts). Sem ele, só vale Nº Remessa > 1.
     contagemPasta?: ContagemPorPasta;
+    // Consultores do Cadastro (ativos e inativos): ordenam os grupos (ativos, inativos e depois valores desconhecidos).
+    // Nenhum processo fica de fora: consultor que não está no Cadastro ganha grupo próprio.
+    consultores?: ItemConsultor[];
   }>(),
-  { readonly: false, flat: false, focoId: "", abertura: undefined, contagemPasta: () => new Map() },
+  { readonly: false, flat: false, focoId: "", abertura: undefined, contagemPasta: () => new Map(), consultores: () => [] },
 );
 
 const emit = defineEmits<{
@@ -36,7 +41,7 @@ const emit = defineEmits<{
 const semBusca = useAberturaPorBusca({ termo: () => "", encontrados: () => [], agrupado: () => true });
 const controle = computed<AberturaPorBusca>(() => props.abertura ?? semBusca);
 
-function grupoAberto(consultor: ConsultorProcesso): boolean {
+function grupoAberto(consultor: string): boolean {
   return controle.value.grupos.has(consultor);
 }
 
@@ -57,7 +62,7 @@ watch(
   { immediate: true },
 );
 
-const groups = computed<ProcessoGroup[]>(() => agruparProcessosPorConsultor(props.processos));
+const groups = computed<ProcessoGroup[]>(() => agruparProcessosPorConsultor(props.processos, props.consultores));
 </script>
 
 <template>
@@ -111,7 +116,8 @@ const groups = computed<ProcessoGroup[]>(() => agruparProcessosPorConsultor(prop
           >
             <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 5l5 5-5 5" />
           </svg>
-          <span class="font-display text-[14.5px] font-semibold text-ink">{{ group.consultor }}</span>
+          <span class="font-display text-[14.5px] font-semibold text-ink">{{ group.rotulo }}</span>
+          <span v-if="group.situacao === 'inativo'" class="text-[11.5px] font-normal text-ink-soft">{{ ROTULO_INATIVO_CADASTRO }}</span>
         </div>
         <span class="rounded-full bg-paper px-2.5 py-0.5 font-mono text-[11.5px] text-ink-soft">
           {{ group.processos.length }}

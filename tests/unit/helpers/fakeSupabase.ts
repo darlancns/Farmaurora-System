@@ -9,8 +9,13 @@ type Row = Record<string, unknown>;
 type Op = "select" | "insert" | "update" | "upsert" | "delete";
 interface Resultado {
   data: Row[] | Row | null;
-  error: { message: string } | null;
+  error: { message: string; code?: string } | null;
+  /** Só num select com `{ count: "exact" }`: quantas linhas casaram. */
+  count?: number;
 }
+
+/** Função (RPC) simulada: recebe os argumentos e devolve `data` ou `error` (com `code`, como o PostgREST). */
+export type FuncaoRpc = (args: Record<string, unknown>, db: FakeSupabase) => { data?: unknown; error?: { message: string; code?: string } };
 
 export class FakeSupabase {
   readonly tabelas: Record<string, Row[]> = {};
@@ -18,6 +23,10 @@ export class FakeSupabase {
   readonly chamadas: Array<{ tabela: string; op: Op }> = [];
   // Colunas pedidas em cada select puro (o argumento de `.select(colunas)`); o fake NÃO projeta as linhas por elas.
   readonly selects: Array<{ tabela: string; colunas: string | undefined }> = [];
+
+  // Funções SQL simuladas por nome (db.rpc); o teste registra a que precisa.
+  readonly rpcs: Record<string, FuncaoRpc> = {};
+  readonly chamadasRpc: Array<{ nome: string; args: Record<string, unknown> }> = [];
 
   semear(tabela: string, linhas: Row[]): void {
     this.tabelas[tabela] = [...(this.tabelas[tabela] ?? []), ...linhas.map((l) => ({ ...l }))];
@@ -33,6 +42,15 @@ export class FakeSupabase {
 
   from(tabela: string): Consulta {
     return new Consulta(this, tabela);
+  }
+
+  // db.rpc(nome, args): roda a função registrada em `rpcs`. Sem registro, devolve o erro de função inexistente (PGRST202).
+  async rpc(nome: string, args: Record<string, unknown> = {}): Promise<{ data: unknown; error: { message: string; code?: string } | null }> {
+    this.chamadasRpc.push({ nome, args });
+    const funcao = this.rpcs[nome];
+    if (!funcao) return { data: null, error: { message: `função ${nome} inexistente`, code: "PGRST202" } };
+    const r = funcao(args, this);
+    return { data: r.data ?? null, error: r.error ?? null };
   }
 
   tirarFalha(tabela: string, op: Op): string | null {
@@ -55,6 +73,7 @@ class Consulta implements PromiseLike<Resultado> {
   private unica = false;
   private retorna = false;
   private opcoesUpsert: { onConflict?: string; ignoreDuplicates?: boolean } = {};
+  private contagem: { head: boolean } | null = null;
 
   constructor(
     private readonly db: FakeSupabase,
@@ -63,9 +82,12 @@ class Consulta implements PromiseLike<Resultado> {
 
   // Depois de insert/update/delete, `.select()` pede as linhas afetadas de volta (PostgREST
   // `Prefer: return=representation`); num select puro não muda nada.
-  select(colunas?: string): this {
+  select(colunas?: string, opcoes?: { count?: "exact"; head?: boolean }): this {
     if (this.op !== "select") this.retorna = true;
-    else this.db.selects.push({ tabela: this.tabela, colunas });
+    else {
+      this.db.selects.push({ tabela: this.tabela, colunas });
+      if (opcoes?.count) this.contagem = { head: opcoes.head === true };
+    }
     return this;
   }
   insert(row: Row): this {
@@ -160,6 +182,7 @@ class Consulta implements PromiseLike<Resultado> {
       return 0;
     });
     if (this.max !== null) achadas = achadas.slice(0, this.max);
+    if (this.contagem) return { data: this.contagem.head ? null : achadas, error: null, count: achadas.length };
     return { data: this.unica ? (achadas[0] ?? null) : achadas, error: null };
   }
 }

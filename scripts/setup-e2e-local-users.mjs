@@ -25,6 +25,7 @@ import {
   definirNoEnvTexto,
   emailDe,
   lerEnvTexto,
+  linhaConsultorE2E,
   planejarVariaveis,
   urlEhLoopback,
 } from "./lib/e2eUsuarios.mjs";
@@ -122,6 +123,22 @@ for (const conta of CONTAS_E2E) {
     continue;
   }
   console.log(`• ${conta.chave.padEnd(11)} ${atual ? "atualizada" : "criada"} (${conta.role})`);
+}
+
+// A conta de consultor só vale se o nome existe no Cadastro: grava o consultor das contas e2e em cadastro_consultores (idempotente:
+// quem já existe, ativo ou não, é mantido). Precisa da migration 20261118210000_cadastro_consultores.sql no Supabase local.
+{
+  const { error } = await admin
+    .from("cadastro_consultores")
+    .upsert(linhaConsultorE2E(), { onConflict: "nome_chave", ignoreDuplicates: true });
+  if (error) {
+    erros++;
+    console.error(
+      `✖ consultor e2e no Cadastro: ${error.message} (a migration 20261118210000_cadastro_consultores.sql está aplicada no Supabase local?)`,
+    );
+  } else {
+    console.log("• consultor e2e garantido no Cadastro");
+  }
 }
 
 // Login real de cada conta, com a chave anon (como o navegador faz).

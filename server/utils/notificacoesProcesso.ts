@@ -10,8 +10,9 @@ import type { AtualizacaoProcesso, Processo } from "#shared/types/processo";
  *
  * Só dispara pelo que ENTRA (ver shared/utils/novosItensProcesso.ts): editar ou apagar um item não avisa.
  * Destinatário = contas de cargo consultor cujo `app_metadata.consultorNome` é IGUAL a `processo.consultor`
- * — a mesma comparação exata de server/utils/processoEscopo.ts (os dois valores vêm da lista fechada
- * CONSULTORES_PROCESSO; não existe outra normalização). Quem gravou nunca é avisado. Sem conta, não grava nada.
+ * — a mesma comparação exata de server/utils/processoEscopo.ts (os dois valores são o NOME do consultor no Cadastro, gravado como
+ * texto; renomear o consultor atualiza os dois juntos; não existe outra normalização). Quem gravou nunca é avisado. Sem conta,
+ * não grava nada.
  */
 
 export const LIMITE_AVISOS_POR_TIPO = 5;

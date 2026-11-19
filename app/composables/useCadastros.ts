@@ -1,6 +1,13 @@
 import { useState } from "#app";
 import { LISTAS_CADASTRO } from "#shared/constants/cadastros";
-import type { CadastroPorLista, ListaCadastro, NovoPorLista, PatchPorLista } from "#shared/types/Cadastro";
+import type {
+  CadastroPorLista,
+  ImpactoRenomearConsultor,
+  ListaCadastro,
+  NovoPorLista,
+  PatchPorLista,
+  ResultadoContasConsultor,
+} from "#shared/types/Cadastro";
 import { ordenarCadastro } from "#shared/utils/cadastroNome";
 import { apiFetch } from "../utils/apiFetch";
 
@@ -72,12 +79,32 @@ export function useCadastros() {
       { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) },
       "Erro ao atualizar o item.",
     );
+    // A resposta de um renomear de consultor traz `renomeacao` além do item: ela vai para quem chamou, não para a lista.
+    const { renomeacao: _renomeacao, ...item } = atualizado as typeof atualizado & { renomeacao?: unknown };
     itens.value = {
       ...itens.value,
-      [lista]: ordenarCadastro(itens.value[lista].map((i) => (i.id === id ? atualizado : i))),
+      [lista]: ordenarCadastro(itens.value[lista].map((i) => (i.id === id ? (item as typeof atualizado) : i))),
     };
     return atualizado;
   }
 
-  return { itens, loading, error, fetchCadastros, fetchLista, criar, alterar };
+  /** SÓ LEITURA: quantos registros o renomear do consultor vai atualizar (para a confirmação). */
+  async function impactoDoConsultor(id: string): Promise<ImpactoRenomearConsultor> {
+    return await apiFetch<ImpactoRenomearConsultor>(
+      `/api/cadastros/consultores/${id}/impacto`,
+      undefined,
+      "Não foi possível conferir o que o renomear vai atualizar.",
+    );
+  }
+
+  /** "Tentar de novo" das contas de login que ainda têm o nome antigo (idempotente). */
+  async function renomearContasDoConsultor(id: string, nomeAntigo: string): Promise<ResultadoContasConsultor> {
+    return await apiFetch<ResultadoContasConsultor>(
+      `/api/cadastros/consultores/${id}/renomear-contas`,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nomeAntigo }) },
+      "Não foi possível atualizar as contas de login.",
+    );
+  }
+
+  return { itens, loading, error, fetchCadastros, fetchLista, criar, alterar, impactoDoConsultor, renomearContasDoConsultor };
 }

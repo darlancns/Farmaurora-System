@@ -3,6 +3,7 @@ import { BRAND_ERRO, LABORATORIO_ERRO } from "#shared/constants/processos";
 import { validarProcessoForm } from "../../app/utils/processoFormPayload";
 import { colunasDeDTO, montarProcesso, type FollowUpRow } from "../../server/utils/processoMappers";
 import { FakeSupabase } from "./helpers/fakeSupabase";
+import { semearConsultores } from "./helpers/consultoresFixtures";
 import { VERSAO, formCompleto, linhaCompleta } from "./helpers/processoEdicaoFixtures";
 
 // Laboratório e Brand por medicamento — servidor. POST e PATCH aceitam e validam os dois campos por item (laboratorio:
@@ -11,6 +12,8 @@ import { VERSAO, formCompleto, linhaCompleta } from "./helpers/processoEdicaoFix
 
 const h = vi.hoisted(() => ({ body: {} as unknown }));
 const fake = new FakeSupabase();
+// O servidor confere o consultor contra os ativos do Cadastro (cadastro_consultores).
+semearConsultores(fake);
 
 vi.mock("h3", async (importOriginal) => {
   const real = await importOriginal<typeof import("h3")>();

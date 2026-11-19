@@ -1,7 +1,6 @@
 import { computed, reactive, watch, type ComputedRef } from "vue";
 import type {
   BrandMedicamento,
-  ConsultorProcesso,
   EmpresaProcesso,
   Medicamento,
   Processo,
@@ -38,7 +37,8 @@ export interface FormState {
   numeroPo: string; // PO, já mascarado: PO26-10-0471 (ou vazio; incompleto não salva)
   pasta: string;
   empresa: EmpresaProcesso;
-  consultor: ConsultorProcesso | "";
+  // Texto: o nome de um consultor do Cadastro ("" = não escolhido).
+  consultor: string;
   responsavelOperacional: string;
   // Despachante fica string solta (não union) de propósito: precisa aceitar e
   // devolver sem erro valores legados que não batem com nenhuma das 3 opções

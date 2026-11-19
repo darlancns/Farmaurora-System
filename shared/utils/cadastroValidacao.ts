@@ -183,7 +183,8 @@ export function validarNovoCadastro<L extends ListaCadastro>(lista: L, corpo: un
 
 /**
  * Corpo de alteração parcial. Só as chaves presentes são conferidas e devolvidas. `nome` é aceito aqui (aparado) só
- * para o servidor comparar com o gravado e RECUSAR a troca (422) — o nome não muda depois de criado. `prazoAlertaDias`
+ * para o servidor comparar com o gravado e RECUSAR a troca (422) — o nome não muda depois de criado, EXCETO nos consultores,
+ * cujo nome novo é validado como o de um item novo e vira um renomear. `prazoAlertaDias`
  * e `semAlerta` vão juntos (os dois ou nenhum) e passam pela mesma regra de decidir do cadastro.
  */
 export function validarPatchCadastro<L extends ListaCadastro>(lista: L, corpo: unknown): ResultadoCadastro<PatchPorLista[L]> {
@@ -196,9 +197,16 @@ export function validarPatchCadastro<L extends ListaCadastro>(lista: L, corpo: u
   const patch: Record<string, unknown> = {};
 
   if ("nome" in o) {
-    // Só aparar: a regra de "não pode mudar" é do servidor, que conhece o nome gravado.
-    if (typeof o.nome !== "string" || o.nome.trim() === "") return erro("Informe o nome.");
-    patch.nome = o.nome.trim().replace(/\s+/g, " ");
+    if (lista === "consultores") {
+      // Consultor pode ser RENOMEADO: o nome novo passa pelas regras de nome de um item novo ("Outro" reservado, tamanho).
+      const nome = validarNome(o.nome);
+      if (!nome.ok) return nome;
+      patch.nome = nome.valor;
+    } else {
+      // Só aparar: a regra de "não pode mudar" é do servidor, que conhece o nome gravado.
+      if (typeof o.nome !== "string" || o.nome.trim() === "") return erro("Informe o nome.");
+      patch.nome = o.nome.trim().replace(/\s+/g, " ");
+    }
   }
   if ("ativo" in o) {
     if (typeof o.ativo !== "boolean") return erro("Valor de ativo inválido.");

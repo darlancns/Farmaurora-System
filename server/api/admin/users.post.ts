@@ -1,11 +1,11 @@
 import { defineEventHandler, readBody, createError } from "h3";
 import { createSupabaseAdminClient } from "../../utils/supabaseServerClient";
 import { parseContaInput, parseNomeInput, roleAppMetadata, valorPermissoesNoMetadata } from "../../utils/authUser";
+import { exigirConsultorDaContaNoCadastro } from "../../utils/contaConsultor";
 import { formatPasswordError } from "#shared/utils/authErrors";
 import type { Role } from "#shared/utils/rbac";
 import type { Permissoes } from "#shared/utils/permissoesPagina";
 import type { AuthUser } from "#shared/types/auth";
-import type { ConsultorProcesso } from "#shared/types/processo";
 
 interface CreateUserBody {
   email?: unknown;
@@ -20,7 +20,7 @@ interface CreateUserResult {
   id: string;
   email: string;
   role: Role;
-  consultorNome?: ConsultorProcesso;
+  consultorNome?: string;
   nome: string;
   /** Mapa gravado (socio/operacional) ou null (consultor/administrador). */
   permissoes: Permissoes | null;
@@ -62,6 +62,8 @@ export default defineEventHandler(async (event): Promise<CreateUserResult> => {
 
   // Validação de cargo/consultorNome/permissoes compartilhada com o PATCH.
   const { role, consultorNome, permissoes } = parseContaInput(body, "criacao");
+  // O consultor da conta precisa existir no Cadastro (ativo ou inativo).
+  await exigirConsultorDaContaNoCadastro(role, consultorNome);
   // Nome é obrigatório na criação — diferente da edição, onde contas antigas
   // podem ficar sem nome até serem preenchidas manualmente.
   const nome = parseNomeInput(body, { required: true });

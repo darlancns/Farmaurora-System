@@ -15,6 +15,7 @@ import {
   pastaCanonica,
 } from "../../utils/processoValidation";
 import { avisarConsultorDeItensNovos } from "../../utils/notificacoesProcesso";
+import { erroDoConsultorEnviado } from "../../utils/consultoresCadastro";
 import { NUMERO_REMESSA_PADRAO } from "../../../shared/utils/numeroRemessa";
 import type { AuthUser } from "../../../shared/types/auth";
 import type { Processo } from "../../../shared/types/processo";
@@ -45,6 +46,13 @@ export default defineEventHandler(async (event): Promise<Processo> => {
       statusCode: 400,
       statusMessage: "Dados do processo inválidos ou incompletos.",
     });
+  }
+
+  // Consultor: só um consultor ATIVO do Cadastro (fonte única de consultores). Na criação não há valor antigo a tolerar.
+  const consultor = body.consultor.trim();
+  const erroConsultor = await erroDoConsultorEnviado(consultor, async () => null);
+  if (erroConsultor) {
+    throw createError({ statusCode: 400, statusMessage: erroConsultor });
   }
 
   // Cia. aérea preenchida exige modal preenchido e compatível com ela.
@@ -83,6 +91,7 @@ export default defineEventHandler(async (event): Promise<Processo> => {
   } = body as typeof body & { ordem?: unknown };
   const criado = await createProcesso({
     ...resto,
+    consultor,
     // Laboratório normalizado (cada palavra com maiúscula) e Brand ("" quando ausente) em todo item.
     medicamentos: medicamentosCanonicos(resto.medicamentos),
     pasta,

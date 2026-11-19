@@ -1,7 +1,6 @@
 import {
   ciaAereaValidaParaModal,
   ciasAereasDoModal,
-  CONSULTORES_PROCESSO,
   DATAS_ISO_PROCESSO,
   EMPRESAS_PROCESSO,
   BRAND_ERRO,
@@ -17,7 +16,6 @@ import {
 } from "../../shared/constants/processos";
 import type {
   AtualizacaoProcesso,
-  ConsultorProcesso,
   EmpresaProcesso,
   Medicamento,
   NewProcessoDTO,
@@ -319,7 +317,9 @@ export function isValidProcessoPayload(body: unknown): body is NewProcessoDTO {
     isNonEmptyString(b.paciente) &&
     isPastaAceita(b.pasta) &&
     EMPRESAS_PROCESSO.includes(b.empresa as EmpresaProcesso) &&
-    CONSULTORES_PROCESSO.includes(b.consultor as ConsultorProcesso) &&
+    // Consultor: só a forma aqui (texto não vazio). Que seja um consultor ATIVO do Cadastro (ou o valor já gravado) é conferido
+    // pelos handlers, que leem o Cadastro (server/utils/consultoresCadastro.ts).
+    isNonEmptyString(b.consultor) &&
     STATUS_PROCESSO_ORDER.includes(b.status as StatusProcesso) &&
     Array.isArray(b.medicamentos) &&
     b.medicamentos.every(isMedicamento) &&
@@ -338,7 +338,7 @@ export function isValidProcessoPatch(body: unknown): body is ProcessoPatchDTO {
   if (b.paciente !== undefined && !isNonEmptyString(b.paciente)) return false;
   if (!isPastaAceita(b.pasta)) return false;
   if (b.empresa !== undefined && !EMPRESAS_PROCESSO.includes(b.empresa as EmpresaProcesso)) return false;
-  if (b.consultor !== undefined && !CONSULTORES_PROCESSO.includes(b.consultor as ConsultorProcesso)) return false;
+  if (b.consultor !== undefined && !isNonEmptyString(b.consultor)) return false;
   if (b.status !== undefined && !STATUS_PROCESSO_ORDER.includes(b.status as StatusProcesso)) return false;
   if (b.medicamentos !== undefined && (!Array.isArray(b.medicamentos) || !b.medicamentos.every(isMedicamento))) {
     return false;

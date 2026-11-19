@@ -7,7 +7,8 @@ import { linhaConsultor, TABELA_CONSULTORES as T } from "./helpers/consultoresFi
 
 // GET/POST/PATCH /api/cadastros/consultores (a 5ª lista). Handlers e store REAIS; só h3 (readBody/getRouterParam) e o cliente
 // Supabase (em memória) são simulados. Mesmas regras das outras listas: GET para todos os cargos, POST/PATCH só do
-// administrador; nome imutável; "Outro" reservado; nome repetido (pela chave, ativos e inativos) é 409; remover = desativar.
+// administrador; "Outro" reservado; nome repetido (pela chave, ativos e inativos) é 409; remover = desativar. (O nome dos
+// consultores, ao contrário das outras listas, PODE mudar: renomear, em cadastrosConsultoresRenomear.spec.ts.)
 // Só itens "TESTE": nenhum nome de paciente.
 
 const h = vi.hoisted(() => ({ body: {} as unknown, params: {} as Record<string, string | undefined> }));
@@ -134,7 +135,7 @@ describe("POST /api/cadastros/consultores — só administrador", () => {
   });
 });
 
-describe("PATCH /api/cadastros/consultores/:id — só administrador; nome não muda; remover = desativar", () => {
+describe("PATCH /api/cadastros/consultores/:id — só administrador; renomear precisa da migration; remover = desativar", () => {
   it("administrador desativa e reativa (PATCH ativo), com o nome da conta em atualizadoPor", async () => {
     semear();
     const off = await chamar(alterar, admin, { ...LISTA, id: "cons_a" }, { ativo: false });
@@ -162,11 +163,11 @@ describe("PATCH /api/cadastros/consultores/:id — só administrador; nome não 
     expect(fake.linhas(T).find((l) => l.id === "cons_a")).toMatchObject({ ativo: true });
   });
 
-  it("tentar mudar o NOME é 422 com mensagem clara; o nome e a chave gravados não mudam", async () => {
+  it("renomear (nome diferente) com a migration AINDA NÃO aplicada: 503 claro e nada muda (o renomear completo está em cadastrosConsultoresRenomear.spec.ts)", async () => {
     semear();
     const e = await erroDe(chamar(alterar, admin, { ...LISTA, id: "cons_a" }, { nome: "Consultor Novo" }));
-    expect(e.status).toBe(422);
-    expect(e.msg).toMatch(/nome não pode ser alterado/i);
+    expect(e.status).toBe(503);
+    expect(e.msg).toMatch(/renomear_consultor/);
     expect(fake.linhas(T).find((l) => l.id === "cons_a")).toMatchObject({ nome: "Consultor Teste", nome_chave: "consultor teste" });
   });
 

@@ -1,20 +1,24 @@
 <script setup lang="ts">
-import type { ConsultorNome, NewPatientDTO, Patient } from "#shared/types/Patient";
+import { computed } from "vue";
+import type { NewPatientDTO, Patient } from "#shared/types/Patient";
+import type { ItemConsultor } from "#shared/utils/consultorRegra";
 import { usePatientForm } from "../../composables/usePatientForm";
 import { usePatientAttachments } from "../../composables/usePatientAttachments";
 import { useProverBloqueioDatas } from "../../composables/useBloqueioDatas";
-import { CONSULTORES } from "#shared/constants/consultores";
 import AttachmentsPanel from "./AttachmentsPanel.vue";
 import BaseModal from "../BaseModal.vue";
 import ConfirmDialog from "../ConfirmDialog.vue";
 import AppSelect from "../AppSelect.vue";
 import AppDatePicker from "../AppDatePicker.vue";
-import type { AppSelectOption } from "../../types/appSelect";
+import { montarConsultorOptions } from "../../utils/consultorOptions";
 
 const props = defineProps<{
   editingPatient?: Patient | null;
   /** Há um envio (criar, editar ou subir anexos) em andamento: o botão fica desabilitado. */
   saving?: boolean;
+  /** Consultores do Cadastro (ativos e inativos): as opções do select são os ativos; o consultor atual da prestação aparece
+   *  mesmo se já estiver inativo ou fora do Cadastro, sem apagar o dado. */
+  consultores?: ItemConsultor[];
 }>();
 
 const emit = defineEmits<{
@@ -23,11 +27,6 @@ const emit = defineEmits<{
   close: [];
   invalid: [message: string];
 }>();
-
-const consultorOptions: AppSelectOption<ConsultorNome | "">[] = [
-  { value: "", label: "Selecione" },
-  ...CONSULTORES.map((nome) => ({ value: nome, label: nome })),
-];
 
 const {
   form,
@@ -56,6 +55,9 @@ const {
   onUpdate: (id, payload) => emit("update", id, payload),
   onInvalid: (message) => emit("invalid", message),
 });
+
+// Consultor: os ATIVOS do Cadastro (+ o valor atual da prestação, se inativo ou fora do Cadastro).
+const consultorOptions = computed(() => montarConsultorOptions(form.consultor, props.consultores ?? []));
 
 const {
   requiredSlots,

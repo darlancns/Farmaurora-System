@@ -1,14 +1,24 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { LISTA_CADASTRO_TEXTOS, LISTAS_CADASTRO } from "#shared/constants/cadastros";
-import type { Cadastro, ListaCadastro, NovoPorLista, PatchPorLista } from "#shared/types/Cadastro";
+import type {
+  Cadastro,
+  ConsultorAtualizado,
+  ImpactoRenomearConsultor,
+  ListaCadastro,
+  NovoPorLista,
+  PatchPorLista,
+  ContaNaoAtualizada,
+} from "#shared/types/Cadastro";
 import { chaveCadastro } from "#shared/utils/cadastroNome";
 import { podeVerPixCadastro } from "#shared/utils/cadastroPix";
 import { useAuth } from "../../composables/useAuth";
 import { useCadastros } from "../../composables/useCadastros";
 import { useToast } from "../../composables/useToast";
 import { filtrarPorNome } from "../../utils/cadastroColunas";
+import { mensagemConfirmarRenomear, mensagemContasNaoAtualizadas } from "../../utils/cadastroConsultor";
 import { getErrorMessage } from "../../utils/errorMessages";
+import ConfirmDialog from "../ConfirmDialog.vue";
 import CadastroDesfazer from "./CadastroDesfazer.vue";
 import CadastroPainel from "./CadastroPainel.vue";
 import CadastroSecao from "./CadastroSecao.vue";
@@ -25,7 +35,7 @@ import CadastroSecao from "./CadastroSecao.vue";
 
 const { user, canWrite } = useAuth();
 const { showToast } = useToast();
-const { itens, loading, error, fetchCadastros, criar, alterar } = useCadastros();
+const { itens, loading, error, fetchCadastros, criar, alterar, impactoDoConsultor, renomearContasDoConsultor } = useCadastros();
 
 const podeEditar = computed<boolean>(() => canWrite("config"));
 const podeVerPix = computed<boolean>(() => podeVerPixCadastro(user.value));
@@ -165,6 +175,11 @@ async function handleCriar(payload: NovoPorLista[ListaCadastro]): Promise<void> 
 async function handleAtualizar(id: string, patch: PatchPorLista[ListaCadastro]): Promise<void> {
   const lista = painelLista.value;
   if (!lista) return;
+  // Renomear um consultor vale para todo o sistema: confirma ANTES, com as contagens (só leitura).
+  if (lista === "consultores" && "nome" in patch && itemEditando.value) {
+    await pedirConfirmacaoRenomear(itemEditando.value, patch);
+    return;
+  }
   const ok = await executar(
     async () => {
       await alterar(lista, id, patch);
@@ -173,6 +188,84 @@ async function handleAtualizar(id: string, patch: PatchPorLista[ListaCadastro]):
     "Erro ao salvar as alterações.",
   );
   if (ok) fecharPainel();
+}
+
+// ── Renomear consultor: confirmação com contagens e contas de login que não foram atualizadas ───────────────────────
+interface ConfirmacaoRenomear {
+  item: Cadastro;
+  patch: PatchPorLista["consultores"];
+  mensagem: string;
+}
+const confirmacaoRenomear = ref<ConfirmacaoRenomear | null>(null);
+
+async function pedirConfirmacaoRenomear(item: Cadastro, patch: PatchPorLista[ListaCadastro]): Promise<void> {
+  const nomeNovo = (patch as { nome?: string }).nome ?? "";
+  busy.value = true;
+  try {
+    const impacto: ImpactoRenomearConsultor = await impactoDoConsultor(item.id);
+    confirmacaoRenomear.value = { item, patch: patch as PatchPorLista["consultores"], mensagem: mensagemConfirmarRenomear(item.nome, nomeNovo, impacto) };
+  } catch (e) {
+    showToast(getErrorMessage(e, "Não foi possível conferir o que o renomear vai atualizar."));
+  } finally {
+    busy.value = false;
+  }
+}
+
+// Contas de login que ficaram com o nome antigo (a tela lista quais e deixa tentar de novo).
+interface FalhaContas {
+  itemId: string;
+  nomeAntigo: string;
+  mensagem: string;
+  falhas: ContaNaoAtualizada[];
+}
+const falhaContas = ref<FalhaContas | null>(null);
+const tentandoContas = ref(false);
+
+async function confirmarRenomear(): Promise<void> {
+  const confirmacao = confirmacaoRenomear.value;
+  if (!confirmacao || busy.value) return;
+  let resultado: ConsultorAtualizado | null = null;
+  busy.value = true;
+  try {
+    resultado = (await alterar("consultores", confirmacao.item.id, confirmacao.patch)) as ConsultorAtualizado;
+    showToast("Consultor renomeado.");
+  } catch (e) {
+    showToast(getErrorMessage(e, "Erro ao renomear o consultor."));
+  } finally {
+    busy.value = false;
+    confirmacaoRenomear.value = null;
+  }
+  if (!resultado) return;
+  const contas = resultado.renomeacao?.contas;
+  if (contas && contas.falhas.length > 0) {
+    falhaContas.value = {
+      itemId: resultado.id,
+      nomeAntigo: resultado.renomeacao!.nomeAntigo,
+      mensagem: mensagemContasNaoAtualizadas(contas),
+      falhas: contas.falhas,
+    };
+  }
+  abertas.add("consultores");
+  fecharPainel();
+}
+
+async function tentarContasDeNovo(): Promise<void> {
+  const falha = falhaContas.value;
+  if (!falha || tentandoContas.value) return;
+  tentandoContas.value = true;
+  try {
+    const contas = await renomearContasDoConsultor(falha.itemId, falha.nomeAntigo);
+    if (contas.falhas.length === 0) {
+      falhaContas.value = null;
+      showToast("Contas de login atualizadas.");
+    } else {
+      falhaContas.value = { ...falha, mensagem: mensagemContasNaoAtualizadas(contas), falhas: contas.falhas };
+    }
+  } catch (e) {
+    showToast(getErrorMessage(e, "Não foi possível atualizar as contas de login."));
+  } finally {
+    tentandoContas.value = false;
+  }
 }
 
 // Reativar a partir do aviso de nome repetido no painel.
@@ -264,6 +357,38 @@ async function desfazerDesativacao(): Promise<void> {
       {{ error }}
     </p>
 
+    <!-- Renomear consultor: contas de login que ficaram com o nome antigo (lista quais; "Tentar de novo" é idempotente) -->
+    <div
+      v-if="falhaContas"
+      id="cadastros-contas-falha"
+      role="alert"
+      class="flex flex-col gap-2 rounded-md border border-warning-gold/40 bg-warning-gold/5 px-3 py-2 text-[12.5px] text-ink"
+    >
+      <p id="cadastros-contas-falha-texto">{{ falhaContas.mensagem }}</p>
+      <ul class="list-disc pl-5">
+        <li v-for="conta in falhaContas.falhas" :key="conta.id">{{ conta.email || conta.id }}</li>
+      </ul>
+      <div class="flex gap-2">
+        <button
+          id="btn-cadastros-contas-tentar-de-novo"
+          type="button"
+          :disabled="tentandoContas"
+          class="rounded-md bg-accent-dark px-3 py-2 text-[12.5px] font-semibold text-white disabled:opacity-60 max-lg:min-h-11"
+          @click="tentarContasDeNovo"
+        >
+          Tentar de novo
+        </button>
+        <button
+          id="btn-cadastros-contas-falha-fechar"
+          type="button"
+          class="rounded-md border border-hairline bg-paper px-3 py-2 text-[12.5px] font-semibold text-ink-soft max-lg:min-h-11"
+          @click="falhaContas = null"
+        >
+          Fechar
+        </button>
+      </div>
+    </div>
+
     <!-- Busca por nome em todas as listas: abre as seções com resultado e destaca a contagem encontrada -->
     <div class="flex flex-col gap-1">
       <label for="cadastros-busca" class="sr-only">Buscar por nome em todas as listas</label>
@@ -329,6 +454,17 @@ async function desfazerDesativacao(): Promise<void> {
       @reativar="reativarDoPainel"
       @close="fecharPainel"
       @aviso="showToast"
+    />
+
+    <ConfirmDialog
+      v-if="confirmacaoRenomear"
+      title="Renomear consultor"
+      :message="confirmacaoRenomear.mensagem"
+      confirm-label="Renomear"
+      reforcado
+      :loading="busy"
+      @confirm="confirmarRenomear"
+      @close="confirmacaoRenomear = null"
     />
 
     <CadastroDesfazer v-if="desfazer" mensagem="Desativado." :nome-item="desfazer.nome" @desfazer="desfazerDesativacao" />

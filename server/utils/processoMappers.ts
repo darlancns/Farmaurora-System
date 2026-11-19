@@ -1,6 +1,5 @@
 import type {
   AtualizacaoProcesso,
-  ConsultorProcesso,
   EmpresaProcesso,
   Medicamento,
   Processo,
@@ -48,7 +47,7 @@ export interface FollowUpRow {
   // Opcional: "" = sem pasta. Linhas antigas podem trazer NULL; a leitura trata como "".
   pasta: string | null;
   empresa: EmpresaProcesso;
-  consultor: ConsultorProcesso;
+  consultor: string;
   responsavel_operacional: string | null;
   despachante: string | null;
   fornecedor: string | null;

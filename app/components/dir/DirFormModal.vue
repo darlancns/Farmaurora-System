@@ -2,7 +2,9 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { CHECKLIST_DIR, FECHAMENTO_RESTANTE_ENCERRADA } from "#shared/constants/dir";
 import type { ChecklistChaveDir, ChecklistDir, Dir, DirPatchDTO, NewDirDTO } from "#shared/types/dir";
+import { nomesConsultoresAtivos, type ItemConsultor } from "#shared/utils/consultorRegra";
 import { useDirForm, type CampoComOutro, type ChaveInstantanea } from "../../composables/useDirForm";
+import { montarConsultorOptions } from "../../utils/consultorOptions";
 import { formatarDataHoraBrasilia } from "../../utils/dirFormatters";
 import {
   BANCO_DIR_OPTIONS,
@@ -15,7 +17,6 @@ import {
   STATUS_DIR_OPTIONS,
   TEMPERATURA_DIR_OPTIONS,
   montarCiaAereaDirOptions,
-  montarVendedorDirOptions,
 } from "../../utils/dirOptions";
 import {
   INPUT_CLASS,
@@ -42,10 +43,11 @@ const props = withDefaults(
     contagemPorPo: ReadonlyMap<string, number>;
     // Somente consulta (permissão "ver" na DIR): todos os campos e toggles desabilitados, sem salvar nem excluir.
     readonly?: boolean;
-    // Consultores ATIVOS do Cadastro (lista "consultores"), em ordem alfabética: as opções do select Consultor.
-    consultoresAtivos?: readonly string[];
+    // Consultores do Cadastro (lista "consultores"; ativos e inativos): as opções do select Consultor são os ativos, em ordem
+    // alfabética; o consultor atual do PO aparece mesmo se já estiver inativo ou fora do Cadastro, sem apagar o dado.
+    consultores?: ItemConsultor[];
   }>(),
-  { readonly: false, consultoresAtivos: () => [] },
+  { readonly: false, consultores: () => [] },
 );
 
 const emit = defineEmits<{
@@ -60,13 +62,11 @@ const emit = defineEmits<{
 
 const { form, outros, onPoInput, onMedicamentoInput, onContratoCambioInput, validar, valorToggle } = useDirForm(
   () => props.editingDir,
-  () => props.consultoresAtivos,
+  () => nomesConsultoresAtivos(props.consultores),
 );
 
 // Consultor: os ativos do Cadastro, sem "Outro" (+ valor antigo fora da lista como "(inativo)", nunca vazio).
-const vendedorOptions = computed<AppSelectOption<string>[]>(() =>
-  montarVendedorDirOptions(form.vendedor, props.consultoresAtivos),
-);
+const vendedorOptions = computed<AppSelectOption<string>[]>(() => montarConsultorOptions(form.vendedor, props.consultores));
 
 // Cia aérea: a lista do Follow-Up (+ o valor antigo fora da lista como "(inativo)", nunca vazio).
 // Envio: as opções do Follow-Up (+ valor antigo fora da lista como "(inativo)", nunca vazio).

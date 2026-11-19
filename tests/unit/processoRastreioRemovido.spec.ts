@@ -5,6 +5,7 @@ import { useProcessoForm } from "../../app/composables/useProcessoForm";
 import { montarPatchDiferencial, validarProcessoForm } from "../../app/utils/processoFormPayload";
 import { montarProcesso, type FollowUpRow } from "../../server/utils/processoMappers";
 import { FakeSupabase } from "./helpers/fakeSupabase";
+import { semearConsultores } from "./helpers/consultoresFixtures";
 import {
   MEDICAMENTOS,
   VERSAO,
@@ -22,6 +23,8 @@ import {
 
 const h = vi.hoisted(() => ({ body: {} as unknown }));
 const fake = new FakeSupabase();
+// O servidor confere o consultor contra os ativos do Cadastro (cadastro_consultores).
+semearConsultores(fake);
 
 vi.mock("h3", async (importOriginal) => {
   const real = await importOriginal<typeof import("h3")>();

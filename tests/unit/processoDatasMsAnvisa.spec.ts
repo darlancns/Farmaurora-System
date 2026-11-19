@@ -7,6 +7,7 @@ import { buildDatas, validarProcessoForm } from "../../app/utils/processoFormPay
 import { camposDatas } from "../../app/utils/processoPainel";
 import { colunasDeDTO, montarProcesso, type FollowUpRow } from "../../server/utils/processoMappers";
 import { FakeSupabase } from "./helpers/fakeSupabase";
+import { semearConsultores } from "./helpers/consultoresFixtures";
 import { formCompleto, linhaCompleta } from "./helpers/processoEdicaoFixtures";
 
 // MS Anexado em / Prazo da ANVISA: duas datas COMPLETAS (colunas `date`, "AAAA-MM-DD") no bloco Datas.
@@ -23,6 +24,8 @@ vi.mock("#shared/utils/dataBrasilia", async (importOriginal) => ({
 
 const h = vi.hoisted(() => ({ body: {} as unknown }));
 const fake = new FakeSupabase();
+// O servidor confere o consultor contra os ativos do Cadastro (cadastro_consultores).
+semearConsultores(fake);
 
 vi.mock("h3", async (importOriginal) => {
   const real = await importOriginal<typeof import("h3")>();

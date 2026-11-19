@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthUser } from "../../shared/types/auth";
+import { FakeSupabase } from "./helpers/fakeSupabase";
+import { semearConsultores } from "./helpers/consultoresFixtures";
 import {
   SECOES_COM_PERMISSAO,
   permissoesTudoNenhum,
@@ -24,9 +26,13 @@ vi.mock("h3", async (importOriginal) => {
   const real = await importOriginal<typeof import("h3")>();
   return { ...real, readBody: vi.fn(async () => h.body), getRouterParam: vi.fn(() => h.alvo) };
 });
+// O Cadastro de consultores (o servidor confere que o consultorNome da conta existe lá): FakeSupabase em memória.
+const fakeCadastro = new FakeSupabase();
+semearConsultores(fakeCadastro);
 vi.mock("../../server/utils/supabaseServerClient", () => ({
   createSupabaseAdminClient: () => ({
     auth: { admin: { createUser: h.createUser, updateUserById: h.updateUserById, listUsers: h.listUsers } },
+    from: (tabela: string) => fakeCadastro.from(tabela),
   }),
 }));
 

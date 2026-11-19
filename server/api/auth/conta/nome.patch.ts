@@ -7,7 +7,8 @@ import type { AlterarNomeResult } from "#shared/types/conta";
 
 /**
  * Altera o nome de exibição da PRÓPRIA conta. Só sócio e administrador:
- * - consultor → 403 (o nome vira entidade única do sistema numa fase própria);
+ * - consultor → 403 (o nome do consultor é o do Cadastro de consultores, compartilhado pelo sistema: só o administrador o renomeia,
+ *   em Configurações → Cadastros, e a troca já atualiza a conta; este `nome` de exibição não muda por aqui);
  * - operacional → 403 (o primeiro nome liga a conta ao alerta de Mandado de Segurança).
  *
  * Grava fazendo MERGE com o `app_metadata` atual (role, consultorNome etc. nunca se perdem) e ignora

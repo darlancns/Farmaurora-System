@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createApp, defineComponent, h, nextTick } from "vue";
 import type { Medicamento, NewProcessoDTO, Processo, ProcessoFormPatchPayload } from "#shared/types/processo";
 import ProcessoFormModal from "../../app/components/processos/ProcessoFormModal.vue";
+import { CONSULTORES_FIXTURE } from "./helpers/consultoresFixtures";
 import ProcessoPainel from "../../app/components/processos/ProcessoPainel.vue";
 import ProcessoDetail from "../../app/components/processos/ProcessoDetail.vue";
 import ProcessoKanbanCard from "../../app/components/processos/ProcessoKanbanCard.vue";
@@ -65,7 +66,7 @@ function abrirEdicao(medicamentos: unknown[]): { el: HTMLElement; saida: Saida }
 
 function abrirNovo(): { el: HTMLElement; saida: Saida } {
   const saida: Saida = { criados: [], atualizacoes: [] };
-  const el = montar(() => h(ProcessoFormModal, { onSubmit: (p: NewProcessoDTO) => saida.criados.push(p) }));
+  const el = montar(() => h(ProcessoFormModal, { onSubmit: (p: NewProcessoDTO) => saida.criados.push(p), consultores: CONSULTORES_FIXTURE }));
   return { el, saida };
 }
 
