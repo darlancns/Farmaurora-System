@@ -66,6 +66,55 @@ describe("listarCadastro", () => {
   it("lista vazia", async () => {
     expect(await listarCadastro("cias-aereas")).toEqual([]);
   });
+
+  // O Supabase devolve no máximo 1000 linhas por consulta (o FakeSupabase imita o corte); a listagem pagina com order(id) + range.
+  describe("mais de 1000 linhas", () => {
+    function semearCias(quantidade: number): void {
+      fake.semear(
+        T["cias-aereas"],
+        Array.from({ length: quantidade }, (_, i) => ({
+          id: `cia_${String(i).padStart(5, "0")}`,
+          nome: `Cia ${String(i).padStart(5, "0")}`,
+          nome_chave: `cia ${String(i).padStart(5, "0")}`,
+          ativo: i % 2 === 0,
+          atualizado_por: null,
+          created_at: "2026-11-01T00:00:00.000Z",
+          updated_at: "2026-11-01T00:00:00.000Z",
+        })),
+      );
+    }
+
+    it("2500 linhas voltam inteiras, sem repetir e na ordem (ativos primeiro, alfabética)", async () => {
+      semearCias(2500);
+      const lista = await listarCadastro("cias-aereas");
+      expect(lista).toHaveLength(2500);
+      expect(new Set(lista.map((c) => c.id)).size).toBe(2500);
+      const ativos = lista.filter((c) => c.ativo);
+      expect(lista.slice(0, ativos.length).every((c) => c.ativo)).toBe(true);
+      expect(lista[0]!.nome).toBe("Cia 00000");
+    });
+
+    it("exatamente 1000 linhas (a página cheia) e 1001 também voltam inteiras", async () => {
+      semearCias(1000);
+      expect(await listarCadastro("cias-aereas")).toHaveLength(1000);
+      fake.tabelas[T["cias-aereas"]] = [];
+      semearCias(1001);
+      expect(await listarCadastro("cias-aereas")).toHaveLength(1001);
+    });
+
+    it("cada página é uma consulta (3 para 2500 linhas); lista pequena faz uma só", async () => {
+      semearCias(2500);
+      fake.chamadas.length = 0;
+      await listarCadastro("cias-aereas");
+      expect(fake.chamadas.filter((c) => c.tabela === T["cias-aereas"] && c.op === "select")).toHaveLength(3);
+
+      fake.tabelas[T["cias-aereas"]] = [];
+      semearCias(5);
+      fake.chamadas.length = 0;
+      await listarCadastro("cias-aereas");
+      expect(fake.chamadas.filter((c) => c.op === "select")).toHaveLength(1);
+    });
+  });
 });
 
 describe("criarCadastro", () => {

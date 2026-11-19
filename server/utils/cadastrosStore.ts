@@ -91,14 +91,31 @@ export function responderErroDeRegra(e: unknown): never {
   throw e;
 }
 
+// O PostgREST devolve no máximo 1000 linhas por requisição (padrão do Supabase) e corta o resto em silêncio. Os medicamentos
+// já passam de 400, então a listagem pagina (no molde de listDir, em dirStore.ts) em vez de truncar. A paginação precisa de uma
+// ordem ESTÁVEL: sem `order("id")` uma página pode repetir ou pular linhas.
+const TAMANHO_PAGINA = 1000;
+
 export async function listarCadastro<L extends ListaCadastro>(lista: L, opcoes: OpcoesCadastro = {}): Promise<CadastroPorLista[L][]> {
   const incluirPix = opcoes.incluirPix === true;
   const db = createSupabaseAdminClient();
-  const { data, error } = await db.from(TABELA_CADASTRO[lista]).select(colunasLidas(lista, incluirPix));
-  if (error) throw erroDaLista(lista, `listar ${lista}`, error);
+  const colunas = colunasLidas(lista, incluirPix);
+  const todas: CadastroRowPorLista[L][] = [];
 
-  const itens = ((data ?? []) as unknown as CadastroRowPorLista[L][]).map((row) => montarCadastro(lista, row, incluirPix));
-  return ordenarCadastro(itens);
+  for (let de = 0; ; de += TAMANHO_PAGINA) {
+    const { data, error } = await db
+      .from(TABELA_CADASTRO[lista])
+      .select(colunas)
+      .order("id", { ascending: true })
+      .range(de, de + TAMANHO_PAGINA - 1);
+    if (error) throw erroDaLista(lista, `listar ${lista}`, error);
+
+    const pagina = (data ?? []) as unknown as CadastroRowPorLista[L][];
+    todas.push(...pagina);
+    if (pagina.length < TAMANHO_PAGINA) break;
+  }
+
+  return ordenarCadastro(todas.map((row) => montarCadastro(lista, row, incluirPix)));
 }
 
 export async function criarCadastro<L extends ListaCadastro>(
