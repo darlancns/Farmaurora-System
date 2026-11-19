@@ -157,17 +157,20 @@ function submit(): void {
           <AppSelect id="ng-nome-grupo" v-model="form.nomeGrupo" :options="grupoOptions" />
         </label>
 
-        <label class="flex flex-col gap-1 text-[12px] font-semibold text-ink-soft">
-          Chave PIX (do Cadastro)
-          <input
+        <!-- Chave PIX: SÓ LEITURA, e NÃO é campo de formulário: um div com o visual do campo desabilitado. Sem tabindex, sem foco por
+             clique, sem cursor de texto piscando e sem contorno de foco; o texto continua visível e selecionável com o mouse. Sem
+             chave, "—". Acessível: o grupo é nomeado pelo rótulo (aria-labelledby) e o leitor de tela lê a chave. -->
+        <div class="flex flex-col gap-1">
+          <span id="ng-chave-pix-rotulo" class="text-[12px] font-semibold text-ink-soft">Chave PIX</span>
+          <div
             id="ng-chave-pix"
-            data-sem-maiuscula
-            :value="form.chavePix"
-            type="text"
-            readonly
-            class="min-w-0 flex-1 rounded-md border border-hairline bg-paper px-2.5 py-2 font-mono text-[13px] text-ink-soft"
-          />
-        </label>
+            role="group"
+            aria-labelledby="ng-chave-pix-rotulo"
+            class="min-h-[38px] min-w-0 cursor-default rounded-md border border-hairline bg-paper px-2.5 py-2 font-mono text-[13px] break-all text-ink-soft select-text"
+          >
+            {{ form.chavePix || "—" }}
+          </div>
+        </div>
 
         <div class="flex flex-col gap-2">
           <div class="flex items-end gap-2">

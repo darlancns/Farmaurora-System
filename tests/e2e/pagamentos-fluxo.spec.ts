@@ -123,6 +123,16 @@ async function selectOption(page: Page, triggerId: string, optionText: string): 
   await page.getByRole("option", { name: optionText, exact: true }).click();
 }
 
+// A chave PIX do modal "Adicionar pagamento" não é campo de formulário: nada de input, sem tabindex e sem receber foco por clique.
+async function esperarChavePixNaoFocavel(page: Page): Promise<void> {
+  const pix = page.locator("#ng-chave-pix");
+  expect(await pix.evaluate((el) => el.tagName)).toBe("DIV");
+  await expect(pix).not.toHaveAttribute("tabindex", /.*/);
+  await expect(pix.locator("input, textarea, select, button")).toHaveCount(0);
+  await pix.click();
+  expect(await pix.evaluate((el) => el === document.activeElement)).toBe(false);
+}
+
 // Vai pra /pagamentos (o CRM opera só com Farmaurora; não há seletor de empresa).
 // Escolhe uma data (AAAA-MM-DD) no calendário próprio (AppDatePicker): abre o campo, vai ao ano e ao mês pelo
 // título e clica no dia. Os botões do calendário têm data-acao / data-ano / data-mes / data-iso.
@@ -383,8 +393,9 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
 
     await page.locator("#btn-novo-pagamento-DESPACHANTE").click();
     await selectOption(page, "ng-nome-grupo", DESP_A);
-    await expect(page.locator("#ng-chave-pix")).toHaveValue(PIX_DESP_A);
-    await expect(page.locator("#ng-chave-pix")).toHaveJSProperty("readOnly", true);
+    await expect(page.locator("#ng-chave-pix")).toHaveText(PIX_DESP_A);
+    await expect(page.locator("#ng-chave-pix-rotulo")).toHaveText("Chave PIX");
+    await esperarChavePixNaoFocavel(page);
     // Sem fluxo de edição: o botão "Editar" saiu (quem altera a chave é o administrador, em Cadastros).
     await expect(page.locator("#ng-chave-pix-editar")).toHaveCount(0);
 
@@ -401,9 +412,9 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     // Reabre: cada despachante traz a chave do PRÓPRIO Cadastro; um sem chave cadastrada fica com o campo vazio.
     await page.locator("#btn-novo-pagamento-DESPACHANTE").click();
     await selectOption(page, "ng-nome-grupo", DESP_B);
-    await expect(page.locator("#ng-chave-pix")).toHaveValue(PIX_DESP_B);
+    await expect(page.locator("#ng-chave-pix")).toHaveText(PIX_DESP_B);
     await selectOption(page, "ng-nome-grupo", DESP_SEM_PIX);
-    await expect(page.locator("#ng-chave-pix")).toHaveValue("");
+    await expect(page.locator("#ng-chave-pix")).toHaveText("—");
     await page.keyboard.press("Escape");
 
     // A rota PATCH de chave PIX foi removida (404/405) e o Cadastro continua com a chave que tinha.
@@ -634,12 +645,13 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     await expect(page.locator("#ng-data")).toHaveCount(0);
 
     await selectOption(page, "ng-nome-grupo", TRANSP_A);
-    await expect(page.locator("#ng-chave-pix")).toHaveValue(PIX_TRANSP_A);
-    await expect(page.locator("#ng-chave-pix")).toHaveJSProperty("readOnly", true);
+    await expect(page.locator("#ng-chave-pix")).toHaveText(PIX_TRANSP_A);
+    await expect(page.locator("#ng-chave-pix-rotulo")).toHaveText("Chave PIX");
+    await esperarChavePixNaoFocavel(page);
     await expect(page.locator("#ng-chave-pix-editar")).toHaveCount(0);
 
     await selectOption(page, "ng-nome-grupo", TRANSP_B);
-    await expect(page.locator("#ng-chave-pix")).toHaveValue(PIX_TRANSP_B);
+    await expect(page.locator("#ng-chave-pix")).toHaveText(PIX_TRANSP_B);
 
     await page.locator("#ng-item-paciente-0").fill(P_TRANSP);
     await page.locator("#ng-item-valor-0").fill("500");
