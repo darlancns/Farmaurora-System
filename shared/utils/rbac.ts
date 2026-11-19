@@ -13,6 +13,10 @@
  *
  * A seção "dir" (planilha DIR de POs) é restrita a operacional e administrador,
  * leitura e escrita: consultor e sócio não veem a página, o item de menu nem a API.
+ *
+ * A seção "compras" (página Compras): administrador e operacional leem e escrevem; o sócio SÓ LÊ (nenhum botão de escrita);
+ * o consultor não acessa (nem página, nem menu, nem API). Como as demais seções de página, também é controlada pelo mapa de
+ * permissões por página da conta (shared/utils/permissoesPagina.ts): conta COM mapa e sem a chave "compras" vale "nenhum".
  */
 export type Role = "consultor" | "socio" | "operacional" | "administrador";
 
@@ -31,13 +35,15 @@ export function isRole(value: unknown): value is Role {
  * destinatário) e /api/notificacoes e /api/lembretes — mesmo RBAC, sem
  * mecanismo de "qualquer autenticado" separado.
  */
-export type Section = "patients" | "processos" | "pagamentos" | "dir" | "admin" | "config" | "recados";
+export type Section = "patients" | "processos" | "pagamentos" | "dir" | "compras" | "admin" | "config" | "recados";
 
 const READ_ACCESS: Record<Section, readonly Role[]> = {
   patients: ["socio", "administrador"],
   processos: ["consultor", "socio", "operacional", "administrador"],
   pagamentos: ["socio", "operacional", "administrador"],
   dir: ["operacional", "administrador"],
+  // Compras: o sócio lê (e vê os valores financeiros), o consultor não acessa.
+  compras: ["socio", "operacional", "administrador"],
   // "admin" cobre /api/admin/** (contas): leitura e escrita SÓ do administrador (o sócio não lê nem a lista).
   admin: ["administrador"],
   // "config" (página /configuracoes) abre pra TODOS os cargos: "Minha conta" é de todo mundo. O que é de
@@ -51,6 +57,8 @@ const WRITE_ACCESS: Record<Section, readonly Role[]> = {
   processos: ["socio", "operacional", "administrador"],
   pagamentos: ["socio", "operacional", "administrador"],
   dir: ["operacional", "administrador"],
+  // Compras: o sócio só LÊ.
+  compras: ["operacional", "administrador"],
   admin: ["administrador"],
   config: ["administrador"],
   recados: ROLES,
@@ -129,6 +137,7 @@ export function sectionForPageRoute(path: string): Section | null {
   if (path === "/processos" || path.startsWith("/processos/")) return "processos";
   if (path === "/pagamentos" || path.startsWith("/pagamentos/")) return "pagamentos";
   if (path === "/dir" || path.startsWith("/dir/")) return "dir";
+  if (path === "/compras" || path.startsWith("/compras/")) return "compras";
   if (path === "/configuracoes" || path.startsWith("/configuracoes/")) return "config";
   if (path === "/recados" || path.startsWith("/recados/")) return "recados";
   return null;

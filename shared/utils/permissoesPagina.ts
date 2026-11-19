@@ -17,8 +17,10 @@ import {
  *   `canWriteSection`. COM mapa gravado, seção ausente = "nenhum" (fail-closed) e valor inválido = "nenhum".
  * - O mapa só vale para os cargos de ROLES_COM_PERMISSAO e só para as seções de SECOES_COM_PERMISSAO.
  *   Consultor e administrador, e as seções recados, config e admin, seguem sempre a regra do cargo.
- * - Seção nova (ex.: "compras"): entra em `Section` (rbac.ts), em SECOES_COM_PERMISSAO e em
- *   ROTA_INICIAL_POR_SECAO abaixo — o compilador acusa se faltar a rota. Nada mais muda.
+ * - Seção nova (ex.: "compras", a última a entrar): entra em `Section` (rbac.ts), em SECOES_COM_PERMISSAO e em
+ *   ROTA_INICIAL_POR_SECAO abaixo — o compilador acusa se faltar a rota —, mais as rotas de página e de API em rbac.ts
+ *   (sectionForPageRoute, sectionForApiPath), o item de menu (useNavLinks.ts) e o rótulo da tela de Contas
+ *   (contaPermissoesForm.ts). Contas JÁ com mapa gravado ficam com a seção nova em "nenhum" até o administrador editar.
  */
 
 export type NivelPermissao = "nenhum" | "ver" | "editar";
@@ -33,7 +35,7 @@ export function isNivelPermissao(value: unknown): value is NivelPermissao {
  * Seções controladas pelo mapa, NA ORDEM em que `paginaInicial` as procura (a mesma ordem do menu).
  * Recados, Configurações/Cadastros e Contas (admin) ficam de fora de propósito.
  */
-export const SECOES_COM_PERMISSAO = ["processos", "pagamentos", "dir", "patients"] as const satisfies readonly Section[];
+export const SECOES_COM_PERMISSAO = ["processos", "pagamentos", "dir", "patients", "compras"] as const satisfies readonly Section[];
 
 export type SecaoComPermissao = (typeof SECOES_COM_PERMISSAO)[number];
 
@@ -43,6 +45,7 @@ export const ROTA_INICIAL_POR_SECAO: Record<SecaoComPermissao, string> = {
   pagamentos: "/pagamentos",
   dir: "/dir",
   patients: "/prestacao",
+  compras: "/compras",
 };
 
 /** Cargos que aceitam o mapa de permissões. */

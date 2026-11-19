@@ -19,6 +19,7 @@ export const ROTULO_SECAO_PERMISSAO: Record<SecaoComPermissao, string> = {
   pagamentos: "Pagamentos",
   patients: "Prestação de Contas",
   dir: "DIR",
+  compras: "Compras",
 };
 
 export const ROTULO_NIVEL_PERMISSAO: Record<NivelPermissao, string> = {
@@ -41,7 +42,7 @@ export const AVISO_TUDO_NENHUM = "Esta conta só vai ver Recados e Minha conta."
 export const MENSAGEM_PERMISSAO_SALVA =
   "A mudança vale no servidor em instantes. A pessoa precisa recarregar a página para ver o menu atualizado.";
 
-/** Valores da tabela: sempre as 4 seções, cada uma com um nível. */
+/** Valores da tabela: sempre todas as seções controladas, cada uma com um nível. */
 export type ValoresPermissoes = Record<SecaoComPermissao, NivelPermissao>;
 
 /** O cargo usa o mapa de permissões por página? (só sócio e operacional) */

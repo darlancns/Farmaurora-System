@@ -342,6 +342,7 @@ describe("sanitizarPermissoes", () => {
       pagamentos: "editar",
       dir: "nenhum",
       patients: "ver",
+      compras: "nenhum",
     });
   });
 
@@ -351,6 +352,7 @@ describe("sanitizarPermissoes", () => {
       pagamentos: "editar",
       dir: "editar",
       patients: "ver",
+      compras: "nenhum",
     });
   });
 
@@ -360,6 +362,7 @@ describe("sanitizarPermissoes", () => {
       pagamentos: "nenhum",
       dir: "nenhum",
       patients: "nenhum",
+      compras: "nenhum",
     });
     expect(sanitizarPermissoes({})).toEqual(mapaDe("nenhum"));
   });
@@ -378,6 +381,7 @@ describe("sanitizarPermissoes", () => {
         pagamentos: "nenhum",
         dir: "nenhum",
         patients: "nenhum",
+        compras: "nenhum",
       });
     }
   });
@@ -386,7 +390,7 @@ describe("sanitizarPermissoes", () => {
     const r = sanitizarPermissoes(
       JSON.parse('{"processos":"ver","admin":"editar","recados":"nenhum","config":"editar","outra":"ver","__proto__":{"x":1}}'),
     );
-    expect(r).toEqual({ processos: "ver", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum" });
+    expect(r).toEqual({ processos: "ver", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum", compras: "nenhum" });
     expect(Object.keys(r ?? {}).sort()).toEqual([...SECOES_COM_PERMISSAO].sort());
   });
 
@@ -404,7 +408,7 @@ describe("sanitizarPermissoes", () => {
 describe("paginaInicial — nunca devolve página proibida nem entra em loop", () => {
   const NIVEIS = NIVEIS_PERMISSAO;
   // Todas as 3^3 combinações de mapa.
-  // Depois, cada uma × 3 níveis da DIR = 3^4 (ver MAPAS_SEM_DIR abaixo).
+  // Depois, cada uma × 3 níveis da DIR = 3^4 (ver MAPAS_SEM_DIR abaixo) e × 3 níveis de Compras = 3^5.
   const MAPAS: Permissoes[] = [];
   for (const a of NIVEIS) {
     for (const b of NIVEIS) {
@@ -412,7 +416,7 @@ describe("paginaInicial — nunca devolve página proibida nem entra em loop", (
     }
   }
   const MAPAS_SEM_DIR = MAPAS.splice(0, MAPAS.length);
-  for (const mapa of MAPAS_SEM_DIR) for (const d of NIVEIS) MAPAS.push({ ...mapa, dir: d });
+  for (const mapa of MAPAS_SEM_DIR) for (const d of NIVEIS) for (const c of NIVEIS) MAPAS.push({ ...mapa, dir: d, compras: c });
 
   // O guarda de navegação (authz.global.ts): sem leitura na seção da rota, vai para a página inicial.
   function aposGuarda(u: UsuarioRbac, rota: string): string {

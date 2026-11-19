@@ -69,7 +69,7 @@ function semear(id: string, app_metadata: Record<string, unknown>): void {
 const metadataFinal = (id: string) => h.contas.get(id)!.app_metadata;
 
 const NENHUM = permissoesTudoNenhum();
-const MAPA: Permissoes = { processos: "ver", pagamentos: "editar", dir: "nenhum", patients: "ver" };
+const MAPA: Permissoes = { processos: "ver", pagamentos: "editar", dir: "nenhum", patients: "ver", compras: "nenhum" };
 
 beforeEach(() => {
   h.body = {};
@@ -103,7 +103,7 @@ const INVALIDOS: Array<[string, unknown]> = [
   ["número", 1],
   ["booleano", true],
   ["lista", ["processos"]],
-  ["seção desconhecida (compras)", { compras: "ver" }],
+  ["seção desconhecida (estoque)", { estoque: "ver" }],
   ["seção de outra área (admin)", { admin: "editar" }],
   ["seção de outra área (recados)", { recados: "ver" }],
   ["seção de outra área (config)", { config: "ver" }],
@@ -138,8 +138,8 @@ describe("validação estrita de permissoes (400, nada é gravado)", () => {
   });
 
   it("a mensagem diz o que está errado: a seção desconhecida e o valor inválido", async () => {
-    const secao = await erroDe(chamar(postHandler, administrador, { ...NOVA, role: "socio", permissoes: { compras: "ver" } }));
-    expect(secao.msg).toContain('"compras"');
+    const secao = await erroDe(chamar(postHandler, administrador, { ...NOVA, role: "socio", permissoes: { estoque: "ver" } }));
+    expect(secao.msg).toContain('"estoque"');
     expect(secao.msg).toContain("processos, pagamentos, dir, patients");
     const valor = await erroDe(chamar(postHandler, administrador, { ...NOVA, role: "socio", permissoes: { patients: "x" } }));
     expect(valor.msg).toContain('"patients"');
@@ -153,7 +153,7 @@ describe("validação estrita de permissoes (400, nada é gravado)", () => {
     expect(validarPermissoesEstrito({})).toEqual({ ok: true, permissoes: NENHUM });
     expect(validarPermissoesEstrito({ processos: "editar" })).toEqual({
       ok: true,
-      permissoes: { processos: "editar", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum" },
+      permissoes: { processos: "editar", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum", compras: "nenhum" },
     });
     expect(validarPermissoesEstrito(MAPA)).toEqual({ ok: true, permissoes: MAPA });
   });
@@ -216,14 +216,14 @@ describe("POST /api/admin/users", () => {
 
   it.each(["socio", "operacional"] as const)("%s com mapa: grava o mapa COMPLETO (seção ausente = 'nenhum')", async (role) => {
     const r = await chamar(postHandler, administrador, { ...NOVA, role, permissoes: { processos: "editar", patients: "ver" } });
-    const esperado = { processos: "editar", pagamentos: "nenhum", dir: "nenhum", patients: "ver" };
+    const esperado = { processos: "editar", pagamentos: "nenhum", dir: "nenhum", patients: "ver", compras: "nenhum" };
     expect((h.createUser.mock.calls[0]![0].app_metadata as Record<string, unknown>).permissoes).toEqual(esperado);
     expect(r.permissoes).toEqual(esperado);
   });
 
   it.each(["socio", "operacional"] as const)("%s com mapa da DIR: grava o mapa COMPLETO com a DIR", async (role) => {
     const r = await chamar(postHandler, administrador, { ...NOVA, role, permissoes: { processos: "editar", dir: "ver" } });
-    const esperado = { processos: "editar", pagamentos: "nenhum", dir: "ver", patients: "nenhum" };
+    const esperado = { processos: "editar", pagamentos: "nenhum", dir: "ver", patients: "nenhum", compras: "nenhum" };
     expect((h.createUser.mock.calls[0]![0].app_metadata as Record<string, unknown>).permissoes).toEqual(esperado);
     expect(r.permissoes).toEqual(esperado);
   });
@@ -279,7 +279,7 @@ describe("PATCH /api/admin/users/:id — semântica do campo permissoes", () => 
   it("objeto GRAVA o mapa completo (seção ausente = 'nenhum'), mesmo sobre uma conta sem mapa", async () => {
     semear("alvo", { role: "socio", nome: "Sócio" });
     const r = await chamar(patchHandler, administrador, { role: "socio", permissoes: { patients: "editar" } });
-    const esperado = { processos: "nenhum", pagamentos: "nenhum", dir: "nenhum", patients: "editar" };
+    const esperado = { processos: "nenhum", pagamentos: "nenhum", dir: "nenhum", patients: "editar", compras: "nenhum" };
     expect(metadataFinal("alvo").permissoes).toEqual(esperado);
     expect(r.permissoes).toEqual(esperado);
   });
@@ -287,7 +287,7 @@ describe("PATCH /api/admin/users/:id — semântica do campo permissoes", () => 
   it("objeto com a DIR GRAVA o mapa completo (DIR 'editar', o resto 'nenhum')", async () => {
     semear("alvo", { role: "socio", nome: "Sócio" });
     const r = await chamar(patchHandler, administrador, { role: "socio", permissoes: { dir: "editar" } });
-    const esperado = { processos: "nenhum", pagamentos: "nenhum", dir: "editar", patients: "nenhum" };
+    const esperado = { processos: "nenhum", pagamentos: "nenhum", dir: "editar", patients: "nenhum", compras: "nenhum" };
     expect(metadataFinal("alvo").permissoes).toEqual(esperado);
     expect(r.permissoes).toEqual(esperado);
   });
@@ -295,13 +295,13 @@ describe("PATCH /api/admin/users/:id — semântica do campo permissoes", () => 
   it("objeto substitui o mapa anterior por inteiro (não faz merge por seção)", async () => {
     semear("alvo", { role: "operacional", permissoes: MAPA });
     await chamar(patchHandler, administrador, { role: "operacional", permissoes: { patients: "editar" } });
-    expect(metadataFinal("alvo").permissoes).toEqual({ processos: "nenhum", pagamentos: "nenhum", dir: "nenhum", patients: "editar" });
+    expect(metadataFinal("alvo").permissoes).toEqual({ processos: "nenhum", pagamentos: "nenhum", dir: "nenhum", patients: "editar", compras: "nenhum" });
   });
 
   it("objeto com a DIR também substitui o mapa anterior por inteiro", async () => {
     semear("alvo", { role: "operacional", permissoes: MAPA });
     await chamar(patchHandler, administrador, { role: "operacional", permissoes: { dir: "editar" } });
-    expect(metadataFinal("alvo").permissoes).toEqual({ processos: "nenhum", pagamentos: "nenhum", dir: "editar", patients: "nenhum" });
+    expect(metadataFinal("alvo").permissoes).toEqual({ processos: "nenhum", pagamentos: "nenhum", dir: "editar", patients: "nenhum", compras: "nenhum" });
   });
 
   it("trocar para consultor ou administrador GRAVA permissoes null (limpa o mapa do cargo anterior)", async () => {
@@ -322,7 +322,7 @@ describe("PATCH /api/admin/users/:id — semântica do campo permissoes", () => 
     await chamar(patchHandler, administrador, { role: "socio" });
     expect(metadataFinal("alvo")).toMatchObject({ role: "socio", permissoes: MAPA });
     await chamar(patchHandler, administrador, { role: "operacional", permissoes: { processos: "editar" } });
-    expect(metadataFinal("alvo").permissoes).toEqual({ processos: "editar", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum" });
+    expect(metadataFinal("alvo").permissoes).toEqual({ processos: "editar", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum", compras: "nenhum" });
   });
 
   it("trocar de administrador para operacional sem mapa NÃO inventa um mapa (conta sem mapa = padrão do cargo)", async () => {
@@ -372,7 +372,7 @@ describe("GET /api/admin/users — Contas só do administrador", () => {
     const lista = await chamar(getHandler, administrador, {});
     const por = Object.fromEntries(lista.map((c) => [c.id, c.permissoes]));
     expect(por.bruno).toBeNull();
-    expect(por.rebeca).toEqual({ processos: "ver", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum" });
+    expect(por.rebeca).toEqual({ processos: "ver", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum", compras: "nenhum" });
     expect(por.socio1).toEqual(MAPA);
     expect(por.cons).toBeNull();
     expect(por.adm).toBeNull();
@@ -417,6 +417,7 @@ describe("roleAppMetadata, roleAppMetadataEdicao, parsePermissoesInput e toAdmin
       pagamentos: "nenhum",
       dir: "nenhum",
       patients: "ver",
+      compras: "nenhum",
     });
     expect(resumo({ role: "operacional", permissoes: { dir: "ver" } })).toEqual({ ...NENHUM, dir: "ver" });
     expect(resumo({ role: "operacional" })).toBeNull();

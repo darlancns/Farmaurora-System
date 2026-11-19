@@ -28,7 +28,7 @@ import { useToast } from "../../app/composables/useToast";
 // enviado em cada situação e, sobretudo, que NADA é enviado quando a pessoa não mexe na tabela.
 
 const NENHUM = valoresTudoNenhum();
-const MAPA: Permissoes = { processos: "ver", pagamentos: "editar", dir: "ver", patients: "nenhum" };
+const MAPA: Permissoes = { processos: "ver", pagamentos: "editar", dir: "ver", patients: "nenhum", compras: "nenhum" };
 
 // ── infraestrutura ───────────────────────────────────────────────────────────────────────────────────
 const montados: Array<{ app: App; el: HTMLElement }> = [];
@@ -143,8 +143,8 @@ afterEach(() => {
 // ── regras puras ─────────────────────────────────────────────────────────────────────────────────────
 describe("contaPermissoesForm — regras puras", () => {
   it("padraoDoCargo reproduz o que cada cargo tem hoje, seção a seção", () => {
-    expect(padraoDoCargo("operacional")).toEqual({ processos: "editar", pagamentos: "editar", dir: "editar", patients: "nenhum" });
-    expect(padraoDoCargo("socio")).toEqual({ processos: "editar", pagamentos: "editar", dir: "nenhum", patients: "editar" });
+    expect(padraoDoCargo("operacional")).toEqual({ processos: "editar", pagamentos: "editar", dir: "editar", patients: "nenhum", compras: "editar" });
+    expect(padraoDoCargo("socio")).toEqual({ processos: "editar", pagamentos: "editar", dir: "nenhum", patients: "editar", compras: "ver" });
   });
 
   it("só sócio e operacional usam o mapa", () => {
@@ -152,12 +152,12 @@ describe("contaPermissoesForm — regras puras", () => {
   });
 
   it("valoresDoMapa completa com 'nenhum' e aceita null", () => {
-    expect(valoresDoMapa({ processos: "ver" })).toEqual({ processos: "ver", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum" });
+    expect(valoresDoMapa({ processos: "ver" })).toEqual({ processos: "ver", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum", compras: "nenhum" });
     expect(valoresDoMapa(null)).toEqual(NENHUM);
   });
 
   it("os rótulos cobrem toda seção do mapa, com os nomes da interface", () => {
-    expect(SECOES_COM_PERMISSAO.map((s) => ROTULO_SECAO_PERMISSAO[s])).toEqual(["Processos", "Pagamentos", "DIR", "Prestação de Contas"]);
+    expect(SECOES_COM_PERMISSAO.map((s) => ROTULO_SECAO_PERMISSAO[s])).toEqual(["Processos", "Pagamentos", "DIR", "Prestação de Contas", "Compras"]);
   });
 
   describe("permissoesParaEnvio", () => {
@@ -194,14 +194,14 @@ describe("ContaFormModal — nova conta", () => {
     }
   });
 
-  it("operacional: 4 linhas na ordem do mapa, todas 'Nenhum', com o aviso; o POST leva o mapa completo", async () => {
+  it("operacional: 5 linhas na ordem do mapa, todas 'Nenhum', com o aviso; o POST leva o mapa completo", async () => {
     const ev = abrir(null);
     await escolherCargo("Operacional");
     await preencherNova();
 
     expect($$("[id^='perm-grupo-']").map((g) => g.id)).toEqual(SECOES_COM_PERMISSAO.map((s) => `perm-grupo-${s}`));
-    expect($$("[id^='perm-grupo-'] legend").map(texto)).toEqual(["Processos", "Pagamentos", "DIR", "Prestação de Contas"]);
-    expect(tabelaAtual()).toEqual({ processos: "nenhum", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum" });
+    expect($$("[id^='perm-grupo-'] legend").map(texto)).toEqual(["Processos", "Pagamentos", "DIR", "Prestação de Contas", "Compras"]);
+    expect(tabelaAtual()).toEqual({ processos: "nenhum", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum", compras: "nenhum" });
     expect(texto($("#permissoes-aviso-nenhum"))).toBe(AVISO_TUDO_NENHUM);
     expect($("#permissoes-padrao-rotulo")).toBeNull(); // conta nova não tem "padrão do cargo"
     expect($("#btn-permissoes-restaurar")).toBeNull();
@@ -210,7 +210,7 @@ describe("ContaFormModal — nova conta", () => {
     expect(ev.invalid).toEqual([]);
     expect(ev.create).toHaveLength(1);
     expect(ev.create[0]).toMatchObject({ email: "maria@farmaurora.com.br", role: "operacional", nome: "Maria Souza" });
-    expect(ev.create[0]!.permissoes).toEqual({ processos: "nenhum", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum" });
+    expect(ev.create[0]!.permissoes).toEqual({ processos: "nenhum", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum", compras: "nenhum" });
   });
 
   it("trocar um nível: o POST leva o nível e o aviso some", async () => {
@@ -219,11 +219,11 @@ describe("ContaFormModal — nova conta", () => {
     await preencherNova();
     await escolherNivel("pagamentos", "ver");
     await escolherNivel("patients", "editar");
-    expect(tabelaAtual()).toEqual({ processos: "nenhum", pagamentos: "ver", dir: "nenhum", patients: "editar" });
+    expect(tabelaAtual()).toEqual({ processos: "nenhum", pagamentos: "ver", dir: "nenhum", patients: "editar", compras: "nenhum" });
     expect($("#permissoes-aviso-nenhum")).toBeNull();
 
     await salvar();
-    expect(ev.create[0]!.permissoes).toEqual({ processos: "nenhum", pagamentos: "ver", dir: "nenhum", patients: "editar" });
+    expect(ev.create[0]!.permissoes).toEqual({ processos: "nenhum", pagamentos: "ver", dir: "nenhum", patients: "editar", compras: "nenhum" });
     expect(Object.keys(ev.create[0]!.permissoes!).sort()).toEqual([...SECOES_COM_PERMISSAO].sort());
   });
 
@@ -232,11 +232,11 @@ describe("ContaFormModal — nova conta", () => {
     await escolherCargo("Sócio");
     await preencherNova();
     await escolherNivel("dir", "editar");
-    expect(tabelaAtual()).toEqual({ processos: "nenhum", pagamentos: "nenhum", dir: "editar", patients: "nenhum" });
+    expect(tabelaAtual()).toEqual({ processos: "nenhum", pagamentos: "nenhum", dir: "editar", patients: "nenhum", compras: "nenhum" });
     expect($("#permissoes-aviso-nenhum")).toBeNull();
 
     await salvar();
-    expect(ev.create[0]!.permissoes).toEqual({ processos: "nenhum", pagamentos: "nenhum", dir: "editar", patients: "nenhum" });
+    expect(ev.create[0]!.permissoes).toEqual({ processos: "nenhum", pagamentos: "nenhum", dir: "editar", patients: "nenhum", compras: "nenhum" });
     expect(Object.keys(ev.create[0]!.permissoes!).sort()).toEqual([...SECOES_COM_PERMISSAO].sort());
   });
 
@@ -277,10 +277,10 @@ describe("ContaFormModal — nova conta", () => {
     await escolherNivel("processos", "ver");
     await escolherNivel("patients", "editar");
     await escolherCargo("Operacional");
-    expect(tabelaAtual()).toEqual({ processos: "ver", pagamentos: "nenhum", dir: "nenhum", patients: "editar" });
+    expect(tabelaAtual()).toEqual({ processos: "ver", pagamentos: "nenhum", dir: "nenhum", patients: "editar", compras: "nenhum" });
     await salvar();
     expect(ev.create[0]).toMatchObject({ role: "operacional" });
-    expect(ev.create[0]!.permissoes).toEqual({ processos: "ver", pagamentos: "nenhum", dir: "nenhum", patients: "editar" });
+    expect(ev.create[0]!.permissoes).toEqual({ processos: "ver", pagamentos: "nenhum", dir: "nenhum", patients: "editar", compras: "nenhum" });
   });
 });
 
@@ -289,7 +289,7 @@ describe("ContaFormModal — editar conta SEM mapa gravado (o Bruno de hoje)", (
   it("mostra o padrão do cargo, rotulado, sem 'Restaurar'; salvar sem mexer NÃO envia permissoes", async () => {
     const ev = abrir(conta());
     await esperar();
-    expect(tabelaAtual()).toEqual({ processos: "editar", pagamentos: "editar", dir: "editar", patients: "nenhum" });
+    expect(tabelaAtual()).toEqual({ processos: "editar", pagamentos: "editar", dir: "editar", patients: "nenhum", compras: "editar" });
     expect(texto($("#permissoes-padrao-rotulo"))).toBe("Padrão do cargo");
     expect($("#btn-permissoes-restaurar")).toBeNull();
     expect($("#permissoes-aviso-nenhum")).toBeNull();
@@ -304,7 +304,7 @@ describe("ContaFormModal — editar conta SEM mapa gravado (o Bruno de hoje)", (
   it("sócio sem mapa: padrão do sócio, também sem enviar nada", async () => {
     const ev = abrir(conta({ role: "socio", nome: "Sócia" }));
     await esperar();
-    expect(tabelaAtual()).toEqual({ processos: "editar", pagamentos: "editar", dir: "nenhum", patients: "editar" });
+    expect(tabelaAtual()).toEqual({ processos: "editar", pagamentos: "editar", dir: "nenhum", patients: "editar", compras: "ver" });
     await salvar();
     expect("permissoes" in ev.update[0]!.payload).toBe(false);
   });
@@ -316,8 +316,8 @@ describe("ContaFormModal — editar conta SEM mapa gravado (o Bruno de hoje)", (
     expect($("#permissoes-padrao-rotulo")).toBeNull(); // deixou de ser o padrão
     expect($("#btn-permissoes-restaurar")).not.toBeNull();
     await salvar();
-    expect(ev.update[0]!.payload.permissoes).toEqual({ processos: "editar", pagamentos: "ver", dir: "editar", patients: "nenhum" });
-    expect(Object.keys(ev.update[0]!.payload.permissoes!)).toHaveLength(4);
+    expect(ev.update[0]!.payload.permissoes).toEqual({ processos: "editar", pagamentos: "ver", dir: "editar", patients: "nenhum", compras: "editar" });
+    expect(Object.keys(ev.update[0]!.payload.permissoes!)).toHaveLength(SECOES_COM_PERMISSAO.length);
   });
 
   it("mexer só na DIR: o PATCH leva o mapa completo (padrão do cargo nas demais linhas)", async () => {
@@ -326,8 +326,8 @@ describe("ContaFormModal — editar conta SEM mapa gravado (o Bruno de hoje)", (
     await escolherNivel("dir", "nenhum");
     expect($("#permissoes-padrao-rotulo")).toBeNull(); // deixou de ser o padrão
     await salvar();
-    expect(ev.update[0]!.payload.permissoes).toEqual({ processos: "editar", pagamentos: "editar", dir: "nenhum", patients: "nenhum" });
-    expect(Object.keys(ev.update[0]!.payload.permissoes!)).toHaveLength(4);
+    expect(ev.update[0]!.payload.permissoes).toEqual({ processos: "editar", pagamentos: "editar", dir: "nenhum", patients: "nenhum", compras: "editar" });
+    expect(Object.keys(ev.update[0]!.payload.permissoes!)).toHaveLength(SECOES_COM_PERMISSAO.length);
   });
 
   it("mexer e voltar ao mesmo valor ainda conta como mexida (a pessoa decidiu)", async () => {
@@ -336,7 +336,7 @@ describe("ContaFormModal — editar conta SEM mapa gravado (o Bruno de hoje)", (
     await escolherNivel("processos", "ver");
     await escolherNivel("processos", "editar");
     await salvar();
-    expect(ev.update[0]!.payload.permissoes).toEqual({ processos: "editar", pagamentos: "editar", dir: "editar", patients: "nenhum" });
+    expect(ev.update[0]!.payload.permissoes).toEqual({ processos: "editar", pagamentos: "editar", dir: "editar", patients: "nenhum", compras: "editar" });
   });
 
   it("'Restaurar padrão do cargo' depois de mexer volta ao padrão, rotulado, e sem mapa não envia nada", async () => {
@@ -345,7 +345,7 @@ describe("ContaFormModal — editar conta SEM mapa gravado (o Bruno de hoje)", (
     await escolherNivel("patients", "editar");
     $("#btn-permissoes-restaurar")!.click();
     await esperar();
-    expect(tabelaAtual()).toEqual({ processos: "editar", pagamentos: "editar", dir: "editar", patients: "nenhum" });
+    expect(tabelaAtual()).toEqual({ processos: "editar", pagamentos: "editar", dir: "editar", patients: "nenhum", compras: "editar" });
     expect($("#permissoes-padrao-rotulo")).not.toBeNull();
     expect($("#btn-permissoes-restaurar")).toBeNull();
     await salvar();
@@ -357,7 +357,7 @@ describe("ContaFormModal — editar conta COM mapa gravado", () => {
   it("mostra o mapa (sem rótulo de padrão) e 'Restaurar'; salvar sem mexer NÃO reenvia o mapa", async () => {
     const ev = abrir(conta({ permissoes: valoresDoMapa(MAPA) }));
     await esperar();
-    expect(tabelaAtual()).toEqual({ processos: "ver", pagamentos: "editar", dir: "ver", patients: "nenhum" });
+    expect(tabelaAtual()).toEqual({ processos: "ver", pagamentos: "editar", dir: "ver", patients: "nenhum", compras: "nenhum" });
     expect($("#permissoes-padrao-rotulo")).toBeNull();
     expect($("#btn-permissoes-restaurar")).not.toBeNull();
     await salvar();
@@ -369,7 +369,7 @@ describe("ContaFormModal — editar conta COM mapa gravado", () => {
     await esperar();
     $("#btn-permissoes-restaurar")!.click();
     await esperar();
-    expect(tabelaAtual()).toEqual({ processos: "editar", pagamentos: "editar", dir: "editar", patients: "nenhum" });
+    expect(tabelaAtual()).toEqual({ processos: "editar", pagamentos: "editar", dir: "editar", patients: "nenhum", compras: "editar" });
     expect($("#permissoes-padrao-rotulo")).not.toBeNull();
     await salvar();
     expect(ev.update[0]!.payload).toHaveProperty("permissoes", null);
@@ -382,7 +382,7 @@ describe("ContaFormModal — editar conta COM mapa gravado", () => {
     await esperar();
     await escolherNivel("patients", "ver");
     await salvar();
-    expect(ev.update[0]!.payload.permissoes).toEqual({ processos: "editar", pagamentos: "editar", dir: "editar", patients: "ver" });
+    expect(ev.update[0]!.payload.permissoes).toEqual({ processos: "editar", pagamentos: "editar", dir: "editar", patients: "ver", compras: "editar" });
   });
 
   it("mapa tudo 'Nenhum' gravado: mostra o aviso e salva sem reenviar", async () => {
@@ -422,7 +422,7 @@ describe("ContaFormModal — trocar o cargo numa edição", () => {
     await esperar();
     expect($("#permissoes-conta")).toBeNull();
     await escolherCargo("Operacional");
-    expect(tabelaAtual()).toEqual({ processos: "editar", pagamentos: "editar", dir: "editar", patients: "nenhum" });
+    expect(tabelaAtual()).toEqual({ processos: "editar", pagamentos: "editar", dir: "editar", patients: "nenhum", compras: "editar" });
     expect($("#permissoes-padrao-rotulo")).not.toBeNull();
     await salvar();
     expect(ev.update[0]!.payload).toMatchObject({ role: "operacional" });
@@ -433,35 +433,35 @@ describe("ContaFormModal — trocar o cargo numa edição", () => {
     abrir(conta({ role: "administrador", nome: "Adm" }));
     await esperar();
     await escolherCargo("Sócio");
-    expect(tabelaAtual()).toEqual({ processos: "editar", pagamentos: "editar", dir: "nenhum", patients: "editar" });
+    expect(tabelaAtual()).toEqual({ processos: "editar", pagamentos: "editar", dir: "nenhum", patients: "editar", compras: "ver" });
   });
 
   it("entre sócio e operacional: mexida = mantém a tabela; intacta e sem mapa = mostra o padrão do cargo novo", async () => {
     const ev = abrir(conta());
     await esperar();
     await escolherCargo("Sócio"); // intacta e sem mapa: o padrão acompanha o cargo
-    expect(tabelaAtual()).toEqual({ processos: "editar", pagamentos: "editar", dir: "nenhum", patients: "editar" });
+    expect(tabelaAtual()).toEqual({ processos: "editar", pagamentos: "editar", dir: "nenhum", patients: "editar", compras: "ver" });
     await salvar();
     expect("permissoes" in ev.update[0]!.payload).toBe(false);
 
     await escolherNivel("processos", "ver"); // mexeu: agora a tabela é da pessoa
     await escolherCargo("Operacional");
-    expect(tabelaAtual()).toEqual({ processos: "ver", pagamentos: "editar", dir: "nenhum", patients: "editar" });
+    expect(tabelaAtual()).toEqual({ processos: "ver", pagamentos: "editar", dir: "nenhum", patients: "editar", compras: "ver" });
     await salvar();
-    expect(ev.update[1]!.payload.permissoes).toEqual({ processos: "ver", pagamentos: "editar", dir: "nenhum", patients: "editar" });
+    expect(ev.update[1]!.payload.permissoes).toEqual({ processos: "ver", pagamentos: "editar", dir: "nenhum", patients: "editar", compras: "ver" });
   });
 
   it("conta COM mapa trocando entre sócio e operacional mantém o mapa; voltando de consultor mostra o mapa gravado", async () => {
     const ev = abrir(conta({ permissoes: valoresDoMapa(MAPA) }));
     await esperar();
     await escolherCargo("Sócio");
-    expect(tabelaAtual()).toEqual({ processos: "ver", pagamentos: "editar", dir: "ver", patients: "nenhum" });
+    expect(tabelaAtual()).toEqual({ processos: "ver", pagamentos: "editar", dir: "ver", patients: "nenhum", compras: "nenhum" });
     await escolherNivel("patients", "editar");
     await escolherCargo("Consultor");
     expect($("#permissoes-conta")).toBeNull();
     await escolherCargo("Operacional");
     // o que o servidor guarda é o mapa gravado (nada foi salvo no meio): é ele que a tabela volta a mostrar
-    expect(tabelaAtual()).toEqual({ processos: "ver", pagamentos: "editar", dir: "ver", patients: "nenhum" });
+    expect(tabelaAtual()).toEqual({ processos: "ver", pagamentos: "editar", dir: "ver", patients: "nenhum", compras: "nenhum" });
     await salvar();
     expect("permissoes" in ev.update[0]!.payload).toBe(false);
   });

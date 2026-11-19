@@ -53,35 +53,35 @@ describe("resolveAuthUser — permissoes (leitura de app_metadata.permissoes)", 
       role,
       permissoes: { processos: "ver", pagamentos: "editar", patients: "ver" },
     });
-    expect(u.permissoes).toEqual({ processos: "ver", pagamentos: "editar", dir: "nenhum", patients: "ver" });
+    expect(u.permissoes).toEqual({ processos: "ver", pagamentos: "editar", dir: "nenhum", patients: "ver", compras: "nenhum" });
   });
 
   it.each(["socio", "operacional"] as const)("%s com mapa válido incluindo a DIR: lê o mapa completo", (role) => {
     const u = resolver({ role, permissoes: { processos: "ver", pagamentos: "editar", dir: "ver", patients: "ver" } });
-    expect(u.permissoes).toEqual({ processos: "ver", pagamentos: "editar", dir: "ver", patients: "ver" });
+    expect(u.permissoes).toEqual({ processos: "ver", pagamentos: "editar", dir: "ver", patients: "ver", compras: "nenhum" });
     expect(podeLer(u, "dir")).toBe(true);
     expect(podeEscrever(u, "dir")).toBe(false);
   });
 
   it.each(["socio", "operacional"] as const)("%s com mapa parcial: seções ausentes viram 'nenhum'", (role) => {
     const u = resolver({ role, permissoes: { processos: "editar" } });
-    expect(u.permissoes).toEqual({ processos: "editar", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum" });
+    expect(u.permissoes).toEqual({ processos: "editar", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum", compras: "nenhum" });
     expect(podeLer(u, "pagamentos")).toBe(false);
   });
 
   it.each(["socio", "operacional"] as const)("%s com valores inválidos: sanitizados para 'nenhum'", (role) => {
     const u = resolver({ role, permissoes: { processos: "EDITAR", pagamentos: 3, patients: "ver", extra: "editar" } });
-    expect(u.permissoes).toEqual({ processos: "nenhum", pagamentos: "nenhum", dir: "nenhum", patients: "ver" });
+    expect(u.permissoes).toEqual({ processos: "nenhum", pagamentos: "nenhum", dir: "nenhum", patients: "ver", compras: "nenhum" });
   });
 
   it.each(["socio", "operacional"] as const)("%s com valor inválido na DIR: sanitizado para 'nenhum'", (role) => {
     const u = resolver({ role, permissoes: { processos: "ver", dir: null, patients: "ver" } });
-    expect(u.permissoes).toEqual({ processos: "ver", pagamentos: "nenhum", dir: "nenhum", patients: "ver" });
+    expect(u.permissoes).toEqual({ processos: "ver", pagamentos: "nenhum", dir: "nenhum", patients: "ver", compras: "nenhum" });
     expect(podeLer(u, "dir")).toBe(false);
   });
 
   it.each(["socio", "operacional"] as const)("%s com mapa gravado vazio, ilegível ou de tipo errado: tudo 'nenhum'", (role) => {
-    const nenhum = { processos: "nenhum", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum" };
+    const nenhum = { processos: "nenhum", pagamentos: "nenhum", dir: "nenhum", patients: "nenhum", compras: "nenhum" };
     for (const lixo of [{}, "editar", 1, true, [], ["processos"]]) {
       const u = resolver({ role, permissoes: lixo });
       expect(u.permissoes, JSON.stringify(lixo)).toEqual(nenhum);
@@ -159,7 +159,7 @@ describe("plugin authUser.server — permissoes chega ao front (useState 'auth-u
       email: "x@farmaurora.com.br",
       role: "operacional",
       nome: "Bruno Alves",
-      permissoes: { processos: "ver", pagamentos: "editar", dir: "nenhum", patients: "nenhum" },
+      permissoes: { processos: "ver", pagamentos: "editar", dir: "nenhum", patients: "nenhum", compras: "nenhum" },
       isAdmin: false,
     });
     expect((h.estados.get("auth-user-loaded") as Ref<boolean>).value).toBe(true);
