@@ -138,13 +138,13 @@ function onKeydown(event: KeyboardEvent): void {
           :title="celula.titulo"
         >
           <svg
-            v-if="!celula.semIcone"
+            v-if="celula.chave !== 'previsao'"
             viewBox="0 0 24 24"
-            class="shrink-0"
-            :class="[celula.chave === 'previsao' ? 'h-4 w-4' : 'h-3.5 w-3.5', celula.perigo ? undefined : 'text-[#6b7f87]']"
+            class="h-3.5 w-3.5 shrink-0"
+            :class="celula.perigo ? undefined : 'text-[#6b7f87]'"
             fill="none"
             stroke="currentColor"
-            :stroke-width="celula.chave === 'previsao' ? 1.75 : 1.6"
+            stroke-width="1.6"
             stroke-linecap="round"
             stroke-linejoin="round"
             aria-hidden="true"
@@ -152,13 +152,13 @@ function onKeydown(event: KeyboardEvent): void {
             <path v-for="(d, i) in ICONES_CARD[celula.chave]" :key="i" :d="d" />
           </svg>
           <span class="sr-only">{{ celula.rotulo }}: </span>
-          <!-- A célula da previsão (fixa) nunca encolhe: quem corta é a Cia · AWB; só o texto anotado corta, em 96px. -->
+          <!-- A célula da previsão (fixa) é sempre "DD/MM", sem ícone, e nunca encolhe nem corta: quem corta é a Cia · AWB. -->
           <!-- Na célula aérea, só a cia corta com "…": a AWB fica inteira (só corta se sozinha passar da célula). -->
           <span
             class="flex min-h-4 min-w-0 items-baseline overflow-hidden text-[12px] leading-4"
-            :class="[celula.perigo ? 'font-semibold' : 'font-medium', celula.fixa ? 'max-w-[96px] whitespace-nowrap tabular-nums' : '']"
+            :class="[celula.perigo ? 'font-semibold' : 'font-medium', celula.fixa ? 'whitespace-nowrap tabular-nums' : '']"
           >
-            <span v-if="celula.texto" class="min-w-0 truncate">{{ celula.texto }}</span>
+            <span v-if="celula.texto" :class="celula.fixa ? undefined : 'min-w-0 truncate'">{{ celula.texto }}</span>
             <span v-if="celula.texto && celula.awb" class="shrink-0 whitespace-pre"> · </span>
             <span v-if="celula.awb" class="max-w-full shrink-0 truncate font-mono text-[11.5px] leading-4 font-normal">{{ celula.awb }}</span>
           </span>

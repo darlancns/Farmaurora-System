@@ -122,10 +122,8 @@ describe("etiquetaPagamentoDe (compartilhada com o card)", () => {
 });
 
 describe("ícones compartilhados", () => {
-  it("os 6 do card não mudaram de desenho (primeiro path de cada um), o calendário da previsão foi acrescentado e todos os do painel existem", () => {
-    expect(Object.keys(ICONES_CARD)).toEqual(["responsavel", "consultor", "pendencias", "fornecedor", "despachante", "aereo", "previsao"]);
-    // Calendário (lucide): rect x3 y4 w18 h18 rx2 (como path) + M16 2v4, M8 2v4, M3 10h18.
-    expect(ICONES_CARD.previsao).toEqual(["M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z", "M16 2v4", "M8 2v4", "M3 10h18"]);
+  it("os 6 do card não mudaram de desenho (primeiro path de cada um) e todos os do painel existem", () => {
+    expect(Object.keys(ICONES_CARD)).toEqual(["responsavel", "consultor", "pendencias", "fornecedor", "despachante", "aereo"]);
     expect(ICONES_CARD.responsavel[0]).toBe("M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2");
     expect(ICONES_CARD.aereo[0]!.startsWith("M17.8 19.2 16 11")).toBe(true);
     for (const chave of ["envio", "awb", "transportadora", "local", "numeroProcesso", "mover", "editar", "fechar", "alerta", "lixeira"] as const) {

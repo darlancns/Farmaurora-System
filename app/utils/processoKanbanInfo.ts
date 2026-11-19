@@ -1,4 +1,5 @@
 import type { Processo } from "#shared/types/processo";
+import type { ChaveIconeCard } from "./processoIcones";
 import { nomeFornecedorCurto } from "./nomeFornecedorCurto";
 import { previsaoParaCard } from "./processoPrevisaoCard";
 
@@ -7,11 +8,11 @@ import { previsaoParaCard } from "./processoPrevisaoCard";
 // - linha "pessoas": Responsável, Consultor, Pendências (esta só com quantidade > 0);
 // - linha "origem": Fornecedor (nome curto, sem o país) e Despachante;
 // - linha "aereo": a célula "Cia · AWB" (só a cia, só a AWB, ou as duas) e, à direita dela, a célula da previsão de
-//   entrega (data curta, sem o ano — ver processoPrevisaoCard.ts). Sem Cia e sem AWB mas com previsão: a linha existe
-//   só com a data (e o ícone de calendário). Sem previsão: nenhuma célula de data, nada muda;
+//   entrega (sempre só DD/MM, sem ícone — ver processoPrevisaoCard.ts). Sem Cia e sem AWB mas com previsão: a linha
+//   existe só com a data. Sem previsão (vazia ou sem data reconhecível): nenhuma célula de data, nada muda;
 // - célula vazia (ausente ou só espaços) não existe; linha sem células não existe.
 
-export type ChaveCelulaKanban = "responsavel" | "consultor" | "pendencias" | "fornecedor" | "despachante" | "aereo" | "previsao";
+export type ChaveCelulaKanban = ChaveIconeCard | "previsao";
 export type ChaveLinhaKanban = "pessoas" | "origem" | "aereo";
 
 export interface CelulaInfoKanban {
@@ -31,9 +32,8 @@ export interface CelulaInfoKanban {
   // Não encolhe antes das outras (até 45% da linha): o Responsável, nome curto que viraria "Re…" ao lado de um
   // consultor longo.
   prioritaria?: boolean;
-  // Célula da data: nunca encolhe nem corta (o texto anotado corta em 96px). Sem ícone quando vem depois da Cia · AWB.
+  // Célula da data: nunca encolhe nem corta (são sempre 5 caracteres, "DD/MM"). Não tem ícone.
   fixa?: boolean;
-  semIcone?: boolean;
 }
 
 export interface LinhaInfoKanban {
@@ -87,8 +87,7 @@ function celulaAereo(cia: string, awb: string): CelulaInfoKanban | null {
   };
 }
 
-// `sozinha`: não há Cia nem AWB no bloquinho — a data ganha o ícone de calendário; senão ela vem sem ícone, à direita.
-function celulaPrevisao(texto: string | undefined, sozinha: boolean): CelulaInfoKanban | null {
+function celulaPrevisao(texto: string | undefined): CelulaInfoKanban | null {
   const previsao = previsaoParaCard(texto);
   if (!previsao) return null;
   return {
@@ -97,7 +96,6 @@ function celulaPrevisao(texto: string | undefined, sozinha: boolean): CelulaInfo
     texto: previsao.curto,
     titulo: `${ROTULOS_INFO_KANBAN.previsao}: ${previsao.completo}`,
     fixa: true,
-    ...(sozinha ? {} : { semIcone: true }),
   };
 }
 
@@ -124,6 +122,6 @@ export function linhasInfoKanban(processo: ProcessoInfoKanban): LinhaInfoKanban[
       celulaTexto("fornecedor", nomeFornecedorCurto(processo.fornecedor)),
       celulaTexto("despachante", limpo(processo.despachante)),
     ]),
-    linha("aereo", [aereo, celulaPrevisao(processo.datas?.previsaoEntrega, aereo === null)]),
+    linha("aereo", [aereo, celulaPrevisao(processo.datas?.previsaoEntrega)]),
   ].filter((l): l is LinhaInfoKanban => l !== null);
 }

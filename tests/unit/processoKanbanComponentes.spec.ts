@@ -208,7 +208,11 @@ describe("ProcessoKanbanCard", () => {
     expect(data.className).not.toContain("flex-auto");
     expect(data.querySelector("svg")).toBeNull();
     const visivel = data.querySelector("span.flex")!;
-    for (const c of ["whitespace-nowrap", "tabular-nums", "max-w-[96px]"]) expect(visivel.className).toContain(c);
+    for (const c of ["whitespace-nowrap", "tabular-nums"]) expect(visivel.className).toContain(c);
+    // Sempre 5 caracteres: sem limite de largura e sem reticências.
+    expect(visivel.className).not.toContain("max-w-");
+    expect(data.querySelector(".truncate")).toBeNull();
+    expect(texto(visivel)).toBe("25/11");
     // Quem corta é a Cia · AWB: continua flex-auto + min-w-0 + truncate, com title.
     const aereo = el.querySelector("#card-aereo-p1")!;
     expect(aereo.className).toContain("flex-auto");
@@ -232,28 +236,38 @@ describe("ProcessoKanbanCard", () => {
     expect(html(sem, "p1")).toBe(html(espacos, "p2"));
   });
 
-  it("previsão de entrega: sem Cia e sem AWB, um bloquinho só com a data e o ícone de calendário (16px)", () => {
+  it("previsão de entrega: sem Cia e sem AWB, um bloquinho só com a data, SEM ícone", () => {
     const el = card(proc("p1", { datas: { previsaoEntrega: "25/11" } }));
     const linha = el.querySelector("#card-info-aereo-p1")!;
     expect([...linha.children].map((c) => c.id)).toEqual(["card-previsao-p1"]);
     expect(el.querySelector("#card-aereo-p1")).toBeNull();
     const data = el.querySelector("#card-previsao-p1")!;
     expect(texto(data)).toBe("Previsão de entrega: 25/11");
-    const svg = data.querySelector("svg[aria-hidden='true']")!;
-    expect(svg).not.toBeNull();
-    expect(svg.getAttribute("class")).toContain("h-4");
-    expect(svg.getAttribute("class")).toContain("text-[#6b7f87]");
-    expect(svg.getAttribute("stroke-width")).toBe("1.75");
-    expect(svg.querySelectorAll("path")).toHaveLength(4);
+    expect(data.querySelector("svg")).toBeNull();
   });
 
-  it("previsão de entrega: texto anotado fica inteiro no title e só o texto visível corta (96px)", () => {
-    const el = card(proc("p1", { companhiaAerea: "LATAM Cargo", datas: { previsaoEntrega: "20/11 (aguardando voo)" } }));
-    const data = el.querySelector("#card-previsao-p1")!;
-    expect(data.getAttribute("title")).toBe("Previsão de entrega: 20/11 (aguardando voo)");
-    expect(texto(data)).toBe("Previsão de entrega: 20/11 (aguardando voo)");
-    expect(data.querySelector(".truncate")).not.toBeNull();
-    expect(data.querySelector("span.flex")!.className).toContain("max-w-[96px]");
+  it("previsão de entrega: texto anotado mostra só a data (DD/MM) e o title tem o texto completo", () => {
+    for (const [anotado, curto] of [["20/11 (aguardando voo)", "20/11"], ["chega 20/11/2026", "20/11"], ["5/1", "05/01"]] as const) {
+      const el = card(proc("p1", { companhiaAerea: "LATAM Cargo", datas: { previsaoEntrega: anotado } }));
+      const data = el.querySelector("#card-previsao-p1")!;
+      expect(data.getAttribute("title")).toBe(`Previsão de entrega: ${anotado}`);
+      expect(texto(data)).toBe(`Previsão de entrega: ${curto}`);
+      expect(data.querySelector(".truncate")).toBeNull();
+    }
+  });
+
+  it("previsão de entrega: texto sem data reconhecível não cria célula nem divisória (card idêntico ao de hoje)", () => {
+    const base = { companhiaAerea: "LATAM Cargo", numeroAwb: "957-12345678" };
+    const sem = card(proc("p1", { ...base }));
+    const html = (e: HTMLElement, id: string) => e.querySelector(`#card-info-aereo-${id}`)!.outerHTML.replaceAll(id, "X");
+    for (const [i, previsaoEntrega] of ["aguardando confirmação", "32/13"].entries()) {
+      const id = `t${i}`;
+      const el = card(proc(id, { ...base, datas: { previsaoEntrega } }));
+      expect(el.querySelector(`#card-previsao-${id}`), previsaoEntrega).toBeNull();
+      expect(html(el, id), previsaoEntrega).toBe(html(sem, "p1"));
+    }
+    // Sem Cia/AWB e sem data reconhecível: nem o bloquinho aéreo existe.
+    expect(card(proc("v", { datas: { previsaoEntrega: "aguardando confirmação" } })).querySelector("#card-info-aereo-v")).toBeNull();
   });
 
   it("previsão de entrega: vale em todas as colunas, inclusive Entregue", () => {
