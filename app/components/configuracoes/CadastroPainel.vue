@@ -364,6 +364,9 @@ const CLASSE_BOTAO_PIX =
           <p v-if="lista === 'cias-aereas' && isEdit" id="cadastro-form-so-nome" class="text-[12.5px] text-ink-soft">
             Cia aérea só tem o nome. Para desativar ou reativar, use a chave Ativo na lista.
           </p>
+          <p v-else-if="lista === 'consultores' && isEdit" id="cadastro-form-so-nome" class="text-[12.5px] text-ink-soft">
+            Consultor só tem o nome. Para desativar ou reativar, use a chave Ativo na lista.
+          </p>
           <p v-else-if="lista === 'transportadoras' && isEdit && !mostrarPix" id="cadastro-form-so-nome" class="text-[12.5px] text-ink-soft">
             Transportadora só tem o nome e a chave PIX. Para desativar ou reativar, use a chave Ativo na lista.
           </p>

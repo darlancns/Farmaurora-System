@@ -118,11 +118,11 @@ export function montarAlteracao(
 }
 
 /**
- * A lista tem algum campo editável depois de criada? Cia aérea só tem o nome (só se desativa/reativa); transportadora
- * só tem a chave PIX, então só edita quem pode vê-la (`podeVerPix`).
+ * A lista tem algum campo editável depois de criada? Cia aérea e consultor só têm o nome (só se desativa/reativa);
+ * transportadora só tem a chave PIX, então só edita quem pode vê-la (`podeVerPix`).
  */
 export function listaTemEdicao(lista: ListaCadastro, podeVerPix = true): boolean {
-  if (lista === "cias-aereas") return false;
+  if (lista === "cias-aereas" || lista === "consultores") return false;
   if (lista === "transportadoras") return podeVerPix;
   return true;
 }

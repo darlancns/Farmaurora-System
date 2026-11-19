@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { Cadastro, ListaCadastro } from "#shared/types/Cadastro";
-import { LISTA_CADASTRO_ROTULO, ROTULO_INATIVO_CADASTRO } from "#shared/constants/cadastros";
+import { LISTA_CADASTRO_AVISO, LISTA_CADASTRO_ROTULO, ROTULO_INATIVO_CADASTRO } from "#shared/constants/cadastros";
 import { colunasDaLista, linhaSecundaria, textoContagem, textoEncontrados } from "../../utils/cadastroColunas";
 import CadastroSwitch from "./CadastroSwitch.vue";
 
-// UMA seção RECOLHÍVEL de Cadastros (Fornecedores, Despachantes, Transportadoras ou Cias aéreas). Fechada por padrão: o
+// UMA seção RECOLHÍVEL de Cadastros (Fornecedores, Despachantes, Transportadoras, Cias aéreas ou Consultores). Fechada por padrão: o
 // cabeçalho mostra título, contagem ("13 · 13 ativos"), "+ Adicionar" e a seta. Aberta, vira uma TABELA COMPACTA (uma
 // linha por item) — ou, no celular, uma lista de itens de duas linhas, com a chave Ativo à direita. Itens inativos ficam
 // ao final (a ordem vem pronta do servidor) e esmaecidos. Só apresenta: abrir o painel, adicionar e alternar o ativo
@@ -41,6 +41,8 @@ const emit = defineEmits<{
 }>();
 
 const rotulo = computed(() => LISTA_CADASTRO_ROTULO[props.lista]);
+// Aviso fixo da lista (Consultores: por enquanto só a DIR usa); as demais listas não têm.
+const aviso = computed(() => LISTA_CADASTRO_AVISO[props.lista] ?? "");
 const colunas = computed(() => colunasDaLista(props.lista, props.podeVerPix));
 // Nome + colunas da lista + Ativo.
 const totalColunas = computed(() => colunas.value.length + 2);
@@ -116,6 +118,13 @@ const rotuloSwitch = (item: Cadastro): string => `Ativo: ${item.nome}`;
     <!-- Corpo: sempre no DOM (aria-controls aponta para ele); `hidden` quando fechado. @container: a partir de 700px de
          largura da própria seção aparece a tabela; abaixo, a lista de itens de duas linhas (cabe em 360px). -->
     <div :id="`cadastro-corpo-${lista}`" :hidden="!aberta" class="@container border-t border-hairline">
+      <p
+        v-if="aviso"
+        :id="`cadastro-aviso-${lista}`"
+        class="border-b border-hairline bg-paper px-3.5 py-2 text-[12px] leading-snug text-ink-soft"
+      >
+        {{ aviso }}
+      </p>
       <table :id="`cadastro-lista-${lista}`" class="hidden w-full text-left text-[13px] @[700px]:table">
         <thead class="border-b border-hairline bg-paper text-[11px] tracking-wide text-ink-soft uppercase">
           <tr>

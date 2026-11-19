@@ -26,7 +26,7 @@ export function usuarioVePix(user: AuthUser | null | undefined): boolean {
   return podeVerPixCadastro(user);
 }
 
-/** A lista da rota (`/api/cadastros/:lista`): só as quatro conhecidas; qualquer outra é 404. */
+/** A lista da rota (`/api/cadastros/:lista`): só as cinco conhecidas; qualquer outra é 404. */
 export function listaDaRota(event: H3Event): ListaCadastro {
   const lista = getRouterParam(event, "lista");
   if (!lista || !(LISTAS_CADASTRO as readonly string[]).includes(lista)) {

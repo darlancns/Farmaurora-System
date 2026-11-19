@@ -2,7 +2,7 @@ import type { ListaCadastro } from "../types/Cadastro";
 
 // Constantes dos Cadastros (Configurações → Cadastros).
 
-export const LISTAS_CADASTRO: readonly ListaCadastro[] = ["fornecedores", "despachantes", "transportadoras", "cias-aereas"];
+export const LISTAS_CADASTRO: readonly ListaCadastro[] = ["fornecedores", "despachantes", "transportadoras", "cias-aereas", "consultores"];
 
 /** Listas que guardam a chave PIX (dado financeiro: ver shared/utils/cadastroPix.ts). */
 export const LISTAS_COM_PIX: readonly ListaCadastro[] = ["despachantes", "transportadoras"];
@@ -13,6 +13,7 @@ export const LISTA_CADASTRO_ROTULO: Record<ListaCadastro, string> = {
   despachantes: "Despachantes",
   transportadoras: "Transportadoras",
   "cias-aereas": "Cias aéreas",
+  consultores: "Consultores",
 };
 
 /** Textos de UM item da lista, já com o gênero certo (títulos do painel e aviso de criado). */
@@ -43,14 +44,28 @@ export const LISTA_CADASTRO_TEXTOS: Record<ListaCadastro, TextosItemCadastro> = 
     tituloEditar: "Editar cia aérea",
     criado: "Cia aérea criada.",
   },
+  consultores: {
+    tituloNovo: "Novo consultor",
+    tituloEditar: "Editar consultor",
+    criado: "Consultor criado.",
+  },
 };
 
-/** Tabela de cada lista no Supabase (20261109200000_cadastros.sql e 20261118200000_cadastros_transportadoras_pix.sql). */
+/**
+ * Aviso fixo no topo do corpo de uma seção (só as listas que precisam). Consultores: etapa 1, a lista vale só para a DIR.
+ */
+export const LISTA_CADASTRO_AVISO: Partial<Record<ListaCadastro, string>> = {
+  consultores:
+    "Por enquanto esta lista vale só para a DIR. Follow-Up, Prestação e contas de login ainda usam a lista antiga.",
+};
+
+/** Tabela de cada lista no Supabase (20261109200000_cadastros.sql, 20261118200000_cadastros_transportadoras_pix.sql e 20261118210000_cadastro_consultores.sql). */
 export const TABELA_CADASTRO: Record<ListaCadastro, string> = {
   fornecedores: "cadastro_fornecedores",
   despachantes: "cadastro_despachantes",
   transportadoras: "cadastro_transportadoras",
   "cias-aereas": "cadastro_cias_aereas",
+  consultores: "cadastro_consultores",
 };
 
 // "Outro" é o sentinela dos selects das telas (digitar um valor fora da lista), não um item: o nome é reservado.

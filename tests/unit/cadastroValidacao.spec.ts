@@ -166,3 +166,43 @@ describe("emailValido / telefoneValido", () => {
     for (const t of ["1234567", "1".repeat(16), "11 9888x-7777", "++5511999999999"]) expect(telefoneValido(t), t).toBe(false);
   });
 });
+
+describe("validarNovoCadastro — consultores (só o nome)", () => {
+  it("só o nome: aparado e com espaços colapsados", () => {
+    expect(validarNovoCadastro("consultores", { nome: "  Consultor   Teste " })).toEqual({ ok: true, valor: { nome: "Consultor Teste" } });
+  });
+
+  it('recusa o nome reservado "Outro" (em qualquer caixa), nome vazio e nome comprido', () => {
+    expect(validarNovoCadastro("consultores", { nome: "outro" })).toMatchObject({ ok: false });
+    expect(validarNovoCadastro("consultores", { nome: "OUTRO" })).toMatchObject({ ok: false });
+    expect(validarNovoCadastro("consultores", { nome: "   " })).toEqual({ ok: false, erro: "Informe o nome." });
+    expect(validarNovoCadastro("consultores", {})).toEqual({ ok: false, erro: "Informe o nome." });
+    expect(validarNovoCadastro("consultores", { nome: "x".repeat(121) })).toMatchObject({ ok: false });
+  });
+
+  it("não tem campo extra (nem PIX nem ativo): qualquer chave além do nome é recusada; corpo que não é objeto também", () => {
+    expect(validarNovoCadastro("consultores", { nome: "Consultor Teste", chavePix: "x" })).toEqual({ ok: false, erro: "Campo desconhecido: chavePix." });
+    expect(validarNovoCadastro("consultores", { nome: "Consultor Teste", ativo: false })).toEqual({ ok: false, erro: "Campo desconhecido: ativo." });
+    expect(validarNovoCadastro("consultores", { nome: "Consultor Teste", pais: "BR" })).toMatchObject({ ok: false });
+    expect(validarNovoCadastro("consultores", null)).toEqual({ ok: false, erro: "Dados inválidos." });
+    expect(validarNovoCadastro("consultores", [])).toEqual({ ok: false, erro: "Dados inválidos." });
+  });
+});
+
+describe("validarPatchCadastro — consultores", () => {
+  it("só `ativo` (desativar/reativar) e `nome` (para o servidor comparar e recusar a troca)", () => {
+    expect(validarPatchCadastro("consultores", { ativo: false })).toEqual({ ok: true, valor: { ativo: false } });
+    expect(validarPatchCadastro("consultores", { ativo: true })).toEqual({ ok: true, valor: { ativo: true } });
+    expect(validarPatchCadastro("consultores", { nome: "  Consultor   Teste ", ativo: true })).toEqual({
+      ok: true,
+      valor: { nome: "Consultor Teste", ativo: true },
+    });
+  });
+
+  it("recusa corpo vazio, ativo não booleano e campo de outra lista", () => {
+    expect(validarPatchCadastro("consultores", {})).toEqual({ ok: false, erro: "Nenhuma alteração informada." });
+    expect(validarPatchCadastro("consultores", { ativo: "sim" })).toEqual({ ok: false, erro: "Valor de ativo inválido." });
+    expect(validarPatchCadastro("consultores", { chavePix: "x" })).toEqual({ ok: false, erro: "Campo desconhecido: chavePix." });
+    expect(validarPatchCadastro("consultores", { pais: "BR" })).toEqual({ ok: false, erro: "Campo desconhecido: pais." });
+  });
+});

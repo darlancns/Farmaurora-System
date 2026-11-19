@@ -56,10 +56,11 @@ describe("listas com PIX", () => {
     expect(LISTAS_CADASTRO.filter((l) => listaTemPix(l))).toEqual(["despachantes", "transportadoras"]);
     expect(listaTemPix("fornecedores")).toBe(false);
     expect(listaTemPix("cias-aereas")).toBe(false);
+    expect(listaTemPix("consultores")).toBe(false);
   });
 
-  it("as quatro listas, na ordem da tela", () => {
-    expect([...LISTAS_CADASTRO]).toEqual(["fornecedores", "despachantes", "transportadoras", "cias-aereas"]);
+  it("as cinco listas, na ordem da tela", () => {
+    expect([...LISTAS_CADASTRO]).toEqual(["fornecedores", "despachantes", "transportadoras", "cias-aereas", "consultores"]);
   });
 });
 

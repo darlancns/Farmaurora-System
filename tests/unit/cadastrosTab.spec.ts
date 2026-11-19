@@ -6,7 +6,7 @@ import type { Cadastro } from "../../shared/types/Cadastro";
 import CadastrosTab from "../../app/components/configuracoes/CadastrosTab.vue";
 import { useState } from "./helpers/nuxtAppStub";
 
-// A aba Cadastros inteira (componentes reais no happy-dom, servidor falso em memória): QUATRO seções recolhíveis, todas
+// A aba Cadastros inteira (componentes reais no happy-dom, servidor falso em memória): CINCO seções recolhíveis, todas
 // fechadas ao abrir; busca por nome em todas as listas; painel lateral de criar/editar com devolução do foco; chave
 // "Ativo" aplicada na hora com "Desativado. Desfazer"; coluna e campo PIX só para quem a API entrega a chave.
 // Valores de PIX fictícios: a chave nunca pode aparecer em texto da tela.
@@ -32,6 +32,10 @@ function dadosIniciais(): Record<string, Array<Record<string, unknown>>> {
     "cias-aereas": [
       { ...BASE, id: "c1", nome: "Lufthansa" },
       { ...BASE, id: "c2", nome: "Emirates" },
+    ],
+    consultores: [
+      { ...BASE, id: "k1", nome: "Mateus Morais" },
+      { ...BASE, id: "k2", nome: "Junior", ativo: false },
     ],
   };
 }
@@ -116,7 +120,7 @@ const texto = (el: Element | null) => (el?.textContent ?? "").replace(/\s+/g, " 
 const q = <T extends Element>(sel: string) => document.querySelector<T>(sel);
 const toast = () => useState<string | null>("toast-message").value;
 const aberta = (lista: string) => q(`#btn-secao-${lista}`)!.getAttribute("aria-expanded") === "true";
-const SECOES = ["fornecedores", "despachantes", "transportadoras", "cias-aereas"] as const;
+const SECOES = ["fornecedores", "despachantes", "transportadoras", "cias-aereas", "consultores"] as const;
 
 async function clicar(sel: string): Promise<void> {
   q<HTMLElement>(sel)!.click();
@@ -141,7 +145,13 @@ async function salvar(): Promise<void> {
 const gravacoes = () => servidor.chamadas.filter((c) => c.metodo !== "GET");
 
 beforeEach(() => {
-  useState<Record<string, Cadastro[]>>("cadastros").value = { fornecedores: [], despachantes: [], transportadoras: [], "cias-aereas": [] };
+  useState<Record<string, Cadastro[]>>("cadastros").value = {
+    fornecedores: [],
+    despachantes: [],
+    transportadoras: [],
+    "cias-aereas": [],
+    consultores: [],
+  };
   useState<string | null>("toast-message").value = null;
 });
 afterEach(() => {
@@ -156,11 +166,11 @@ afterEach(() => {
 });
 
 describe("CadastrosTab — seções recolhíveis", () => {
-  it("administrador: 4 seções, nesta ordem, cada uma com título, contagem e '+ Adicionar'", async () => {
+  it("administrador: 5 seções, nesta ordem, cada uma com título, contagem e '+ Adicionar'", async () => {
     await montar();
     expect([...document.querySelectorAll("#cadastros-tab > section")].map((s) => s.id)).toEqual(SECOES.map((l) => `cadastro-secao-${l}`));
-    expect(SECOES.map((l) => texto(q(`#cadastro-titulo-${l}`)))).toEqual(["Fornecedores", "Despachantes", "Transportadoras", "Cias aéreas"]);
-    expect(SECOES.map((l) => texto(q(`#cadastro-contagem-${l}`)))).toEqual(["2 · 1 ativo", "2 · 2 ativos", "2 · 1 ativo", "2 · 2 ativos"]);
+    expect(SECOES.map((l) => texto(q(`#cadastro-titulo-${l}`)))).toEqual(["Fornecedores", "Despachantes", "Transportadoras", "Cias aéreas", "Consultores"]);
+    expect(SECOES.map((l) => texto(q(`#cadastro-contagem-${l}`)))).toEqual(["2 · 1 ativo", "2 · 2 ativos", "2 · 1 ativo", "2 · 2 ativos", "2 · 1 ativo"]);
     for (const l of SECOES) expect(texto(q(`#btn-adicionar-cadastro-${l}`)), l).toBe("+ Adicionar");
     expect(servidor.chamadas.filter((c) => c.metodo === "GET").map((c) => c.url).sort()).toEqual(
       SECOES.map((l) => `/api/cadastros/${l}`).sort(),
@@ -202,7 +212,7 @@ describe("CadastrosTab — seções recolhíveis", () => {
 
   it("quem não escreve não vê '+ Adicionar', a chave Ativo nem abre o painel (só leitura)", async () => {
     await montar("socio");
-    expect(document.querySelectorAll("#cadastros-tab > section")).toHaveLength(4);
+    expect(document.querySelectorAll("#cadastros-tab > section")).toHaveLength(5);
     expect(document.querySelectorAll("[id^='btn-adicionar-cadastro-']")).toHaveLength(0);
     await clicar("#btn-secao-fornecedores");
     expect(document.querySelectorAll("[role='switch']")).toHaveLength(0);
@@ -238,9 +248,9 @@ describe("CadastrosTab — busca por nome", () => {
 
   it("um termo que casa em várias listas abre todas elas", async () => {
     await montar();
-    await digitar("#cadastros-busca", "a"); // Matsun, STAR CUSTOMS, SOUTH AMERICA, Lufthansa, Emirates (DHL e FedEx não têm "a")
-    expect(texto(q("#cadastros-busca-resumo"))).toBe("5 encontrados em 3 listas.");
-    for (const l of ["fornecedores", "despachantes", "cias-aereas"]) expect(aberta(l), l).toBe(true);
+    await digitar("#cadastros-busca", "a"); // Matsun, STAR CUSTOMS, SOUTH AMERICA, Lufthansa, Emirates, Mateus Morais (DHL, FedEx e Junior não têm "a")
+    expect(texto(q("#cadastros-busca-resumo"))).toBe("6 encontrados em 4 listas.");
+    for (const l of ["fornecedores", "despachantes", "cias-aereas", "consultores"]) expect(aberta(l), l).toBe(true);
     expect(aberta("transportadoras")).toBe(false);
   });
 
@@ -601,5 +611,99 @@ describe("CadastrosTab — chave PIX (dado financeiro)", () => {
     const titulos = [...document.querySelectorAll("#cadastro-lista-despachantes thead th")].map((th) => texto(th));
     expect(titulos).toContain("PIX");
     expect(document.body.innerHTML).not.toContain(PIX_D1);
+  });
+});
+
+describe("CadastrosTab — Consultores (5ª lista; por enquanto vale só para a DIR)", () => {
+  const AVISO = "Por enquanto esta lista vale só para a DIR. Follow-Up, Prestação e contas de login ainda usam a lista antiga.";
+
+  it("a seção Consultores é a quinta, recolhível, com o aviso exato; as outras listas não têm aviso", async () => {
+    await montar();
+    expect([...document.querySelectorAll("#cadastros-tab > section")].map((s) => s.id).at(-1)).toBe("cadastro-secao-consultores");
+    expect(aberta("consultores")).toBe(false);
+    await clicar("#btn-secao-consultores");
+    expect(aberta("consultores")).toBe(true);
+    expect(texto(q("#cadastro-aviso-consultores"))).toBe(AVISO);
+    expect(document.querySelectorAll("[id^='cadastro-aviso-']")).toHaveLength(1);
+    // tabela compacta: Nome + Ativo (sem colunas extras) e os dois itens, ativo primeiro e inativo no fim
+    expect([...document.querySelectorAll("#cadastro-lista-consultores thead th")].map((th) => texto(th))).toEqual(["Nome", "Ativo"]);
+    expect([...document.querySelectorAll("#cadastro-lista-consultores tbody tr")].map((tr) => tr.id)).toEqual([
+      "cadastro-row-consultores-k1",
+      "cadastro-row-consultores-k2",
+    ]);
+    expect(texto(q("#cadastro-row-consultores-k2"))).toContain("(inativo)");
+  });
+
+  it("'+ Adicionar' cria só com o nome (POST /api/cadastros/consultores), aviso 'Consultor criado.' e a contagem sobe", async () => {
+    await montar();
+    await clicar("#btn-adicionar-cadastro-consultores");
+    expect(texto(q("#cadastro-painel-titulo"))).toBe("Novo consultor");
+    await digitar("#cadastro-form-nome", "  Consultor   Teste ");
+    await salvar();
+    expect(gravacoes()).toEqual([{ metodo: "POST", url: "/api/cadastros/consultores", corpo: { nome: "Consultor Teste" } }]);
+    expect(toast()).toBe("Consultor criado.");
+    expect(q("#cadastro-painel")).toBeNull();
+    expect(aberta("consultores")).toBe(true);
+    expect(texto(q("#cadastro-contagem-consultores"))).toBe("3 · 2 ativos");
+    expect(texto(q("#cadastro-corpo-consultores"))).toContain("Consultor Teste");
+  });
+
+  it("editar: o nome fica desabilitado, não há campo extra nem 'Salvar' (só se desativa/reativa pela chave Ativo)", async () => {
+    await montar();
+    await clicar("#btn-secao-consultores");
+    await clicar("#cadastro-row-consultores-k1");
+    expect(texto(q("#cadastro-painel-titulo"))).toBe("Editar consultor");
+    expect(q<HTMLInputElement>("#cadastro-form-nome")!.value).toBe("Mateus Morais");
+    expect(q<HTMLInputElement>("#cadastro-form-nome")!.disabled).toBe(true);
+    expect(texto(q("#cadastro-form-so-nome"))).toContain("Consultor só tem o nome");
+    expect(q("#btn-cadastro-salvar")).toBeNull();
+    expect(q("#cadastro-form-pix-bloco")).toBeNull();
+  });
+
+  it("nome repetido de consultor ATIVO: aviso e botão Criar desabilitado (nenhuma gravação)", async () => {
+    await montar();
+    await clicar("#btn-adicionar-cadastro-consultores");
+    await digitar("#cadastro-form-nome", "mateus morais");
+    expect(texto(q("#cadastro-form-aviso-duplicado"))).toMatch(/Já existe "Mateus Morais"/);
+    expect(q<HTMLButtonElement>("#btn-cadastro-salvar")!.disabled).toBe(true);
+    await salvar();
+    expect(gravacoes()).toEqual([]);
+  });
+
+  it("nome repetido de consultor INATIVO: o painel oferece Reativar, que reativa e fecha", async () => {
+    await montar();
+    await clicar("#btn-adicionar-cadastro-consultores");
+    await digitar("#cadastro-form-nome", "junior");
+    expect(texto(q("#cadastro-form-aviso-duplicado"))).toMatch(/Reative-o/);
+    await clicar("#btn-cadastro-reativar-duplicado");
+    expect(gravacoes()).toEqual([{ metodo: "PATCH", url: "/api/cadastros/consultores/k2", corpo: { ativo: true } }]);
+    expect(toast()).toBe('"Junior" reativado.');
+    expect(texto(q("#cadastro-contagem-consultores"))).toBe("2 · 2 ativos");
+  });
+
+  it('"Outro" é reservado: aviso e nenhuma gravação', async () => {
+    await montar();
+    await clicar("#btn-adicionar-cadastro-consultores");
+    await digitar("#cadastro-form-nome", "outro");
+    expect(q("#cadastro-form-aviso-reservado")).not.toBeNull();
+    expect(q<HTMLButtonElement>("#btn-cadastro-salvar")!.disabled).toBe(true);
+  });
+
+  it("remover = desativar pela chave Ativo (PATCH { ativo:false }), com 'Desativado. Desfazer'; nunca DELETE", async () => {
+    await montar();
+    await clicar("#btn-secao-consultores");
+    await clicar("#cadastro-switch-consultores-k1");
+    expect(gravacoes()).toEqual([{ metodo: "PATCH", url: "/api/cadastros/consultores/k1", corpo: { ativo: false } }]);
+    expect(texto(q("#cadastro-contagem-consultores"))).toBe("2 · 0 ativos");
+    expect(gravacoes().some((c) => c.metodo === "DELETE")).toBe(false);
+  });
+
+  it("quem não é administrador vê a lista e o aviso, mas sem '+ Adicionar' nem chave Ativo", async () => {
+    await montar("operacional");
+    expect(q("#btn-adicionar-cadastro-consultores")).toBeNull();
+    await clicar("#btn-secao-consultores");
+    expect(texto(q("#cadastro-aviso-consultores"))).toBe(AVISO);
+    expect(texto(q("#cadastro-corpo-consultores"))).toContain("Mateus Morais");
+    expect(q("#cadastro-switch-consultores-k1")).toBeNull();
   });
 });

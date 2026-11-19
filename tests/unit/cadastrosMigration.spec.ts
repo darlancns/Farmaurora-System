@@ -18,9 +18,10 @@ const sql = bruto
   .replace(/\s+/g, " ");
 
 // As tabelas DESTA migration (20261109): as três primeiras listas. A de transportadoras nasce na migration 20261118200000
-// (guardada em cadastrosTransportadorasPixMigration.spec.ts).
+// (guardada em cadastrosTransportadorasPixMigration.spec.ts) e a de consultores na 20261118210000 (guardada em
+// cadastroConsultoresMigration.spec.ts).
 const TABELAS = Object.entries(TABELA_CADASTRO)
-  .filter(([lista]) => lista !== "transportadoras")
+  .filter(([lista]) => lista !== "transportadoras" && lista !== "consultores")
   .map(([, tabela]) => tabela);
 
 describe("migration dos Cadastros", () => {

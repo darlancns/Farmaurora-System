@@ -23,6 +23,8 @@ const CAMINHOS = [
   "/api/cadastros/fornecedores/forn_1",
   "/api/cadastros/transportadoras/transp_1",
   "/api/cadastros/cias-aereas/cia_1?x=1",
+  "/api/cadastros/consultores",
+  "/api/cadastros/consultores/cons_1",
 ];
 
 describe("sectionForApiPath — /api/cadastros", () => {
@@ -73,5 +75,34 @@ describe("matriz por cargo (regra do middleware)", () => {
     expect(middlewarePermite("administrador", "GET", "/api/admin/users")).toBe(true);
     expect(middlewarePermite("consultor", "GET", "/api/dir")).toBe(false);
     expect(middlewarePermite("operacional", "GET", "/api/dir")).toBe(true);
+  });
+});
+
+describe("consultores (5ª lista) — mesma regra das outras: todos leem, só o administrador escreve", () => {
+  const LISTA = "/api/cadastros/consultores";
+  const ITEM = "/api/cadastros/consultores/cons_1";
+
+  it("mapeia para a seção config", () => {
+    expect(sectionForApiPath(LISTA)).toBe("config");
+    expect(sectionForApiPath(ITEM)).toBe("config");
+  });
+
+  it("todos os cargos leem; só o administrador escreve (POST/PATCH/PUT/DELETE)", () => {
+    for (const role of ROLES) expect(middlewarePermite(role, "GET", LISTA), `${role} GET`).toBe(true);
+    expect(ROLES.filter((r) => middlewarePermite(r, "POST", LISTA))).toEqual(["administrador"]);
+    for (const metodo of ["PATCH", "PUT", "DELETE"]) {
+      expect(ROLES.filter((r) => middlewarePermite(r, metodo, ITEM)), metodo).toEqual(["administrador"]);
+    }
+  });
+
+  it("a DIR consegue ler a lista mesmo com permissão por página: quem só tem a DIR (ver ou editar) lê os consultores", () => {
+    for (const nivel of ["ver", "editar"] as const) {
+      for (const role of ["socio", "operacional"] as const) {
+        const user = { role, permissoes: { dir: nivel } };
+        expect(autorizarApi(user, LISTA, "GET").permitido, `${role} dir:${nivel} GET`).toBe(true);
+        expect(autorizarApi(user, LISTA, "POST").permitido, `${role} dir:${nivel} POST`).toBe(false);
+        expect(autorizarApi(user, ITEM, "PATCH").permitido, `${role} dir:${nivel} PATCH`).toBe(false);
+      }
+    }
   });
 });

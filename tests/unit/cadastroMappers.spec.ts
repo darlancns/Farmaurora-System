@@ -111,3 +111,41 @@ describe("colunasPatchCadastro", () => {
     });
   });
 });
+
+describe("consultores (mesmo molde da cia aérea: só nome e ativo)", () => {
+  const linha: ConsultorRow = {
+    id: "cons_1",
+    nome: "Consultor Teste",
+    nome_chave: "consultor teste",
+    ativo: true,
+    atualizado_por: null,
+    created_at: "2026-11-18T12:00:00.000Z",
+    updated_at: "2026-11-18T12:00:00.000Z",
+  };
+
+  it("montar: NULL em atualizado_por vira vazio; só as chaves da base (sem campo extra)", () => {
+    expect(montarCadastro("consultores", linha)).toEqual({
+      id: "cons_1",
+      nome: "Consultor Teste",
+      ativo: true,
+      atualizadoPor: "",
+      createdAt: linha.created_at,
+      updatedAt: linha.updated_at,
+    });
+    expect(montarCadastro("consultores", { ...linha, ativo: false })).toMatchObject({ ativo: false });
+  });
+
+  it("colunas de um item novo: nome, nome_chave normalizado (sem acento/caixa) e nasce ativo — nada mais", () => {
+    expect(colunasNovoCadastro("consultores", { nome: "André  Vitório" })).toEqual({
+      nome: "André  Vitório", // o nome já chega limpo da validação; o mapper não mexe nele
+      nome_chave: "andre vitorio",
+      ativo: true,
+    });
+  });
+
+  it("alteração: só `ativo` entra; `nome` e `nome_chave` NUNCA (o nome não muda depois de criado)", () => {
+    expect(colunasPatchCadastro("consultores", { ativo: false })).toEqual({ ativo: false });
+    expect(colunasPatchCadastro("consultores", { nome: "Outro Nome", ativo: true })).toEqual({ ativo: true });
+    expect(colunasPatchCadastro("consultores", { nome: "Outro Nome" })).toEqual({});
+  });
+});

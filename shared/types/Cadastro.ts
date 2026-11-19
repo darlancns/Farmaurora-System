@@ -1,10 +1,10 @@
-// Cadastros (Configurações → Cadastros): quatro listas editáveis só pelo administrador (fornecedores, despachantes,
-// transportadoras e cias aéreas).
+// Cadastros (Configurações → Cadastros): cinco listas editáveis só pelo administrador (fornecedores, despachantes,
+// transportadoras, cias aéreas e consultores).
 //
 // Convenção (a mesma da DIR): no modelo, texto vazio é "" (nunca undefined); no banco é NULL.
 // "Remover" é desativar (`ativo: false`) — não existe exclusão. O NOME não muda depois de criado.
 
-export type ListaCadastro = "fornecedores" | "despachantes" | "transportadoras" | "cias-aereas";
+export type ListaCadastro = "fornecedores" | "despachantes" | "transportadoras" | "cias-aereas" | "consultores";
 
 interface CadastroBase {
   id: string;
@@ -47,11 +47,18 @@ export type Transportadora = CadastroBase & ComChavePix;
 /** Cia aérea: só nome e ativo. */
 export type CiaAerea = CadastroBase;
 
+/**
+ * Consultor: só nome e ativo. Etapa 1: a lista vale só para a DIR (o campo Consultor/vendedor). O valor é gravado como
+ * TEXTO nos registros da DIR, por isso o nome não muda depois de criado.
+ */
+export type Consultor = CadastroBase;
+
 export interface CadastroPorLista {
   fornecedores: Fornecedor;
   despachantes: Despachante;
   transportadoras: Transportadora;
   "cias-aereas": CiaAerea;
+  consultores: Consultor;
 }
 
 export type Cadastro = CadastroPorLista[ListaCadastro];
@@ -85,11 +92,16 @@ export interface NovaCiaAereaDTO {
   nome: string;
 }
 
+export interface NovoConsultorDTO {
+  nome: string;
+}
+
 export interface NovoPorLista {
   fornecedores: NovoFornecedorDTO;
   despachantes: NovoDespachanteDTO;
   transportadoras: NovaTransportadoraDTO;
   "cias-aereas": NovaCiaAereaDTO;
+  consultores: NovoConsultorDTO;
 }
 
 /**
@@ -126,9 +138,15 @@ export interface CiaAereaPatchDTO {
   ativo?: boolean;
 }
 
+export interface ConsultorPatchDTO {
+  nome?: string;
+  ativo?: boolean;
+}
+
 export interface PatchPorLista {
   fornecedores: FornecedorPatchDTO;
   despachantes: DespachantePatchDTO;
   transportadoras: TransportadoraPatchDTO;
   "cias-aereas": CiaAereaPatchDTO;
+  consultores: ConsultorPatchDTO;
 }

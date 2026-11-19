@@ -15,10 +15,17 @@ const ROTULO_FALHA: Record<ListaCadastro, string> = {
   despachantes: "Falha ao carregar os despachantes.",
   transportadoras: "Falha ao carregar as transportadoras.",
   "cias-aereas": "Falha ao carregar as cias aéreas.",
+  consultores: "Falha ao carregar os consultores.",
 };
 
 export function useCadastros() {
-  const itens = useState<EstadoCadastros>("cadastros", () => ({ fornecedores: [], despachantes: [], transportadoras: [], "cias-aereas": [] }));
+  const itens = useState<EstadoCadastros>("cadastros", () => ({
+    fornecedores: [],
+    despachantes: [],
+    transportadoras: [],
+    "cias-aereas": [],
+    consultores: [],
+  }));
   const loading = useState<boolean>("cadastros-loading", () => false);
   const error = useState<string | null>("cadastros-error", () => null);
 
@@ -27,7 +34,12 @@ export function useCadastros() {
     itens.value = { ...itens.value, [lista]: ordenarCadastro(recebidos) };
   }
 
-  /** Carrega as quatro listas (ativos e inativos). */
+  /** Carrega UMA lista (ativos e inativos), sem mexer nas outras — ex.: a DIR só precisa dos consultores. */
+  async function fetchLista(lista: ListaCadastro): Promise<void> {
+    await carregarLista(lista);
+  }
+
+  /** Carrega as cinco listas (ativos e inativos). */
   async function fetchCadastros(): Promise<void> {
     loading.value = true;
     error.value = null;
@@ -67,5 +79,5 @@ export function useCadastros() {
     return atualizado;
   }
 
-  return { itens, loading, error, fetchCadastros, criar, alterar };
+  return { itens, loading, error, fetchCadastros, fetchLista, criar, alterar };
 }
