@@ -21,6 +21,9 @@ export const MAIN_LINKS: readonly NavLink[] = [
   // entre os 4 itens fixos do BottomNav do administrador (Prestações + Configurações vão pro "Mais").
   { label: "DIR", to: "/dir", icon: "document-check", section: "dir" },
   { label: "Prestações", to: "/prestacao", icon: "clipboard", section: "patients" },
+  // Compras entra POR ÚLTIMO entre os itens principais: a ordem das páginas de antes não muda. No celular isso empurra
+  // Configurações para o "Mais" de quem passa de 5 itens (operacional e sócio passam a ter 6): ver splitBottomNavLinks.
+  { label: "Compras", to: "/compras", icon: "cart", section: "compras" },
 ];
 
 export const CONFIG_LINK: NavLink = { label: "Configurações", to: "/configuracoes", icon: "cog", section: "config" };

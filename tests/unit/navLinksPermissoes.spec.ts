@@ -15,9 +15,9 @@ const TUDO_NENHUM: Permissoes = { processos: "nenhum", pagamentos: "nenhum", pat
 describe("menu (filtrarNavLinks) — conta SEM mapa: igual a antes, nos 4 cargos", () => {
   it("links por cargo, na mesma ordem de antes", () => {
     expect(rotas("consultor")).toEqual(["/processos", "/recados", "/configuracoes"]);
-    expect(rotas("socio")).toEqual(["/processos", "/recados", "/pagamentos", "/prestacao", "/configuracoes"]);
-    expect(rotas("operacional")).toEqual(["/processos", "/recados", "/pagamentos", "/dir", "/configuracoes"]);
-    expect(rotas("administrador")).toEqual(["/processos", "/recados", "/pagamentos", "/dir", "/prestacao", "/configuracoes"]);
+    expect(rotas("socio")).toEqual(["/processos", "/recados", "/pagamentos", "/prestacao", "/compras", "/configuracoes"]);
+    expect(rotas("operacional")).toEqual(["/processos", "/recados", "/pagamentos", "/dir", "/compras", "/configuracoes"]);
+    expect(rotas("administrador")).toEqual(["/processos", "/recados", "/pagamentos", "/dir", "/prestacao", "/compras", "/configuracoes"]);
   });
 
   it("DIR: só operacional e administrador têm /dir sem mapa; consultor e sócio não", () => {
