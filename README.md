@@ -94,10 +94,13 @@ permissão).
 | Prestações / Pacientes (`/prestacao`) | — | leitura | — | leitura + escrita |
 | Follow-Up / Processos (`/processos`) | leitura, **só os próprios** | leitura (tudo) | leitura + escrita | leitura + escrita |
 | Pagamentos (`/pagamentos`) | — | leitura | leitura + escrita | leitura + escrita |
+| Compras (`/compras`, `/api/compras/**`) | — | **só leitura** | leitura + escrita | leitura + escrita |
 | Configurações / Contas (`/configuracoes`, `/api/admin/**`) | — | — | — | leitura + escrita |
 
 Detalhes:
 
+- **Compras** também obedece ao mapa de permissões por página da conta (sócio e operacional): conta sem mapa segue a tabela acima;
+  conta com mapa gravado e sem a chave `compras` fica em `nenhum` até o administrador liberar na tela de Contas.
 - **`consultor` é *row-scoped*** — só enxerga Processos cujo `consultor` bate com o
   `consultorNome` gravado no seu `app_metadata`. O filtro é aplicado **na query da API**
   (`server/api/processos/index.get.ts` e `[id].get.ts` respondem 404 para processo de outro),
