@@ -196,6 +196,73 @@ describe("ProcessoKanbanCard", () => {
     expect(nada.querySelector("#card-info-c")).toBeNull();
   });
 
+  it("previsão de entrega: com Cia + AWB, a data fica à direita, separada por divisória, sem ícone e sem encolher", () => {
+    const el = card(proc("p1", { companhiaAerea: "LATAM Cargo", numeroAwb: "957-12345678", datas: { previsaoEntrega: "25/11/2026" } }));
+    const linha = el.querySelector("#card-info-aereo-p1")!;
+    expect([...linha.children].map((c) => c.id)).toEqual(["card-aereo-p1", "card-previsao-p1"]);
+    expect(linha.className).toContain("divide-x"); // a divisória é a mesma dos outros bloquinhos
+    const data = el.querySelector("#card-previsao-p1")!;
+    expect(texto(data)).toBe("Previsão de entrega: 25/11");
+    expect(data.getAttribute("title")).toBe("Previsão de entrega: 25/11/2026");
+    for (const c of ["flex-none", "relative"]) expect(data.className).toContain(c);
+    expect(data.className).not.toContain("flex-auto");
+    expect(data.querySelector("svg")).toBeNull();
+    const visivel = data.querySelector("span.flex")!;
+    for (const c of ["whitespace-nowrap", "tabular-nums", "max-w-[96px]"]) expect(visivel.className).toContain(c);
+    // Quem corta é a Cia · AWB: continua flex-auto + min-w-0 + truncate, com title.
+    const aereo = el.querySelector("#card-aereo-p1")!;
+    expect(aereo.className).toContain("flex-auto");
+    expect(aereo.className).toContain("min-w-0");
+    expect(aereo.querySelector(".truncate")).not.toBeNull();
+    expect(aereo.getAttribute("title")).toBe("LATAM Cargo · 957-12345678");
+    // Continua uma só caixa de bloquinhos aérea (não cria linha nova).
+    expect([...el.querySelectorAll("#card-info-p1 > span")].map((l) => l.id)).toEqual(["card-info-pessoas-p1", "card-info-aereo-p1"]);
+  });
+
+  it("previsão de entrega: sem previsão o card é idêntico ao de hoje (sem divisória nem célula de data)", () => {
+    const base = { companhiaAerea: "LATAM Cargo", numeroAwb: "957-12345678" };
+    const sem = card(proc("p1", { ...base, datas: {} }));
+    const espacos = card(proc("p2", { ...base, datas: { previsaoEntrega: "   " } }));
+    for (const [el, id] of [[sem, "p1"], [espacos, "p2"]] as const) {
+      expect(el.querySelector(`#card-previsao-${id}`)).toBeNull();
+      expect([...el.querySelector(`#card-info-aereo-${id}`)!.children].map((c) => c.id)).toEqual([`card-aereo-${id}`]);
+    }
+    // Mesmo HTML do bloquinho aéreo (tirando o id) que o de um processo sem o campo `datas.previsaoEntrega`.
+    const html = (e: HTMLElement, id: string) => e.querySelector(`#card-info-aereo-${id}`)!.outerHTML.replaceAll(id, "X");
+    expect(html(sem, "p1")).toBe(html(espacos, "p2"));
+  });
+
+  it("previsão de entrega: sem Cia e sem AWB, um bloquinho só com a data e o ícone de calendário (16px)", () => {
+    const el = card(proc("p1", { datas: { previsaoEntrega: "25/11" } }));
+    const linha = el.querySelector("#card-info-aereo-p1")!;
+    expect([...linha.children].map((c) => c.id)).toEqual(["card-previsao-p1"]);
+    expect(el.querySelector("#card-aereo-p1")).toBeNull();
+    const data = el.querySelector("#card-previsao-p1")!;
+    expect(texto(data)).toBe("Previsão de entrega: 25/11");
+    const svg = data.querySelector("svg[aria-hidden='true']")!;
+    expect(svg).not.toBeNull();
+    expect(svg.getAttribute("class")).toContain("h-4");
+    expect(svg.getAttribute("class")).toContain("text-[#6b7f87]");
+    expect(svg.getAttribute("stroke-width")).toBe("1.75");
+    expect(svg.querySelectorAll("path")).toHaveLength(4);
+  });
+
+  it("previsão de entrega: texto anotado fica inteiro no title e só o texto visível corta (96px)", () => {
+    const el = card(proc("p1", { companhiaAerea: "LATAM Cargo", datas: { previsaoEntrega: "20/11 (aguardando voo)" } }));
+    const data = el.querySelector("#card-previsao-p1")!;
+    expect(data.getAttribute("title")).toBe("Previsão de entrega: 20/11 (aguardando voo)");
+    expect(texto(data)).toBe("Previsão de entrega: 20/11 (aguardando voo)");
+    expect(data.querySelector(".truncate")).not.toBeNull();
+    expect(data.querySelector("span.flex")!.className).toContain("max-w-[96px]");
+  });
+
+  it("previsão de entrega: vale em todas as colunas, inclusive Entregue", () => {
+    for (const status of ["em_transito", "entregue"] as const) {
+      const el = card(proc(`s-${status}`, { status, companhiaAerea: "LATAM Cargo", datas: { previsaoEntrega: "25/11/2026" } }));
+      expect(texto(el.querySelector(`#card-previsao-s-${status}`))).toBe("Previsão de entrega: 25/11");
+    }
+  });
+
   it("hierarquia: nome 16px/600 é o maior (≥ 3px acima de qualquer outro) e o peso dele é ≥ o de qualquer texto; bloquinhos ≤ 12px", () => {
     const el = card(
       proc("p1", { statusPagamento: "pendente", responsavelOperacional: "Bruno", pendencias: ["x"], fornecedor: "Poros - Turquia", numeroAwb: "957-1" }),

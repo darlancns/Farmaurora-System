@@ -38,6 +38,40 @@ describe("linhasInfoKanban (bloquinhos do card)", () => {
     expect(resumo(linhasInfoKanban({ ...completo, despachante: undefined }))[1]).toEqual(["origem", ["fornecedor=Beldimed"]]);
   });
 
+  it("previsão de entrega: célula à direita da Cia · AWB, sem ícone, com data curta e title com o ano", () => {
+    const aereo = linhasInfoKanban({ ...completo, datas: { previsaoEntrega: "25/11/2026" } })[2]!;
+    expect(resumo([aereo])).toEqual([["aereo", ["aereo=LATAM Cargo|957-12345678", "previsao=25/11"]]]);
+    expect(aereo.celulas[1]).toMatchObject({
+      rotulo: "Previsão de entrega",
+      titulo: "Previsão de entrega: 25/11/2026",
+      fixa: true,
+      semIcone: true,
+    });
+    expect(aereo.celulas[0]!.fixa).toBeUndefined();
+  });
+
+  it("sem previsão (ausente, vazia ou só espaços): idêntico ao de hoje, sem célula de data", () => {
+    const base = resumo(linhasInfoKanban(completo));
+    expect(resumo(linhasInfoKanban({ ...completo, datas: {} }))).toEqual(base);
+    expect(resumo(linhasInfoKanban({ ...completo, datas: { previsaoEntrega: "   " } }))).toEqual(base);
+    expect(linhasInfoKanban({ ...completo, datas: { previsaoEntrega: "" } })[2]!.celulas).toHaveLength(1);
+  });
+
+  it("só previsão (sem Cia e sem AWB): a linha aérea existe só com a data, com ícone (sem semIcone)", () => {
+    const linhas = linhasInfoKanban({ ...completo, companhiaAerea: undefined, numeroAwb: undefined, datas: { previsaoEntrega: "25/11" } });
+    const aereo = linhas[2]!;
+    expect(aereo.chave).toBe("aereo");
+    expect(resumo([aereo])).toEqual([["aereo", ["previsao=25/11"]]]);
+    expect(aereo.celulas[0]!.semIcone).toBeUndefined();
+    expect(aereo.celulas[0]!.fixa).toBe(true);
+  });
+
+  it("texto anotado: curto = texto inteiro e title com o texto completo", () => {
+    const celula = linhasInfoKanban({ ...completo, datas: { previsaoEntrega: "20/11 (aguardando voo)" } })[2]!.celulas[1]!;
+    expect(celula.texto).toBe("20/11 (aguardando voo)");
+    expect(celula.titulo).toBe("Previsão de entrega: 20/11 (aguardando voo)");
+  });
+
   it("sem fornecedor: a linha de origem só com o despachante", () => {
     expect(resumo(linhasInfoKanban({ ...completo, fornecedor: undefined }))[1]).toEqual(["origem", ["despachante=Aduaneira Sul"]]);
   });

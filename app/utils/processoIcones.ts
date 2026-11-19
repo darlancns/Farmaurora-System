@@ -2,7 +2,7 @@
 // arcos). Cada chave é a lista de `d` do SVG; quem renderiza define tamanho, stroke-width e cor. Fonte única: o card do Kanban
 // (ProcessoKanbanCard.vue) e o painel (ProcessoPainel.vue) usam estes desenhos.
 
-export type ChaveIconeCard = "responsavel" | "consultor" | "pendencias" | "fornecedor" | "despachante" | "aereo";
+export type ChaveIconeCard = "responsavel" | "consultor" | "pendencias" | "fornecedor" | "despachante" | "aereo" | "previsao";
 export type ChaveIconePainel =
   | ChaveIconeCard
   | "envio"
@@ -40,6 +40,8 @@ export const ICONES_CARD: Record<ChaveIconeCard, string[]> = {
   aereo: [
     "M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z",
   ],
+  // Calendário (lucide): retângulo x3 y4 w18 h18 rx2 virou path; só aparece quando a previsão está sozinha no bloquinho.
+  previsao: ["M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z", "M16 2v4", "M8 2v4", "M3 10h18"],
 };
 
 // Os que só o painel usa (estilo lucide). Os círculos viraram arcos: caminhão (17,18,r2) e (7,18,r2); pino (12,10,r3).
