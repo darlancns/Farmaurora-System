@@ -20,8 +20,9 @@ import { erro, randomId } from "./storeKit";
 
 /**
  * Persistência dos Cadastros (Configurações → Cadastros) — tabelas `cadastro_fornecedores`, `cadastro_despachantes`,
- * `cadastro_transportadoras`, `cadastro_cias_aereas` e `cadastro_consultores` (supabase/migrations/20261109200000_cadastros.sql,
- * 20261118200000_cadastros_transportadoras_pix.sql e 20261118210000_cadastro_consultores.sql). Mesmo molde de dirStore.ts: cliente admin do servidor, criar e
+ * `cadastro_transportadoras`, `cadastro_cias_aereas`, `cadastro_consultores` e `cadastro_temperaturas` (supabase/migrations/
+ * 20261109200000_cadastros.sql, 20261118200000_cadastros_transportadoras_pix.sql, 20261118210000_cadastro_consultores.sql e
+ * 20261119160000_cadastro_temperaturas_medicamentos.sql). Mesmo molde de dirStore.ts: cliente admin do servidor, criar e
  * alterar são cada um UM comando numa única linha.
  *
  * Regras:
@@ -41,6 +42,7 @@ const ID_PREFIXO: Record<ListaCadastro, string> = {
   transportadoras: "transp_",
   "cias-aereas": "cia_",
   consultores: "cons_",
+  temperaturas: "temp_",
 };
 
 /** Opções de leitura/gravação. `incluirPix` (padrão false): ler e devolver a chave PIX (só quem pode: ver cadastroPix.ts). */

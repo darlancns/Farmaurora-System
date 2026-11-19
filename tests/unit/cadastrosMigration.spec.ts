@@ -17,12 +17,11 @@ const sql = bruto
   .toLowerCase()
   .replace(/\s+/g, " ");
 
-// As tabelas DESTA migration (20261109): as três primeiras listas. A de transportadoras nasce na migration 20261118200000
-// (guardada em cadastrosTransportadorasPixMigration.spec.ts) e a de consultores na 20261118210000 (guardada em
-// cadastroConsultoresMigration.spec.ts).
-const TABELAS = Object.entries(TABELA_CADASTRO)
-  .filter(([lista]) => lista !== "transportadoras" && lista !== "consultores")
-  .map(([, tabela]) => tabela);
+// As tabelas DESTA migration (20261109): as três primeiras listas, escolhidas pelo nome (e não por exclusão, para uma lista nova
+// nunca entrar aqui por engano). A de transportadoras nasce na migration 20261118200000 (guardada em
+// cadastrosTransportadorasPixMigration.spec.ts), a de consultores na 20261118210000 (cadastroConsultoresMigration.spec.ts) e as de
+// temperaturas e medicamentos na 20261119160000 (cadastroTemperaturasMedicamentosMigration.spec.ts).
+const TABELAS = (["fornecedores", "despachantes", "cias-aereas"] as const).map((lista) => TABELA_CADASTRO[lista]);
 
 describe("migration dos Cadastros", () => {
   it("o arquivo existe, com o nome 20261109xxxxxx_cadastros.sql", () => {

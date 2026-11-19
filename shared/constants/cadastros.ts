@@ -2,7 +2,14 @@ import type { ListaCadastro } from "../types/Cadastro";
 
 // Constantes dos Cadastros (Configurações → Cadastros).
 
-export const LISTAS_CADASTRO: readonly ListaCadastro[] = ["fornecedores", "despachantes", "transportadoras", "cias-aereas", "consultores"];
+export const LISTAS_CADASTRO: readonly ListaCadastro[] = [
+  "fornecedores",
+  "despachantes",
+  "transportadoras",
+  "cias-aereas",
+  "consultores",
+  "temperaturas",
+];
 
 /** Listas que guardam a chave PIX (dado financeiro: ver shared/utils/cadastroPix.ts). */
 export const LISTAS_COM_PIX: readonly ListaCadastro[] = ["despachantes", "transportadoras"];
@@ -14,6 +21,7 @@ export const LISTA_CADASTRO_ROTULO: Record<ListaCadastro, string> = {
   transportadoras: "Transportadoras",
   "cias-aereas": "Cias aéreas",
   consultores: "Consultores",
+  temperaturas: "Temperaturas",
 };
 
 /** Textos de UM item da lista, já com o gênero certo (títulos do painel e aviso de criado). */
@@ -49,15 +57,24 @@ export const LISTA_CADASTRO_TEXTOS: Record<ListaCadastro, TextosItemCadastro> = 
     tituloEditar: "Editar consultor",
     criado: "Consultor criado.",
   },
+  temperaturas: {
+    tituloNovo: "Nova temperatura",
+    tituloEditar: "Editar temperatura",
+    criado: "Temperatura criada.",
+  },
 };
 
-/** Tabela de cada lista no Supabase (20261109200000_cadastros.sql, 20261118200000_cadastros_transportadoras_pix.sql e 20261118210000_cadastro_consultores.sql). */
+/**
+ * Tabela de cada lista no Supabase (20261109200000_cadastros.sql, 20261118200000_cadastros_transportadoras_pix.sql,
+ * 20261118210000_cadastro_consultores.sql e 20261119160000_cadastro_temperaturas_medicamentos.sql).
+ */
 export const TABELA_CADASTRO: Record<ListaCadastro, string> = {
   fornecedores: "cadastro_fornecedores",
   despachantes: "cadastro_despachantes",
   transportadoras: "cadastro_transportadoras",
   "cias-aereas": "cadastro_cias_aereas",
   consultores: "cadastro_consultores",
+  temperaturas: "cadastro_temperaturas",
 };
 
 // "Outro" é o sentinela dos selects das telas (digitar um valor fora da lista), não um item: o nome é reservado.

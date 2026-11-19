@@ -23,6 +23,7 @@ const ROTULO_FALHA: Record<ListaCadastro, string> = {
   transportadoras: "Falha ao carregar as transportadoras.",
   "cias-aereas": "Falha ao carregar as cias aéreas.",
   consultores: "Falha ao carregar os consultores.",
+  temperaturas: "Falha ao carregar as temperaturas.",
 };
 
 export function useCadastros() {
@@ -32,6 +33,7 @@ export function useCadastros() {
     transportadoras: [],
     "cias-aereas": [],
     consultores: [],
+    temperaturas: [],
   }));
   const loading = useState<boolean>("cadastros-loading", () => false);
   const error = useState<string | null>("cadastros-error", () => null);
@@ -46,7 +48,7 @@ export function useCadastros() {
     await carregarLista(lista);
   }
 
-  /** Carrega as cinco listas (ativos e inativos). */
+  /** Carrega todas as listas (ativos e inativos). */
   async function fetchCadastros(): Promise<void> {
     loading.value = true;
     error.value = null;

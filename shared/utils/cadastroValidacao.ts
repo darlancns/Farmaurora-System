@@ -123,6 +123,7 @@ const CHAVES_NOVO: Record<ListaCadastro, readonly string[]> = {
   transportadoras: ["nome", "chavePix"],
   "cias-aereas": ["nome"],
   consultores: ["nome"],
+  temperaturas: ["nome"],
 };
 
 const CHAVES_PATCH: Record<ListaCadastro, readonly string[]> = {
@@ -131,6 +132,7 @@ const CHAVES_PATCH: Record<ListaCadastro, readonly string[]> = {
   transportadoras: ["nome", "chavePix", "ativo"],
   "cias-aereas": ["nome", "ativo"],
   consultores: ["nome", "ativo"],
+  temperaturas: ["nome", "ativo"],
 };
 
 /** Corpo de criação de um item da lista; o item nasce ativo. */

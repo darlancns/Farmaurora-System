@@ -281,6 +281,26 @@ describe("CadastroPainel — editar (o nome fica desabilitado)", () => {
     q<HTMLButtonElement>("#btn-cadastro-cancelar")!.click();
     expect(ev.close).toBe(1);
   });
+
+  it("temperatura (ponto silencioso 5): só o nome, que não muda. Editar mostra a nota, nome travado, sem Salvar; criar é o painel do nome", () => {
+    const ev = abrirPainel({ lista: "temperaturas", editando: cia({ id: "p1", nome: "2°C a 8°C" }) });
+    expect(texto(q("#cadastro-painel-titulo"))).toBe("Editar temperatura");
+    expect(q<HTMLInputElement>("#cadastro-form-nome")!.disabled).toBe(true);
+    expect(q("#cadastro-form-pais")).toBeNull();
+    expect(q("#cadastro-form-pix-bloco")).toBeNull();
+    expect(texto(q("#cadastro-form-so-nome"))).toMatch(/ele não muda.*chave Ativo/);
+    expect(q("#btn-cadastro-salvar")).toBeNull();
+    expect(texto(q("#btn-cadastro-cancelar"))).toBe("Fechar");
+    q<HTMLButtonElement>("#btn-cadastro-cancelar")!.click();
+    expect(ev.close).toBe(1);
+  });
+
+  it("temperatura nova: título 'Nova temperatura', nome editável e 'Criar'", () => {
+    abrirPainel({ lista: "temperaturas" });
+    expect(texto(q("#cadastro-painel-titulo"))).toBe("Nova temperatura");
+    expect(q<HTMLInputElement>("#cadastro-form-nome")!.disabled).toBe(false);
+    expect(texto(q("#btn-cadastro-salvar"))).toBe("Criar");
+  });
 });
 
 describe("CadastroPainel — chave PIX (dado financeiro)", () => {

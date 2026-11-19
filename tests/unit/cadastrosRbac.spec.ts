@@ -25,6 +25,8 @@ const CAMINHOS = [
   "/api/cadastros/cias-aereas/cia_1?x=1",
   "/api/cadastros/consultores",
   "/api/cadastros/consultores/cons_1",
+  "/api/cadastros/temperaturas",
+  "/api/cadastros/temperaturas/temp_1",
 ];
 
 describe("sectionForApiPath — /api/cadastros", () => {

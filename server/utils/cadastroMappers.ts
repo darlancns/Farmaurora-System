@@ -7,6 +7,7 @@ import type {
   PatchPorLista,
   CiaAerea,
   Consultor,
+  TemperaturaCadastro,
   Transportadora,
 } from "../../shared/types/Cadastro";
 import { chaveCadastro } from "../../shared/utils/cadastroNome";
@@ -49,12 +50,15 @@ export type CiaAereaRow = LinhaBase;
 
 export type ConsultorRow = LinhaBase;
 
+export type TemperaturaRow = LinhaBase;
+
 export interface CadastroRowPorLista {
   fornecedores: FornecedorRow;
   despachantes: DespachanteRow;
   transportadoras: TransportadoraRow;
   "cias-aereas": CiaAereaRow;
   consultores: ConsultorRow;
+  temperaturas: TemperaturaRow;
 }
 
 function textoOuNulo(v: string | undefined): string | null {
@@ -106,12 +110,17 @@ export function montarConsultor(row: ConsultorRow): Consultor {
   return base(row);
 }
 
+export function montarTemperatura(row: TemperaturaRow): TemperaturaCadastro {
+  return base(row);
+}
+
 const MONTADORES: { [L in ListaCadastro]: (row: CadastroRowPorLista[L], incluirPix: boolean) => CadastroPorLista[L] } = {
   fornecedores: (row) => montarFornecedor(row),
   despachantes: montarDespachante,
   transportadoras: montarTransportadora,
   "cias-aereas": (row) => montarCiaAerea(row),
   consultores: (row) => montarConsultor(row),
+  temperaturas: (row) => montarTemperatura(row),
 };
 
 /** `incluirPix` (padrão false) só tem efeito em despachantes e transportadoras: ver o cabeçalho deste arquivo. */

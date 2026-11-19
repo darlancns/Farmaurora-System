@@ -1,10 +1,16 @@
-// Cadastros (Configurações → Cadastros): cinco listas editáveis só pelo administrador (fornecedores, despachantes,
-// transportadoras, cias aéreas e consultores).
+// Cadastros (Configurações → Cadastros): listas editáveis só pelo administrador (fornecedores, despachantes,
+// transportadoras, cias aéreas, consultores e temperaturas).
 //
 // Convenção (a mesma da DIR): no modelo, texto vazio é "" (nunca undefined); no banco é NULL.
 // "Remover" é desativar (`ativo: false`) — não existe exclusão. O NOME não muda depois de criado.
 
-export type ListaCadastro = "fornecedores" | "despachantes" | "transportadoras" | "cias-aereas" | "consultores";
+export type ListaCadastro =
+  | "fornecedores"
+  | "despachantes"
+  | "transportadoras"
+  | "cias-aereas"
+  | "consultores"
+  | "temperaturas";
 
 interface CadastroBase {
   id: string;
@@ -53,6 +59,13 @@ export type CiaAerea = CadastroBase;
  */
 export type Consultor = CadastroBase;
 
+/**
+ * Temperatura de conservação (ex.: "2°C a 8°C"): só nome e ativo. O NOME não muda depois de criado: o medicamento guarda uma CÓPIA do
+ * texto da temperatura, então renomear deixaria as cópias órfãs. Para corrigir, cria-se uma nova e desativa-se a antiga.
+ * (O tipo se chama TemperaturaCadastro para não ser confundido com campos de temperatura de outras telas, como a DIR.)
+ */
+export type TemperaturaCadastro = CadastroBase;
+
 /** Uma conta de login que não foi atualizada no renomear (a tela lista e permite tentar de novo). */
 export interface ContaNaoAtualizada {
   id: string;
@@ -92,6 +105,7 @@ export interface CadastroPorLista {
   transportadoras: Transportadora;
   "cias-aereas": CiaAerea;
   consultores: Consultor;
+  temperaturas: TemperaturaCadastro;
 }
 
 export type Cadastro = CadastroPorLista[ListaCadastro];
@@ -129,12 +143,17 @@ export interface NovoConsultorDTO {
   nome: string;
 }
 
+export interface NovaTemperaturaDTO {
+  nome: string;
+}
+
 export interface NovoPorLista {
   fornecedores: NovoFornecedorDTO;
   despachantes: NovoDespachanteDTO;
   transportadoras: NovaTransportadoraDTO;
   "cias-aereas": NovaCiaAereaDTO;
   consultores: NovoConsultorDTO;
+  temperaturas: NovaTemperaturaDTO;
 }
 
 /**
@@ -176,10 +195,16 @@ export interface ConsultorPatchDTO {
   ativo?: boolean;
 }
 
+export interface TemperaturaPatchDTO {
+  nome?: string;
+  ativo?: boolean;
+}
+
 export interface PatchPorLista {
   fornecedores: FornecedorPatchDTO;
   despachantes: DespachantePatchDTO;
   transportadoras: TransportadoraPatchDTO;
   "cias-aereas": CiaAereaPatchDTO;
   consultores: ConsultorPatchDTO;
+  temperaturas: TemperaturaPatchDTO;
 }

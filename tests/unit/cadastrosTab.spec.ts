@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp, defineComponent, h, nextTick } from "vue";
+import { LISTAS_CADASTRO } from "../../shared/constants/cadastros";
 import type { AuthUser } from "../../shared/types/auth";
 import type { Cadastro } from "../../shared/types/Cadastro";
 import CadastrosTab from "../../app/components/configuracoes/CadastrosTab.vue";
@@ -36,6 +37,11 @@ function dadosIniciais(): Record<string, Array<Record<string, unknown>>> {
     consultores: [
       { ...BASE, id: "k1", nome: "Mateus Morais" },
       { ...BASE, id: "k2", nome: "Junior", ativo: false },
+    ],
+    // Sem a letra "a" nos nomes: a busca por "a" abaixo conta só as outras listas.
+    temperaturas: [
+      { ...BASE, id: "p1", nome: "2°C - 8°C" },
+      { ...BASE, id: "p2", nome: "-20°C", ativo: false },
     ],
   };
 }
@@ -141,7 +147,7 @@ const texto = (el: Element | null) => (el?.textContent ?? "").replace(/\s+/g, " 
 const q = <T extends Element>(sel: string) => document.querySelector<T>(sel);
 const toast = () => useState<string | null>("toast-message").value;
 const aberta = (lista: string) => q(`#btn-secao-${lista}`)!.getAttribute("aria-expanded") === "true";
-const SECOES = ["fornecedores", "despachantes", "transportadoras", "cias-aereas", "consultores"] as const;
+const SECOES = ["fornecedores", "despachantes", "transportadoras", "cias-aereas", "consultores", "temperaturas"] as const;
 
 async function clicar(sel: string): Promise<void> {
   q<HTMLElement>(sel)!.click();
@@ -166,13 +172,7 @@ async function salvar(): Promise<void> {
 const gravacoes = () => servidor.chamadas.filter((c) => c.metodo !== "GET");
 
 beforeEach(() => {
-  useState<Record<string, Cadastro[]>>("cadastros").value = {
-    fornecedores: [],
-    despachantes: [],
-    transportadoras: [],
-    "cias-aereas": [],
-    consultores: [],
-  };
+  useState<Record<string, Cadastro[]>>("cadastros").value = Object.fromEntries(LISTAS_CADASTRO.map((lista) => [lista, []]));
   useState<string | null>("toast-message").value = null;
 });
 afterEach(() => {
@@ -187,11 +187,11 @@ afterEach(() => {
 });
 
 describe("CadastrosTab — seções recolhíveis", () => {
-  it("administrador: 5 seções, nesta ordem, cada uma com título, contagem e '+ Adicionar'", async () => {
+  it("administrador: 6 seções, nesta ordem, cada uma com título, contagem e '+ Adicionar'", async () => {
     await montar();
     expect([...document.querySelectorAll("#cadastros-tab > section")].map((s) => s.id)).toEqual(SECOES.map((l) => `cadastro-secao-${l}`));
-    expect(SECOES.map((l) => texto(q(`#cadastro-titulo-${l}`)))).toEqual(["Fornecedores", "Despachantes", "Transportadoras", "Cias aéreas", "Consultores"]);
-    expect(SECOES.map((l) => texto(q(`#cadastro-contagem-${l}`)))).toEqual(["2 · 1 ativo", "2 · 2 ativos", "2 · 1 ativo", "2 · 2 ativos", "2 · 1 ativo"]);
+    expect(SECOES.map((l) => texto(q(`#cadastro-titulo-${l}`)))).toEqual(["Fornecedores", "Despachantes", "Transportadoras", "Cias aéreas", "Consultores", "Temperaturas"]);
+    expect(SECOES.map((l) => texto(q(`#cadastro-contagem-${l}`)))).toEqual(["2 · 1 ativo", "2 · 2 ativos", "2 · 1 ativo", "2 · 2 ativos", "2 · 1 ativo", "2 · 1 ativo"]);
     for (const l of SECOES) expect(texto(q(`#btn-adicionar-cadastro-${l}`)), l).toBe("+ Adicionar");
     expect(servidor.chamadas.filter((c) => c.metodo === "GET").map((c) => c.url).sort()).toEqual(
       SECOES.map((l) => `/api/cadastros/${l}`).sort(),
@@ -233,7 +233,7 @@ describe("CadastrosTab — seções recolhíveis", () => {
 
   it("quem não escreve não vê '+ Adicionar', a chave Ativo nem abre o painel (só leitura)", async () => {
     await montar("socio");
-    expect(document.querySelectorAll("#cadastros-tab > section")).toHaveLength(5);
+    expect(document.querySelectorAll("#cadastros-tab > section")).toHaveLength(SECOES.length);
     expect(document.querySelectorAll("[id^='btn-adicionar-cadastro-']")).toHaveLength(0);
     await clicar("#btn-secao-fornecedores");
     expect(document.querySelectorAll("[role='switch']")).toHaveLength(0);
@@ -257,7 +257,7 @@ describe("CadastrosTab — busca por nome", () => {
     await montar();
     await digitar("#cadastros-busca", "dhl");
     expect(aberta("transportadoras")).toBe(true);
-    for (const l of ["fornecedores", "despachantes", "cias-aereas"]) expect(aberta(l), l).toBe(false);
+    for (const l of ["fornecedores", "despachantes", "cias-aereas", "consultores", "temperaturas"]) expect(aberta(l), l).toBe(false);
     const contagem = q<HTMLElement>("#cadastro-contagem-transportadoras")!;
     expect(texto(contagem)).toBe("1 encontrado");
     expect(contagem.className).toContain("font-semibold");
@@ -637,9 +637,9 @@ describe("CadastrosTab — chave PIX (dado financeiro)", () => {
 
 
 describe("CadastrosTab — Consultores (5ª lista; a ÚNICA fonte de consultores do sistema)", () => {
-  it("a seção Consultores é a quinta, recolhível e SEM o aviso antigo (só valia para a DIR); tabela compacta Nome + Ativo, ativo antes do inativo", async () => {
+  it("a seção Consultores é a quinta (antes de Temperaturas), recolhível e SEM o aviso antigo (só valia para a DIR); tabela compacta Nome + Ativo, ativo antes do inativo", async () => {
     await montar();
-    expect([...document.querySelectorAll("#cadastros-tab > section")].map((s) => s.id).at(-1)).toBe("cadastro-secao-consultores");
+    expect([...document.querySelectorAll("#cadastros-tab > section")].map((s) => s.id)[4]).toBe("cadastro-secao-consultores");
     expect(aberta("consultores")).toBe(false);
     await clicar("#btn-secao-consultores");
     expect(aberta("consultores")).toBe(true);

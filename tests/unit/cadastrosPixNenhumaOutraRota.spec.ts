@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
+import { TABELA_CADASTRO } from "../../shared/constants/cadastros";
 
 // A chave PIX dos Cadastros (colunas chave_pix de cadastro_despachantes e cadastro_transportadoras) só pode sair por
 // UMA porta: GET /api/cadastros/:lista, que decide por podeVerPixCadastro. Esta guarda é ESTRUTURAL: nada fora de
@@ -34,16 +35,21 @@ const todos = PASTAS.flatMap((p) => arquivos(join(RAIZ, p))).map((f) => ({
 }));
 
 // Quem PODE falar das tabelas de Cadastros e do store/mapeadores deles.
+//
+// A ÚNICA exceção fora do store é server/utils/consultoresCadastro.ts (lê `cadastro_consultores` de propósito, só `nome, ativo`, para
+// a validação do consultor em Follow-Up, Prestação, DIR e contas); um teste abaixo trava o que ele pode fazer.
 const PERMITIDOS = [
   /^server\/api\/cadastros\//,
   /^server\/utils\/cadastro(Acesso|Mappers)\.ts$/,
   /^server\/utils\/cadastrosStore\.ts$/,
   /^shared\/constants\/cadastros\.ts$/,
   /^server\/utils\/cadastroPagamentos\.ts$/,
+  /^server\/utils\/consultoresCadastro\.ts$/,
 ];
 const permitido = (caminho: string): boolean => PERMITIDOS.some((re) => re.test(caminho));
 
-const ACESSO_AOS_CADASTROS = /cadastro_(despachantes|transportadoras|fornecedores|cias_aereas)|TABELA_CADASTRO|cadastrosStore|cadastroMappers|listarCadastro|criarCadastro|alterarCadastro/;
+// TODAS as tabelas `cadastro_*` (qualquer nome com esse prefixo, listas atuais e futuras) e o store/mapeadores dos Cadastros.
+const ACESSO_AOS_CADASTROS = /\bcadastro_[a-z_]+|TABELA_CADASTRO|cadastrosStore|cadastroMappers|listarCadastro|criarCadastro|alterarCadastro/;
 
 describe("a chave PIX dos Cadastros só sai por /api/cadastros", () => {
   it("o scanner enxerga os arquivos esperados (a guarda não é vazia)", () => {
@@ -55,6 +61,23 @@ describe("a chave PIX dos Cadastros só sai por /api/cadastros", () => {
   it("nenhum arquivo fora de Cadastros lê as tabelas cadastro_* nem usa o store ou os mapeadores", () => {
     const violacoes = todos.filter((a) => !permitido(a.caminho) && ACESSO_AOS_CADASTROS.test(a.texto)).map((a) => a.caminho);
     expect(violacoes).toEqual([]);
+  });
+
+  it("a regra cobre TODAS as tabelas das listas (nenhuma lista nova fica de fora da guarda)", () => {
+    for (const [lista, tabela] of Object.entries(TABELA_CADASTRO)) {
+      expect(ACESSO_AOS_CADASTROS.test(`db.from("${tabela}")`), `${lista} → ${tabela}`).toBe(true);
+    }
+  });
+
+  it("a exceção consultoresCadastro.ts só LÊ cadastro_consultores, só `nome, ativo` e `id`: sem escrita, sem `*`, sem outra tabela e sem PIX", () => {
+    const texto = todos.find((a) => a.caminho === "server/utils/consultoresCadastro.ts")!.texto;
+    expect([...new Set(texto.match(/\bcadastro_[a-z_]+/g))]).toEqual(["cadastro_consultores"]);
+    // (O `.delete(` do Map de acertos em memória não é do banco: só se proíbe escrever depois de `.from(`.)
+    expect(texto).not.toMatch(/\.from\([^)]*\)\s*\.(insert|update|upsert|delete)\(|\.rpc\(/);
+    expect(texto).not.toMatch(/\.select\(\s*["'`]\*["'`]/);
+    expect(texto).not.toMatch(/chave_?pix/i);
+    const colunas = [...texto.matchAll(/\.select\(\s*"([^"]*)"/g)].map((m) => m[1]);
+    expect(colunas.sort()).toEqual(["id", "nome, ativo", "nome, ativo"]);
   });
 
   it("só cinco rotas de API usam o store dos Cadastros: GET, POST e PATCH de /api/cadastros/:lista, mais impacto e renomear-contas dos consultores", () => {

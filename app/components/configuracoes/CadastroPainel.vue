@@ -43,7 +43,7 @@ import { focaveis } from "../../utils/processoPainel";
 //  - Fornecedor: o prazo do alerta precisa ser DECIDIDO — "Número de dias" (1 a 365) OU "Sem alerta".
 //  - Chave PIX (despachantes e transportadoras): dado financeiro, só para quem recebe o campo (`podeVerPix`). O input
 //    vem oculto (type=password), com "Mostrar/Ocultar" e "Copiar". A chave nunca vai para log nem para mensagem.
-//  - Cia aérea só tem o nome: editar mostra o nome e uma nota (desativar é pela chave Ativo da lista).
+//  - Cia aérea e temperatura só têm o nome: editar mostra o nome e uma nota (desativar é pela chave Ativo da lista).
 //  - Teclado: Esc fecha; Tab fica preso no painel; o foco entra no 1º campo editável. Devolver o foco à linha ao fechar
 //    é do pai (CadastrosTab.vue).
 
@@ -392,6 +392,9 @@ const CLASSE_BOTAO_PIX =
 
           <p v-if="lista === 'cias-aereas' && isEdit" id="cadastro-form-so-nome" class="text-[12.5px] text-ink-soft">
             Cia aérea só tem o nome. Para desativar ou reativar, use a chave Ativo na lista.
+          </p>
+          <p v-else-if="lista === 'temperaturas' && isEdit" id="cadastro-form-so-nome" class="text-[12.5px] text-ink-soft">
+            Temperatura só tem o nome, e ele não muda (os medicamentos guardam uma cópia). Para desativar ou reativar, use a chave Ativo na lista.
           </p>
           <p v-else-if="lista === 'consultores' && isEdit" id="cadastro-form-so-nome" class="text-[12.5px] text-ink-soft">
             Consultor só tem o nome (que pode ser renomeado). Para desativar ou reativar, use a chave Ativo na lista.
