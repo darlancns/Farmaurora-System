@@ -37,13 +37,13 @@ for (const [rotulo, conta] of [
     test.describe.configure({ retries: 2 });
     test.skip(!tem(conta), `defina E2E_${rotulo === "sócio" ? "SOCIO" : rotulo.toUpperCase()}_EMAIL / _PASSWORD`);
 
-    test("o item Compras é o último da navegação (antes de Configurações) e a página mostra o título e 'Em construção'", async ({ page }) => {
+    test("o item Compras é o 3º da navegação (depois de DIR e Follow-Up) e a página mostra o título e 'Em construção'", async ({ page }) => {
       await page.setViewportSize({ width: 1280, height: 800 });
       await login(page, conta.email, conta.password);
       await page.goto("/processos", { waitUntil: "networkidle" });
       const hrefs = await page.locator("#sidebar-nav a").evaluateAll((els) => els.map((el) => el.getAttribute("href")));
       expect(hrefs.at(-1)).toBe("/configuracoes");
-      expect(hrefs.at(-2)).toBe("/compras");
+      expect(hrefs.indexOf("/compras")).toBe(hrefs.indexOf("/processos") + 1); // logo depois do Follow-Up
 
       await page.locator("#sidebar-nav a[href='/compras']").click();
       await expect(page).toHaveURL(/\/compras$/);
@@ -53,16 +53,16 @@ for (const [rotulo, conta] of [
       await expect(page.locator("#compras-page form, #compras-page input, #compras-page button")).toHaveCount(0);
     });
 
-    test("no celular, Compras e Configurações ficam atrás do botão 'Mais' (6 itens passam do limite de 5)", async ({ page }) => {
+    test("no celular, Compras fica entre os 4 itens fixos e Recados e Configurações atrás do botão 'Mais' (6 itens passam do limite de 5)", async ({ page }) => {
       test.skip(rotulo === "administrador", "o administrador tem 7 itens: o 'Mais' também leva Prestações (ver dir-responsivo.spec.ts)");
       await page.setViewportSize({ width: 375, height: 667 });
       await login(page, conta.email, conta.password);
       await page.goto("/processos", { waitUntil: "networkidle" });
       const fixos = await page.locator("#bottom-nav a").evaluateAll((els) => els.map((el) => el.getAttribute("href")));
-      expect(fixos).not.toContain("/compras");
+      expect(fixos).toContain("/compras");
       await page.locator("#btn-bottom-nav-more").click();
       const noMais = await page.locator("#nav-more-sheet a").evaluateAll((els) => els.map((el) => el.getAttribute("href")));
-      expect(noMais).toEqual(["/compras", "/configuracoes"]);
+      expect(noMais).toEqual(["/recados", "/configuracoes"]);
     });
   });
 }

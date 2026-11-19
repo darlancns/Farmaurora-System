@@ -10,20 +10,24 @@ export interface NavLink {
   section: Section;
 }
 
-// Ordem = prioridade de exibição (histórica do SidebarNav) — é também a ordem
-// que o BottomNav usa pra decidir quais itens ficam fixos quando sobra pro
-// "Mais" (ver splitBottomNavLinks em utils/bottomNavLinks.ts).
+// Ordem de exibição da navegação (desktop e celular): DIR, Follow-Up, Compras, Pagamentos, Prestações e Recados, e Configurações por
+// último (CONFIG_LINK, abaixo). É também a ordem que o BottomNav usa pra decidir quais itens ficam fixos: com mais de 5 itens,
+// os 4 primeiros são fixos e o resto vai pro "Mais" (ver splitBottomNavLinks em utils/bottomNavLinks.ts) — operacional: DIR,
+// Follow-Up, Compras e Pagamentos fixos, Recados e Configurações no "Mais"; sócio: Follow-Up, Compras, Pagamentos e Prestações
+// fixos; administrador: DIR, Follow-Up, Compras e Pagamentos fixos, Prestações, Recados e Configurações no "Mais".
+//
+// A ORDEM DO MENU NÃO DECIDE NADA ALÉM DO MENU: a página inicial de cada conta (paginaInicial) vem de SECOES_COM_PERMISSAO e
+// ROTA_INICIAL_POR_SECAO (shared/utils/permissoesPagina.ts), que não leem esta lista. Mexer aqui nunca muda a página de entrada
+// (travado em tests/unit/navLinksOrdemPaginaInicial.spec.ts).
 export const MAIN_LINKS: readonly NavLink[] = [
-  { label: "Follow-Up", to: "/processos", icon: "list", section: "processos" },
-  { label: "Recados", to: "/recados", icon: "chat", section: "recados" },
-  { label: "Pagamentos", to: "/pagamentos", icon: "cash", section: "pagamentos" },
-  // DIR só pra operacional e administrador (seção "dir"); entra ANTES de Prestações pra ficar
-  // entre os 4 itens fixos do BottomNav do administrador (Prestações + Configurações vão pro "Mais").
+  // DIR só pra operacional e administrador (seção "dir").
   { label: "DIR", to: "/dir", icon: "document-check", section: "dir" },
-  { label: "Prestações", to: "/prestacao", icon: "clipboard", section: "patients" },
-  // Compras entra POR ÚLTIMO entre os itens principais: a ordem das páginas de antes não muda. No celular isso empurra
-  // Configurações para o "Mais" de quem passa de 5 itens (operacional e sócio passam a ter 6): ver splitBottomNavLinks.
+  { label: "Follow-Up", to: "/processos", icon: "list", section: "processos" },
   { label: "Compras", to: "/compras", icon: "cart", section: "compras" },
+  { label: "Pagamentos", to: "/pagamentos", icon: "cash", section: "pagamentos" },
+  { label: "Prestações", to: "/prestacao", icon: "clipboard", section: "patients" },
+  // Recados é aberto a todos os cargos; fica depois das páginas de trabalho (e antes de Configurações).
+  { label: "Recados", to: "/recados", icon: "chat", section: "recados" },
 ];
 
 export const CONFIG_LINK: NavLink = { label: "Configurações", to: "/configuracoes", icon: "cog", section: "config" };

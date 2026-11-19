@@ -185,9 +185,13 @@ test.describe("Shell de navegação — sidebar (desktop) vs BottomNav (mobile/t
     await login(page);
     await page.goto("/processos", { waitUntil: "networkidle" });
 
-    const recadosLink = page.locator('#bottom-nav a[href="/recados"]');
+    // O 1º item FIXO que não é o Follow-Up (a ordem do menu varia por cargo: o operacional tem a DIR primeiro, e Recados fica no "Mais"
+    // de quem tem mais de 5 itens).
+    const fixos = await page.locator("#bottom-nav a").evaluateAll((els) => els.map((el) => el.getAttribute("href")));
+    const destino = fixos.find((h) => h !== null && h !== "/processos")!;
+    const recadosLink = page.locator(`#bottom-nav a[href="${destino}"]`);
     await recadosLink.click();
-    await expect(page).toHaveURL(/\/recados$/);
+    await expect(page).toHaveURL(new RegExp(`${destino}$`));
     // Item ativo: aria-current + fundo translúcido; o de antes (processos) perde o destaque.
     await expect(recadosLink).toHaveAttribute("aria-current", "page");
     await expect(recadosLink).toHaveClass(/bg-white\/12/);

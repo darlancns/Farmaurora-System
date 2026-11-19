@@ -23,9 +23,9 @@ const links = (role: Role, permissoes?: Permissoes | null) =>
 const rotas = (role: Role, permissoes?: Permissoes | null) => links(role, permissoes).map((l) => l.to);
 
 describe("menu — o item Compras", () => {
-  it("é o ÚLTIMO dos itens principais (antes de Configurações): a ordem das páginas de antes não muda", () => {
-    expect(MAIN_LINKS.at(-1)).toMatchObject({ label: "Compras", to: "/compras", section: "compras", icon: "cart" });
-    expect(MAIN_LINKS.slice(0, -1).map((l) => l.to)).toEqual(["/processos", "/recados", "/pagamentos", "/dir", "/prestacao"]);
+  it("é o 3º dos itens principais (DIR, Follow-Up, Compras, Pagamentos, Prestações, Recados); Configurações vem depois, à parte", () => {
+    expect(MAIN_LINKS[2]).toMatchObject({ label: "Compras", to: "/compras", section: "compras", icon: "cart" });
+    expect(MAIN_LINKS.map((l) => l.to)).toEqual(["/dir", "/processos", "/compras", "/pagamentos", "/prestacao", "/recados"]);
     expect(CONFIG_LINK.to).toBe("/configuracoes");
   });
 
@@ -37,11 +37,11 @@ describe("menu — o item Compras", () => {
     expect(rotas("consultor")).toEqual(["/processos", "/recados", "/configuracoes"]);
   });
 
-  it("sempre fica logo antes de Configurações, que continua por último", () => {
+  it("fica logo depois de Follow-Up (e da DIR, quando o cargo a tem), e Configurações continua por último", () => {
     for (const role of ["administrador", "operacional", "socio"] as const) {
       const r = rotas(role);
+      expect(r.indexOf("/compras"), role).toBe(r.indexOf("/processos") + 1);
       expect(r.at(-1), role).toBe("/configuracoes");
-      expect(r.at(-2), role).toBe("/compras");
     }
   });
 
@@ -79,20 +79,22 @@ describe("menu — o item Compras", () => {
 describe("menu no celular (BottomNav, limite de 5 itens + 'Mais')", () => {
   const split = (role: Role, permissoes?: Permissoes | null) => splitBottomNavLinks(links(role, permissoes));
 
-  it("operacional: 6 itens, então os 4 de antes ficam fixos e Compras e Configurações vão para o 'Mais'", () => {
+  it("operacional: 6 itens; DIR, Follow-Up, Compras e Pagamentos fixos, Recados e Configurações no 'Mais'", () => {
     const { primary, overflow } = split("operacional");
-    expect(primary.map((l) => l.to)).toEqual(["/processos", "/recados", "/pagamentos", "/dir"]);
-    expect(overflow.map((l) => l.to)).toEqual(["/compras", "/configuracoes"]);
+    expect(primary.map((l) => l.to)).toEqual(["/dir", "/processos", "/compras", "/pagamentos"]);
+    expect(overflow.map((l) => l.to)).toEqual(["/recados", "/configuracoes"]);
   });
 
-  it("sócio: 6 itens; Compras e Configurações no 'Mais'", () => {
+  it("sócio: 6 itens; Follow-Up, Compras, Pagamentos e Prestações fixos, Recados e Configurações no 'Mais'", () => {
     const { primary, overflow } = split("socio");
-    expect(primary.map((l) => l.to)).toEqual(["/processos", "/recados", "/pagamentos", "/prestacao"]);
-    expect(overflow.map((l) => l.to)).toEqual(["/compras", "/configuracoes"]);
+    expect(primary.map((l) => l.to)).toEqual(["/processos", "/compras", "/pagamentos", "/prestacao"]);
+    expect(overflow.map((l) => l.to)).toEqual(["/recados", "/configuracoes"]);
   });
 
-  it("administrador: 7 itens; Prestações, Compras e Configurações no 'Mais'", () => {
-    expect(split("administrador").overflow.map((l) => l.to)).toEqual(["/prestacao", "/compras", "/configuracoes"]);
+  it("administrador: 7 itens; DIR, Follow-Up, Compras e Pagamentos fixos, Prestações, Recados e Configurações no 'Mais'", () => {
+    const { primary, overflow } = split("administrador");
+    expect(primary.map((l) => l.to)).toEqual(["/dir", "/processos", "/compras", "/pagamentos"]);
+    expect(overflow.map((l) => l.to)).toEqual(["/prestacao", "/recados", "/configuracoes"]);
   });
 
   it("consultor: 3 itens, sem 'Mais' e sem Compras", () => {
@@ -101,7 +103,7 @@ describe("menu no celular (BottomNav, limite de 5 itens + 'Mais')", () => {
 
   it("operacional com mapa que só dá Follow-Up e Compras: 4 itens, tudo fixo, sem 'Mais'", () => {
     const { primary, overflow } = split("operacional", { ...permissoesTudoNenhum(), processos: "ver", compras: "ver" });
-    expect(primary.map((l) => l.to)).toEqual(["/processos", "/recados", "/compras", "/configuracoes"]);
+    expect(primary.map((l) => l.to)).toEqual(["/processos", "/compras", "/recados", "/configuracoes"]);
     expect(overflow).toEqual([]);
   });
 });

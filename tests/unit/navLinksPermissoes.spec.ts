@@ -15,9 +15,9 @@ const TUDO_NENHUM: Permissoes = { processos: "nenhum", pagamentos: "nenhum", pat
 describe("menu (filtrarNavLinks) — conta SEM mapa: igual a antes, nos 4 cargos", () => {
   it("links por cargo, na mesma ordem de antes", () => {
     expect(rotas("consultor")).toEqual(["/processos", "/recados", "/configuracoes"]);
-    expect(rotas("socio")).toEqual(["/processos", "/recados", "/pagamentos", "/prestacao", "/compras", "/configuracoes"]);
-    expect(rotas("operacional")).toEqual(["/processos", "/recados", "/pagamentos", "/dir", "/compras", "/configuracoes"]);
-    expect(rotas("administrador")).toEqual(["/processos", "/recados", "/pagamentos", "/dir", "/prestacao", "/compras", "/configuracoes"]);
+    expect(rotas("socio")).toEqual(["/processos", "/compras", "/pagamentos", "/prestacao", "/recados", "/configuracoes"]);
+    expect(rotas("operacional")).toEqual(["/dir", "/processos", "/compras", "/pagamentos", "/recados", "/configuracoes"]);
+    expect(rotas("administrador")).toEqual(["/dir", "/processos", "/compras", "/pagamentos", "/prestacao", "/recados", "/configuracoes"]);
   });
 
   it("DIR: só operacional e administrador têm /dir sem mapa; consultor e sócio não", () => {
@@ -49,17 +49,17 @@ describe("menu — com mapa gravado mostra só as seções legíveis", () => {
   it.each(["socio", "operacional"] as const)("%s: 'ver' e 'editar' aparecem, 'nenhum' some; Recados e Configurações ficam", (role) => {
     expect(rotas(role, { processos: "ver", pagamentos: "nenhum", patients: "editar" })).toEqual([
       "/processos",
-      "/recados",
       "/prestacao",
+      "/recados",
       "/configuracoes",
     ]);
   });
 
   it.each(["socio", "operacional"] as const)("%s: DIR 'editar' aparece no menu com o mapa; DIR 'nenhum' some", (role) => {
     expect(rotas(role, { processos: "ver", pagamentos: "nenhum", dir: "editar", patients: "nenhum" })).toEqual([
+      "/dir",
       "/processos",
       "/recados",
-      "/dir",
       "/configuracoes",
     ]);
     expect(rotas(role, { processos: "ver", dir: "nenhum", patients: "editar" })).not.toContain("/dir");
@@ -92,7 +92,7 @@ describe("menu — com mapa gravado mostra só as seções legíveis", () => {
   it("BottomNav: com o mapa liberando tudo são 5 itens (sem 'Mais'); com poucos, também não", () => {
     const todos: Permissoes = { processos: "ver", pagamentos: "ver", patients: "ver" };
     const cheio = splitBottomNavLinks(filtrarNavLinks({ role: "socio", permissoes: todos }).allLinks);
-    expect(cheio.primary.map((l) => l.to)).toEqual(["/processos", "/recados", "/pagamentos", "/prestacao", "/configuracoes"]);
+    expect(cheio.primary.map((l) => l.to)).toEqual(["/processos", "/pagamentos", "/prestacao", "/recados", "/configuracoes"]);
     expect(cheio.overflow).toEqual([]);
     const poucos = splitBottomNavLinks(filtrarNavLinks({ role: "operacional", permissoes: { processos: "ver" } }).allLinks);
     expect(poucos.overflow).toEqual([]);
@@ -101,7 +101,7 @@ describe("menu — com mapa gravado mostra só as seções legíveis", () => {
   it("BottomNav com a DIR: com o mapa liberando tudo são 6 itens e o 'Mais' aparece", () => {
     const todos: Permissoes = { processos: "ver", pagamentos: "ver", dir: "ver", patients: "ver" };
     const cheio = splitBottomNavLinks(filtrarNavLinks({ role: "socio", permissoes: todos }).allLinks);
-    expect(cheio.primary.map((l) => l.to)).toEqual(["/processos", "/recados", "/pagamentos", "/dir"]);
-    expect(cheio.overflow.map((l) => l.to)).toEqual(["/prestacao", "/configuracoes"]);
+    expect(cheio.primary.map((l) => l.to)).toEqual(["/dir", "/processos", "/pagamentos", "/prestacao"]);
+    expect(cheio.overflow.map((l) => l.to)).toEqual(["/recados", "/configuracoes"]);
   });
 });

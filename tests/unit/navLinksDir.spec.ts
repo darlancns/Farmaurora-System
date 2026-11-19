@@ -16,9 +16,9 @@ function linksDoCargo(role: Role) {
 const rotas = (role: Role) => linksDoCargo(role).map((l) => l.to);
 
 describe("navegação — item DIR por cargo", () => {
-  it("a DIR entra ANTES de Prestações e Compras entra por ÚLTIMO (a ordem das páginas de antes não muda)", () => {
+  it("a ordem da navegação: DIR, Follow-Up, Compras, Pagamentos, Prestações e Recados (Configurações vem depois, à parte)", () => {
     const ordem = MAIN_LINKS.map((l) => l.to);
-    expect(ordem).toEqual(["/processos", "/recados", "/pagamentos", "/dir", "/prestacao", "/compras"]);
+    expect(ordem).toEqual(["/dir", "/processos", "/compras", "/pagamentos", "/prestacao", "/recados"]);
   });
 
   it("operacional e administrador veem a DIR; sócio e consultor NÃO", () => {
@@ -35,7 +35,7 @@ describe("navegação — item DIR por cargo", () => {
 
   it("os links dos outros cargos não mudaram, exceto Configurações, que agora é de todos ('Minha conta')", () => {
     expect(rotas("consultor")).toEqual(["/processos", "/recados", "/configuracoes"]);
-    expect(rotas("socio")).toEqual(["/processos", "/recados", "/pagamentos", "/prestacao", "/compras", "/configuracoes"]);
+    expect(rotas("socio")).toEqual(["/processos", "/compras", "/pagamentos", "/prestacao", "/recados", "/configuracoes"]);
   });
 
   it("todo cargo vê Configurações, sempre por último", () => {
@@ -48,24 +48,24 @@ describe("navegação — item DIR por cargo", () => {
 });
 
 describe("BottomNav — split com os links reais", () => {
-  it("administrador (7 itens): fixos Follow-Up, Recados, Pagamentos e DIR; 'Mais' = Prestações + Compras + Configurações", () => {
+  it("administrador (7 itens): fixos DIR, Follow-Up, Compras e Pagamentos; 'Mais' = Prestações + Recados + Configurações", () => {
     const links = linksDoCargo("administrador");
     expect(links).toHaveLength(7);
     const { primary, overflow } = splitBottomNavLinks(links);
-    expect(primary.map((l) => l.to)).toEqual(["/processos", "/recados", "/pagamentos", "/dir"]);
-    expect(overflow.map((l) => l.to)).toEqual(["/prestacao", "/compras", "/configuracoes"]);
+    expect(primary.map((l) => l.to)).toEqual(["/dir", "/processos", "/compras", "/pagamentos"]);
+    expect(overflow.map((l) => l.to)).toEqual(["/prestacao", "/recados", "/configuracoes"]);
   });
 
-  it("operacional (6 itens): os 4 de antes ficam fixos; Compras e Configurações vão para o 'Mais' (antes eram 5 fixos)", () => {
+  it("operacional (6 itens): DIR, Follow-Up, Compras e Pagamentos fixos; Recados e Configurações no 'Mais'", () => {
     const { primary, overflow } = splitBottomNavLinks(linksDoCargo("operacional"));
-    expect(primary.map((l) => l.to)).toEqual(["/processos", "/recados", "/pagamentos", "/dir"]);
-    expect(overflow.map((l) => l.to)).toEqual(["/compras", "/configuracoes"]);
+    expect(primary.map((l) => l.to)).toEqual(["/dir", "/processos", "/compras", "/pagamentos"]);
+    expect(overflow.map((l) => l.to)).toEqual(["/recados", "/configuracoes"]);
   });
 
-  it("sócio (6 itens): Follow-Up, Recados, Pagamentos e Prestações fixos; Compras e Configurações no 'Mais'. Consultor (3 itens): sem 'Mais'", () => {
+  it("sócio (6 itens): Follow-Up, Compras, Pagamentos e Prestações fixos; Recados e Configurações no 'Mais'. Consultor (3 itens): sem 'Mais'", () => {
     const socio = splitBottomNavLinks(linksDoCargo("socio"));
-    expect(socio.primary.map((l) => l.to)).toEqual(["/processos", "/recados", "/pagamentos", "/prestacao"]);
-    expect(socio.overflow.map((l) => l.to)).toEqual(["/compras", "/configuracoes"]);
+    expect(socio.primary.map((l) => l.to)).toEqual(["/processos", "/compras", "/pagamentos", "/prestacao"]);
+    expect(socio.overflow.map((l) => l.to)).toEqual(["/recados", "/configuracoes"]);
     expect(linksDoCargo("consultor")).toHaveLength(3);
     expect(splitBottomNavLinks(linksDoCargo("consultor")).overflow).toEqual([]);
   });

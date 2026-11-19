@@ -269,31 +269,31 @@ test.describe("Responsividade de /dir", () => {
 test.describe("BottomNav com o item DIR", () => {
   test.describe.configure({ retries: 2 });
 
-  test("administrador: fixos Follow-Up, Recados, Pagamentos e DIR; 'Mais' = Prestações + Compras + Configurações", async ({ page }) => {
+  test("administrador: fixos DIR, Follow-Up, Compras e Pagamentos; 'Mais' = Prestações + Recados + Configurações", async ({ page }) => {
     test.skip(!tem(admin), "defina E2E_ADMIN_*");
     await page.setViewportSize({ width: 375, height: 667 });
     await login(page, admin);
     await page.goto("/processos", { waitUntil: "networkidle" });
 
     const fixos = await page.locator("#bottom-nav a").evaluateAll((els) => els.map((el) => el.getAttribute("href")));
-    expect(fixos).toEqual(["/processos", "/recados", "/pagamentos", "/dir"]);
+    expect(fixos).toEqual(["/dir", "/processos", "/compras", "/pagamentos"]);
 
     await page.locator("#btn-bottom-nav-more").click();
     const noMais = await page.locator("#nav-more-sheet a").evaluateAll((els) => els.map((el) => el.getAttribute("href")));
-    expect(noMais).toEqual(["/prestacao", "/compras", "/configuracoes"]);
+    expect(noMais).toEqual(["/prestacao", "/recados", "/configuracoes"]);
   });
 
-  test("operacional: Follow-Up, Recados, Pagamentos e DIR fixos; 'Mais' = Compras + Configurações (6 itens passam do limite de 5)", async ({ page }) => {
+  test("operacional: DIR, Follow-Up, Compras e Pagamentos fixos; 'Mais' = Recados + Configurações (6 itens passam do limite de 5)", async ({ page }) => {
     test.skip(!tem(operacional), "defina E2E_OPERACIONAL_*");
     await page.setViewportSize({ width: 375, height: 667 });
     await login(page, operacional);
     await page.goto("/processos", { waitUntil: "networkidle" });
 
     const fixos = await page.locator("#bottom-nav a").evaluateAll((els) => els.map((el) => el.getAttribute("href")));
-    // Com Compras são 6 itens: os 4 de antes ficam fixos e Compras e Configurações vão para o "Mais".
-    expect(fixos).toEqual(["/processos", "/recados", "/pagamentos", "/dir"]);
+    // Com Compras são 6 itens: os 4 primeiros ficam fixos e Recados e Configurações vão para o "Mais".
+    expect(fixos).toEqual(["/dir", "/processos", "/compras", "/pagamentos"]);
     await page.locator("#btn-bottom-nav-more").click();
     const noMais = await page.locator("#nav-more-sheet a").evaluateAll((els) => els.map((el) => el.getAttribute("href")));
-    expect(noMais).toEqual(["/compras", "/configuracoes"]);
+    expect(noMais).toEqual(["/recados", "/configuracoes"]);
   });
 });
