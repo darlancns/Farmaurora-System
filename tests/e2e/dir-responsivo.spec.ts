@@ -269,7 +269,7 @@ test.describe("Responsividade de /dir", () => {
 test.describe("BottomNav com o item DIR", () => {
   test.describe.configure({ retries: 2 });
 
-  test("administrador: fixos Follow-Up, Recados, Pagamentos e DIR; 'Mais' = Prestações + Configurações", async ({ page }) => {
+  test("administrador: fixos Follow-Up, Recados, Pagamentos e DIR; 'Mais' = Prestações + Compras + Configurações", async ({ page }) => {
     test.skip(!tem(admin), "defina E2E_ADMIN_*");
     await page.setViewportSize({ width: 375, height: 667 });
     await login(page, admin);
@@ -280,18 +280,20 @@ test.describe("BottomNav com o item DIR", () => {
 
     await page.locator("#btn-bottom-nav-more").click();
     const noMais = await page.locator("#nav-more-sheet a").evaluateAll((els) => els.map((el) => el.getAttribute("href")));
-    expect(noMais).toEqual(["/prestacao", "/configuracoes"]);
+    expect(noMais).toEqual(["/prestacao", "/compras", "/configuracoes"]);
   });
 
-  test("operacional: Follow-Up, Recados, Pagamentos, DIR e Configurações, tudo fixo e sem 'Mais'", async ({ page }) => {
+  test("operacional: Follow-Up, Recados, Pagamentos e DIR fixos; 'Mais' = Compras + Configurações (6 itens passam do limite de 5)", async ({ page }) => {
     test.skip(!tem(operacional), "defina E2E_OPERACIONAL_*");
     await page.setViewportSize({ width: 375, height: 667 });
     await login(page, operacional);
     await page.goto("/processos", { waitUntil: "networkidle" });
 
     const fixos = await page.locator("#bottom-nav a").evaluateAll((els) => els.map((el) => el.getAttribute("href")));
-    // Configurações passou a ser de todos os cargos ("Minha conta"): 5 itens ainda cabem fixos.
-    expect(fixos).toEqual(["/processos", "/recados", "/pagamentos", "/dir", "/configuracoes"]);
-    await expect(page.locator("#btn-bottom-nav-more")).toHaveCount(0);
+    // Com Compras são 6 itens: os 4 de antes ficam fixos e Compras e Configurações vão para o "Mais".
+    expect(fixos).toEqual(["/processos", "/recados", "/pagamentos", "/dir"]);
+    await page.locator("#btn-bottom-nav-more").click();
+    const noMais = await page.locator("#nav-more-sheet a").evaluateAll((els) => els.map((el) => el.getAttribute("href")));
+    expect(noMais).toEqual(["/compras", "/configuracoes"]);
   });
 });
