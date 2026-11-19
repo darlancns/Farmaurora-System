@@ -48,7 +48,7 @@ function selecionarAba(aba: AbaConfiguracoes): void {
 // em Cadastros; em "Minha conta" — e antes de o cargo carregar, quando a aba padrão é essa — vale o da conta própria.
 const SUBTITULO_POR_ABA: Record<AbaConfiguracoes, string> = {
   contas: "Gestão de contas e acessos da equipe.",
-  cadastros: "Listas de fornecedores, despachantes e cias aéreas.",
+  cadastros: "Listas de fornecedores, despachantes, transportadoras, cias aéreas, consultores, temperaturas e medicamentos.",
   "minha-conta": "Seus dados de acesso.",
 };
 const subtitle = computed<string>(() =>

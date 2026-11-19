@@ -847,3 +847,96 @@ describe("CadastrosTab — renomear consultor (só consultores; com confirmaçã
     expect(q("#cadastros-contas-falha")).toBeNull();
   });
 });
+
+describe("CadastrosTab — Temperaturas e Medicamentos (6ª e 7ª listas)", () => {
+  async function escolherTemperatura(nome: string): Promise<void> {
+    q<HTMLButtonElement>("#cadastro-form-temperatura")!.click();
+    await assentar();
+    const opcao = [...document.querySelectorAll<HTMLElement>("#cadastro-form-temperatura-listbox [role='option']")].find((li) => texto(li) === nome);
+    expect(opcao, `opção ${nome}`).toBeDefined();
+    opcao!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    await assentar();
+  }
+
+  it("as duas seções são as últimas, nesta ordem; Medicamentos mostra a coluna Temperatura", async () => {
+    await montar();
+    expect([...document.querySelectorAll("#cadastros-tab > section")].map((s) => s.id).slice(-2)).toEqual([
+      "cadastro-secao-temperaturas",
+      "cadastro-secao-medicamentos",
+    ]);
+    await clicar("#btn-secao-medicamentos");
+    expect([...document.querySelectorAll("#cadastro-lista-medicamentos thead th")].map((th) => texto(th))).toEqual(["Nome", "Temperatura", "Ativo"]);
+    expect([...document.querySelectorAll("#cadastro-lista-medicamentos tbody tr")].map((tr) => tr.id)).toEqual([
+      "cadastro-row-medicamentos-m1",
+      "cadastro-row-medicamentos-m2",
+    ]);
+    expect(texto(q("#cadastro-row-medicamentos-m1"))).toContain("2°C - 8°C");
+  });
+
+  it("criar medicamento: o painel é o dele (nome + temperatura) e o POST leva nome em MAIÚSCULAS e a temperatura ATIVA escolhida", async () => {
+    await montar();
+    await clicar("#btn-adicionar-cadastro-medicamentos");
+    expect(texto(q("#cadastro-painel-titulo"))).toBe("Novo medicamento");
+    q<HTMLButtonElement>("#cadastro-form-temperatura")!.click();
+    await assentar();
+    // As temperaturas vêm do estado compartilhado: só a ativa ("2°C - 8°C"); a inativa ("-20°C") não é oferecida.
+    expect([...document.querySelectorAll("#cadastro-form-temperatura-listbox [role='option']")].map((li) => texto(li))).toEqual(["Selecione", "2°C - 8°C"]);
+    q<HTMLButtonElement>("#cadastro-form-temperatura")!.click(); // fecha a lista
+    await assentar();
+
+    await digitar("#cadastro-form-nome", "teste medicamento");
+    await salvar();
+    expect(gravacoes()).toEqual([]);
+    expect(toast()).toBe("Informe a temperatura.");
+    expect(q("#cadastro-painel")).not.toBeNull();
+
+    await escolherTemperatura("2°C - 8°C");
+    await salvar();
+    expect(gravacoes()).toEqual([
+      { metodo: "POST", url: "/api/cadastros/medicamentos", corpo: { nome: "TESTE MEDICAMENTO", temperatura: "2°C - 8°C" } },
+    ]);
+    expect(toast()).toBe("Medicamento criado.");
+    expect(q("#cadastro-painel")).toBeNull();
+    expect(aberta("medicamentos")).toBe(true);
+    expect(texto(q("#cadastro-contagem-medicamentos"))).toBe("3 · 2 ativos");
+    expect(texto(q("#cadastro-corpo-medicamentos"))).toContain("TESTE MEDICAMENTO");
+  });
+
+  it("renomear medicamento: PATCH só com o nome, sem a janela de confirmação do consultor", async () => {
+    await montar();
+    await clicar("#btn-secao-medicamentos");
+    await clicar("#cadastro-row-medicamentos-m1");
+    expect(texto(q("#cadastro-painel-titulo"))).toBe("Editar medicamento");
+    expect(q<HTMLInputElement>("#cadastro-form-nome")!.disabled).toBe(false);
+    await digitar("#cadastro-form-nome", "timolol 10 mg");
+    await salvar();
+    expect(q("#confirm-dialog-overlay")).toBeNull();
+    expect(gravacoes()).toEqual([{ metodo: "PATCH", url: "/api/cadastros/medicamentos/m1", corpo: { nome: "TIMOLOL 10 MG" } }]);
+    expect(servidor.chamadas.some((c) => c.url.includes("/impacto"))).toBe(false);
+    expect(toast()).toBe("Alterações salvas.");
+    expect(q("#cadastro-painel")).toBeNull();
+    expect(texto(q("#cadastro-row-medicamentos-m1"))).toContain("TIMOLOL 10 MG");
+  });
+
+  it("422 do servidor (temperatura inativa numa corrida): mostra a mensagem da API e o painel continua aberto", async () => {
+    await montar();
+    await clicar("#btn-secao-medicamentos");
+    await clicar("#cadastro-row-medicamentos-m1");
+    servidor.falhas.push({ metodo: "PATCH", status: 422, mensagem: "Essa temperatura está inativa. Escolha uma temperatura ativa." });
+    await digitar("#cadastro-form-nome", "timolol 10 mg");
+    await salvar();
+    expect(toast()).toBe("Essa temperatura está inativa. Escolha uma temperatura ativa.");
+    expect(q("#cadastro-painel")).not.toBeNull();
+  });
+
+  it("temperatura: o painel de edição é só leitura (o nome não muda) e a chave Ativo grava na hora", async () => {
+    await montar();
+    await clicar("#btn-secao-temperaturas");
+    await clicar("#cadastro-row-temperaturas-p1");
+    expect(q<HTMLInputElement>("#cadastro-form-nome")!.disabled).toBe(true);
+    expect(q("#btn-cadastro-salvar")).toBeNull();
+    await clicar("#btn-cadastro-cancelar");
+    await clicar("#cadastro-switch-temperaturas-p1");
+    expect(gravacoes()).toEqual([{ metodo: "PATCH", url: "/api/cadastros/temperaturas/p1", corpo: { ativo: false } }]);
+  });
+});

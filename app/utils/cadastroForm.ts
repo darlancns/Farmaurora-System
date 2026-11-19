@@ -1,5 +1,15 @@
-import type { Cadastro, Despachante, Fornecedor, ListaCadastro, NovoPorLista, PatchPorLista, Transportadora } from "#shared/types/Cadastro";
-import { chaveCadastro } from "#shared/utils/cadastroNome";
+import { LISTAS_NOME_MAIUSCULO } from "#shared/constants/cadastros";
+import type {
+  Cadastro,
+  Despachante,
+  Fornecedor,
+  ListaCadastro,
+  MedicamentoCadastro,
+  NovoPorLista,
+  PatchPorLista,
+  Transportadora,
+} from "#shared/types/Cadastro";
+import { chaveCadastro, nomeEmMaiusculas } from "#shared/utils/cadastroNome";
 import { validarNovoCadastro, validarPatchCadastro, type ResultadoCadastro } from "#shared/utils/cadastroValidacao";
 
 // Regras puras do formulário de Cadastros (painel lateral CadastroPainel.vue). O componente só liga os campos; a
@@ -22,10 +32,12 @@ export interface FormCadastro {
   email: string;
   /** Só despachantes e transportadoras; "" = sem chave. */
   chavePix: string;
+  /** Só medicamentos: o nome de uma temperatura ATIVA do Cadastro; "" = ainda não escolhida. */
+  temperatura: string;
 }
 
 export function formVazio(): FormCadastro {
-  return { nome: "", pais: "", alertaOpcao: "", prazoTexto: "", contatoNome: "", telefone: "", email: "", chavePix: "" };
+  return { nome: "", pais: "", alertaOpcao: "", prazoTexto: "", contatoNome: "", telefone: "", email: "", chavePix: "", temperatura: "" };
 }
 
 const pixDoItem = (item: Cadastro | null | undefined): string => (item as { chavePix?: string } | null | undefined)?.chavePix ?? "";
@@ -45,6 +57,8 @@ export function formDeItem(lista: ListaCadastro, item: Cadastro): FormCadastro {
     form.chavePix = pixDoItem(d);
   } else if (lista === "transportadoras") {
     form.chavePix = pixDoItem(item as Transportadora);
+  } else if (lista === "medicamentos") {
+    form.temperatura = (item as MedicamentoCadastro).temperatura;
   }
   return form;
 }
@@ -86,12 +100,21 @@ export function montarNovo(
   if (lista === "transportadoras") {
     return validarNovoCadastro(lista, { nome: form.nome, ...(incluirPix ? { chavePix: form.chavePix } : {}) });
   }
+  if (lista === "medicamentos") {
+    return validarNovoCadastro(lista, { nome: form.nome, temperatura: form.temperatura });
+  }
   return validarNovoCadastro(lista, { nome: form.nome });
 }
 
 /** Nome como o servidor grava: aparado e com espaços repetidos colapsados. */
 export function nomeNormalizado(nome: string): string {
   return nome.trim().replace(/\s+/g, " ");
+}
+
+/** Nome como o servidor grava NA LISTA: o de medicamento também sai em MAIÚSCULAS (LISTAS_NOME_MAIUSCULO). */
+export function nomeComoGravado(lista: ListaCadastro, nome: string): string {
+  const normalizado = nomeNormalizado(nome);
+  return LISTAS_NOME_MAIUSCULO.includes(lista) ? nomeEmMaiusculas(normalizado) : normalizado;
 }
 
 /**
@@ -119,6 +142,16 @@ export function montarAlteracao(
   if (lista === "transportadoras") {
     return validarPatchCadastro(lista, pixMudou ? { chavePix: form.chavePix } : {});
   }
+  if (lista === "medicamentos") {
+    // Medicamento: nome (renomear, em MAIÚSCULAS) e temperatura. Só vai o que mudou em relação ao original (o servidor também ignora o
+    // que é igual, mas assim um medicamento cuja temperatura foi desativada depois continua editável pelo nome).
+    const m = original as MedicamentoCadastro | null | undefined;
+    const corpo: Record<string, unknown> = {};
+    if (!m || nomeComoGravado(lista, form.nome) !== m.nome) corpo.nome = form.nome;
+    if (!m || form.temperatura.trim() !== m.temperatura) corpo.temperatura = form.temperatura;
+    if (Object.keys(corpo).length === 0) return { ok: false, erro: "Nenhuma alteração informada." };
+    return validarPatchCadastro(lista, corpo);
+  }
   if (lista === "consultores") {
     // Consultor: o único campo é o NOME (renomear; a propagação e a confirmação são do servidor e da tela). Sem mudança, nada vai.
     if (original && nomeNormalizado(form.nome) === original.nome) return { ok: false, erro: "Nenhuma alteração informada." };
@@ -129,8 +162,8 @@ export function montarAlteracao(
 
 /**
  * A lista tem algum campo editável depois de criada? Cia aérea e temperatura só têm o nome (só se desativam/reativam; o nome da
- * temperatura não muda porque o medicamento guarda uma cópia); consultor tem o nome (renomear, com confirmação); transportadora
- * só tem a chave PIX, então só edita quem pode vê-la (`podeVerPix`).
+ * temperatura não muda porque o medicamento guarda uma cópia); consultor tem o nome (renomear, com confirmação); medicamento tem o
+ * nome (renomear) e a temperatura; transportadora só tem a chave PIX, então só edita quem pode vê-la (`podeVerPix`).
  */
 export function listaTemEdicao(lista: ListaCadastro, podeVerPix = true): boolean {
   if (lista === "cias-aereas" || lista === "temperaturas") return false;

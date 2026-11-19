@@ -1,4 +1,4 @@
-import type { Cadastro, Despachante, Fornecedor, ListaCadastro } from "#shared/types/Cadastro";
+import type { Cadastro, Despachante, Fornecedor, ListaCadastro, MedicamentoCadastro } from "#shared/types/Cadastro";
 import { chaveCadastro } from "#shared/utils/cadastroNome";
 
 // Colunas, contagem, busca e linha de resumo de cada lista na aba Cadastros. Funções PURAS (testadas em
@@ -41,7 +41,7 @@ const COLUNA_PIX: ColunaCadastro = { chave: "pix", titulo: "PIX", texto: textoPi
 /**
  * Colunas da lista ALÉM de Nome e Ativo (que são sempre as primeiras e a última).
  * Fornecedores: País, Prazo de alerta. Despachantes: Contato, Telefone, E-mail, PIX. Transportadoras: PIX.
- * Cias aéreas: nenhuma. A coluna PIX só entra com `podeVerPix`.
+ * Medicamentos: Temperatura. Cias aéreas, consultores e temperaturas: nenhuma. A coluna PIX só entra com `podeVerPix`.
  */
 export function colunasDaLista(lista: ListaCadastro, podeVerPix = false): ColunaCadastro[] {
   switch (lista) {
@@ -59,6 +59,8 @@ export function colunasDaLista(lista: ListaCadastro, podeVerPix = false): Coluna
       ];
     case "transportadoras":
       return podeVerPix ? [COLUNA_PIX] : [];
+    case "medicamentos":
+      return [{ chave: "temperatura", titulo: "Temperatura", texto: (i) => ou((i as MedicamentoCadastro).temperatura) }];
     default:
       return [];
   }
@@ -66,7 +68,8 @@ export function colunasDaLista(lista: ListaCadastro, podeVerPix = false): Coluna
 
 /**
  * Segunda linha do item no celular (a primeira é o nome): fornecedor = "país · prazo"; despachante = contato (e
- * "PIX cadastrada" quando houver); transportadora = "PIX cadastrada". Só as partes que existem; "" quando não há nada.
+ * "PIX cadastrada" quando houver); transportadora = "PIX cadastrada"; medicamento = a temperatura. Só as partes que existem; "" quando
+ * não há nada.
  */
 export function linhaSecundaria(lista: ListaCadastro, item: Cadastro, podeVerPix = false): string {
   const partes: string[] = [];
@@ -80,6 +83,9 @@ export function linhaSecundaria(lista: ListaCadastro, item: Cadastro, podeVerPix
     if (podeVerPix && temPix(item)) partes.push("PIX cadastrada");
   } else if (lista === "transportadoras") {
     if (podeVerPix && temPix(item)) partes.push("PIX cadastrada");
+  } else if (lista === "medicamentos") {
+    const temperatura = (item as MedicamentoCadastro).temperatura.trim();
+    if (temperatura !== "") partes.push(temperatura);
   }
   return partes.join(" · ");
 }

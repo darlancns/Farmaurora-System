@@ -23,8 +23,8 @@ import CadastroDesfazer from "./CadastroDesfazer.vue";
 import CadastroPainel from "./CadastroPainel.vue";
 import CadastroSecao from "./CadastroSecao.vue";
 
-// Aba "Cadastros" de /configuracoes (só administrador — ver app/utils/abasConfiguracoes.ts). Quatro SEÇÕES recolhíveis
-// (Fornecedores, Despachantes, Transportadoras, Cias aéreas, Consultores), todas FECHADAS ao abrir a aba; aberta, cada uma vira uma
+// Aba "Cadastros" de /configuracoes (só administrador — ver app/utils/abasConfiguracoes.ts). Sete SEÇÕES recolhíveis
+// (Fornecedores, Despachantes, Transportadoras, Cias aéreas, Consultores, Temperaturas, Medicamentos), todas FECHADAS ao abrir a aba; aberta, cada uma vira uma
 // tabela compacta. Busca por nome no topo (todas as listas). Clicar numa linha abre o PAINEL LATERAL de edição; "+ Adicionar"
 // abre o mesmo painel vazio. A chave "Ativo" da linha aplica na hora ("Desativado. Desfazer" / "Reativado."), sem
 // confirmação. Remover = DESATIVAR (nunca apagar); o nome não muda depois de criado. Quem escreve é só o administrador
@@ -449,6 +449,7 @@ async function desfazerDesativacao(): Promise<void> {
       :existentes="itens[painelLista]"
       :busy="busy"
       :pode-ver-pix="podeVerPix"
+      :temperaturas="itens.temperaturas"
       @criar="handleCriar"
       @atualizar="handleAtualizar"
       @reativar="reativarDoPainel"

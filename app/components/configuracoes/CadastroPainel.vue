@@ -4,6 +4,8 @@ import {
   CHAVE_PIX_CADASTRO_MAX,
   CONTATO_CADASTRO_MAX,
   LISTA_CADASTRO_TEXTOS,
+  LISTAS_NOME_MAIUSCULO,
+  LISTAS_RENOMEAVEIS,
   NOME_CADASTRO_MAX,
   NOME_RESERVADO_CADASTRO,
   PAIS_CADASTRO_MAX,
@@ -12,12 +14,13 @@ import {
   ROTULO_INATIVO_CADASTRO,
   TELEFONE_CADASTRO_MAX,
 } from "#shared/constants/cadastros";
-import type { Cadastro, ListaCadastro, NovoPorLista, PatchPorLista } from "#shared/types/Cadastro";
+import type { Cadastro, ListaCadastro, MedicamentoCadastro, NovoPorLista, PatchPorLista, TemperaturaCadastro } from "#shared/types/Cadastro";
 import { nomeReservadoCadastro } from "#shared/utils/cadastroNome";
 import { listaTemPix } from "#shared/utils/cadastroPix";
 import { useEscapeToClose } from "../../composables/useEscapeToClose";
 import { useLockBodyScroll } from "../../composables/useLockBodyScroll";
 import { BOTAO_ICONE_CLASS } from "../../utils/botaoIcone";
+import { aplicarMaiusculasNoCampo } from "../../utils/aplicarMaiusculasNoCampo";
 import {
   formDeItem,
   formVazio,
@@ -25,9 +28,12 @@ import {
   listaTemEdicao,
   montarAlteracao,
   montarNovo,
-  nomeNormalizado,
+  nomeComoGravado,
   type FormCadastro,
 } from "../../utils/cadastroForm";
+import { montarTemperaturaOptions } from "../../utils/cadastroTemperaturaOptions";
+import { SELECT_CAMPO_CLASS } from "../../utils/processoFormClasses";
+import AppSelect from "../AppSelect.vue";
 import { ICONES_PROCESSO } from "../../utils/processoIcones";
 import { focaveis } from "../../utils/processoPainel";
 
@@ -38,8 +44,11 @@ import { focaveis } from "../../utils/processoPainel";
 //  - Novo ("+ Adicionar"): o mesmo painel, vazio. Se o nome já existe (ativo ou inativo) o botão de criar fica
 //    desabilitado; quando o existente é INATIVO oferece "Reativar" (em vez de criar outro).
 //  - Editar: o NOME aparece desabilitado, com a dica de que não muda (para corrigir: criar um novo e desativar este).
-//    EXCEÇÃO: o consultor pode ser RENOMEADO (o campo fica editável; só mudar acento/caixa também vale). Salvar abre uma
-//    confirmação com as contagens (CadastrosTab.vue) porque o nome novo vale em todo o sistema.
+//    EXCEÇÕES (LISTAS_RENOMEAVEIS): o consultor e o MEDICAMENTO podem ser RENOMEADOS (o campo fica editável; só mudar acento/caixa
+//    também vale). O consultor abre uma confirmação com as contagens (CadastrosTab.vue) porque o nome novo vale em todo o sistema; o
+//    medicamento só muda o próprio cadastro (a Compra, no futuro, guarda cópia) e salva direto.
+//  - Medicamento: o nome é digitado e gravado em MAIÚSCULAS e a Temperatura é um select só com as temperaturas ATIVAS do Cadastro
+//    de Temperaturas (obrigatória; o valor que o medicamento já tem continua aparecendo, com "(inativo)", até ser trocado).
 //  - Fornecedor: o prazo do alerta precisa ser DECIDIDO — "Número de dias" (1 a 365) OU "Sem alerta".
 //  - Chave PIX (despachantes e transportadoras): dado financeiro, só para quem recebe o campo (`podeVerPix`). O input
 //    vem oculto (type=password), com "Mostrar/Ocultar" e "Copiar". A chave nunca vai para log nem para mensagem.
@@ -57,8 +66,10 @@ const props = withDefaults(
     busy?: boolean;
     /** Recebe a chave PIX (administrador ou quem lê Pagamentos): mostra o campo. */
     podeVerPix?: boolean;
+    /** Temperaturas do Cadastro (ativas e inativas): as opções do select de Temperatura dos medicamentos. */
+    temperaturas?: TemperaturaCadastro[];
   }>(),
-  { editando: null, busy: false, podeVerPix: false },
+  { editando: null, busy: false, podeVerPix: false, temperaturas: () => [] },
 );
 
 const emit = defineEmits<{
@@ -79,18 +90,30 @@ const somenteLeitura = computed(() => isEdit.value && !listaTemEdicao(props.list
 const form = reactive<FormCadastro>(props.editando ? formDeItem(props.lista, props.editando) : formVazio());
 const pixVisivel = ref(false);
 
-// O nome é digitável ao criar e, na edição, só no consultor (renomear); nas outras listas o nome não muda.
-const nomeEditavel = computed<boolean>(() => !isEdit.value || props.lista === "consultores");
-// Renomear consultor sem mudar nada (nem acento nem caixa): nada a salvar.
-const nomeSemMudanca = computed<boolean>(
-  () => isEdit.value && props.lista === "consultores" && props.editando !== null && nomeNormalizado(form.nome) === props.editando.nome,
-);
+const renomeavel = computed<boolean>(() => LISTAS_RENOMEAVEIS.includes(props.lista));
+const ehMedicamento = computed<boolean>(() => props.lista === "medicamentos");
+// O nome é digitável ao criar e, na edição, só nas listas renomeáveis (consultor e medicamento); nas outras o nome não muda.
+const nomeEditavel = computed<boolean>(() => !isEdit.value || renomeavel.value);
+// Lista de nome em MAIÚSCULAS (medicamento): o campo converte ao digitar e ao colar.
+const nomeEmMaiusculo = computed<boolean>(() => LISTAS_NOME_MAIUSCULO.includes(props.lista));
+// Renomear sem mudar nada (nem acento nem caixa; no medicamento, nem a temperatura): nada a salvar.
+const nomeSemMudanca = computed<boolean>(() => {
+  if (!isEdit.value || !renomeavel.value || props.editando === null) return false;
+  if (nomeComoGravado(props.lista, form.nome) !== props.editando.nome) return false;
+  return !ehMedicamento.value || form.temperatura.trim() === (props.editando as MedicamentoCadastro).temperatura;
+});
 
-// Nome já usado por outro item: ao criar, qualquer item da lista; ao renomear um consultor, qualquer OUTRO (o próprio, com a
-// mesma chave, é a correção de acento/caixa e vale).
+const temperaturaOptions = computed(() => montarTemperaturaOptions(form.temperatura, props.temperaturas));
+
+function aoDigitarNome(event: Event): void {
+  if (nomeEmMaiusculo.value) form.nome = aplicarMaiusculasNoCampo(event.target as HTMLInputElement);
+}
+
+// Nome já usado por outro item: ao criar, qualquer item da lista; ao renomear (consultor ou medicamento), qualquer OUTRO (o próprio,
+// com a mesma chave, é a correção de acento/caixa e vale).
 const duplicado = computed<Cadastro | null>(() => {
   if (!isEdit.value) return itemComMesmoNome(props.existentes, form.nome);
-  if (props.lista !== "consultores" || props.editando === null) return null;
+  if (!renomeavel.value || props.editando === null) return null;
   const meuId = props.editando.id;
   return itemComMesmoNome(
     props.existentes.filter((i) => i.id !== meuId),
@@ -225,16 +248,25 @@ const CLASSE_BOTAO_PIX =
               autocomplete="off"
               :maxlength="NOME_CADASTRO_MAX"
               :disabled="!nomeEditavel"
+              :autocapitalize="nomeEmMaiusculo ? 'characters' : undefined"
               :aria-describedby="isEdit ? 'cadastro-form-nome-dica' : undefined"
               :class="CLASSE_CAMPO"
+              @input="aoDigitarNome"
             />
             <p v-if="isEdit && !nomeEditavel" id="cadastro-form-nome-dica" class="mt-1 text-[10.5px] text-ink-soft">
               O nome não pode ser alterado. Para corrigir, crie um novo e desative este.
               <span v-if="editando && !editando.ativo">{{ ROTULO_INATIVO_CADASTRO }}</span>
             </p>
-            <p v-if="isEdit && nomeEditavel" id="cadastro-form-nome-dica" class="mt-1 text-[10.5px] text-ink-soft">
+            <p v-if="isEdit && nomeEditavel && ehMedicamento" id="cadastro-form-nome-dica" class="mt-1 text-[10.5px] text-ink-soft">
+              O nome é gravado em MAIÚSCULAS. Renomear muda só este cadastro: compras já registradas guardam uma cópia do nome e não mudam.
+              <span v-if="editando && !editando.ativo">{{ ROTULO_INATIVO_CADASTRO }}</span>
+            </p>
+            <p v-else-if="isEdit && nomeEditavel" id="cadastro-form-nome-dica" class="mt-1 text-[10.5px] text-ink-soft">
               Renomear atualiza o consultor em todo o sistema (Follow-Up, Prestação, DIR e contas de login). Você confirma antes de salvar.
               <span v-if="editando && !editando.ativo">{{ ROTULO_INATIVO_CADASTRO }}</span>
+            </p>
+            <p v-else-if="!isEdit && nomeEmMaiusculo" id="cadastro-form-nome-dica-maiusculo" class="mt-1 text-[10.5px] text-ink-soft">
+              O nome é gravado em MAIÚSCULAS.
             </p>
             <!-- Avisos de nome (reservado / repetido): cadeia própria, para valer também ao RENOMEAR um consultor. -->
             <p v-if="nomeReservado" id="cadastro-form-aviso-reservado" class="mt-1 text-[11.5px] font-medium text-danger">
@@ -260,6 +292,15 @@ const CLASSE_BOTAO_PIX =
                 </button>
               </template>
             </div>
+          </div>
+
+          <!-- Medicamento: temperatura obrigatória, só entre as temperaturas ATIVAS do Cadastro de Temperaturas -->
+          <div v-if="lista === 'medicamentos'" id="cadastro-form-temperatura-bloco" :class="SELECT_CAMPO_CLASS">
+            <label for="cadastro-form-temperatura" :class="CLASSE_ROTULO">Temperatura</label>
+            <AppSelect id="cadastro-form-temperatura" v-model="form.temperatura" :options="temperaturaOptions" />
+            <p id="cadastro-form-temperatura-dica" class="mt-1 text-[10.5px] text-ink-soft">
+              Só as temperaturas ativas do Cadastro de Temperaturas. O medicamento guarda uma cópia do nome da temperatura.
+            </p>
           </div>
 
           <!-- Fornecedor: país (opcional) e alerta de prazo (decidido de propósito) -->
@@ -395,6 +436,9 @@ const CLASSE_BOTAO_PIX =
           </p>
           <p v-else-if="lista === 'temperaturas' && isEdit" id="cadastro-form-so-nome" class="text-[12.5px] text-ink-soft">
             Temperatura só tem o nome, e ele não muda (os medicamentos guardam uma cópia). Para desativar ou reativar, use a chave Ativo na lista.
+          </p>
+          <p v-else-if="lista === 'medicamentos' && isEdit" id="cadastro-form-so-nome" class="text-[12.5px] text-ink-soft">
+            Medicamento só tem o nome (que pode ser renomeado) e a temperatura. Para desativar ou reativar, use a chave Ativo na lista.
           </p>
           <p v-else-if="lista === 'consultores' && isEdit" id="cadastro-form-so-nome" class="text-[12.5px] text-ink-soft">
             Consultor só tem o nome (que pode ser renomeado). Para desativar ou reativar, use a chave Ativo na lista.
