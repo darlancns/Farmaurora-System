@@ -1,4 +1,4 @@
--- A APLICAR: a Cris/Claude aplica pelo protocolo; NÃO aplicar sozinho.
+-- JÁ APLICADA EM PRODUÇÃO EM 18/11/2026; NÃO REAPLICAR.
 --
 -- Renomear consultor (Configurações → Cadastros → Consultores): função que muda o NOME do consultor e propaga o texto, tudo NUMA
 -- transação do banco. O consultor é gravado como TEXTO no Cadastro e em três tabelas, e tudo precisa mudar junto:

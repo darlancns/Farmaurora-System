@@ -21,10 +21,10 @@ const sql = bruto
   .replace(/\s+/g, " ");
 
 describe("migration renomear_consultor", () => {
-  it("o arquivo existe, depois da migration da tabela, e o cabeçalho diz que NÃO se aplica sozinho", () => {
+  it("o arquivo existe, depois da migration da tabela, e o cabeçalho diz que JÁ FOI APLICADA em produção e que NÃO se reaplica", () => {
     expect(arquivo).toMatch(/^20261118\d{6}_renomear_consultor\.sql$/);
     expect(arquivo! > "20261118210000_cadastro_consultores.sql").toBe(true);
-    expect(bruto.split(/\r?\n/)[0]).toBe("-- A APLICAR: a Cris/Claude aplica pelo protocolo; NÃO aplicar sozinho.");
+    expect(bruto.split(/\r?\n/)[0]).toBe("-- JÁ APLICADA EM PRODUÇÃO EM 18/11/2026; NÃO REAPLICAR.");
   });
 
   it("define public.renomear_consultor(p_id, p_nome_novo, p_nome_chave, p_por) e devolve jsonb com as contagens", () => {
