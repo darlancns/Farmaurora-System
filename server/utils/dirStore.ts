@@ -4,6 +4,8 @@ import { erro, randomId } from "./storeKit";
 import { colunasDeDir, montarDir, type DirRow, type MarcaFechamentoRestante } from "./dirMappers";
 import { DirRegraError, erroContratoCambio, erroMarcacaoFechamentoRestante } from "./dirValidation";
 import { erroEnvioDir } from "../../shared/utils/dirEnvio";
+import { erroVendedorDir } from "../../shared/utils/dirVendedor";
+import { listarConsultoresAtivos } from "./consultoresAtivos";
 
 /**
  * Persistência da DIR no Supabase — tabela `dir` (1 linha por PO; `po` NÃO é único).
@@ -52,6 +54,9 @@ export async function createDir(input: NewDirDTO, por: string): Promise<Dir> {
   // Envio: só as opções do Follow-Up (ou vazio). Na criação não há valor antigo a tolerar.
   const erroEnvio = erroEnvioDir(input);
   if (erroEnvio) throw new DirRegraError(erroEnvio);
+  // Consultor: só os ATIVOS do Cadastro (lista "consultores"). Na criação não há valor antigo a tolerar.
+  const erroVendedor = erroVendedorDir(input, await listarConsultoresAtivos());
+  if (erroVendedor) throw new DirRegraError(erroVendedor);
 
   const db = createSupabaseAdminClient();
   const now = new Date().toISOString();
@@ -95,6 +100,23 @@ export async function patchDir(id: string, patch: DirPatchDTO, por: string): Pro
 
     const erroEnvio = erroEnvioDir(patch, { envio: atual.envio });
     if (erroEnvio) throw new DirRegraError(erroEnvio);
+  }
+
+  // Consultor (vendedor): só os ATIVOS do Cadastro. Um valor IGUAL ao gravado (consultor desativado, "A ser definido",
+  // "Braulio (3RB)"…) não impede salvar os outros campos; qualquer outro valor fora da lista ativa é 400. Só se lê o
+  // cadastro quando o corpo traz `vendedor`, e só se lê o registro quando o enviado NÃO é um consultor ativo.
+  if (typeof patch.vendedor === "string") {
+    const ativos = await listarConsultoresAtivos();
+    if (erroVendedorDir(patch, ativos)) {
+      const { data, error } = await db.from(TABELA).select("id, vendedor").eq("id", id);
+      if (error) throw erro("buscar registro da DIR", error);
+
+      const atual = (data ?? [])[0] as Pick<DirRow, "id" | "vendedor"> | undefined;
+      if (!atual) return null;
+
+      const erroVendedor = erroVendedorDir(patch, ativos, { vendedor: atual.vendedor });
+      if (erroVendedor) throw new DirRegraError(erroVendedor);
+    }
   }
 
   // Só mexer em fechamentoRestante exige conhecer o estado atual: a regra do PO encerrado vale sobre o

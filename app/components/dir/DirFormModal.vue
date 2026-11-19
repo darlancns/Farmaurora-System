@@ -14,8 +14,8 @@ import {
   RESPONSAVEL_DIR_OPTIONS,
   STATUS_DIR_OPTIONS,
   TEMPERATURA_DIR_OPTIONS,
-  VENDEDOR_DIR_OPTIONS,
   montarCiaAereaDirOptions,
+  montarVendedorDirOptions,
 } from "../../utils/dirOptions";
 import {
   INPUT_CLASS,
@@ -42,8 +42,10 @@ const props = withDefaults(
     contagemPorPo: ReadonlyMap<string, number>;
     // Somente consulta (permissão "ver" na DIR): todos os campos e toggles desabilitados, sem salvar nem excluir.
     readonly?: boolean;
+    // Consultores ATIVOS do Cadastro (lista "consultores"), em ordem alfabética: as opções do select Consultor.
+    consultoresAtivos?: readonly string[];
   }>(),
-  { readonly: false },
+  { readonly: false, consultoresAtivos: () => [] },
 );
 
 const emit = defineEmits<{
@@ -58,6 +60,12 @@ const emit = defineEmits<{
 
 const { form, outros, onPoInput, onMedicamentoInput, onContratoCambioInput, validar, valorToggle } = useDirForm(
   () => props.editingDir,
+  () => props.consultoresAtivos,
+);
+
+// Consultor: os ativos do Cadastro, sem "Outro" (+ valor antigo fora da lista como "(inativo)", nunca vazio).
+const vendedorOptions = computed<AppSelectOption<string>[]>(() =>
+  montarVendedorDirOptions(form.vendedor, props.consultoresAtivos),
 );
 
 // Cia aérea: a lista do Follow-Up (+ o valor antigo fora da lista como "(inativo)", nunca vazio).
@@ -75,7 +83,6 @@ interface CampoLista {
 }
 
 const CAMPOS_IDENTIFICACAO: CampoLista[] = [
-  { campo: "vendedor", rotulo: "Consultor", opcoes: VENDEDOR_DIR_OPTIONS },
   { campo: "responsavel", rotulo: "Responsável", opcoes: RESPONSAVEL_DIR_OPTIONS },
   { campo: "receita", rotulo: "Receita", opcoes: RECEITA_DIR_OPTIONS },
   { campo: "temperatura", rotulo: "Temperatura", opcoes: TEMPERATURA_DIR_OPTIONS },
@@ -262,6 +269,11 @@ function confirmarExclusao(): void {
                   :class="INPUT_CLASS"
                   @input="onMedicamentoInput"
                 />
+              </div>
+              <!-- Consultor: select simples, só os consultores ativos do Cadastro (sem "Outro"). -->
+              <div class="col-span-2 sm:col-span-1" :class="SELECT_CAMPO_CLASS">
+                <label for="df-vendedor" :class="LABEL_CLASS">Consultor</label>
+                <AppSelect id="df-vendedor" v-model="form.vendedor" :options="vendedorOptions" :disabled="readonly" />
               </div>
               <template v-for="c in CAMPOS_IDENTIFICACAO" :key="c.campo">
                 <div class="col-span-2 sm:col-span-1" :class="SELECT_CAMPO_CLASS">

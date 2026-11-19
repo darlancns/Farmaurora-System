@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { CONSULTOR_E2E, garantirConsultorAtivo } from "./_helpers/consultoresDir";
 
 // Página DIR (/dir): acesso por cargo e fluxo completo (criar, editar, toggles que gravam na hora,
 // filtros, abas pela operação, PO repetido, excluir).
@@ -128,6 +129,8 @@ test.describe("DIR — fluxo (cria, edita, grava na hora, filtra, exclui)", () =
     test.skip(!tem(escritor), "defina E2E_ADMIN_* ou E2E_OPERACIONAL_*");
     await page.setViewportSize({ width: 1280, height: 800 });
     await login(page, escritor.email, escritor.password);
+    // O Consultor do formulário lê os consultores ATIVOS do Cadastro: garante o de teste antes de abrir a página.
+    await garantirConsultorAtivo(page.request);
     await page.goto("/dir", { waitUntil: "networkidle" });
   });
 
@@ -172,7 +175,7 @@ test.describe("DIR — fluxo (cria, edita, grava na hora, filtra, exclui)", () =
     await page.locator("#btn-save-dir").click();
     await expect(page.locator("#toast-notice")).toContainText("consultor");
 
-    await escolher(page, "df-vendedor", "Mateus Morais");
+    await escolher(page, "df-vendedor", CONSULTOR_E2E);
     // "Outro" digitável no fornecedor
     await escolher(page, "df-fornecedor", "Outro");
     await page.locator("#df-fornecedor-outro").fill("Fornecedor E2E");
@@ -294,7 +297,7 @@ function dtoFech(po: string, paciente: string, extra: Record<string, unknown> = 
     po,
     paciente,
     conferido: false,
-    vendedor: "ASD",
+    vendedor: CONSULTOR_E2E, // consultor ativo do Cadastro (garantirConsultorAtivo, em criarFech)
     responsavel: "Bruno",
     exigencia: false,
     dataEmissao: "2026-12-01",
@@ -335,6 +338,7 @@ async function limparFech(page: Page): Promise<void> {
 
 async function criarFech(page: Page): Promise<Record<string, string>> {
   await limparFech(page);
+  await garantirConsultorAtivo(page.request);
   const ids: Record<string, string> = {};
   const dados: Array<[string, string, Record<string, unknown>]> = [
     [FECH.PO1, "E2E FECH TESTE (1)", { banco: "Sicoob" }],

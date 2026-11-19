@@ -44,9 +44,9 @@ afterEach(() => {
   }
 });
 
-// Valores fora das listas: o formulário mostra "Outro" + o texto digitável em cada campo de lista.
+// Valores fora das listas: o formulário mostra "Outro" + o texto digitável em cada campo de lista. O Consultor (vendedor)
+// não está aqui: é um select só dos consultores ativos do Cadastro, sem "Outro" (ver dirVendedor.spec.ts).
 const CAMPOS_LISTA_COM_OUTRO = [
-  "vendedor",
   "responsavel",
   "receita",
   "temperatura",

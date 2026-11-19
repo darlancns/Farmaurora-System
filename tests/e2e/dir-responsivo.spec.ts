@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { CONSULTOR_E2E, garantirConsultorAtivo } from "./_helpers/consultoresDir";
 
 // Responsividade de /dir. Abaixo de lg: cartões, filtros no painel aberto pelo ícone da busca e
 // criação pelo "+" flutuante (id fab-novo-dir). Em lg+: tabela, filtros inline e o botão com texto.
@@ -23,7 +24,7 @@ const DTO = {
   po: PO,
   paciente: "E2E DIR RESPONSIVO",
   conferido: false,
-  vendedor: "ASD",
+  vendedor: CONSULTOR_E2E, // consultor ativo do Cadastro (garantirConsultorAtivo, em abrirDir)
   responsavel: "Bruno",
   exigencia: true,
   dataEmissao: "2026-12-01",
@@ -77,6 +78,7 @@ async function abrirDir(page: Page, viewport: { width: number; height: number },
   await page.setViewportSize(viewport);
   await login(page, c);
   await limpar(page);
+  await garantirConsultorAtivo(page.request);
   const criado = await page.request.post("/api/dir", { data: DTO });
   expect(criado.status()).toBe(200);
   await page.goto("/dir", { waitUntil: "networkidle" });

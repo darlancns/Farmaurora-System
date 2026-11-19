@@ -1,6 +1,7 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { FECHAMENTO_RESTANTE_ENCERRADA_ERRO } from "../../shared/constants/dir";
 import { FakeSupabase } from "./helpers/fakeSupabase";
+import { semearConsultores } from "./helpers/consultoresFixtures";
 import { novoDirDTO } from "./helpers/dirFixtures";
 
 // dirStore com o cliente Supabase em memória (tests/unit/helpers/fakeSupabase.ts); nada de rede.
@@ -8,6 +9,8 @@ import { novoDirDTO } from "./helpers/dirFixtures";
 // _por (usuário logado); false zera os dois; PO com operação encerrada não se marca (400).
 
 const fake = new FakeSupabase();
+// O dirStore confere o consultor contra os ativos do Cadastro (cadastro_consultores).
+semearConsultores(fake);
 vi.mock("../../server/utils/supabaseServerClient", () => ({
   createSupabaseAdminClient: () => fake.asClient(),
 }));

@@ -14,6 +14,7 @@ import { parseDirCsv } from "../../shared/utils/dirParser";
 import { CASCA, EM_ABERTO, csv, linhaCsv } from "./helpers/dirCsv";
 import { novoDir, novoDirDTO } from "./helpers/dirFixtures";
 import { FakeSupabase } from "./helpers/fakeSupabase";
+import { semearConsultores } from "./helpers/consultoresFixtures";
 
 // Cia aérea na DIR: coluna companhia_aerea (migration nova, NÃO aplicada), campo opcional no tipo, mapper, validação,
 // formulário (select com a lista do Follow-Up + "(inativo)"), busca e o AWB intacto (conteúdo não validado).
@@ -23,6 +24,8 @@ vi.mock("#shared/utils/dataBrasilia", async (importOriginal) => ({
 }));
 
 const fake = new FakeSupabase();
+// O dirStore confere o consultor contra os ativos do Cadastro (cadastro_consultores).
+semearConsultores(fake);
 vi.mock("../../server/utils/supabaseServerClient", () => ({
   createSupabaseAdminClient: () => fake.asClient(),
 }));
@@ -215,7 +218,7 @@ describe("formulário (useDirForm)", () => {
     const f = useDirForm(() => dir);
     f.form.po = "PO26-10-0471";
     f.form.paciente = "Fulano";
-    f.outros.vendedor.state.select = "Mateus Morais";
+    f.form.vendedor = "Mateus Morais";
     return f;
   }
 

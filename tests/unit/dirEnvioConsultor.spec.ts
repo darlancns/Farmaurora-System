@@ -12,6 +12,7 @@ import { parseDirCsv } from "../../shared/utils/dirParser";
 import { CASCA, EM_ABERTO, csv, linhaCsv } from "./helpers/dirCsv";
 import { novoDir, novoDirDTO } from "./helpers/dirFixtures";
 import { FakeSupabase } from "./helpers/fakeSupabase";
+import { semearConsultores } from "./helpers/consultoresFixtures";
 
 // DIR: (1) o rótulo "Vendedor" virou "Consultor" na interface (a coluna e os nomes internos continuam `vendedor`) e (2) o Envio
 // usa as opções do Follow-Up (MODAIS_ENVIO, fonte única): validação no cliente e no servidor, tolerância a valor antigo
@@ -22,6 +23,8 @@ vi.mock("#shared/utils/dataBrasilia", async (importOriginal) => ({
 }));
 
 const fake = new FakeSupabase();
+// O dirStore confere o consultor contra os ativos do Cadastro (cadastro_consultores).
+semearConsultores(fake);
 vi.mock("../../server/utils/supabaseServerClient", () => ({
   createSupabaseAdminClient: () => fake.asClient(),
 }));
@@ -85,7 +88,7 @@ describe("Consultor no lugar de Vendedor", () => {
     const f = useDirForm(() => null);
     f.form.po = "PO26-10-0471";
     f.form.paciente = "Fulano";
-    f.outros.vendedor.state.select = "Mateus Morais";
+    f.form.vendedor = "Mateus Morais";
     const r = f.validar();
     expect(r.valido && r.payload.vendedor).toBe("Mateus Morais");
   });
@@ -296,7 +299,7 @@ describe("formulário: Envio", () => {
     const f = useDirForm(() => dir);
     f.form.po = "PO26-10-0471";
     f.form.paciente = "Fulano";
-    f.outros.vendedor.state.select = "Mateus Morais";
+    f.form.vendedor = "Mateus Morais";
     return f;
   }
 

@@ -104,7 +104,7 @@ describe("useDirForm: onMedicamentoInput", () => {
     const f = useDirForm(() => null);
     f.form.po = "PO26-10-0471";
     f.form.paciente = "Fulano";
-    f.outros.vendedor.state.select = "Mateus Morais";
+    f.form.vendedor = "Mateus Morais";
     f.onMedicamentoInput(evento(campo("  opdivo 100mg  ")));
     const r = f.validar();
     expect(r.valido && r.payload.medicamento).toBe("OPDIVO 100MG");

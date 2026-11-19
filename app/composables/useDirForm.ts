@@ -7,7 +7,6 @@ import {
   RECEITAS_DIR,
   RESPONSAVEIS_DIR,
   TEMPERATURAS_DIR,
-  VENDEDORES_DIR,
 } from "#shared/constants/dir";
 import type { ChecklistChaveDir, Dir, DirPatchDTO, NewDirDTO, StatusDir } from "#shared/types/dir";
 import { hojeBrasilia } from "#shared/utils/dataBrasilia";
@@ -19,6 +18,7 @@ import {
 } from "#shared/utils/contratoCambio";
 import { NUMERO_PO_REGEX as PO_RE } from "#shared/utils/numeroPo";
 import { ENVIO_DIR_ERRO, envioDirValido } from "#shared/utils/dirEnvio";
+import { VENDEDOR_DIR_ERRO, vendedorDirValido } from "#shared/utils/dirVendedor";
 import { aplicarMascaraNumeroPo } from "../utils/aplicarMascaraNumeroPo";
 import { aplicarMaiusculasNoCampo } from "../utils/aplicarMaiusculasNoCampo";
 import { aplicarTransformacaoNoCampo } from "../utils/aplicarTransformacaoNoCampo";
@@ -26,9 +26,9 @@ import { useOutroSentinel } from "./useOutroSentinel";
 
 // Estado e regras do formulário da DIR (DirFormModal.vue). O componente só liga os campos.
 
-// Campos de lista com opção "Outro" digitável (o que se grava é o texto digitado).
+// Campos de lista com opção "Outro" digitável (o que se grava é o texto digitado). O Consultor (vendedor) NÃO está aqui:
+// é um select simples, só com os consultores ativos do Cadastro (ver `form.vendedor` e montarVendedorDirOptions).
 export type CampoComOutro =
-  | "vendedor"
   | "responsavel"
   | "fornecedor"
   | "despachante"
@@ -38,7 +38,6 @@ export type CampoComOutro =
   | "observacao";
 
 const LISTAS: Record<CampoComOutro, readonly string[]> = {
-  vendedor: VENDEDORES_DIR,
   responsavel: RESPONSAVEIS_DIR,
   fornecedor: FORNECEDORES_DIR,
   despachante: DESPACHANTES_DIR,
@@ -71,6 +70,8 @@ export type ChaveInstantanea = (typeof CHAVES_INSTANTANEAS)[number];
 interface FormDir {
   po: string;
   paciente: string;
+  /** Consultor: texto; só o valor já gravado ou um consultor ativo do Cadastro (ver validar). */
+  vendedor: string;
   medicamento: string;
   envio: string;
   companhiaAerea: string;
@@ -103,6 +104,7 @@ function formVazio(): FormDir {
   return {
     po: "",
     paciente: "",
+    vendedor: "",
     medicamento: "",
     envio: "",
     companhiaAerea: "",
@@ -128,7 +130,11 @@ function formVazio(): FormDir {
   };
 }
 
-export function useDirForm(editando: () => Dir | null | undefined) {
+/**
+ * `consultoresAtivos`: os consultores ativos do Cadastro (o servidor confere de novo). Sem ele, só se exige que o campo
+ * esteja preenchido (o select já só oferece os ativos e o valor atual).
+ */
+export function useDirForm(editando: () => Dir | null | undefined, consultoresAtivos?: () => readonly string[]) {
   const form = reactive<FormDir>(formVazio());
   const outros = Object.fromEntries(CAMPOS_COM_OUTRO.map((campo) => [campo, useOutroSentinel(LISTAS[campo])])) as Record<
     CampoComOutro,
@@ -139,6 +145,7 @@ export function useDirForm(editando: () => Dir | null | undefined) {
   if (dir) {
     form.po = dir.po;
     form.paciente = dir.paciente;
+    form.vendedor = dir.vendedor;
     form.medicamento = dir.medicamento;
     form.envio = dir.envio;
     form.companhiaAerea = dir.companhiaAerea;
@@ -179,8 +186,13 @@ export function useDirForm(editando: () => Dir | null | undefined) {
     if (!PO_RE.test(po)) return { valido: false, erro: "Informe o PO no padrão PO26-MM-NNNN." };
     const paciente = form.paciente.trim();
     if (!paciente) return { valido: false, erro: "Informe o nome do paciente." };
-    const vendedor = outros.vendedor.build();
+    const vendedor = form.vendedor.trim();
     if (!vendedor) return { valido: false, erro: "Informe o consultor." };
+    // Consultor: só um ativo do Cadastro. O valor que o registro JÁ tem (inativo, "A ser definido", "Braulio (3RB)"…) não
+    // impede salvar os outros campos (o select o mostra como "(inativo)"); qualquer outro valor fora da lista é recusado.
+    if (consultoresAtivos && !vendedorDirValido(vendedor, consultoresAtivos()) && vendedor !== (editando()?.vendedor ?? "").trim()) {
+      return { valido: false, erro: VENDEDOR_DIR_ERRO };
+    }
     // Valor antigo (anotação em texto de antes da regra) igual ao já gravado não impede salvar os outros campos.
     const contratoCambio = normalizarContratoCambio(form.contratoCambio);
     const gravado = normalizarContratoCambio(editando()?.contratoCambio ?? "");

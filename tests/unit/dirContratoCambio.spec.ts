@@ -12,12 +12,15 @@ import { useDirForm } from "../../app/composables/useDirForm";
 import { aplicarTransformacaoNoCampo } from "../../app/utils/aplicarTransformacaoNoCampo";
 import { erroContratoCambio, isValidDirPatch, isValidDirPayload } from "../../server/utils/dirValidation";
 import { FakeSupabase } from "./helpers/fakeSupabase";
+import { semearConsultores } from "./helpers/consultoresFixtures";
 import { novoDir, novoDirDTO } from "./helpers/dirFixtures";
 
 // Contrato de câmbio da DIR: só números separados por espaço, vírgula ou barra (ou vazio). UMA regra
 // (shared/utils/contratoCambio.ts) para o formulário (digitação, colagem, validação) e o servidor (POST e PATCH).
 
 const fake = new FakeSupabase();
+// O dirStore confere o consultor contra os ativos do Cadastro (cadastro_consultores).
+semearConsultores(fake);
 vi.mock("../../server/utils/supabaseServerClient", () => ({
   createSupabaseAdminClient: () => fake.asClient(),
 }));
@@ -208,7 +211,7 @@ describe("formulário: validar()", () => {
     const f = useDirForm(() => dir);
     f.form.po = "PO26-10-0471";
     f.form.paciente = "Fulano";
-    f.outros.vendedor.state.select = "Mateus Morais";
+    f.form.vendedor = "Mateus Morais";
     f.form.contratoCambio = contratoCambio;
     return f;
   }
@@ -254,7 +257,7 @@ describe("formulário: validar()", () => {
     expect(f.validar()).toEqual({ valido: false, erro: "Informe o nome do paciente." });
     f.form.paciente = "Fulano";
     expect(f.validar()).toEqual({ valido: false, erro: "Informe o consultor." });
-    f.outros.vendedor.state.select = "Mateus Morais";
+    f.form.vendedor = "Mateus Morais";
     expect(f.validar()).toEqual({ valido: false, erro: CONTRATO_CAMBIO_ERRO });
   });
 });
@@ -293,7 +296,7 @@ describe("EQUIVALÊNCIA cliente x servidor: a mesma resposta para cada valor", (
       const f = useDirForm(() => null);
       f.form.po = "PO26-10-0471";
       f.form.paciente = "Fulano";
-      f.outros.vendedor.state.select = "Mateus Morais";
+      f.form.vendedor = "Mateus Morais";
       f.form.contratoCambio = v;
       const cliente = f.validar().valido;
       const servidor = erroContratoCambio({ contratoCambio: v.trim() }) === null;

@@ -5,6 +5,7 @@ import { useDirForm } from "../../app/composables/useDirForm";
 import { colunasDeDir, montarDir, type DirRow } from "../../server/utils/dirMappers";
 import { isValidDirPatch, isValidDirPayload } from "../../server/utils/dirValidation";
 import { FakeSupabase } from "./helpers/fakeSupabase";
+import { semearConsultores } from "./helpers/consultoresFixtures";
 import { novoDir, novoDirDTO } from "./helpers/dirFixtures";
 
 // A Origem saiu da DIR (formulário e código). A COLUNA origem do banco continua (nullable, só será apagada depois de a
@@ -12,6 +13,8 @@ import { novoDir, novoDirDTO } from "./helpers/dirFixtures";
 // salvam normalmente.
 
 const fake = new FakeSupabase();
+// O dirStore confere o consultor contra os ativos do Cadastro (cadastro_consultores).
+semearConsultores(fake);
 vi.mock("../../server/utils/supabaseServerClient", () => ({
   createSupabaseAdminClient: () => fake.asClient(),
 }));
@@ -119,7 +122,7 @@ describe("tipos, mapper e formulário sem origem", () => {
     expect("origem" in f.outros).toBe(false);
     f.form.po = "PO26-10-0471";
     f.form.paciente = "Fulano";
-    f.outros.vendedor.state.select = "Mateus Morais";
+    f.form.vendedor = "Mateus Morais";
     const r = f.validar();
     expect(r.valido).toBe(true);
     expect(r.valido && "origem" in r.payload).toBe(false);
@@ -152,7 +155,7 @@ describe("servidor: linhas com origem gravada e abas antigas", () => {
     const f = useDirForm(() => novoDir({ id: "a", fornecedor: "Care Pharma" }));
     f.form.po = "PO26-10-0001";
     f.form.paciente = "P";
-    f.outros.vendedor.state.select = "Mateus Morais";
+    f.form.vendedor = "Mateus Morais";
     f.form.paciente = "Paciente novo";
     const r = f.validar();
     expect(r.valido).toBe(true);

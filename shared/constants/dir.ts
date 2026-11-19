@@ -56,26 +56,6 @@ export const VENDEDOR_CANONICO: Readonly<Record<string, string>> = {
   Vinicius: "Vinícius Alves",
 };
 
-// Ordem alfabética (pt-BR).
-export const VENDEDORES_DIR: string[] = [
-  "Alessandra",
-  "André Vitório",
-  "ASD",
-  "Bolívar",
-  "Braulio (3RB)",
-  "Dani",
-  "Daniel Donato",
-  "Flávia",
-  "Gabriela Megda",
-  "Gabriela Santana",
-  "Junior",
-  "Mateus Morais",
-  "Paulinho",
-  "Paulo Braga",
-  "Rodrigo",
-  "Vinícius Alves",
-];
-
 export const FORNECEDORES_DIR: string[] = [
   "Bayiue (China)",
   "Beldimed",
