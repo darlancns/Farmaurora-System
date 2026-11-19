@@ -1,9 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Cliente Supabase falso, em memória, só com o que bancoStore usa: select / insert /
-// update / upsert / delete encadeados com eq, is, order, limit e maybeSingle. Cada tabela é
+// update / upsert / delete encadeados com eq, is, order, limit, range e maybeSingle. Cada tabela é
 // um array de linhas; `falhar` injeta um erro numa operação (tabela + op) para
 // simular falha no meio de uma gravação.
+//
+// Como o PostgREST do Supabase, um select devolve NO MÁXIMO `TETO_LINHAS_POR_CONSULTA` (1000) linhas, com ou sem
+// `.limit()`/`.range()`, e sem erro nem aviso: quem não pagina perde o resto em silêncio.
+
+/** Teto de linhas por consulta (o `max-rows` padrão do Supabase). */
+export const TETO_LINHAS_POR_CONSULTA = 1000;
 
 type Row = Record<string, unknown>;
 type Op = "select" | "insert" | "update" | "upsert" | "delete";
@@ -70,6 +76,7 @@ class Consulta implements PromiseLike<Resultado> {
   private filtros: Array<(r: Row) => boolean> = [];
   private ordens: Array<{ col: string; asc: boolean }> = [];
   private max: number | null = null;
+  private faixa: { de: number; ate: number } | null = null;
   private unica = false;
   private retorna = false;
   private opcoesUpsert: { onConflict?: string; ignoreDuplicates?: boolean } = {};
@@ -127,6 +134,11 @@ class Consulta implements PromiseLike<Resultado> {
     this.max = n;
     return this;
   }
+  // range(de, ate): linhas de `de` a `ate`, INCLUSIVE nas duas pontas (como o PostgREST), sobre a lista já ordenada.
+  range(de: number, ate: number): this {
+    this.faixa = { de, ate };
+    return this;
+  }
   maybeSingle(): this {
     this.unica = true;
     return this;
@@ -181,8 +193,12 @@ class Consulta implements PromiseLike<Resultado> {
       }
       return 0;
     });
+    if (this.faixa !== null) achadas = achadas.slice(this.faixa.de, this.faixa.ate + 1);
     if (this.max !== null) achadas = achadas.slice(0, this.max);
-    if (this.contagem) return { data: this.contagem.head ? null : achadas, error: null, count: achadas.length };
+    // Teto do servidor (não vale para a contagem exata, que o PostgREST calcula à parte).
+    const total = achadas.length;
+    achadas = achadas.slice(0, TETO_LINHAS_POR_CONSULTA);
+    if (this.contagem) return { data: this.contagem.head ? null : achadas, error: null, count: total };
     return { data: this.unica ? (achadas[0] ?? null) : achadas, error: null };
   }
 }
