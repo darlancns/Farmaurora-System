@@ -94,6 +94,10 @@ test.describe("RBAC", () => {
     // API: leitura ok em Pagamentos; escrita ok em patients/processos/pagamentos; /api/admin/** bloqueada, até a leitura.
     const getPag = await page.request.get("/api/pagamentos/banco");
     expect(getPag.ok()).toBeTruthy();
+    // Pagamentos lê os Cadastros: listas e chave PIX (só leitura) abertas a quem lê Pagamentos.
+    for (const path of ["/api/pagamentos/cadastros", "/api/pagamentos/despachante-pix", "/api/pagamentos/transportadora-pix"]) {
+      expect((await page.request.get(path)).ok(), path).toBeTruthy();
+    }
     const getAdmin = await page.request.get("/api/admin/users");
     expect(getAdmin.status()).toBe(403);
 
@@ -127,6 +131,11 @@ test.describe("RBAC", () => {
     await expect(page).toHaveURL(/\/processos$/);
     await page.goto("/pagamentos");
     await expect(page).toHaveURL(/\/processos$/);
+
+    // API: as listas e a chave PIX de Pagamentos (vindas dos Cadastros) são 403 para o consultor.
+    for (const path of ["/api/pagamentos/cadastros", "/api/pagamentos/despachante-pix", "/api/pagamentos/transportadora-pix"]) {
+      expect((await page.request.get(path)).status(), path).toBe(403);
+    }
 
     // Lista achatada, sem criar/editar.
     await page.goto("/processos", { waitUntil: "networkidle" });
@@ -174,6 +183,16 @@ test.describe("RBAC", () => {
     expect(writePag.status()).not.toBe(403);
     expect(writePag.status()).not.toBe(401);
 
+    // Cadastros de Pagamentos e chave PIX: leitura aberta; a chave é SÓ LEITURA (a rota PATCH foi removida: 404/405,
+    // nunca 200 — quem altera a chave é o administrador, em Cadastros).
+    for (const path of ["/api/pagamentos/cadastros", "/api/pagamentos/despachante-pix", "/api/pagamentos/transportadora-pix"]) {
+      expect((await page.request.get(path)).ok(), path).toBeTruthy();
+    }
+    for (const path of ["/api/pagamentos/despachante-pix", "/api/pagamentos/transportadora-pix"]) {
+      const res = await page.request.patch(path, { data: { nome: "TESTE", chavePix: "e2e-tentativa" } });
+      expect([404, 405], path).toContain(res.status());
+    }
+
     const patients = await page.request.get("/api/patients");
     expect(patients.status()).toBe(403);
   });
@@ -192,7 +211,14 @@ test.describe("RBAC", () => {
     await page.goto("/pagamentos", { waitUntil: "networkidle" });
     await expect(page.locator("#btn-novo-pagamento-banco")).toBeVisible();
 
-    for (const path of ["/api/patients", "/api/processos", "/api/pagamentos/banco"]) {
+    for (const path of [
+      "/api/patients",
+      "/api/processos",
+      "/api/pagamentos/banco",
+      "/api/pagamentos/cadastros",
+      "/api/pagamentos/despachante-pix",
+      "/api/pagamentos/transportadora-pix",
+    ]) {
       const res = await page.request.get(path);
       expect(res.ok(), path).toBeTruthy();
     }

@@ -8,46 +8,36 @@ import {
   pagarGrupoPagamento,
   atualizarGrupoRealizado,
 } from "./pagamentosStore";
-import {
-  getDespachantePix,
-  getTransportadoraPix,
-  salvarDespachantePix,
-  salvarTransportadoraPix,
-} from "./pagamentosPixStore";
+import { pixDoCadastro, resolverDestinoGrupo } from "./cadastroPagamentos";
 import {
   isValidNovoGrupoPagamento,
   isValidAtualizarItemGrupo,
   isValidEditarItemGrupo,
-  isValidSalvarGrupoPix,
   isValidAtualizarGrupoRealizado,
 } from "./pagamentoValidation";
-import type { GrupoPagamento, TipoGrupoPagamento } from "../../shared/types/Pagamento";
+import { podeVerPixCadastro } from "../../shared/utils/cadastroPix";
+import type { AuthUser } from "../../shared/types/auth";
+import type { GrupoPagamento, NovoGrupoPagamentoDTO, TipoGrupoPagamento } from "../../shared/types/Pagamento";
 
 /**
- * As rotas de Despachante e Transportadora são idênticas exceto por `tipo` (e,
- * na de PIX, qual store chamar) — ver auditoria da Round 7. `[id].patch`,
+ * As rotas de Despachante e Transportadora são idênticas exceto por `tipo` — ver auditoria da Round 7. A chave PIX é SÓ
+ * LEITURA aqui (GET, vinda do Cadastro): quem a altera é o administrador, em Configurações → Cadastros. `[id].patch`,
  * `item.patch`, `item.delete` e `pagar.patch` nem recebem `tipo`: operam só
  * por `grupoId`, então usam o MESMO handler (não uma factory) nos dois lados.
  */
 interface GrupoPagamentoRouteConfig {
   tipo: TipoGrupoPagamento;
   labelErro: string;
-  getPix: () => Promise<Record<string, string>>;
-  salvarPix: (nome: string, chave: string) => Promise<Record<string, string>>;
 }
 
 export const DESPACHANTE: GrupoPagamentoRouteConfig = {
   tipo: "DESPACHANTE",
   labelErro: "despachante",
-  getPix: getDespachantePix,
-  salvarPix: salvarDespachantePix,
 };
 
 export const TRANSPORTADORA: GrupoPagamentoRouteConfig = {
   tipo: "TRANSPORTADORA",
   labelErro: "transportadora",
-  getPix: getTransportadoraPix,
-  salvarPix: salvarTransportadoraPix,
 };
 
 export function createListGruposHandler(cfg: GrupoPagamentoRouteConfig) {
@@ -69,23 +59,26 @@ export function createCriarGrupoHandler(cfg: GrupoPagamentoRouteConfig) {
       });
     }
 
-    return await criarGrupoPagamento(body);
+    // O nome tem de existir e estar ATIVO no Cadastro do tipo (casado por chaveCadastro); grava-se o nome como está no
+    // Cadastro e a CÓPIA da chave PIX do Cadastro (instantâneo histórico). A chave que a tela mandar é ignorada.
+    const destino = await resolverDestinoGrupo(cfg.tipo, body.nomeGrupo);
+    const dto: NovoGrupoPagamentoDTO = { ...body, nomeGrupo: destino.nomeGrupo };
+    if (destino.chavePix) dto.chavePix = destino.chavePix;
+    else delete dto.chavePix;
+
+    return await criarGrupoPagamento(dto);
   });
 }
 
+// Chave PIX por nome, lida do Cadastro: só para o administrador e para quem LÊ a seção Pagamentos (a mesma regra dos
+// Cadastros, shared/utils/cadastroPix.ts). O middleware já exige leitura de Pagamentos; esta checagem é a segunda camada.
 export function createGetPixHandler(cfg: GrupoPagamentoRouteConfig) {
-  return defineEventHandler(async (): Promise<Record<string, string>> => {
-    return await cfg.getPix();
-  });
-}
-
-export function createSalvarPixHandler(cfg: GrupoPagamentoRouteConfig) {
   return defineEventHandler(async (event): Promise<Record<string, string>> => {
-    const body = await readBody(event);
-    if (!isValidSalvarGrupoPix(body)) {
-      throw createError({ statusCode: 400, statusMessage: "Dados da chave PIX inválidos." });
+    const user: AuthUser | null | undefined = event.context.user;
+    if (!podeVerPixCadastro(user)) {
+      throw createError({ statusCode: 403, statusMessage: "Sem permissão para ver a chave PIX." });
     }
-    return await cfg.salvarPix(body.nome, body.chavePix);
+    return await pixDoCadastro(cfg.tipo);
   });
 }
 

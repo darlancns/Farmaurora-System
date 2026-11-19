@@ -7,10 +7,8 @@
  * reexporta tudo, pra nenhum import existente em `server/api/pagamentos/**`
  * precisar mudar.
  *
- * As chaves PIX (`getDespachantePix`/`salvarDespachantePix`/
- * `getTransportadoraPix`/`salvarTransportadoraPix`) moram em
- * `./pagamentosPixStore` e devem ser importadas direto de lá — não são
- * reexportadas aqui para evitar colisão de auto-import com o Nitro.
+ * A chave PIX e as listas de fornecedores, despachantes e transportadoras vêm dos Cadastros
+ * (`../cadastroPagamentos`, só leitura); aqui não há mais PIX.
  */
 
 export * from "./pagamentos/bancoStore";

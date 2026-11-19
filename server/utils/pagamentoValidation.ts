@@ -89,6 +89,7 @@ export function isValidNovoLancamentoBanco(body: unknown): body is NovoLancament
   // em cache, grave no lote errado sem aviso.
   if (b.loteId !== undefined) return false;
   if (b.forcarLoteNovo !== undefined && typeof b.forcarLoteNovo !== "boolean") return false;
+  if (b.fornecedorOutro !== undefined && typeof b.fornecedorOutro !== "boolean") return false;
 
   return (
     isEmpresa(b.empresa) &&
@@ -203,14 +204,6 @@ export function isValidNovoGrupoPagamento(body: unknown): body is NovoGrupoPagam
       return isNonEmptyString(i.paciente) && isFiniteNumber(i.valor) && i.valor > 0;
     })
   );
-}
-
-export function isValidSalvarGrupoPix(
-  body: unknown
-): body is { nome: string; chavePix: string } {
-  if (!body || typeof body !== "object") return false;
-  const b = body as Record<string, unknown>;
-  return isNonEmptyString(b.nome) && isNonEmptyString(b.chavePix);
 }
 
 function isIndiceValido(value: unknown): value is number {

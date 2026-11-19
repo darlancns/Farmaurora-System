@@ -132,6 +132,8 @@ const FIXTURES: Record<string, unknown> = {
   ],
   "despachante-pix": { "Andreza Faconi": PIX_LONGO },
   "transportadora-pix": { AJC: "ajc.transportes.expressos.do.brasil.ltda@exemplo-logistica.com.br" },
+  // Listas dos Cadastros (GET /api/pagamentos/cadastros): vazias aqui; os filtros listam os nomes que já estão nos dados.
+  cadastros: { fornecedores: [], despachantes: [], transportadoras: [] },
 };
 
 type TabKey = "banco" | "cotacao" | "despachante" | "transportadora";
@@ -147,10 +149,10 @@ async function login(page: Page): Promise<void> {
   }).toPass({ timeout: 45000 });
 }
 
-// Só GET de /api/pagamentos/{banco,despachante,transportadora,*-pix} é respondido com os dados
+// Só GET de /api/pagamentos/{banco,despachante,transportadora,*-pix,cadastros} é respondido com os dados
 // acima; qualquer outro método nessas rotas é abortado (nada é gravado).
 async function mockPagamentos(page: Page): Promise<void> {
-  await page.route(/\/api\/pagamentos\/(banco|despachante|transportadora|despachante-pix|transportadora-pix)(\?.*)?$/, async (route) => {
+  await page.route(/\/api\/pagamentos\/(banco|despachante|transportadora|despachante-pix|transportadora-pix|cadastros)(\?.*)?$/, async (route) => {
     if (route.request().method() !== "GET") {
       await route.abort();
       return;

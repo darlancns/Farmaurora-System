@@ -120,7 +120,7 @@ Detalhes:
 | Pacientes / Prestações | Supabase Postgres — tabela `prestacao_pacientes` |
 | Processos / Follow-Up | Supabase Postgres — tabela `follow_up` |
 | Pagamentos (lotes de banco, lançamentos, grupos) | Supabase Postgres — `pagamento_lotes_banco`, `pagamento_lancamentos_banco`, `pagamento_grupos` |
-| Chave PIX por despachante / transportadora (overrides) | Supabase Postgres — `pagamento_pix_chaves` |
+| Chave PIX por despachante / transportadora | Lida dos Cadastros (`chave_pix` em `cadastro_despachantes` e `cadastro_transportadoras`), só leitura em Pagamentos; quem edita é o administrador, em Configurações → Cadastros. A tabela antiga `pagamento_pix_chaves` não é mais lida (a remover na etapa 3) |
 | Anexos de paciente (invoice, câmbio, despachante, transporte, serviço) | **Supabase Storage** — bucket privado `attachments`, `<patientId>/<slot>.png` (ver "Anexos de prestação") |
 
 Todo acesso ao Postgres é feito com a **service role key** (sem RLS) — ver seção "Como

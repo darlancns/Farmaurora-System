@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from "vue";
+import { computed, reactive, watch } from "vue";
 import type {
   EmpresaPagamento,
+  ItemCadastroPagamento,
   NovoGrupoPagamentoDTO,
   TipoGrupoPagamento,
 } from "#shared/types/Pagamento";
@@ -13,18 +14,19 @@ import AppSelect from "../../AppSelect.vue";
 import BaseModal from "../../BaseModal.vue";
 import type { AppSelectOption } from "../../../types/appSelect";
 import { hojeBrasilia } from "#shared/utils/dataBrasilia";
-import {
-  DESPACHANTE_PAGAMENTO_OPTIONS,
-  TRANSPORTADORA_PAGAMENTO_OPTIONS,
-} from "../../../utils/pagamentoOptions";
+import { montarOpcoesNome } from "../../../utils/pagamentoOptions";
+import { chaveCadastro } from "#shared/utils/cadastroNome";
 
 const props = withDefaults(
   defineProps<{
     tipo: TipoGrupoPagamento;
     empresa: EmpresaPagamento;
-    pixMap?: Record<string, string>; // chave PIX efetiva (padrão + salva) por nome
+    // Despachantes ou transportadoras do Cadastro (conforme `tipo`): só os ATIVOS aparecem no select.
+    itens?: ItemCadastroPagamento[];
+    // Chave PIX do Cadastro por nome (SÓ LEITURA aqui; quem altera é o administrador, em Configurações → Cadastros).
+    pixMap?: Record<string, string>;
   }>(),
-  { pixMap: () => ({}) },
+  { itens: () => [], pixMap: () => ({}) },
 );
 
 // Dia do lançamento = "hoje de Brasília" no instante em que o modal ABRE (não é escolhido no
@@ -33,14 +35,11 @@ const dataDoLancamento = hojeBrasilia();
 
 const emit = defineEmits<{
   submit: [payload: Omit<NovoGrupoPagamentoDTO, "tipo">];
-  "salvar-pix": [nome: string, chavePix: string];
   close: [];
   invalid: [message: string];
 }>();
 
-const grupoOptions = (
-  props.tipo === "DESPACHANTE" ? DESPACHANTE_PAGAMENTO_OPTIONS : TRANSPORTADORA_PAGAMENTO_OPTIONS
-) as AppSelectOption<string>[];
+const grupoOptions = computed<AppSelectOption<string>[]>(() => montarOpcoesNome(props.itens));
 
 interface ItemDraft {
   pacienteStr: string;
@@ -53,45 +52,30 @@ const form = reactive({
   itens: [{ pacienteStr: "", valorStr: "" }] as ItemDraft[],
 });
 
-// PIX: vem pré-preenchida pelo nome escolhido (valor salvo, ou o padrão) e fica
-// travada até clicar em "Editar". Ao editar e sair do campo, a nova chave é
-// salva como padrão daquele despachante/transportadora.
-const pixEditavel = ref(false);
-const pixCarregada = ref("");
-
+// PIX: SÓ LEITURA. Vem do Cadastro pelo nome escolhido (casado por chaveCadastro); sem chave cadastrada o campo fica vazio
+// (continua opcional). O servidor grava no grupo a cópia da chave do Cadastro, não o que esta tela mandar.
 function pixDe(nome: string): string {
-  return props.pixMap[nome] ?? "";
+  const chave = chaveCadastro(nome);
+  if (chave === "") return "";
+  const achado = Object.entries(props.pixMap).find(([n]) => chaveCadastro(n) === chave);
+  return achado ? achado[1] : "";
 }
 
 watch(
   () => form.nomeGrupo,
   (nome) => {
     form.chavePix = pixDe(nome);
-    pixCarregada.value = form.chavePix;
-    pixEditavel.value = false;
   }
 );
 
-// Se o mapa de PIX chegar/mudar (fetch async) e o campo não estiver em edição,
-// re-sincroniza com o valor salvo do nome atual.
+// Se o mapa de PIX chegar/mudar (fetch async), re-sincroniza com o valor do nome atual.
 watch(
   () => props.pixMap,
   () => {
-    if (!pixEditavel.value && form.nomeGrupo) {
-      form.chavePix = pixDe(form.nomeGrupo);
-      pixCarregada.value = form.chavePix;
-    }
+    if (form.nomeGrupo) form.chavePix = pixDe(form.nomeGrupo);
   },
   { deep: true }
 );
-
-function onPixBlur(): void {
-  if (!pixEditavel.value) return;
-  const chave = form.chavePix.trim();
-  if (!chave || !form.nomeGrupo || chave === pixCarregada.value) return;
-  emit("salvar-pix", form.nomeGrupo, chave);
-  pixCarregada.value = chave;
-}
 
 function addItem(): void {
   form.itens.push({ pacienteStr: "", valorStr: "" });
@@ -152,7 +136,6 @@ function submit(): void {
     data: dataDoLancamento,
     empresa: props.empresa,
     nomeGrupo,
-    chavePix: form.chavePix.trim() || undefined,
     itens,
   });
 }
@@ -175,27 +158,15 @@ function submit(): void {
         </label>
 
         <label class="flex flex-col gap-1 text-[12px] font-semibold text-ink-soft">
-          Chave PIX (opcional)
-          <div class="flex items-center gap-2">
-            <input
-              id="ng-chave-pix"
-              data-sem-maiuscula
-              v-model="form.chavePix"
-              type="text"
-              :readonly="!pixEditavel"
-              class="min-w-0 flex-1 rounded-md border border-hairline bg-paper px-2.5 py-2 font-mono text-[13px] text-ink read-only:text-ink-soft focus:bg-white focus:outline-2 focus:outline-accent-dark"
-              @blur="onPixBlur"
-            />
-            <button
-              v-if="!pixEditavel"
-              id="ng-chave-pix-editar"
-              type="button"
-              class="shrink-0 rounded-md border border-hairline bg-paper px-2.5 py-2 text-[12px] font-semibold text-ink-soft transition-colors hover:border-accent-dark hover:text-accent-dark"
-              @click="pixEditavel = true"
-            >
-              Editar
-            </button>
-          </div>
+          Chave PIX (do Cadastro)
+          <input
+            id="ng-chave-pix"
+            data-sem-maiuscula
+            :value="form.chavePix"
+            type="text"
+            readonly
+            class="min-w-0 flex-1 rounded-md border border-hairline bg-paper px-2.5 py-2 font-mono text-[13px] text-ink-soft"
+          />
         </label>
 
         <div class="flex flex-col gap-2">

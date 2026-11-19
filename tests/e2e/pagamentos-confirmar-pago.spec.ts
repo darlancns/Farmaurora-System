@@ -76,6 +76,8 @@ function dadosIniciais(): Record<string, any> {
     ],
     "despachante-pix": {},
     "transportadora-pix": {},
+    // Pagamentos lê as listas dos Cadastros (GET /api/pagamentos/cadastros): vazias aqui, os nomes vêm dos dados.
+    cadastros: { fornecedores: [], despachantes: [], transportadoras: [] },
   };
 }
 
@@ -116,7 +118,7 @@ async function instalarMock(page: Page): Promise<Mock> {
     await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
   });
 
-  await page.route(/\/api\/pagamentos\/(banco|despachante|transportadora|despachante-pix|transportadora-pix)(\?.*)?$/, async (route) => {
+  await page.route(/\/api\/pagamentos\/(banco|despachante|transportadora|despachante-pix|transportadora-pix|cadastros)(\?.*)?$/, async (route) => {
     if (route.request().method() !== "GET") return route.fallback();
     const key = new URL(route.request().url()).pathname.split("/").pop() ?? "";
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(mock.dados[key]) });

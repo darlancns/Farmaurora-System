@@ -3,12 +3,13 @@ import { computed, reactive } from "vue";
 import type {
   AtualizarLancamentoBancoDTO,
   EmpresaPagamento,
+  ItemCadastroPagamento,
   LancamentoBanco,
   LoteBanco,
   Moeda,
   NovoLancamentoBancoDTO,
 } from "#shared/types/Pagamento";
-import { EMPRESA_PAGAMENTO_LABEL, FORNECEDORES_PAGAMENTO } from "#shared/constants/pagamentos";
+import { EMPRESA_PAGAMENTO_LABEL } from "#shared/constants/pagamentos";
 import { parseBrCurrency } from "../../../utils/formatters";
 import { useTitleCaseInput } from "../../../composables/useTitleCaseInput";
 import { useOutroSentinel } from "../../../composables/useOutroSentinel";
@@ -16,7 +17,7 @@ import { initialCurrencyStr, useCurrencyField } from "../../../composables/useCu
 import AppSelect from "../../AppSelect.vue";
 import BaseModal from "../../BaseModal.vue";
 import SegmentedControl from "../../SegmentedControl.vue";
-import { FORNECEDOR_PAGAMENTO_OPTIONS, MOEDA_OPTIONS } from "../../../utils/pagamentoOptions";
+import { fornecedoresFixos, MOEDA_OPTIONS, montarOpcoesFornecedor } from "../../../utils/pagamentoOptions";
 import { avisosDestinoNovoPagamento } from "../../../utils/pagamentoLoteDestino";
 import { INPUT_CLASS, INPUT_MONO_CLASS, SELECT_CAMPO_CLASS } from "../../../utils/processoFormClasses";
 
@@ -27,8 +28,10 @@ const props = withDefaults(
     // Lotes do Banco, só para os avisos informativos de destino (quem decide o
     // lote é o servidor: a moeda escolhida define o lote em aberto).
     lotes?: LoteBanco[];
+    // Fornecedores do Cadastro: só os ATIVOS podem ser escolhidos em lançamento novo ("Nome - País"); "Outro" é texto livre.
+    fornecedores?: ItemCadastroPagamento[];
   }>(),
-  { editing: null, lotes: () => [] },
+  { editing: null, lotes: () => [], fornecedores: () => [] },
 );
 
 const emit = defineEmits<{
@@ -40,12 +43,12 @@ const emit = defineEmits<{
 
 const isEdit = computed(() => props.editing !== null);
 
-// Opções fixas (sem o sentinela "Outro") — usado só pra decidir se um fornecedor
-// já salvo bate com uma das opções reais ao abrir o form em modo edição.
-const FORNECEDORES_FIXOS = FORNECEDORES_PAGAMENTO.filter((f) => f !== "Outro");
-
-const fornecedor = useOutroSentinel(FORNECEDORES_FIXOS);
+// Opções fixas (sem o sentinela "Outro") — usado só pra decidir se um fornecedor já salvo bate com uma das opções reais
+// ao abrir o form em modo edição (ativos do Cadastro, mais o valor gravado se ele é de um fornecedor hoje inativo).
+const fornecedor = useOutroSentinel(fornecedoresFixos(props.fornecedores, props.editing?.fornecedor));
 fornecedor.load(props.editing?.fornecedor);
+
+const fornecedorOptions = computed(() => montarOpcoesFornecedor(props.fornecedores, props.editing?.fornecedor));
 
 // valorMoeda fica como string no form — nunca usar type="number" + v-model
 // (autocast silencioso já mordeu este projeto duas vezes).
@@ -104,6 +107,7 @@ function submit(): void {
     empresa: props.empresa,
     moeda: form.moeda,
     fornecedor: fornecedorValue,
+    ...(fornecedor.state.select === "Outro" ? { fornecedorOutro: true } : {}),
     invoice,
     cliente,
     valorMoeda,
@@ -148,7 +152,7 @@ function submit(): void {
         <label class="flex flex-col gap-1 text-[12px] font-semibold text-ink-soft">
           Fornecedor
           <div :class="SELECT_CAMPO_CLASS">
-            <AppSelect id="nl-fornecedor" v-model="fornecedor.state.select" :options="FORNECEDOR_PAGAMENTO_OPTIONS" />
+            <AppSelect id="nl-fornecedor" v-model="fornecedor.state.select" :options="fornecedorOptions" />
           </div>
         </label>
 

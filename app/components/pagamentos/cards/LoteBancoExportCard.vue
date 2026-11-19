@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { dataBrasiliaDe, formatarDataBR } from "#shared/utils/dataBrasilia";
-import type { LancamentoBanco, LoteBanco } from "#shared/types/Pagamento";
+import type { ItemCadastroPagamento, LancamentoBanco, LoteBanco } from "#shared/types/Pagamento";
 import {
   BANCO_CAMBIO_LABEL,
   EMPRESA_PAGAMENTO_LABEL,
@@ -11,14 +11,16 @@ import { formatCurrency } from "../../../utils/formatters";
 import { calcularTotalReaisLote, formatFaixaTaxas, formatTaxa } from "../../../utils/pagamentoCalculations";
 import { EMPRESA_EXPORT_HEADER_CLASS, paisFornecedor } from "../../../utils/pagamentoExport";
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   lote: LoteBanco;
   lancamentos: LancamentoBanco[];
+  // Fornecedores do Cadastro: o país do cartão "aguardando banco" vem do campo `pais` deles.
+  fornecedores?: ItemCadastroPagamento[];
   // Momento do clique no botão de exportar — o lote ainda está aberto aqui
   // (pagoEm é sempre null), então "hoje" é a melhor representação da
   // intenção real (gerar o recibo pra pagar agora).
   dataExibicao: Date;
-}>();
+}>(), { fornecedores: () => [] });
 
 // Sem banco escolhido: ainda não há taxa nem valor em reais, então o cartão
 // mostra só o total na moeda (e o país do fornecedor em vez do nome).
@@ -61,7 +63,7 @@ const ordensLabel = computed<string>(() =>
 // Linha de apoio sob o cliente: sem banco escolhido mostramos só o país; com
 // banco definido, o fornecedor inteiro. null = nada a mostrar.
 function subtituloLancamento(l: LancamentoBanco): string | null {
-  if (aguardando.value) return paisFornecedor(l.fornecedor);
+  if (aguardando.value) return paisFornecedor(l.fornecedor, props.fornecedores);
   return l.fornecedor.toLocaleUpperCase("pt-BR");
 }
 

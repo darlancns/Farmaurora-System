@@ -68,7 +68,7 @@ const PROCESSOS = Array.from({ length: 36 }, (_, n) => ({
 }));
 
 async function mockDados(page: Page): Promise<void> {
-  await page.route(/\/api\/(pagamentos\/(banco|despachante|transportadora|despachante-pix|transportadora-pix)|processos)(\?.*)?$/, async (route) => {
+  await page.route(/\/api\/(pagamentos\/(banco|despachante|transportadora|despachante-pix|transportadora-pix|cadastros)|processos)(\?.*)?$/, async (route) => {
     if (route.request().method() !== "GET") {
       await route.abort();
       return;
@@ -78,6 +78,7 @@ async function mockDados(page: Page): Promise<void> {
       caminho === "/api/pagamentos/banco" ? BANCO
       : caminho === "/api/processos" ? PROCESSOS
       : caminho.endsWith("-pix") ? {}
+      : caminho === "/api/pagamentos/cadastros" ? { fornecedores: [], despachantes: [], transportadoras: [] }
       : [];
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(corpo) });
   });

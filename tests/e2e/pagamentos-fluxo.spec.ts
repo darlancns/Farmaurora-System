@@ -2,6 +2,24 @@ import { test, expect, type Page } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { assertSupabaseLocal } from "./_guards/supabaseLocal";
 import { lerEnv } from "./_guards/supabaseEnv";
+import {
+  DESP_A,
+  DESP_B,
+  DESP_C,
+  DESP_INATIVO,
+  DESP_SEM_PIX,
+  FORN_A_TEXTO,
+  FORN_B_TEXTO,
+  FORN_INATIVO_TEXTO,
+  PIX_DESP_A,
+  PIX_DESP_B,
+  PIX_TRANSP_A,
+  PIX_TRANSP_B,
+  semearCadastrosDePagamento,
+  TRANSP_A,
+  TRANSP_B,
+  TRANSP_INATIVA,
+} from "./_helpers/cadastrosPagamento";
 import { hojeBrasilia, somarDiasISO } from "../../shared/utils/dataBrasilia";
 
 // Fluxo de Pagamentos (Banco + Grupos) — e2e contra o dev server real.
@@ -9,8 +27,11 @@ import { hojeBrasilia, somarDiasISO } from "../../shared/utils/dataBrasilia";
 //
 // Mudou desde o original:
 //   - Banco e Grupos persistem no Supabase (pagamento_lotes_banco /
-//     pagamento_lancamentos_banco / pagamento_grupos). PIX agora também
-//     (pagamento_pix_chaves), não mais em JSON. Sem snapshot/restore de arquivo.
+//     pagamento_lancamentos_banco / pagamento_grupos).
+//   - Fornecedores, despachantes, transportadoras e a chave PIX vêm dos CADASTROS (Configurações → Cadastros), não mais de
+//     listas fixas: o beforeAll semeia itens "TESTE e2e ..." no banco local (tests/e2e/_helpers/cadastrosPagamento.ts;
+//     não existe exclusão nos Cadastros, então ficam lá entre as execuções). A chave PIX é SÓ LEITURA em Pagamentos (o
+//     teste 8 prova: sem botão "Editar", a rota PATCH foi removida e criar grupo grava a CÓPIA da chave do Cadastro).
 //   - O botão único "+ Novo lançamento" virou "+ Novo pagamento": a MOEDA escolhida
 //     no modal define o lote (entra no lote aberto da moeda, ou cria um). Os testes
 //     criam via "+ Novo pagamento" e capturam o loteId/lancId pela API pra escopar
@@ -20,8 +41,7 @@ import { hojeBrasilia, somarDiasISO } from "../../shared/utils/dataBrasilia";
 //     asserções usam a substring estável.
 //   - Roda só no harness local (Supabase falso em loopback; a guarda aborta fora dele), na
 //     empresa padrão. O beforeAll/afterAll limpam as tabelas de Banco e Grupos INTEIRAS
-//     (seguro justamente por causa da guarda) e restauram a chave PIX do "Marcelo Lima"
-//     ao valor de antes.
+//     (seguro justamente por causa da guarda). Os Cadastros de teste não são apagados.
 //   - Não existe teste dormente que setasse "Pago" direto num item — o ciclo
 //     dormente já era NAO_PAGO<->COMPLEMENTO. Adicionado um teste explícito (17)
 //     de que a API rejeita PAGO direto (regra M-04), que é o guard novo.
@@ -55,7 +75,6 @@ const P_TRANSP = `Paciente ${RUN} Transp`;
 const P_EDIT = `Paciente ${RUN} Editar`;
 const P_EDITADO = `Paciente ${RUN} Editado`;
 const P_M04 = `Paciente ${RUN} M04`;
-const NOVA_PIX = `pix-e2e-${RUN}@marcelo`;
 
 // ids capturados em runtime pra escopar os locators
 const st: {
@@ -75,9 +94,6 @@ function db(): SupabaseClient {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 }
-
-// Snapshot da linha PIX do Marcelo Lima (nome REAL) pra restaurar no fim.
-let pixMarceloBak: Record<string, unknown> | null = null;
 
 async function login(page: Page): Promise<void> {
   // domcontentloaded, não networkidle: o cliente Supabase mantém timers de
@@ -202,22 +218,8 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     const client = db();
     await limparTabelasDeTeste(client);
 
-    // O teste 8 mexe na chave PIX do "Marcelo Lima" (nome REAL, tabela
-    // compartilhada). Snapshot pra restaurar no fim. Se o valor atual for lixo de
-    // uma execução anterior que crashou (padrão "pix-e2e-...@marcelo"), apaga o
-    // override e trata como "sem override" — o form volta a mostrar o default.
-    const { data } = await client
-      .from("pagamento_pix_chaves")
-      .select("*")
-      .eq("tipo", "DESPACHANTE")
-      .eq("nome", "Marcelo Lima")
-      .maybeSingle();
-    if (data && typeof data.chave_pix === "string" && data.chave_pix.startsWith("pix-e2e-")) {
-      await client.from("pagamento_pix_chaves").delete().eq("tipo", "DESPACHANTE").eq("nome", "Marcelo Lima");
-      pixMarceloBak = null;
-    } else {
-      pixMarceloBak = data ?? null;
-    }
+    // Os selects leem os Cadastros: garante os itens de teste (idempotente) no banco local.
+    await semearCadastrosDePagamento(client);
   });
 
   test.beforeEach(async ({ page }) => {
@@ -228,16 +230,13 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     if (!runnable) return;
     const client = db();
     await limparTabelasDeTeste(client);
-    // Restaura a chave PIX real do Marcelo Lima ao valor anterior à suíte.
-    await client.from("pagamento_pix_chaves").delete().eq("tipo", "DESPACHANTE").eq("nome", "Marcelo Lima");
-    if (pixMarceloBak) await client.from("pagamento_pix_chaves").insert(pixMarceloBak);
   });
 
   test("1 · '+ Novo pagamento' (USD, sem lote) cria o lote e o lançamento nasce sem valor em reais", async ({ page }) => {
     await irPagamentos(page, "banco");
 
     const { loteId, lancId } = await novoLote(page, {
-      fornecedor: "Poros - Turquia",
+      fornecedor: FORN_A_TEXTO,
       invoice: `INV-${RUN}-1`,
       cliente: CLIENTE_1,
       valor: "100",
@@ -294,7 +293,7 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     await irPagamentos(page, "despachante");
 
     await page.locator("#btn-novo-pagamento-DESPACHANTE").click();
-    await selectOption(page, "ng-nome-grupo", "Bruno Lopes");
+    await selectOption(page, "ng-nome-grupo", DESP_B);
     await page.locator("#ng-item-paciente-0").fill(G1);
     await page.locator("#ng-item-valor-0").fill("300");
     await page.locator("#ng-add-item").click();
@@ -303,8 +302,8 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     await page.locator("#btn-save-novo-grupo").click();
     await expect(page.locator("#toast-notice")).toContainText("Pagamento adicionado");
 
-    st.gDesp = (await despachanteGrupos(page)).find((g) => !g.realizado && g.nomeGrupo === "Bruno Lopes")?.id;
-    expect(st.gDesp, "grupo Bruno Lopes recém-criado").toBeTruthy();
+    st.gDesp = (await despachanteGrupos(page)).find((g) => !g.realizado && g.nomeGrupo === DESP_B)?.id;
+    expect(st.gDesp, "grupo do despachante B recém-criado").toBeTruthy();
 
     const grupo = page.locator(`#grupo-pagamento-${st.gDesp}`);
     await expect(grupo).toContainText(G1);
@@ -323,7 +322,7 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     const realizados = page.locator("#grupo-realizados-lista-DESPACHANTE");
     await expect(realizados).toContainText(G1);
     await expect(realizados).toContainText(G2);
-    await expect(realizados).toContainText("Bruno Lopes");
+    await expect(realizados).toContainText(DESP_B);
     await expect(realizados).toContainText("Pago");
   });
 
@@ -332,7 +331,7 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
 
     const novo = await novoLote(page, {
       moeda: "EUR",
-      fornecedor: "Beldimed - Bélgica",
+      fornecedor: FORN_B_TEXTO,
       invoice: `INV-${RUN}-EUR`,
       cliente: CLIENTE_EUR,
       valor: "50",
@@ -379,33 +378,41 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     await expect(page.locator(`#lote-banco-${st.eur}`)).toHaveCount(0);
   });
 
-  test("8 · PIX do despachante: pré-preenche, edita e fica salva pro próximo pagamento", async ({ page }) => {
+  test("8 · PIX do despachante: vem do Cadastro, é SÓ LEITURA e o grupo grava a cópia da chave", async ({ page }) => {
     await irPagamentos(page, "despachante");
 
     await page.locator("#btn-novo-pagamento-DESPACHANTE").click();
-    await selectOption(page, "ng-nome-grupo", "Marcelo Lima");
-    await expect(page.locator("#ng-chave-pix")).toHaveValue("05.342.805/0001-37");
+    await selectOption(page, "ng-nome-grupo", DESP_A);
+    await expect(page.locator("#ng-chave-pix")).toHaveValue(PIX_DESP_A);
     await expect(page.locator("#ng-chave-pix")).toHaveJSProperty("readOnly", true);
-
-    await page.locator("#ng-chave-pix-editar").click();
-    await expect(page.locator("#ng-chave-pix")).toHaveJSProperty("readOnly", false);
-    await page.locator("#ng-chave-pix").fill(NOVA_PIX);
-    await page.locator("#ng-chave-pix").blur();
-    await expect(page.locator("#toast-notice")).toContainText("Chave PIX salva para Marcelo Lima");
+    // Sem fluxo de edição: o botão "Editar" saiu (quem altera a chave é o administrador, em Cadastros).
+    await expect(page.locator("#ng-chave-pix-editar")).toHaveCount(0);
 
     await page.locator("#ng-item-paciente-0").fill(P_PIX);
     await page.locator("#ng-item-valor-0").fill("100");
     await page.locator("#btn-save-novo-grupo").click();
     await expect(page.locator("#toast-notice")).toContainText("Pagamento adicionado");
-    st.gPix = (await despachanteGrupos(page)).find((g) => !g.realizado && g.nomeGrupo === "Marcelo Lima")?.id;
+    const grupo = (await despachanteGrupos(page)).find((g) => !g.realizado && g.nomeGrupo === DESP_A);
+    st.gPix = grupo?.id;
+    expect(st.gPix, "grupo do despachante A recém-criado").toBeTruthy();
+    // A CÓPIA da chave do Cadastro foi gravada no grupo (instantâneo histórico).
+    expect((grupo as { chavePix?: string }).chavePix).toBe(PIX_DESP_A);
 
-    // Reabre: Marcelo Lima agora traz a chave nova; outro despachante mantém a dele.
+    // Reabre: cada despachante traz a chave do PRÓPRIO Cadastro; um sem chave cadastrada fica com o campo vazio.
     await page.locator("#btn-novo-pagamento-DESPACHANTE").click();
-    await selectOption(page, "ng-nome-grupo", "Marcelo Lima");
-    await expect(page.locator("#ng-chave-pix")).toHaveValue(NOVA_PIX);
-    await selectOption(page, "ng-nome-grupo", "Bruno Lopes");
-    await expect(page.locator("#ng-chave-pix")).toHaveValue("036.223.838-36");
+    await selectOption(page, "ng-nome-grupo", DESP_B);
+    await expect(page.locator("#ng-chave-pix")).toHaveValue(PIX_DESP_B);
+    await selectOption(page, "ng-nome-grupo", DESP_SEM_PIX);
+    await expect(page.locator("#ng-chave-pix")).toHaveValue("");
     await page.keyboard.press("Escape");
+
+    // A rota PATCH de chave PIX foi removida (404/405) e o Cadastro continua com a chave que tinha.
+    for (const rota of ["despachante-pix", "transportadora-pix"]) {
+      const res = await page.request.patch(`/api/pagamentos/${rota}`, { data: { nome: DESP_A, chavePix: "e2e-tentativa" } });
+      expect([404, 405], `PATCH /api/pagamentos/${rota}`).toContain(res.status());
+    }
+    const { data } = await db().from("cadastro_despachantes").select("chave_pix").eq("nome", DESP_A).maybeSingle();
+    expect((data as { chave_pix?: string } | null)?.chave_pix).toBe(PIX_DESP_A);
   });
 
   test("9 · Banco: editar cliente + data de pagamento em 'Pagamentos realizados'", async ({ page }) => {
@@ -418,7 +425,7 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     const CLIENTE_REAL_B = `Cliente ${RUN} Realizado B`;
 
     const loteRA = await novoLote(page, {
-      fornecedor: "Poros - Turquia",
+      fornecedor: FORN_A_TEXTO,
       invoice: `INV-${RUN}-RA`,
       cliente: CLIENTE_REAL_A,
       valor: "50",
@@ -426,7 +433,7 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
 
     // 2º pagamento em USD: a moeda define o lote, então entra no mesmo lote aberto.
     await page.locator("#btn-novo-pagamento-banco").click();
-    await selectOption(page, "nl-fornecedor", "Poros - Turquia");
+    await selectOption(page, "nl-fornecedor", FORN_A_TEXTO);
     await page.locator("#nl-cliente").fill(CLIENTE_REAL_B);
     await page.locator("#nl-invoice").fill(`INV-${RUN}-RB`);
     await page.locator("#nl-valor-moeda").fill("60");
@@ -503,16 +510,16 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     const P_REALIZADO_EDIT = `Paciente ${RUN} Realizado Edit`;
 
     await page.locator("#btn-novo-pagamento-DESPACHANTE").click();
-    await selectOption(page, "ng-nome-grupo", "Andreza Faconi");
+    await selectOption(page, "ng-nome-grupo", DESP_C);
     await page.locator("#ng-item-paciente-0").fill(P_REALIZADO_EDIT);
     await page.locator("#ng-item-valor-0").fill("90");
     await page.locator("#btn-save-novo-grupo").click();
     await expect(page.locator("#toast-notice")).toContainText("Pagamento adicionado");
 
     const grupoId = (await despachanteGrupos(page)).find(
-      (g) => !g.realizado && g.nomeGrupo === "Andreza Faconi",
+      (g) => !g.realizado && g.nomeGrupo === DESP_C,
     )?.id;
-    expect(grupoId, "grupo Andreza Faconi recém-criado").toBeTruthy();
+    expect(grupoId, "grupo do despachante C recém-criado").toBeTruthy();
 
     await page.locator(`#grupo-pagamento-${grupoId}`).locator(`#btn-pagar-grupo-${grupoId}`).click();
     // "Pago" pede confirmação antes de chamar o PATCH: confirma na janela.
@@ -526,7 +533,7 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
 
     // Data futura -> o calendário desabilita os dias depois de hoje (Brasília); modal aberto, nada gravado.
     const amanha = somarDiasISO(hojeBrasilia(), 1);
-    await selectOption(page, "epr-nome", "Marcelo Lima");
+    await selectOption(page, "epr-nome", DESP_A);
     await page.locator("#epr-data").click();
     await expect(page.locator(`#epr-data-calendario [data-iso="${amanha}"]`)).toBeDisabled();
     await page.keyboard.press("Escape");
@@ -536,10 +543,10 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     await expect(page.locator("#toast-notice")).not.toContainText("Pagamento atualizado");
     // O SERVIDOR também recusa data futura: 400 e o grupo continua com o nome antigo.
     const recusa = await page.request.patch(`/api/pagamentos/despachante/${grupoId}/realizado`, {
-      data: { nomeGrupo: "Marcelo Lima", pagoEm: amanha },
+      data: { nomeGrupo: DESP_A, pagoEm: amanha },
     });
     expect(recusa.status()).toBe(400);
-    expect((await despachanteGrupos(page)).find((g) => g.id === grupoId)?.nomeGrupo).toBe("Andreza Faconi");
+    expect((await despachanteGrupos(page)).find((g) => g.id === grupoId)?.nomeGrupo).toBe(DESP_C);
 
     // Data passada válida (escolhida no calendário) -> salva os dois campos (nomeGrupo + pagoEm) juntos.
     await escolherDataNoCalendario(page, "epr-data", "2020-04-05");
@@ -548,7 +555,7 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     await expect(page.locator("#editar-pagamento-realizado-overlay")).toHaveCount(0);
 
     await expect(lista).toContainText(P_REALIZADO_EDIT);
-    await expect(lista).toContainText("Marcelo Lima");
+    await expect(lista).toContainText(DESP_A);
     await expect(lista).toContainText("05/04/2020");
   });
 
@@ -556,7 +563,7 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     await irPagamentos(page, "banco");
 
     const lista = page.locator("#banco-realizados-lista");
-    await expect(lista).toContainText(CLIENTE_1); // pago no teste 3 (XP · Poros - Turquia)
+    await expect(lista).toContainText(CLIENTE_1); // pago no teste 3 (XP · fornecedor A)
 
     await page.locator("#banco-realizado-busca").fill("zzz-nao-existe");
     await expect(page.locator("#banco-tab")).toContainText("Nenhum pagamento encontrado");
@@ -569,7 +576,7 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     await expect(page.locator("#banco-tab")).toContainText("Nenhum pagamento encontrado");
     await selectOption(page, "filtro-banco-realizado", "Todos os bancos");
 
-    await selectOption(page, "filtro-fornecedor-realizado", "Poros - Turquia");
+    await selectOption(page, "filtro-fornecedor-realizado", FORN_A_TEXTO);
     await expect(lista).toContainText(CLIENTE_1);
   });
 
@@ -586,7 +593,7 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     await page.locator("#btn-clear-busca-grupo-realizado-DESPACHANTE").click();
     await expect(lista).toContainText(G2);
 
-    await selectOption(page, "filtro-grupo-realizado-DESPACHANTE", "Bruno Lopes");
+    await selectOption(page, "filtro-grupo-realizado-DESPACHANTE", DESP_B);
     await expect(lista).toContainText(G1);
 
     await selectOption(page, "filtro-status-realizado-DESPACHANTE", "Pago");
@@ -597,7 +604,7 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     await irPagamentos(page, "banco");
 
     const novo = await novoLote(page, {
-      fornecedor: "Poros - Turquia",
+      fornecedor: FORN_A_TEXTO,
       invoice: `INV-${RUN}-AS`,
       cliente: CLIENTE_AUTOSAVE,
       valor: "100",
@@ -620,27 +627,28 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     await expect(page.locator(`#cotacao-lote-${st.usd3}`).locator(`#input-taxa-${st.usd3}-XP`)).toHaveValue("5,42");
   });
 
-  test("14 · Transportes: select de transportadora, PIX pré-preenchida e sem campo de data", async ({ page }) => {
+  test("14 · Transportes: select de transportadora, PIX do Cadastro (só leitura) e sem campo de data", async ({ page }) => {
     await irPagamentos(page, "transportadora");
     await page.locator("#btn-novo-pagamento-TRANSPORTADORA").click();
 
     await expect(page.locator("#ng-data")).toHaveCount(0);
 
-    await selectOption(page, "ng-nome-grupo", "AJC");
-    await expect(page.locator("#ng-chave-pix")).toHaveValue("09.614.254/0001-74");
+    await selectOption(page, "ng-nome-grupo", TRANSP_A);
+    await expect(page.locator("#ng-chave-pix")).toHaveValue(PIX_TRANSP_A);
     await expect(page.locator("#ng-chave-pix")).toHaveJSProperty("readOnly", true);
+    await expect(page.locator("#ng-chave-pix-editar")).toHaveCount(0);
 
-    await selectOption(page, "ng-nome-grupo", "Doctor");
-    await expect(page.locator("#ng-chave-pix")).toHaveValue("22.095.367/0001-79");
+    await selectOption(page, "ng-nome-grupo", TRANSP_B);
+    await expect(page.locator("#ng-chave-pix")).toHaveValue(PIX_TRANSP_B);
 
     await page.locator("#ng-item-paciente-0").fill(P_TRANSP);
     await page.locator("#ng-item-valor-0").fill("500");
     await page.locator("#btn-save-novo-grupo").click();
     await expect(page.locator("#toast-notice")).toContainText("Pagamento adicionado");
 
-    const gid = (await transportadoraGrupos(page)).find((g) => g.nomeGrupo === "Doctor")?.id;
+    const gid = (await transportadoraGrupos(page)).find((g) => g.nomeGrupo === TRANSP_B)?.id;
     const grupo = page.locator(`#grupo-pagamento-${gid}`);
-    await expect(grupo).toContainText("Doctor");
+    await expect(grupo).toContainText(TRANSP_B);
     await expect(grupo).toContainText(P_TRANSP);
   });
 
@@ -649,12 +657,12 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
 
     // Cria um grupo aberto dedicado (os dos testes 4/8 já estão pagos).
     await page.locator("#btn-novo-pagamento-DESPACHANTE").click();
-    await selectOption(page, "ng-nome-grupo", "Andreza Faconi");
+    await selectOption(page, "ng-nome-grupo", DESP_C);
     await page.locator("#ng-item-paciente-0").fill(P_EDIT);
     await page.locator("#ng-item-valor-0").fill("100");
     await page.locator("#btn-save-novo-grupo").click();
     await expect(page.locator("#toast-notice")).toContainText("Pagamento adicionado");
-    st.gEdit = (await despachanteGrupos(page)).find((g) => !g.realizado && g.nomeGrupo === "Andreza Faconi")?.id;
+    st.gEdit = (await despachanteGrupos(page)).find((g) => !g.realizado && g.nomeGrupo === DESP_C)?.id;
     expect(st.gEdit).toBeTruthy();
 
     const grupo = page.locator(`#grupo-pagamento-${st.gEdit}`);
@@ -701,12 +709,12 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
     await irPagamentos(page, "despachante");
 
     await page.locator("#btn-novo-pagamento-DESPACHANTE").click();
-    await selectOption(page, "ng-nome-grupo", "Bruno Lopes");
+    await selectOption(page, "ng-nome-grupo", DESP_B);
     await page.locator("#ng-item-paciente-0").fill(P_M04);
     await page.locator("#ng-item-valor-0").fill("120");
     await page.locator("#btn-save-novo-grupo").click();
     await expect(page.locator("#toast-notice")).toContainText("Pagamento adicionado");
-    st.gM04 = (await despachanteGrupos(page)).find((g) => !g.realizado && g.nomeGrupo === "Bruno Lopes")?.id;
+    st.gM04 = (await despachanteGrupos(page)).find((g) => !g.realizado && g.nomeGrupo === DESP_B)?.id;
     expect(st.gM04).toBeTruthy();
 
     // "Pago" direto num item -> rejeitado (regra M-04). Antes era permissivo.
@@ -720,5 +728,50 @@ test.describe.serial("Pagamentos — fluxo Banco e Grupos", () => {
       data: { index: 0, status: "COMPLEMENTO" },
     });
     expect(ok.ok()).toBeTruthy();
+  });
+  test("18 · só itens ATIVOS do Cadastro nos selects e o servidor recusa nome/fornecedor inexistente ou inativo", async ({ page }) => {
+    await irPagamentos(page, "despachante");
+
+    // Despachante: o inativo não é opção.
+    await page.locator("#btn-novo-pagamento-DESPACHANTE").click();
+    await page.locator("#ng-nome-grupo").click();
+    await expect(page.getByRole("option", { name: DESP_A, exact: true })).toBeVisible();
+    await expect(page.getByRole("option", { name: DESP_INATIVO })).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Escape");
+
+    // Transportadora: idem.
+    await page.locator("#tab-transportadora").click();
+    await page.locator("#btn-novo-pagamento-TRANSPORTADORA").click();
+    await page.locator("#ng-nome-grupo").click();
+    await expect(page.getByRole("option", { name: TRANSP_A, exact: true })).toBeVisible();
+    await expect(page.getByRole("option", { name: TRANSP_INATIVA })).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Escape");
+
+    // Banco: o fornecedor inativo não é opção; "Outro" continua por último.
+    await page.locator("#tab-banco").click();
+    await page.locator("#btn-novo-pagamento-banco").click();
+    await page.locator("#nl-fornecedor").click();
+    await expect(page.getByRole("option", { name: FORN_A_TEXTO, exact: true })).toBeVisible();
+    await expect(page.getByRole("option", { name: FORN_INATIVO_TEXTO })).toHaveCount(0);
+    await expect(page.getByRole("option", { name: "Outro", exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Escape");
+
+    // Servidor: grupo novo com nome inexistente ou inativo é 400 (não depende do que a tela deixa escolher).
+    const itens = [{ paciente: `Paciente ${RUN} Recusa`, valor: 10 }];
+    for (const nomeGrupo of [DESP_INATIVO, `TESTE e2e Inexistente ${RUN}`]) {
+      const r = await page.request.post("/api/pagamentos/despachante", {
+        data: { data: hojeBrasilia(), empresa: "FARMAURORA", nomeGrupo, itens },
+      });
+      expect(r.status(), `despachante "${nomeGrupo}"`).toBe(400);
+    }
+    // Banco: fornecedor inativo/inexistente é 400.
+    const base = { empresa: "FARMAURORA", moeda: "EUR", invoice: `INV-${RUN}-R`, cliente: `Cliente ${RUN} Recusa`, valorMoeda: 10 };
+    for (const fornecedor of [FORN_INATIVO_TEXTO, `TESTE e2e Inexistente ${RUN} - Chile`]) {
+      const r = await page.request.post("/api/pagamentos/banco", { data: { ...base, fornecedor } });
+      expect(r.status(), `fornecedor "${fornecedor}"`).toBe(400);
+    }
   });
 });

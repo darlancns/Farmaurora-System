@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { assertSupabaseLocal } from "./_guards/supabaseLocal";
 import { lerEnv } from "./_guards/supabaseEnv";
+import { FORN_A_TEXTO, semearCadastrosDePagamento } from "./_helpers/cadastrosPagamento";
 
 // "Novo pagamento" do Banco: a MOEDA define o lote.
 //   - USD sem lote aberto            → cria o lote USD junto com o pagamento
@@ -107,7 +108,7 @@ async function abrirNovoPagamento(page: Page): Promise<void> {
 
 async function preencher(page: Page, opts: { moeda?: Moeda; cliente: string; valor?: string }): Promise<void> {
   if (opts.moeda) await page.locator(`#nl-moeda-${opts.moeda}`).click();
-  await selectOption(page, "nl-fornecedor", "Poros - Turquia");
+  await selectOption(page, "nl-fornecedor", FORN_A_TEXTO);
   await page.locator("#nl-cliente").fill(opts.cliente);
   await page.locator("#nl-invoice").fill(`INV-${RUN}`);
   await page.locator("#nl-valor-moeda").fill(opts.valor ?? "1000,00");
@@ -127,7 +128,7 @@ async function semearLote(page: Page, moeda: Moeda, cliente: string): Promise<st
     data: {
       empresa: "FARMAURORA",
       moeda,
-      fornecedor: "Poros - Turquia",
+      fornecedor: FORN_A_TEXTO,
       invoice: `INV-${RUN}-seed`,
       cliente,
       valorMoeda: 1000,
@@ -199,7 +200,10 @@ test.describe.serial("Pagamentos — Novo pagamento: a moeda define o lote", () 
   );
 
   test.beforeAll(async () => {
-    if (runnable) await limparTabelasDeBanco();
+    if (!runnable) return;
+    await limparTabelasDeBanco();
+    // O select de fornecedor lê os Cadastros: garante o fornecedor de teste no banco local.
+    await semearCadastrosDePagamento(purgador());
   });
 
   test.afterAll(async () => {

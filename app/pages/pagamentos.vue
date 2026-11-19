@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { TIPO_GRUPO_PAGAMENTO_LABEL } from "#shared/constants/pagamentos";
 import type { AppSelectOption } from "../types/appSelect";
 import { usePagamentos } from "../composables/usePagamentos";
+import { usePagamentosCadastros } from "../composables/usePagamentosCadastros";
 import { useAuth } from "../composables/useAuth";
 import { useToast } from "../composables/useToast";
 import { useBancoActions } from "../composables/useBancoActions";
@@ -10,7 +11,7 @@ import { useGrupoActions } from "../composables/useGrupoActions";
 import { useLoteExport } from "../composables/useLoteExport";
 import { usePagamentoConfirmacao } from "../composables/usePagamentoConfirmacao";
 import { ROTULO_CONFIRMAR_PAGO } from "../utils/pagamentoConfirmacao";
-import { DESPACHANTE_PAGAMENTO_OPTIONS, TRANSPORTADORA_PAGAMENTO_OPTIONS } from "../utils/pagamentoOptions";
+import { montarOpcoesNome } from "../utils/pagamentoOptions";
 import ConfirmDialog from "../components/ConfirmDialog.vue";
 import FloatingAddButton from "../components/FloatingAddButton.vue";
 import GlobalHeader from "../components/GlobalHeader.vue";
@@ -33,6 +34,8 @@ const {
   grupoPix,
   fetchAll,
 } = usePagamentos();
+// Fornecedores, despachantes e transportadoras vêm dos Cadastros (Configurações → Cadastros); carregados em fetchAll.
+const { cadastros } = usePagamentosCadastros();
 const { canWrite } = useAuth();
 // socio, operacional e administrador escrevem em Pagamentos.
 const readonly = computed<boolean>(() => !canWrite("pagamentos"));
@@ -73,7 +76,6 @@ const {
   editandoGrupoRealizado,
   abrirGrupoModal,
   handleNovoGrupo,
-  handleSalvarPix,
   handleCicloStatus,
   handlePagarGrupo,
   handleEditarItem,
@@ -101,16 +103,15 @@ const {
   },
 });
 
-// Igual a `grupoOptions` em NovoGrupoPagamentoModal.vue: nomeGrupo é escolhido
-// de uma lista fechada (não texto livre), pra não quebrar o vínculo com a
-// chave PIX salva por nome.
+// Igual a `grupoOptions` em NovoGrupoPagamentoModal.vue: nomeGrupo é escolhido de uma lista fechada (os ATIVOS do
+// Cadastro), não texto livre. O nome JÁ gravado no grupo (inclusive um nome antigo ou de item inativo) entra como opção
+// extra, como está gravado, para continuar selecionado até a pessoa trocá-lo; a edição de grupo existente não é validada
+// contra o Cadastro no servidor.
 const grupoRealizadoNomeOptions = computed<AppSelectOption<string>[] | undefined>(() => {
-  if (!editandoGrupoRealizado.value) return undefined;
-  return (
-    editandoGrupoRealizado.value.tipo === "DESPACHANTE"
-      ? DESPACHANTE_PAGAMENTO_OPTIONS
-      : TRANSPORTADORA_PAGAMENTO_OPTIONS
-  ) as AppSelectOption<string>[];
+  const editando = editandoGrupoRealizado.value;
+  if (!editando) return undefined;
+  const itens = editando.tipo === "DESPACHANTE" ? cadastros.value.despachantes : cadastros.value.transportadoras;
+  return montarOpcoesNome(itens, editando.nomeGrupo);
 });
 
 const {
@@ -181,6 +182,7 @@ function handleFab(): void {
       :empresa="empresaSelecionada"
       :lotes="lotesBanco"
       :lancamentos="lancamentosBanco"
+      :fornecedores="cadastros.fornecedores"
       :readonly="readonly"
       @novo-pagamento="abrirNovoPagamento"
       @editar-lancamento="handleEditarLancamento"
@@ -206,6 +208,7 @@ function handleFab(): void {
       tipo="DESPACHANTE"
       :empresa="empresaSelecionada"
       :grupos="gruposDespachante"
+      :cadastro="cadastros.despachantes"
       :readonly="readonly"
       @novo-pagamento="abrirGrupoModal('DESPACHANTE')"
       @ciclo-status="(grupoId, index, status) => handleCicloStatus('DESPACHANTE', grupoId, index, status)"
@@ -221,6 +224,7 @@ function handleFab(): void {
       tipo="TRANSPORTADORA"
       :empresa="empresaSelecionada"
       :grupos="gruposTransportadora"
+      :cadastro="cadastros.transportadoras"
       :readonly="readonly"
       @novo-pagamento="abrirGrupoModal('TRANSPORTADORA')"
       @ciclo-status="(grupoId, index, status) => handleCicloStatus('TRANSPORTADORA', grupoId, index, status)"
@@ -238,6 +242,7 @@ function handleFab(): void {
       :empresa="empresaSelecionada"
       :editing="editingLancamento"
       :lotes="lotesBanco"
+      :fornecedores="cadastros.fornecedores"
       @submit="handleNovoLancamento"
       @update="handleUpdateLancamento"
       @close="fecharLancamentoModal"
@@ -269,9 +274,9 @@ function handleFab(): void {
       v-if="showGrupoModal && !readonly"
       :tipo="grupoModalTipo"
       :empresa="empresaSelecionada"
+      :itens="grupoModalTipo === 'DESPACHANTE' ? cadastros.despachantes : cadastros.transportadoras"
       :pix-map="grupoPix[grupoModalTipo]"
       @submit="handleNovoGrupo"
-      @salvar-pix="handleSalvarPix"
       @close="showGrupoModal = false"
       @invalid="showToast"
     />
@@ -332,6 +337,7 @@ function handleFab(): void {
         ref="loteExportRef"
         :lote="exportLote.lote"
         :lancamentos="exportLote.lancamentos"
+        :fornecedores="cadastros.fornecedores"
         :data-exibicao="dataExibicaoLote"
       />
     </div>

@@ -15,6 +15,7 @@ import type {
 import { apiFetch, deleteTolerant } from "../utils/apiFetch";
 import { criarFilaPorChave, criarGuardaSequencia } from "../utils/respostaMaisRecente";
 import { aplicarGrupoNaLista } from "../utils/gruposLista";
+import { usePagamentosCadastros } from "./usePagamentosCadastros";
 
 interface BancoPayload {
   lotes: LoteBanco[];
@@ -52,6 +53,7 @@ export function usePagamentos() {
     "pagamentos-grupo-pix",
     () => ({ DESPACHANTE: {}, TRANSPORTADORA: {} })
   );
+  const { fetchCadastros } = usePagamentosCadastros();
   const loading = useState<boolean>("pagamentos-loading", () => false);
   const error = useState<string | null>("pagamentos-error", () => null);
 
@@ -91,10 +93,7 @@ export function usePagamentos() {
     else gruposTransportadora.value = aplicarGrupoNaLista(gruposTransportadora.value, grupo);
   }
 
-  function pixPath(tipo: TipoGrupoPagamento): string {
-    return tipo === "DESPACHANTE" ? "despachante-pix" : "transportadora-pix";
-  }
-
+  // Chave PIX por nome: SÓ LEITURA, vinda do Cadastro (quem a altera é o administrador, em Configurações → Cadastros).
   async function fetchGrupoPix(): Promise<void> {
     const [d, t] = await Promise.all([
       apiFetch<Record<string, string>>("/api/pagamentos/despachante-pix", undefined, "Falha ao carregar chaves PIX."),
@@ -107,23 +106,6 @@ export function usePagamentos() {
     grupoPix.value = { DESPACHANTE: d, TRANSPORTADORA: t };
   }
 
-  async function salvarGrupoPix(
-    tipo: TipoGrupoPagamento,
-    nome: string,
-    chavePix: string
-  ): Promise<void> {
-    const atualizado = await apiFetch<Record<string, string>>(
-      `/api/pagamentos/${pixPath(tipo)}`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nome, chavePix }),
-      },
-      "Erro ao salvar a chave PIX."
-    );
-    grupoPix.value = { ...grupoPix.value, [tipo]: atualizado };
-  }
-
   async function fetchAll(): Promise<void> {
     loading.value = true;
     error.value = null;
@@ -133,6 +115,7 @@ export function usePagamentos() {
         fetchGrupos("DESPACHANTE"),
         fetchGrupos("TRANSPORTADORA"),
         fetchGrupoPix(),
+        fetchCadastros(),
       ]);
     } catch (e) {
       error.value = e instanceof Error ? e.message : "Erro desconhecido.";
@@ -338,7 +321,6 @@ export function usePagamentos() {
     fetchBanco,
     fetchGrupos,
     fetchGrupoPix,
-    salvarGrupoPix,
     criarLancamentoBanco,
     editarLancamentoBanco,
     excluirLancamentoBanco,

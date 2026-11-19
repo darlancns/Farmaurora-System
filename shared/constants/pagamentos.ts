@@ -29,9 +29,15 @@ export const MOEDA_SIMBOLO: Record<Moeda, string> = {
   EUR: "€",
 };
 
+// LISTAS ANTIGAS DE PAGAMENTOS — FORA DO FLUXO NOVO. Fornecedores, despachantes e transportadoras (e a chave PIX
+// de cada um) agora são lidos dos Cadastros (Configurações → Cadastros): ver server/utils/cadastroPagamentos.ts e
+// app/utils/pagamentoOptions.ts. As constantes abaixo, e as chaves PIX padrão escritas nelas, NÃO são mais usadas pelo
+// app nem pelo servidor; ficam só até a conversão dos dados antigos. a remover na etapa 3 (junto com a tabela
+// `pagamento_pix_chaves`, os data/pagamentos-*-pix.json e os scripts de migração/smoke que têm cópia das chaves).
+
 // Mesma lista do campo Fornecedor do Follow-Up (FORNECEDORES_PROCESSO em
 // shared/constants/processos.ts), replicada aqui — Pagamento não importa nada de
-// Processo. Ordem alfabética, com "Outro" sempre por último.
+// Processo. Ordem alfabética, com "Outro" sempre por último. a remover na etapa 3.
 export const FORNECEDORES_PAGAMENTO: FornecedorPagamento[] = [
   "Beldimed - Bélgica",
   "Pharyx - China",
@@ -42,25 +48,23 @@ export const FORNECEDORES_PAGAMENTO: FornecedorPagamento[] = [
 
 // Mesma lista do campo Despachante do Follow-Up (DESPACHANTES_PROCESSO em
 // shared/constants/processos.ts), replicada aqui — Pagamento não importa nada de
-// Processo. Ordem alfabética.
+// Processo. Ordem alfabética. a remover na etapa 3.
 export const DESPACHANTES_PAGAMENTO: DespachantePagamento[] = [
   "Andreza Faconi",
   "Bruno Lopes",
   "Marcelo Lima",
 ];
 
-// Chave PIX padrão por despachante — usada para pré-preencher o formulário
-// "Adicionar pagamento". O valor efetivo pode ser sobrescrito pelo usuário e fica
-// persistido em data/pagamentos-despachante-pix.json (ver pagamentosStore.ts);
-// esta constante é só o fallback inicial.
+// Chave PIX padrão por despachante — antigo fallback inicial do formulário "Adicionar pagamento", sobrescrito pela
+// tabela `pagamento_pix_chaves`. Não é mais lido: a chave vem do Cadastro de despachantes (campo da chave PIX). a remover na etapa 3.
 export const DESPACHANTE_PIX_PADRAO: Record<DespachantePagamento, string> = {
   "Andreza Faconi": "67.592.120/0001-04",
   "Bruno Lopes": "036.223.838-36",
   "Marcelo Lima": "05.342.805/0001-37",
 };
 
-// Transportadoras da aba Transportes + chave PIX padrão (mesma lógica do
-// despachante — override persistido em data/pagamentos-transportadora-pix.json).
+// Transportadoras da aba Transportes + chave PIX padrão (mesma lógica do despachante). Não são mais lidas: vêm do
+// Cadastro de transportadoras (nome e chave PIX). a remover na etapa 3.
 export const TRANSPORTADORAS_PAGAMENTO: TransportadoraPagamento[] = ["AJC", "Doctor"];
 
 export const TRANSPORTADORA_PIX_PADRAO: Record<TransportadoraPagamento, string> = {
@@ -68,10 +72,7 @@ export const TRANSPORTADORA_PIX_PADRAO: Record<TransportadoraPagamento, string> 
   Doctor: "22.095.367/0001-79",
 };
 
-// Agrupa as 2 constantes acima por tipo — usado onde despachante/transportadora
-// precisam ser tratados de forma genérica (ex: isNomeConhecido em
-// pagamentosPixStore.ts). As constantes individuais continuam exportadas
-// como estavam, pros imports existentes.
+// Agrupa as 2 constantes acima por tipo. Sem uso depois que Pagamentos passou a ler dos Cadastros. a remover na etapa 3.
 interface GrupoPagamentoConfig {
   nomes: readonly string[];
   pixPadrao: Record<string, string>;

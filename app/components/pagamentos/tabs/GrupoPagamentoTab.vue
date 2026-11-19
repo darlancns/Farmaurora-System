@@ -4,6 +4,7 @@ import { dataBrasiliaDe, formatarDataBR } from "#shared/utils/dataBrasilia";
 import type {
   EmpresaPagamento,
   GrupoPagamento,
+  ItemCadastroPagamento,
   ItemGrupoPagamento,
   StatusItemGrupo,
   TipoGrupoPagamento,
@@ -16,6 +17,8 @@ import {
 import { formatCurrency } from "../../../utils/formatters";
 import { normalizeText } from "../../../utils/search";
 import { STATUS_ITEM_GRUPO_META } from "../../../utils/pagamentoStatus";
+import { acharItemPorNome } from "#shared/utils/pagamentoCadastro";
+import { opcoesFiltroDosDados, passaFiltroNome } from "../../../utils/pagamentoOptions";
 import AppSelect from "../../AppSelect.vue";
 import type { AppSelectOption } from "../../../types/appSelect";
 import GrupoPagamentoCard from "../cards/GrupoPagamentoCard.vue";
@@ -28,9 +31,11 @@ const props = withDefaults(
     tipo: TipoGrupoPagamento;
     empresa: EmpresaPagamento;
     grupos: GrupoPagamento[];
+    // Despachantes/transportadoras do Cadastro do tipo (ativos e inativos): só para marcar "(inativo)" no filtro.
+    cadastro?: ItemCadastroPagamento[];
     readonly?: boolean;
   }>(),
-  { readonly: false },
+  { readonly: false, cadastro: () => [] },
 );
 
 const emit = defineEmits<{
@@ -95,15 +100,15 @@ const itensRealizados = computed<ItemRealizado[]>(() => {
   });
 });
 
-const grupoFilterOptions = computed<AppSelectOption<string>[]>(() => {
-  const nomes = [...new Set(itensRealizados.value.map((r) => r.grupo.nomeGrupo))].sort((a, b) =>
-    a.localeCompare(b, "pt-BR")
-  );
-  return [
-    { value: "", label: todosGrupoLabel.value },
-    ...nomes.map((n) => ({ value: n, label: n })),
-  ];
-});
+// Nomes que JÁ aparecem nos pagamentos realizados (inclusive nomes antigos, fora da lista ativa), como estão gravados;
+// "(inativo)" só quando o item existe no Cadastro como inativo. Comparação por chaveCadastro.
+const grupoFilterOptions = computed<AppSelectOption<string>[]>(() =>
+  opcoesFiltroDosDados(
+    itensRealizados.value.map((r) => r.grupo.nomeGrupo),
+    (valor) => acharItemPorNome(props.cadastro, valor),
+    todosGrupoLabel.value,
+  ),
+);
 
 // Na seção "realizados" um item em "Complemento" já foi pago como complemento:
 // aparece como "Pago / Complemento" e com o badge verde (igual ao "Pago").
@@ -134,7 +139,7 @@ const ordemFilterOptions: AppSelectOption<OrdemRealizados>[] = [
 const itensRealizadosFiltrados = computed<ItemRealizado[]>(() => {
   const q = normalizeText(buscaRealizados.value);
   return itensRealizados.value.filter((r) => {
-    if (filtroGrupo.value && r.grupo.nomeGrupo !== filtroGrupo.value) return false;
+    if (!passaFiltroNome(filtroGrupo.value, r.grupo.nomeGrupo)) return false;
     if (filtroStatus.value && r.item.status !== filtroStatus.value) return false;
     if (q && !normalizeText(r.item.paciente).includes(q)) return false;
     return true;

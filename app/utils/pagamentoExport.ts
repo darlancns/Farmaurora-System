@@ -1,7 +1,10 @@
-import type { EmpresaPagamento } from "#shared/types/Pagamento";
+import type { EmpresaPagamento, ItemCadastroPagamento } from "#shared/types/Pagamento";
+import { paisDoFornecedorNoCadastro } from "#shared/utils/pagamentoCadastro";
 
 // País a partir do nome do fornecedor ("Poros - Turquia" → "TURQUIA").
 // Usado só no estado "aguardando", onde mostramos apenas o país.
+// Mapa de reserva: a fonte do país agora é o campo `pais` do Cadastro (ver paisFornecedor); este mapa só vale para o
+// texto gravado que o Cadastro não reconhece. a remover na etapa 3.
 const FORNECEDOR_PAIS: Record<string, string> = {
   beldimed: "BÉLGICA",
   pharyx: "CHINA",
@@ -9,7 +12,12 @@ const FORNECEDOR_PAIS: Record<string, string> = {
   speciality: "ÍNDIA",
 };
 
-export function paisFornecedor(fornecedor: string): string | null {
+export function paisFornecedor(fornecedor: string, cadastro: readonly ItemCadastroPagamento[] = []): string | null {
+  // 1º o Cadastro: casa o texto gravado ("Nome - País", ou só o nome) com o fornecedor pelo nome sem o " - País"
+  // (chaveCadastro) e devolve o `pais` dele. Sem fornecedor ou sem país lá, segue o comportamento de sempre.
+  const doCadastro = paisDoFornecedorNoCadastro(cadastro, fornecedor);
+  if (doCadastro) return doCadastro;
+
   // Os 4 fornecedores fixos chegam como "Nome - País" e o nome não tem hífen,
   // então a parte antes do primeiro hífen basta para achá-los no mapa.
   const chave = fornecedor.split("-")[0]?.trim().toLowerCase() ?? "";

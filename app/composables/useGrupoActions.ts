@@ -22,7 +22,6 @@ export function useGrupoActions(readonly: ComputedRef<boolean>) {
     excluirItemGrupo,
     pagarGrupo,
     editarGrupoRealizado,
-    salvarGrupoPix,
   } = usePagamentos();
   const { showToast, withToast } = useToast();
 
@@ -43,14 +42,6 @@ export function useGrupoActions(readonly: ComputedRef<boolean>) {
       },
       "Pagamento adicionado",
       "Erro ao adicionar pagamento",
-    );
-  }
-
-  async function handleSalvarPix(nome: string, chavePix: string): Promise<void> {
-    await withToast(
-      () => salvarGrupoPix(grupoModalTipo.value, nome, chavePix),
-      `Chave PIX salva para ${nome}`,
-      "Erro ao salvar a chave PIX",
     );
   }
 
@@ -172,8 +163,7 @@ export function useGrupoActions(readonly: ComputedRef<boolean>) {
     editandoGrupoRealizado,
     abrirGrupoModal,
     handleNovoGrupo,
-    handleSalvarPix,
-    handleCicloStatus,
+      handleCicloStatus,
     handlePagarGrupo,
     handleEditarItem,
     handleSalvarItem,

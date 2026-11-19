@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { BancoCambio, EmpresaPagamento, LancamentoBanco, LoteBanco } from "#shared/types/Pagamento";
+import type { BancoCambio, EmpresaPagamento, ItemCadastroPagamento, LancamentoBanco, LoteBanco } from "#shared/types/Pagamento";
+import { acharFornecedorPorTexto } from "#shared/utils/pagamentoCadastro";
+import { opcoesFiltroDosDados, passaFiltroNome } from "../../../utils/pagamentoOptions";
 import { BANCO_CAMBIO_LABEL, BANCOS_CAMBIO, MOEDA_SIMBOLO } from "#shared/constants/pagamentos";
 import { formatCurrency } from "../../../utils/formatters";
 import { calcularTotalReaisLote, formatFaixaTaxas, formatTaxa } from "../../../utils/pagamentoCalculations";
@@ -20,9 +22,11 @@ const props = withDefaults(
     empresa: EmpresaPagamento;
     lotes: LoteBanco[];
     lancamentos: LancamentoBanco[];
+    // Fornecedores do Cadastro (ativos e inativos): só para marcar "(inativo)" no filtro; o filtro lista os valores dos dados.
+    fornecedores?: ItemCadastroPagamento[];
     readonly?: boolean;
   }>(),
-  { readonly: false },
+  { readonly: false, fornecedores: () => [] },
 );
 
 const emit = defineEmits<{
@@ -127,18 +131,21 @@ const bancoFilterOptions: AppSelectOption<BancoCambio | "">[] = [
   ...BANCOS_CAMBIO.map((b) => ({ value: b, label: BANCO_CAMBIO_LABEL[b] })),
 ];
 
-const fornecedorFilterOptions = computed<AppSelectOption<string>[]>(() => {
-  const nomes = [...new Set(lancamentosRealizados.value.map((r) => r.lancamento.fornecedor))].sort(
-    (a, b) => a.localeCompare(b, "pt-BR")
-  );
-  return [{ value: "", label: "Todos os fornecedores" }, ...nomes.map((f) => ({ value: f, label: f }))];
-});
+// Fornecedores que JÁ aparecem nos lançamentos realizados (inclusive nomes que saíram da lista ativa), como estão gravados;
+// "(inativo)" só quando o fornecedor existe no Cadastro como inativo.
+const fornecedorFilterOptions = computed<AppSelectOption<string>[]>(() =>
+  opcoesFiltroDosDados(
+    lancamentosRealizados.value.map((r) => r.lancamento.fornecedor),
+    (valor) => acharFornecedorPorTexto(props.fornecedores, valor),
+    "Todos os fornecedores",
+  ),
+);
 
 const lancamentosRealizadosFiltrados = computed<LancamentoRealizado[]>(() => {
   const q = normalizeText(buscaRealizados.value);
   return lancamentosRealizados.value.filter((r) => {
     if (filtroBanco.value && r.lote.bancoEscolhido !== filtroBanco.value) return false;
-    if (filtroFornecedor.value && r.lancamento.fornecedor !== filtroFornecedor.value) return false;
+    if (!passaFiltroNome(filtroFornecedor.value, r.lancamento.fornecedor)) return false;
     if (q && !normalizeText(r.lancamento.cliente).includes(q)) return false;
     return true;
   });

@@ -12,11 +12,7 @@ import type {
 import { createSupabaseAdminClient } from "../supabaseServerClient";
 import { erro, num, randomId } from "../storeKit";
 import { isTransicaoStatusItemValida } from "../pagamentoValidation";
-import {
-  isNomeConhecido,
-  salvarDespachantePix,
-  salvarTransportadoraPix,
-} from "../pagamentosPixStore";
+import { mesmoNomeCadastro } from "../../../shared/utils/pagamentoCadastro";
 
 /**
  * Despachante / Transportadora (grupos) — Supabase, tabela `pagamento_grupos`
@@ -81,16 +77,12 @@ export async function listarGruposPagamento(): Promise<GrupoPagamento[]> {
   return ((data ?? []) as GrupoRow[]).map(montarGrupo);
 }
 
+// `dto.nomeGrupo` e `dto.chavePix` já chegam resolvidos do Cadastro pelo handler (cadastroPagamentos.ts): o nome como
+// está no Cadastro e a CÓPIA da chave PIX (instantâneo histórico). Esta função NÃO altera chave nenhuma no Cadastro.
 export async function criarGrupoPagamento(dto: NovoGrupoPagamentoDTO): Promise<GrupoPagamento> {
-  // Efeito colateral PIX (file-based, inalterado): chave de nome conhecido vira
-  // o novo padrão para os próximos pagamentos.
-  if (dto.chavePix && isNomeConhecido(dto.tipo, dto.nomeGrupo)) {
-    if (dto.tipo === "DESPACHANTE") await salvarDespachantePix(dto.nomeGrupo, dto.chavePix);
-    else await salvarTransportadoraPix(dto.nomeGrupo, dto.chavePix);
-  }
-
   const db = createSupabaseAdminClient();
 
+  // Anexar a grupo aberto: mesmo tipo, dia e empresa e o MESMO nome pela chaveCadastro (não por texto exato).
   const existRes = await db
     .from(T_GRUPOS)
     .select("*")
@@ -98,12 +90,10 @@ export async function criarGrupoPagamento(dto: NovoGrupoPagamentoDTO): Promise<G
     .eq("tipo", dto.tipo)
     .eq("data", dto.data)
     .eq("empresa", dto.empresa)
-    .eq("nome_grupo", dto.nomeGrupo)
     .order("created_at", { ascending: false })
-    .order("id", { ascending: true })
-    .limit(1);
+    .order("id", { ascending: true });
   if (existRes.error) throw erro("buscar grupo aberto", existRes.error);
-  const existente = (existRes.data ?? [])[0] as GrupoRow | undefined;
+  const existente = ((existRes.data ?? []) as GrupoRow[]).find((g) => mesmoNomeCadastro(g.nome_grupo, dto.nomeGrupo));
 
   const novosItens: ItemGrupoPagamento[] = dto.itens.map((item) => ({
     paciente: item.paciente,

@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { assertSupabaseLocal } from "./_guards/supabaseLocal";
 import { lerEnv } from "./_guards/supabaseEnv";
+import { FORN_A_TEXTO, semearCadastrosDePagamento } from "./_helpers/cadastrosPagamento";
 
 // Rendimento com 1 única ordem pendente aplica a taxa direto (sem o modal de
 // fechamento por ordem), gravando `taxaEscolhida` real no lote. Com 2+, segue
@@ -89,7 +90,7 @@ async function loteComLancamentos(page: Page, n: number, moeda: "USD" | "EUR" = 
   await expect(page.locator("#novo-lancamento-banco-overlay")).toBeVisible();
   await expect(page.locator("#nl-moeda-USD")).toHaveAttribute("aria-checked", "true"); // padrão
   if (moeda === "EUR") await page.locator("#nl-moeda-EUR").click();
-  await selectOption(page, "nl-fornecedor", "Poros - Turquia");
+  await selectOption(page, "nl-fornecedor", FORN_A_TEXTO);
   await page.locator("#nl-cliente").fill(`E2E ${RUN} rend 1`);
   await page.locator("#nl-invoice").fill(`INV-${RUN}-1`);
   await page.locator("#nl-valor-moeda").fill("1000,00");
@@ -117,7 +118,7 @@ async function adicionarLancamento(
   await page.locator("#btn-novo-pagamento-banco").click();
   await expect(page.locator("#novo-lancamento-banco-overlay")).toBeVisible();
   if (moeda === "EUR") await page.locator("#nl-moeda-EUR").click();
-  await selectOption(page, "nl-fornecedor", "Poros - Turquia");
+  await selectOption(page, "nl-fornecedor", FORN_A_TEXTO);
   await page.locator("#nl-cliente").fill(cliente);
   await page.locator("#nl-invoice").fill(`INV-${RUN}-x`);
   await page.locator("#nl-valor-moeda").fill(valor);
@@ -169,7 +170,12 @@ test.describe.serial("Pagamentos — Rendimento com 1 ordem aplica direto", () =
   }
 
   test.beforeAll(async () => {
-    if (runnable) await limparTabelasDeBanco();
+    if (!runnable) return;
+    await limparTabelasDeBanco();
+    // O select de fornecedor lê os Cadastros: garante o fornecedor de teste no banco local.
+    await semearCadastrosDePagamento(
+      createClient(env.url, env.serviceKey, { auth: { autoRefreshToken: false, persistSession: false } }),
+    );
   });
 
   test.afterAll(async () => {

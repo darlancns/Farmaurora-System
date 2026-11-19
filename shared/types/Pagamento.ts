@@ -134,7 +134,10 @@ export interface GrupoPagamento {
 export interface NovoLancamentoBancoDTO {
   empresa: EmpresaPagamento;
   moeda: Moeda;
+  // Lançamento NOVO: "Nome - País" de um fornecedor ATIVO do Cadastro (o servidor grava o texto como está no Cadastro) ou,
+  // com `fornecedorOutro: true`, um texto livre (opção "Outro" da tela).
   fornecedor: string;
+  fornecedorOutro?: boolean;
   invoice: string;
   cliente: string;
   valorMoeda: number;
@@ -170,7 +173,9 @@ export interface NovoGrupoPagamentoDTO {
   tipo: TipoGrupoPagamento;
   data: string;
   empresa: EmpresaPagamento;
+  // Despachante/transportadora ATIVO do Cadastro do tipo (o servidor casa por chaveCadastro e grava o nome como está no Cadastro).
   nomeGrupo: string;
+  // Ignorado pelo servidor: a chave PIX vem do Cadastro (a tela só a mostra). A cópia gravada no grupo é a do Cadastro.
   chavePix?: string;
   itens: Array<Pick<ItemGrupoPagamento, "paciente" | "valor">>;
 }
@@ -203,4 +208,20 @@ export interface AtualizarLancamentoRealizadoDTO {
 export interface AtualizarGrupoRealizadoDTO {
   nomeGrupo: string;
   pagoEm: string; // ISO date (YYYY-MM-DD); nunca posterior a hoje
+}
+
+// ── Cadastros usados por Pagamentos (GET /api/pagamentos/cadastros) ──────────────────────────────
+
+// Um item de Cadastro que Pagamentos usa: nome e se está ativo. `pais` só vale para fornecedor ("" nos demais).
+// A chave PIX NUNCA entra aqui (ela só sai nas rotas *-pix, pela regra de visibilidade).
+export interface ItemCadastroPagamento {
+  nome: string;
+  ativo: boolean;
+  pais: string;
+}
+
+export interface CadastrosPagamento {
+  fornecedores: ItemCadastroPagamento[];
+  despachantes: ItemCadastroPagamento[];
+  transportadoras: ItemCadastroPagamento[];
 }

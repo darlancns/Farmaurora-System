@@ -1,20 +1,16 @@
-import {
-  BANCO_CAMBIO_LABEL,
-  BANCOS_CAMBIO,
-  DESPACHANTES_PAGAMENTO,
-  FORNECEDORES_PAGAMENTO,
-  MOEDA_LABEL,
-  MOEDAS,
-  TRANSPORTADORAS_PAGAMENTO,
-} from "#shared/constants/pagamentos";
+import { BANCO_CAMBIO_LABEL, BANCOS_CAMBIO, MOEDA_LABEL, MOEDAS } from "#shared/constants/pagamentos";
+import { NOME_RESERVADO_CADASTRO } from "#shared/constants/cadastros";
 import type { AppSelectOption } from "../types/appSelect";
-import type {
-  BancoCambio,
-  DespachantePagamento,
-  FornecedorPagamento,
-  Moeda,
-  TransportadoraPagamento,
-} from "#shared/types/Pagamento";
+import type { BancoCambio, ItemCadastroPagamento, Moeda } from "#shared/types/Pagamento";
+import { chaveCadastro } from "#shared/utils/cadastroNome";
+import {
+  acharFornecedorPorTexto,
+  acharItemPorNome,
+  itensAtivos,
+  mesmoNomeCadastro,
+  rotuloFornecedorPagamento,
+  rotuloValorGravado,
+} from "#shared/utils/pagamentoCadastro";
 
 // Opções do SegmentedControl de moeda (Novo pagamento); mesma forma de AppSelectOption.
 export const MOEDA_OPTIONS: AppSelectOption<Moeda>[] = MOEDAS.map((moeda) => ({
@@ -27,17 +23,77 @@ export const BANCO_CAMBIO_OPTIONS: AppSelectOption<BancoCambio>[] = BANCOS_CAMBI
   label: BANCO_CAMBIO_LABEL[banco],
 }));
 
-function buildNomeOptions<T extends string>(nomes: readonly T[]): AppSelectOption<T | "">[] {
-  return [{ value: "", label: "Selecione" }, ...nomes.map((nome) => ({ value: nome, label: nome }))];
+const SELECIONE: AppSelectOption<string> = { value: "", label: "Selecione" };
+
+/**
+ * Select de despachante/transportadora: "Selecione" + os ATIVOS do Cadastro (já em ordem alfabética). Só os ativos podem
+ * ser escolhidos como valor novo. `valorAtual` (edição de um registro que já existe) fora da lista ativa entra como
+ * opção extra, como está gravado ("(inativo)" só quando o item existe no Cadastro como inativo): continua visível e
+ * selecionado, nunca vira vazio.
+ */
+export function montarOpcoesNome(itens: readonly ItemCadastroPagamento[], valorAtual = ""): AppSelectOption<string>[] {
+  const ativos = itensAtivos(itens);
+  const opcoes: AppSelectOption<string>[] = [SELECIONE, ...ativos.map((i) => ({ value: i.nome, label: i.nome }))];
+  const atual = valorAtual.trim();
+  if (atual !== "" && !acharItemPorNome(ativos, atual)) {
+    opcoes.push({ value: valorAtual, label: rotuloValorGravado(valorAtual, acharItemPorNome(itens, atual)) });
+  }
+  return opcoes;
 }
 
-export const FORNECEDOR_PAGAMENTO_OPTIONS: AppSelectOption<FornecedorPagamento | "">[] = [
-  { value: "", label: "Selecione" },
-  ...FORNECEDORES_PAGAMENTO.map((nome) => ({ value: nome, label: nome })),
-];
+/** Os rótulos "Nome - País" dos fornecedores ATIVOS (o que se grava no lançamento), na ordem do Cadastro. */
+export function rotulosFornecedoresAtivos(fornecedores: readonly ItemCadastroPagamento[]): string[] {
+  return itensAtivos(fornecedores).map(rotuloFornecedorPagamento);
+}
 
-export const DESPACHANTE_PAGAMENTO_OPTIONS: AppSelectOption<DespachantePagamento | "">[] =
-  buildNomeOptions(DESPACHANTES_PAGAMENTO);
+/**
+ * Valores fixos do select de fornecedor (sem o sentinela "Outro"): os rótulos dos ativos e, na edição, o valor gravado
+ * quando ele é de um fornecedor que existe no Cadastro como INATIVO (assim ele continua selecionado, não vira "Outro").
+ */
+export function fornecedoresFixos(fornecedores: readonly ItemCadastroPagamento[], valorAtual = ""): string[] {
+  const fixos = rotulosFornecedoresAtivos(fornecedores);
+  const atual = valorAtual.trim();
+  if (atual === "" || fixos.includes(valorAtual)) return fixos;
+  const doCadastro = acharFornecedorPorTexto(fornecedores, atual);
+  return doCadastro && !doCadastro.ativo ? [...fixos, valorAtual] : fixos;
+}
 
-export const TRANSPORTADORA_PAGAMENTO_OPTIONS: AppSelectOption<TransportadoraPagamento | "">[] =
-  buildNomeOptions(TRANSPORTADORAS_PAGAMENTO);
+/** Select de fornecedor do lançamento: "Selecione" + fixos (ver `fornecedoresFixos`) + "Outro" (texto livre) por último. */
+export function montarOpcoesFornecedor(
+  fornecedores: readonly ItemCadastroPagamento[],
+  valorAtual = "",
+): AppSelectOption<string>[] {
+  const fixos = fornecedoresFixos(fornecedores, valorAtual);
+  return [
+    SELECIONE,
+    ...fixos.map((valor) => ({
+      value: valor,
+      label: rotuloValorGravado(valor, acharFornecedorPorTexto(fornecedores, valor)),
+    })),
+    { value: NOME_RESERVADO_CADASTRO, label: NOME_RESERVADO_CADASTRO },
+  ];
+}
+
+/**
+ * Opções de um filtro por nome (despachante/transportadora/fornecedor) a partir dos valores que JÁ EXISTEM nos dados:
+ * sem repetição (pela chaveCadastro), em ordem alfabética pt-BR, cada um como está gravado — inclusive os que saíram da lista
+ * ativa (nomes antigos). "(inativo)" só quando o item existe no Cadastro como inativo. O valor da opção é o texto gravado.
+ */
+export function opcoesFiltroDosDados(
+  valoresGravados: readonly string[],
+  achar: (valor: string) => ItemCadastroPagamento | undefined,
+  rotuloTodos: string,
+): AppSelectOption<string>[] {
+  const vistos = new Map<string, string>();
+  for (const valor of valoresGravados) {
+    const chave = chaveCadastro(valor);
+    if (chave !== "" && !vistos.has(chave)) vistos.set(chave, valor);
+  }
+  const valores = [...vistos.values()].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  return [{ value: "", label: rotuloTodos }, ...valores.map((v) => ({ value: v, label: rotuloValorGravado(v, achar(v)) }))];
+}
+
+/** O filtro está ligado e o valor gravado é o mesmo nome (pela chaveCadastro)? Filtro vazio = tudo passa. */
+export function passaFiltroNome(filtro: string, valorGravado: string): boolean {
+  return filtro === "" || mesmoNomeCadastro(filtro, valorGravado);
+}

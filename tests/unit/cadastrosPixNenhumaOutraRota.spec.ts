@@ -5,7 +5,9 @@ import { describe, expect, it } from "vitest";
 // A chave PIX dos Cadastros (colunas chave_pix de cadastro_despachantes e cadastro_transportadoras) só pode sair por
 // UMA porta: GET /api/cadastros/:lista, que decide por podeVerPixCadastro. Esta guarda é ESTRUTURAL: nada fora de
 // Cadastros lê essas tabelas nem usa o store/mapeadores dos Cadastros — então nenhuma outra rota consegue devolver a
-// chave. (O PIX de Pagamentos é outra tabela, pagamento_pix_chaves, e outro código: não é tocado nem coberto aqui.)
+// chave. A ÚNICA exceção é a leitura de Pagamentos (server/utils/cadastroPagamentos.ts): Pagamentos passou a ler a chave
+// do Cadastro, só para leitura, por esse módulo (que usa o store dos Cadastros e nunca loga nem repassa a chave); os
+// testes do fim deste arquivo travam quem pode usá-lo.
 
 const RAIZ = process.cwd();
 const PASTAS = ["server", "app", "shared"];
@@ -37,6 +39,7 @@ const PERMITIDOS = [
   /^server\/utils\/cadastro(Acesso|Mappers)\.ts$/,
   /^server\/utils\/cadastrosStore\.ts$/,
   /^shared\/constants\/cadastros\.ts$/,
+  /^server\/utils\/cadastroPagamentos\.ts$/,
 ];
 const permitido = (caminho: string): boolean => PERMITIDOS.some((re) => re.test(caminho));
 
@@ -121,5 +124,51 @@ describe("a chave PIX dos Cadastros só sai por /api/cadastros", () => {
     expect(semPix).toContain("despachantes");
     expect(semPix).toContain("transportadoras");
     expect(semPix).not.toContain("chave_pix");
+  });
+});
+
+describe("a leitura de Pagamentos (cadastroPagamentos.ts): só leitura, só por poucos lugares, sem log da chave", () => {
+  const modulo = (): string => todos.find((a) => a.caminho === "server/utils/cadastroPagamentos.ts")!.texto;
+
+  it("só estes arquivos usam o módulo de leitura", () => {
+    const usam = todos
+      .filter((a) => /from\s+["'][^"']*cadastroPagamentos["']/.test(a.texto))
+      .map((a) => a.caminho)
+      .sort();
+    expect(usam).toEqual([
+      "server/api/pagamentos/banco.post.ts",
+      "server/api/pagamentos/cadastros.get.ts",
+      "server/utils/grupoPagamentoRouteHandlers.ts",
+    ]);
+  });
+
+  it("o módulo só LÊ: usa listarCadastro (nunca criar/alterar) e não monta `chavePix` de uma linha do banco", () => {
+    const texto = modulo();
+    expect(texto).toMatch(/listarCadastro/);
+    expect(texto).not.toMatch(/criarCadastro|alterarCadastro|\.insert\(|\.update\(|\.upsert\(|\.delete\(/);
+    expect(texto).not.toMatch(/chavePix:\s*row\.chave_pix/);
+  });
+
+  it("o único console.* do módulo cita só o tipo da lista e os NOMES (nenhuma variável da chave)", () => {
+    const linhas = modulo()
+      .split("\n")
+      .filter((l) => /console\./.test(l));
+    expect(linhas).toHaveLength(1);
+    expect(linhas[0]).toContain('sem chave PIX no Cadastro (${LISTA_DO_TIPO[tipo]}): ${nomes.join(", ")}');
+    expect(linhas[0]).not.toMatch(/chavePix|\bchave\b(?! PIX)/);
+  });
+
+  it("a rota de listas não pede a chave: obterCadastrosDePagamentos lê sem `incluirPix`", () => {
+    const trecho = /export async function obterCadastrosDePagamentos[\s\S]*?\n}\n/.exec(modulo())?.[0] ?? "";
+    expect(trecho).toContain("listarCadastro(");
+    expect(trecho).not.toContain("incluirPix");
+  });
+
+  it("nenhuma rota de /api/pagamentos escreve chave PIX (sem PATCH de PIX)", () => {
+    const rotasPix = todos
+      .filter((a) => a.caminho.startsWith("server/api/pagamentos/") && a.caminho.includes("-pix"))
+      .map((a) => a.caminho)
+      .sort();
+    expect(rotasPix).toEqual(["server/api/pagamentos/despachante-pix.get.ts", "server/api/pagamentos/transportadora-pix.get.ts"]);
   });
 });
