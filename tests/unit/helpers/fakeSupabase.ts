@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Cliente Supabase falso, em memória, só com o que bancoStore usa: select / insert /
-// update / upsert / delete encadeados com eq, is, order, limit, range e maybeSingle. Cada tabela é
+// update / upsert / delete encadeados com eq, is, in, ilike, order, limit, range e maybeSingle. Cada tabela é
 // um array de linhas; `falhar` injeta um erro numa operação (tabela + op) para
 // simular falha no meio de uma gravação.
 //
@@ -30,6 +30,10 @@ export class FakeSupabase {
   // Colunas pedidas em cada select puro (o argumento de `.select(colunas)`); o fake NÃO projeta as linhas por elas.
   readonly selects: Array<{ tabela: string; colunas: string | undefined }> = [];
 
+  // Unicidade opt-in por tabela: conferida no FIM de cada comando de escrita (insert, upsert ou update), como uma constraint
+  // DEFERRABLE em autocommit (ou uma imediata sem trocas no meio do comando). Violou: o comando inteiro é desfeito e o erro é 23505.
+  private unicos: Array<{ tabela: string; colunas: string[]; nome: string }> = [];
+
   // Funções SQL simuladas por nome (db.rpc); o teste registra a que precisa.
   readonly rpcs: Record<string, FuncaoRpc> = {};
   readonly chamadasRpc: Array<{ nome: string; args: Record<string, unknown> }> = [];
@@ -44,6 +48,25 @@ export class FakeSupabase {
 
   falhar(tabela: string, op: Op, mensagem = "falha injetada"): void {
     this.falhas.push({ tabela, op, mensagem });
+  }
+
+  /** Liga a unicidade de `colunas` na `tabela` (linhas com alguma coluna nula não contam, como no Postgres). */
+  unico(tabela: string, colunas: string[], nome: string): void {
+    this.unicos.push({ tabela, colunas, nome });
+  }
+
+  /** O nome da primeira unicidade violada na tabela, ou null. */
+  unicoViolado(tabela: string): string | null {
+    for (const u of this.unicos.filter((x) => x.tabela === tabela)) {
+      const vistos = new Set<string>();
+      for (const r of this.tabelas[tabela] ?? []) {
+        if (u.colunas.some((c) => r[c] === null || r[c] === undefined)) continue;
+        const chave = JSON.stringify(u.colunas.map((c) => r[c]));
+        if (vistos.has(chave)) return u.nome;
+        vistos.add(chave);
+      }
+    }
+    return null;
   }
 
   from(tabela: string): Consulta {
@@ -70,9 +93,17 @@ export class FakeSupabase {
   }
 }
 
+// Padrão do LIKE/ILIKE do Postgres como expressão regular: % = qualquer trecho, _ = um caractere, o resto é literal.
+function likeParaRegExp(padrao: string): RegExp {
+  let re = "";
+  for (const ch of padrao) re += ch === "%" ? ".*" : ch === "_" ? "." : ch.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&");
+  return new RegExp(`^${re}$`, "is");
+}
+
 class Consulta implements PromiseLike<Resultado> {
   private op: Op = "select";
   private payload: Row = {};
+  private payloads: Row[] = [];
   private filtros: Array<(r: Row) => boolean> = [];
   private ordens: Array<{ col: string; asc: boolean }> = [];
   private max: number | null = null;
@@ -97,9 +128,10 @@ class Consulta implements PromiseLike<Resultado> {
     }
     return this;
   }
-  insert(row: Row): this {
+  // insert e upsert aceitam UMA linha ou uma LISTA (um comando só, como o PostgREST).
+  insert(row: Row | Row[]): this {
     this.op = "insert";
-    this.payload = row;
+    this.payloads = Array.isArray(row) ? row : [row];
     return this;
   }
   update(patch: Row): this {
@@ -108,9 +140,9 @@ class Consulta implements PromiseLike<Resultado> {
     return this;
   }
   // upsert por `onConflict` (colunas separadas por vírgula = a chave): `ignoreDuplicates` não mexe na linha que já existe.
-  upsert(row: Row, opcoes: { onConflict?: string; ignoreDuplicates?: boolean } = {}): this {
+  upsert(row: Row | Row[], opcoes: { onConflict?: string; ignoreDuplicates?: boolean } = {}): this {
     this.op = "upsert";
-    this.payload = row;
+    this.payloads = Array.isArray(row) ? row : [row];
     this.opcoesUpsert = opcoes;
     return this;
   }
@@ -120,6 +152,16 @@ class Consulta implements PromiseLike<Resultado> {
   }
   eq(col: string, valor: unknown): this {
     this.filtros.push((r) => r[col] === valor);
+    return this;
+  }
+  in(col: string, valores: readonly unknown[]): this {
+    this.filtros.push((r) => valores.includes(r[col]));
+    return this;
+  }
+  // ilike("coluna", "%texto%"): sem diferença de caixa.
+  ilike(col: string, padrao: string): this {
+    const re = likeParaRegExp(padrao);
+    this.filtros.push((r) => typeof r[col] === "string" && re.test(r[col] as string));
     return this;
   }
   is(col: string, valor: null): this {
@@ -159,26 +201,46 @@ class Consulta implements PromiseLike<Resultado> {
     const todas = (this.db.tabelas[this.tabela] ??= []);
     const casa = (r: Row) => this.filtros.every((f) => f(r));
 
+    // Escrita: o comando é UM só. Se uma unicidade ligada (`unico`) fica violada no fim dele, tudo é desfeito (23505).
+    const comUnicidade = (escrever: () => Resultado): Resultado => {
+      const antes = todas.map((r) => ({ ...r }));
+      const resultado = escrever();
+      const violada = this.db.unicoViolado(this.tabela);
+      if (violada === null) return resultado;
+      this.db.tabelas[this.tabela] = antes;
+      return { data: null, error: { message: `duplicate key value violates unique constraint "${violada}"`, code: "23505" } };
+    };
+
     if (this.op === "insert") {
-      const nova = { ...this.payload };
-      todas.push(nova);
-      return { data: this.retorna ? [{ ...nova }] : null, error: null };
+      return comUnicidade(() => {
+        const novas = this.payloads.map((p) => ({ ...p }));
+        todas.push(...novas);
+        return { data: this.retorna ? novas.map((n) => ({ ...n })) : null, error: null };
+      });
     }
     if (this.op === "upsert") {
-      const chave = (this.opcoesUpsert.onConflict ?? "id").split(",").map((c) => c.trim());
-      const existente = todas.find((r) => chave.every((c) => r[c] === this.payload[c]));
-      if (!existente) todas.push({ ...this.payload });
-      else if (!this.opcoesUpsert.ignoreDuplicates) Object.assign(existente, this.payload);
-      return { data: this.retorna ? [{ ...(existente ?? this.payload) }] : null, error: null };
+      return comUnicidade(() => {
+        const chave = (this.opcoesUpsert.onConflict ?? "id").split(",").map((c) => c.trim());
+        const devolvidas: Row[] = [];
+        for (const payload of this.payloads) {
+          const existente = todas.find((r) => chave.every((c) => r[c] === payload[c]));
+          if (!existente) todas.push({ ...payload });
+          else if (!this.opcoesUpsert.ignoreDuplicates) Object.assign(existente, payload);
+          devolvidas.push({ ...(existente ?? payload) });
+        }
+        return { data: this.retorna ? devolvidas : null, error: null };
+      });
     }
     if (this.op === "update") {
-      const afetadas: Row[] = [];
-      for (const r of todas) {
-        if (!casa(r)) continue;
-        Object.assign(r, this.payload);
-        afetadas.push({ ...r });
-      }
-      return { data: this.retorna ? afetadas : null, error: null };
+      return comUnicidade(() => {
+        const afetadas: Row[] = [];
+        for (const r of todas) {
+          if (!casa(r)) continue;
+          Object.assign(r, this.payload);
+          afetadas.push({ ...r });
+        }
+        return { data: this.retorna ? afetadas : null, error: null };
+      });
     }
     if (this.op === "delete") {
       this.db.tabelas[this.tabela] = todas.filter((r) => !casa(r));
@@ -188,7 +250,10 @@ class Consulta implements PromiseLike<Resultado> {
     let achadas = todas.filter(casa).map((r) => ({ ...r }));
     achadas.sort((a, b) => {
       for (const { col, asc } of this.ordens) {
-        const c = String(a[col]).localeCompare(String(b[col]));
+        const c =
+          typeof a[col] === "number" && typeof b[col] === "number"
+            ? (a[col] as number) - (b[col] as number)
+            : String(a[col]).localeCompare(String(b[col]));
         if (c !== 0) return c * (asc ? 1 : -1);
       }
       return 0;
