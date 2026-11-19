@@ -1,5 +1,6 @@
 import { BLOCOS_DA_COMPRA, TEXTOS_RESUMO as T, type BlocoDaCompra } from "../constants/compraResumo";
 import { MOEDA_SIMBOLO } from "../constants/pagamentos";
+import type { Compra, DespachanteCadastroResumo } from "../types/compra";
 import type {
   AvisosResumo,
   CompraResumoEntrada,
@@ -230,4 +231,77 @@ export function montarResumoCompra(entrada: CompraResumoEntrada): string {
     .filter((linhas) => linhas.length > 0)
     .map((linhas) => linhas.join("\n"))
     .join("\n\n");
+}
+
+// ── Da Compra para a entrada do resumo ──────────────────────────────────────────────────────────────────────
+
+/** "2026-11" → { ano: 2026, mes: 11 }; fora do formato, 0 e 0 (o título do resumo some com a parte inválida). */
+function anoEMesDe(anoMes: string): { ano: number; mes: number } {
+  const m = /^(\d{4})-(\d{2})$/.exec(anoMes);
+  return m ? { ano: Number(m[1]), mes: Number(m[2]) } : { ano: 0, mes: 0 };
+}
+
+/**
+ * Converte o estado de uma Compra (o que o servidor guarda) na entrada de `montarResumoCompra`. O despachante vem do Cadastro de
+ * despachantes (telefone, e-mail e contato): só entra se for o MESMO da compra (pela chave: sem acento nem caixa) e SÓ esses campos
+ * são copiados — a chave PIX nunca passa por aqui (o tipo `DespachanteCadastroResumo` nem tem o campo, e a cópia é campo a campo,
+ * então um objeto com a mais é ignorado). Courier Simples: "Despachante: N/A". Sem despachante escolhido: o bloco some.
+ */
+export function compraParaResumoEntrada(compra: Compra, despachanteCadastro: DespachanteCadastroResumo | null = null): CompraResumoEntrada {
+  const { ano, mes } = anoEMesDe(compra.anoMes);
+
+  let despachante: DespachanteResumo | null = null;
+  if (compra.courierSimples) {
+    despachante = { courierSimples: true };
+  } else if (limparTextoResumo(compra.despachante) !== "") {
+    const mesmo = despachanteCadastro !== null && chaveCadastro(limparTextoResumo(despachanteCadastro.nome)) === chaveCadastro(limparTextoResumo(compra.despachante));
+    despachante = {
+      courierSimples: false,
+      nome: compra.despachante,
+      ...(mesmo
+        ? { telefone: despachanteCadastro.telefone, email: despachanteCadastro.email, contato: despachanteCadastro.contatoNome }
+        : {}),
+    };
+  }
+
+  return {
+    numero: compra.sequencia,
+    mes,
+    ano,
+    ordens: compra.ordens.map((o) => ({
+      fornecedor: o.fornecedor,
+      envio: o.envio,
+      frete: o.frete,
+      freteReal: o.freteReal,
+      medicamentos: o.itens.map((i) => ({
+        nome: i.medicamento,
+        apresentacao: i.apresentacao,
+        referencia: i.referencia,
+        laboratorio: i.laboratorio,
+        quantidade: i.quantidade,
+        valorUnitario: i.valorUnitario,
+        valorReal: i.valorReal,
+        temperatura: i.temperatura,
+      })),
+    })),
+    pagamento: { alvara: compra.pagamentoAlvara, momento: compra.pagamentoMomento },
+    termoPosterior: { sim: compra.termoPosterior, observacao: compra.termoObservacao },
+    paciente: compra.paciente,
+    despachante,
+    avisos: {
+      isencao: compra.isencao,
+      isencaoPara: compra.isencaoPara,
+      documentos: compra.documentos,
+      pendencias: [...compra.pendencias],
+      observacoes: compra.observacoes,
+    },
+    vendedor: compra.vendedor,
+    responsavel: compra.responsavel,
+    processo: { particular: compra.compraParticular, numero: compra.processoNumero },
+    medico: compra.medico,
+    localAplicacao: compra.localAplicacao,
+    localDeclarado: compra.localDeclarado,
+    entrega: compra.entrega,
+    contatos: compra.contatos,
+  };
 }
