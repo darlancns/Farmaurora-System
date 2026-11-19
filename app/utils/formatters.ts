@@ -1,8 +1,8 @@
+import { formatarValorMonetario } from "#shared/utils/formatarMoeda";
+
+// A formatação mora em shared/ (formatarMoeda.ts) para o servidor e o resumo da compra usarem a mesma.
 export function formatCurrency(value: number): string {
-  return value.toLocaleString("pt-BR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  return formatarValorMonetario(value);
 }
 
 export function padTwoDigits(value: number): string {
