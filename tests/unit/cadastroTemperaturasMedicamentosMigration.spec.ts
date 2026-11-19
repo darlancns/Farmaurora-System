@@ -42,11 +42,13 @@ describe("migration de temperaturas e medicamentos", () => {
   });
 
   it("o timestamp é maior que o das migrations anteriores (a última era 20261118231000)", () => {
+    // As migrations que JÁ existiam quando esta foi escrita (as posteriores, como a de Compras, podem ter timestamp maior).
     const anteriores = readdirSync(MIGRATIONS_DIR)
-      .filter((n) => n !== arquivo && /^\d{14}_/.test(n))
+      .filter((n) => n !== arquivo && /^\d{14}_/.test(n) && n.slice(0, 14) <= "20261118231000")
       .map((n) => n.slice(0, 14));
     expect(anteriores.length).toBeGreaterThan(0);
     for (const ts of anteriores) expect(ts < "20261119160000", ts).toBe(true);
+    expect(anteriores).toContain("20261118231000");
   });
 
   it("o cabeçalho avisa que JÁ FOI APLICADA em produção e que NÃO se reaplica", () => {
