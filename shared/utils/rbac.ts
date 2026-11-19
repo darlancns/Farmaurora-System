@@ -103,6 +103,9 @@ export function sectionForApiPath(path: string): Section | null {
   if (p === "/api/processos" || p.startsWith("/api/processos/")) return "processos";
   if (p === "/api/pagamentos" || p.startsWith("/api/pagamentos/")) return "pagamentos";
   if (p === "/api/dir" || p.startsWith("/api/dir/")) return "dir";
+  // Compras: leitura (GET) para quem lê a seção, escrita (POST/PUT/PATCH/DELETE) só para quem escreve. As rotas ainda não existem;
+  // a regra já vale (consultor e quem não tem permissão levam 403) e um teste a trava.
+  if (p === "/api/compras" || p.startsWith("/api/compras/")) return "compras";
   if (p === "/api/admin" || p.startsWith("/api/admin/")) return "admin";
   if (p === "/api/recados" || p.startsWith("/api/recados/")) return "recados";
   if (p === "/api/contas" || p.startsWith("/api/contas/")) return "recados";
