@@ -53,3 +53,11 @@ Dois grupos: **celular (375x667)** e **tela larga (1280x800 e 2130x1200)**. No c
 - A compra do teste é montada pela **API** (POST e PATCH com o estado completo), não pelo formulário. Fornecedor, despachante e vendedor precisam ser itens **ativos** dos Cadastros do banco local: defina `E2E_ENCAMINHAR_FORNECEDOR`, `E2E_ENCAMINHAR_DESPACHANTE` e `E2E_ENCAMINHAR_VENDEDOR`; sem eles o teste do Encaminhar de verdade é pulado.
 - O teste de operacional com compras = editar e dir = ver precisa de uma conta criada à mão no banco local: `E2E_COMPRAS_EDITA_DIR_VE_EMAIL` / `_PASSWORD`.
 - O Encaminhar de verdade **cria linhas na DIR do banco local** (paciente "TESTE E2E ENCAMINHAR ...", POs PO26-12-xxxx). O teste as remove no fim pela API (`DELETE /api/dir/:id`); as compras ficam (o app não apaga compras).
+
+### Pré-cadastros de medicamento (8): `cadastros-pre-medicamentos.spec.ts`
+
+**Estado: escrito, NÃO executado** (só `--list`). Cobre a seção "Pendentes de aprovação" da aba Medicamentos (acima da lista, com a etiqueta "N pendentes" no título; nome, temperatura, a compra do pedido sem paciente, quem pediu), **aprovar** (o pendente some, o medicamento passa a existir no Cadastro, o item da compra fica ligado e a versão da compra sobe), **rejeitar** (confirmação: cancelar não envia; depois a compra mostra o aviso "Pré-cadastro rejeitado…" com o texto livre intacto), **nome que já existe** ("Já existe no Cadastro" e "Vincular ao cadastro existente", sem linha nova), duas abas decidindo o mesmo pendente (409) e a barreira do operacional (a lista e as decisões respondem 403; a aba Cadastros não existe).
+
+- Só o **administrador** decide (a mesma regra de escrever nos Cadastros). Use `E2E_ADMIN_*` e, para a barreira, `E2E_OPERACIONAL_*`.
+- Os dados são montados pela **API**: uma compra, um pré-cadastro "TESTE E2E PRE ..." e a temperatura "TESTE E2E TEMP" (`POST /api/compras/temperaturas`); nenhum cadastro prévio além das contas.
+- Cada teste **cria dados no banco local** (compra, pré-cadastro e, ao aprovar, um medicamento no Cadastro). O app não apaga nada: recrie o banco local para limpar.
