@@ -1,4 +1,4 @@
-import { reactive } from "vue";
+import { reactive, watch } from "vue";
 import {
   BANCOS_DIR,
   DESPACHANTES_DIR,
@@ -37,17 +37,17 @@ export type CampoComOutro =
   | "temperatura"
   | "observacao";
 
-const LISTAS: Record<CampoComOutro, readonly string[]> = {
+// A temperatura NÃO está aqui: a lista dela chega do Cadastro (ver `temperaturas` em useDirForm) e tem fallback nas constantes.
+const LISTAS: Record<Exclude<CampoComOutro, "temperatura">, readonly string[]> = {
   responsavel: RESPONSAVEIS_DIR,
   fornecedor: FORNECEDORES_DIR,
   despachante: DESPACHANTES_DIR,
   banco: BANCOS_DIR,
   receita: RECEITAS_DIR,
-  temperatura: TEMPERATURAS_DIR,
   observacao: OBSERVACOES_DIR,
 };
 
-const CAMPOS_COM_OUTRO = Object.keys(LISTAS) as CampoComOutro[];
+const CAMPOS_COM_OUTRO: CampoComOutro[] = [...(Object.keys(LISTAS) as Array<Exclude<CampoComOutro, "temperatura">>), "temperatura"];
 
 // Gravam NA HORA (PATCH) quando o registro já existe — ficam fora do "Salvar alterações".
 export const CHAVES_INSTANTANEAS = [
@@ -134,9 +134,14 @@ function formVazio(): FormDir {
  * `consultoresAtivos`: os consultores ativos do Cadastro (o servidor confere de novo). Sem ele, só se exige que o campo
  * esteja preenchido (o select já só oferece os ativos e o valor atual).
  */
-export function useDirForm(editando: () => Dir | null | undefined, consultoresAtivos?: () => readonly string[]) {
+export function useDirForm(
+  editando: () => Dir | null | undefined,
+  consultoresAtivos?: () => readonly string[],
+  temperaturas: () => readonly string[] = () => TEMPERATURAS_DIR,
+) {
   const form = reactive<FormDir>(formVazio());
-  const outros = Object.fromEntries(CAMPOS_COM_OUTRO.map((campo) => [campo, useOutroSentinel(LISTAS[campo])])) as Record<
+  const listaDe = (campo: CampoComOutro): (() => readonly string[]) => (campo === "temperatura" ? temperaturas : () => LISTAS[campo]);
+  const outros = Object.fromEntries(CAMPOS_COM_OUTRO.map((campo) => [campo, useOutroSentinel(listaDe(campo))])) as Record<
     CampoComOutro,
     ReturnType<typeof useOutroSentinel>
   >;
@@ -162,6 +167,13 @@ export function useDirForm(editando: () => Dir | null | undefined, consultoresAt
     for (const chave of CHAVES_INSTANTANEAS) form[chave] = dir[chave];
     for (const campo of CAMPOS_COM_OUTRO) outros[campo].load(dir[campo]);
   }
+
+  // A lista de temperaturas pode chegar DEPOIS de o formulário abrir (leitura do Cadastro): quem abriu como "Outro" com um texto que
+  // agora está na lista passa a mostrar o item da lista. O texto digitado de verdade (fora da lista) continua como "Outro".
+  watch(temperaturas, (lista) => {
+    const t = outros.temperatura.state;
+    if (t.select === "Outro" && lista.includes(t.outroTexto)) outros.temperatura.load(t.outroTexto);
+  });
 
   // PO: mesma máscara do PO do Follow-Up (PO26-10-0471: prefixo, hífens, 8 dígitos, maiúsculas, colar e cursor),
   // pela mesma função (utils/aplicarMascaraNumeroPo.ts). A validação continua em `validar` (regex completa).

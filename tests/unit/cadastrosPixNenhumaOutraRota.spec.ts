@@ -40,7 +40,8 @@ const todos = PASTAS.flatMap((p) => arquivos(join(RAIZ, p))).map((f) => ({
 // a validação do consultor em Follow-Up, Prestação, DIR e contas) e server/utils/comprasCatalogo.ts (a porta das Compras para as
 // listas: só LÊ, só colunas explícitas sem PIX, só itens ativos), server/utils/comprasTemperatura.ts (criar temperatura passando
 // pelo store dos Cadastros, só a lista sem PIX) e server/utils/preCadastroStore.ts (a tabela pre_cadastro_medicamentos tem uma COLUNA
-// `cadastro_id`, que a regra confundiria com tabela; não toca em nenhuma cadastro_*); um teste abaixo trava o que cada uma pode fazer.
+// `cadastro_id`, que a regra confundiria com tabela; não toca em nenhuma cadastro_*) e server/utils/dirOpcoes.ts (as temperaturas ATIVAS do
+// Cadastro para o formulário da DIR: só `listarCadastro("temperaturas")`); um teste abaixo trava o que cada uma pode fazer.
 const PERMITIDOS = [
   /^server\/api\/cadastros\//,
   /^server\/utils\/cadastro(Acesso|Mappers)\.ts$/,
@@ -51,6 +52,7 @@ const PERMITIDOS = [
   /^server\/utils\/comprasCatalogo\.ts$/,
   /^server\/utils\/comprasTemperatura\.ts$/,
   /^server\/utils\/preCadastroStore\.ts$/,
+  /^server\/utils\/dirOpcoes\.ts$/,
 ];
 const permitido = (caminho: string): boolean => PERMITIDOS.some((re) => re.test(caminho));
 
@@ -151,7 +153,18 @@ describe("a chave PIX dos Cadastros só sai por /api/cadastros", () => {
     expect(usam).toEqual(["server/api/compras/pre-cadastro-medicamentos.post.ts"]);
   });
 
-  it("as exceções FORA do store dos Cadastros são exatamente estas quatro (um arquivo novo que fale dos Cadastros falha aqui até ser decidido)", () => {
+  it("a exceção dirOpcoes.ts só LÊ a lista `temperaturas` pelo store: sem escrita, sem PIX, sem outra lista, sem banco direto, e só a rota de opções da DIR a usa", () => {
+    const texto = todos.find((a) => a.caminho === "server/utils/dirOpcoes.ts")!.texto;
+    const semComentarios = texto.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    // Só `listarCadastro("temperaturas")`: nenhuma outra função do store e nenhuma outra lista.
+    expect([...new Set(semComentarios.match(/\b(listarCadastro|criarCadastro|alterarCadastro)\(\s*"[a-z-]+"/g))]).toEqual(['listarCadastro("temperaturas"']);
+    expect(semComentarios).not.toMatch(/criarCadastro|alterarCadastro|renomearConsultor|alterarConsultor|incluirPix/);
+    expect(semComentarios).not.toMatch(/chave_?pix|TABELA_CADASTRO|\bcadastro_[a-z_]+|\.from\(|\.rpc\(|createSupabaseAdminClient/i);
+    const usam = todos.filter((a) => /from\s+["'][^"']*dirOpcoes["']/.test(a.texto)).map((a) => a.caminho);
+    expect(usam).toEqual(["server/api/dir/opcoes.get.ts"]);
+  });
+
+  it("as exceções FORA do store dos Cadastros são exatamente estas seis (um arquivo novo que fale dos Cadastros falha aqui até ser decidido)", () => {
     const foraDoStore = (c: string): boolean =>
       permitido(c) && !/^server\/api\/cadastros\//.test(c) && !/^server\/utils\/cadastro(Acesso|Mappers)\.ts$/.test(c) && c !== "server/utils/cadastrosStore.ts" && c !== "shared/constants/cadastros.ts";
     const exceções = todos.filter((a) => foraDoStore(a.caminho)).map((a) => a.caminho).sort();
@@ -160,6 +173,7 @@ describe("a chave PIX dos Cadastros só sai por /api/cadastros", () => {
       "server/utils/comprasCatalogo.ts",
       "server/utils/comprasTemperatura.ts",
       "server/utils/consultoresCadastro.ts",
+      "server/utils/dirOpcoes.ts",
       "server/utils/preCadastroStore.ts",
     ]);
   });

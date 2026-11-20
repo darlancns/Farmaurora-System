@@ -5,6 +5,7 @@ import type { Dir, DirPatchDTO, NewDirDTO } from "#shared/types/dir";
 import { useAuth } from "../composables/useAuth";
 import { useConsultores } from "../composables/useConsultores";
 import { useDir } from "../composables/useDir";
+import { useDirOpcoes } from "../composables/useDirOpcoes";
 import { useToast } from "../composables/useToast";
 import { getErrorMessage } from "../utils/errorMessages";
 import {
@@ -44,9 +45,12 @@ const { showToast } = useToast();
 
 // Consultor do formulário: os consultores do Cadastro (só essa lista é carregada; a DIR não usa as outras).
 const { consultores, carregarConsultores } = useConsultores();
+// Temperaturas do Cadastro para o select do formulário (com fallback nas 3 constantes se a leitura falhar).
+const { temperaturas, carregarOpcoes } = useDirOpcoes();
 
 onMounted(() => {
   fetchDir();
+  void carregarOpcoes();
   void carregarConsultores().then((falha) => {
     if (falha) showToast(falha);
   });
@@ -404,6 +408,7 @@ async function handleDelete(id: string): Promise<void> {
       :contagem-por-po="contagemPorPo"
       :readonly="!podeEditar"
       :consultores="consultores"
+      :temperaturas="temperaturas"
       @submit="handleSubmit"
       @update="handleUpdate"
       @patch="handlePatch"

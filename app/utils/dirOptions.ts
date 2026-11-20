@@ -57,7 +57,13 @@ export const FORNECEDOR_DIR_OPTIONS = opcoesComOutro(FORNECEDORES_DIR);
 export const DESPACHANTE_DIR_OPTIONS = opcoesComOutro(DESPACHANTES_DIR);
 export const BANCO_DIR_OPTIONS = opcoesComOutro(BANCOS_DIR);
 export const RECEITA_DIR_OPTIONS = opcoesComOutro(RECEITAS_DIR);
-export const TEMPERATURA_DIR_OPTIONS = opcoesComOutro(TEMPERATURAS_DIR);
+/**
+ * Select de temperatura do formulário: "Selecione" + as temperaturas (as ativas do Cadastro, ou as 3 constantes se a leitura falhou)
+ * + "Outro" (texto livre digitável). Valor atual fora da lista abre como "Outro" (useOutroSentinel), nunca some.
+ */
+export function montarTemperaturaDirOptions(lista: readonly string[] = TEMPERATURAS_DIR): AppSelectOption<string>[] {
+  return opcoesComOutro(lista);
+}
 export const OBSERVACAO_DIR_OPTIONS = opcoesComOutro(OBSERVACOES_DIR);
 
 /**

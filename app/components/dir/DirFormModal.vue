@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
-import { CHECKLIST_DIR, FECHAMENTO_RESTANTE_ENCERRADA } from "#shared/constants/dir";
+import { CHECKLIST_DIR, FECHAMENTO_RESTANTE_ENCERRADA, TEMPERATURAS_DIR } from "#shared/constants/dir";
 import type { ChecklistChaveDir, ChecklistDir, Dir, DirPatchDTO, NewDirDTO } from "#shared/types/dir";
 import { nomesConsultoresAtivos, type ItemConsultor } from "#shared/utils/consultorRegra";
 import { useDirForm, type CampoComOutro, type ChaveInstantanea } from "../../composables/useDirForm";
@@ -15,8 +15,8 @@ import {
   RECEITA_DIR_OPTIONS,
   RESPONSAVEL_DIR_OPTIONS,
   STATUS_DIR_OPTIONS,
-  TEMPERATURA_DIR_OPTIONS,
   montarCiaAereaDirOptions,
+  montarTemperaturaDirOptions,
 } from "../../utils/dirOptions";
 import {
   INPUT_CLASS,
@@ -46,8 +46,10 @@ const props = withDefaults(
     // Consultores do Cadastro (lista "consultores"; ativos e inativos): as opções do select Consultor são os ativos, em ordem
     // alfabética; o consultor atual do PO aparece mesmo se já estiver inativo ou fora do Cadastro, sem apagar o dado.
     consultores?: ItemConsultor[];
+    // Temperaturas ativas do Cadastro (GET /api/dir/opcoes). Sem elas (ainda carregando ou falhou), valem as 3 constantes de antes.
+    temperaturas?: readonly string[];
   }>(),
-  { readonly: false, consultores: () => [] },
+  { readonly: false, consultores: () => [], temperaturas: undefined },
 );
 
 const emit = defineEmits<{
@@ -63,6 +65,7 @@ const emit = defineEmits<{
 const { form, outros, onPoInput, onMedicamentoInput, onContratoCambioInput, validar, valorToggle } = useDirForm(
   () => props.editingDir,
   () => nomesConsultoresAtivos(props.consultores),
+  () => props.temperaturas ?? TEMPERATURAS_DIR,
 );
 
 // Consultor: os ativos do Cadastro, sem "Outro" (+ valor antigo fora da lista como "(inativo)", nunca vazio).
@@ -82,11 +85,12 @@ interface CampoLista {
   larguraTotal?: boolean;
 }
 
-const CAMPOS_IDENTIFICACAO: CampoLista[] = [
+// A temperatura vem do Cadastro (com fallback nas constantes), então as opções são computadas.
+const CAMPOS_IDENTIFICACAO = computed<CampoLista[]>(() => [
   { campo: "responsavel", rotulo: "Responsável", opcoes: RESPONSAVEL_DIR_OPTIONS },
   { campo: "receita", rotulo: "Receita", opcoes: RECEITA_DIR_OPTIONS },
-  { campo: "temperatura", rotulo: "Temperatura", opcoes: TEMPERATURA_DIR_OPTIONS },
-];
+  { campo: "temperatura", rotulo: "Temperatura", opcoes: montarTemperaturaDirOptions(props.temperaturas ?? TEMPERATURAS_DIR) },
+]);
 const CAMPOS_LOGISTICA: CampoLista[] = [
   // O Fornecedor ocupa a linha inteira (nenhum campo faz par com ele): Envio | Despachante e Cia aérea | AWB seguem em pares.
   { campo: "fornecedor", rotulo: "Fornecedor", opcoes: FORNECEDOR_DIR_OPTIONS, larguraTotal: true },

@@ -64,3 +64,8 @@ export type NewDirDTO = Omit<
 
 // Patch seletivo: só as chaves presentes são gravadas.
 export type DirPatchDTO = Partial<NewDirDTO>;
+
+// As opções da DIR que vêm dos Cadastros (GET /api/dir/opcoes): só as temperaturas ATIVAS, em ordem alfabética.
+export interface DirOpcoes {
+  temperaturas: string[];
+}

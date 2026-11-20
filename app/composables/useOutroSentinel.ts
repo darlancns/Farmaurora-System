@@ -11,7 +11,9 @@ interface UseOutroSentinelReturn {
   build: () => string;
 }
 
-export function useOutroSentinel(opcoesFixas: readonly string[]): UseOutroSentinelReturn {
+// `opcoesFixas` pode ser a lista ou uma função que a devolve (lista que chega depois, como as temperaturas do Cadastro).
+export function useOutroSentinel(opcoesFixas: readonly string[] | (() => readonly string[])): UseOutroSentinelReturn {
+  const lista = (): readonly string[] => (typeof opcoesFixas === "function" ? opcoesFixas() : opcoesFixas);
   const state = reactive<OutroSentinelState>({
     select: "",
     outroTexto: "",
@@ -23,7 +25,7 @@ export function useOutroSentinel(opcoesFixas: readonly string[]): UseOutroSentin
       state.outroTexto = "";
       return;
     }
-    if (opcoesFixas.includes(valor)) {
+    if (lista().includes(valor)) {
       state.select = valor;
       state.outroTexto = "";
       return;
