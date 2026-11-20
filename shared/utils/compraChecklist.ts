@@ -1,7 +1,8 @@
 import { DIR_MEDICAMENTO_MAX, REGRAS_CHECKLIST as R, TEXTOS_CHECKLIST as T, type NivelChecklist } from "../constants/compraChecklist";
 import { TEXTOS_RESUMO } from "../constants/compraResumo";
 import { MODAL_COURIER_SIMPLES } from "../constants/processos";
-import type { Compra, OrdemCompra } from "../types/compra";
+import type { StatusDaCompra } from "../constants/compra";
+import type { ItemCompra, OrdemCompra } from "../types/compra";
 import { textoMedicamentoDir } from "./compraDir";
 import { dataBrasiliaDe, formatarDiaMes } from "./dataBrasilia";
 import { NUMERO_PO_REGEX, normalizarNumeroPo } from "./numeroPo";
@@ -33,13 +34,28 @@ export interface OpcoesChecklist {
   poJaNaDir?: readonly string[];
 }
 
-export type StatusDaCompra = "rascunho" | "pronta" | "parcial" | "encaminhada" | "cancelada";
+/** O que a checagem lê de um medicamento. */
+export type ItemParaChecklist = Pick<ItemCompra, "posicao" | "medicamento" | "medicamentoCadastroId" | "preCadastroId" | "apresentacao" | "quantidade" | "temperatura">;
 
-/** O que a checagem lê de uma compra (a `Compra` inteira serve). */
-export type CompraParaChecklist = Pick<
-  Compra,
-  "cancelada" | "paciente" | "processoNumero" | "compraParticular" | "medico" | "vendedor" | "responsavel" | "despachante" | "pagamentoMomento" | "localAplicacao" | "entrega" | "documentos" | "ordens"
->;
+/** O que a checagem lê de uma ordem. */
+export type OrdemParaChecklist = Pick<OrdemCompra, "posicao" | "fornecedor" | "envio" | "po" | "dirId" | "encaminhadaEm"> & { itens: readonly ItemParaChecklist[] };
+
+/** O que a checagem lê de uma compra (a `Compra` inteira serve, e a lista do mês monta só isto, sem contatos nem valores). */
+export interface CompraParaChecklist {
+  cancelada: boolean;
+  paciente: string;
+  processoNumero: string;
+  compraParticular: boolean;
+  medico: string;
+  vendedor: string;
+  responsavel: string;
+  despachante: string;
+  pagamentoMomento: string | null;
+  localAplicacao: string;
+  entrega: string;
+  documentos: boolean | null;
+  ordens: readonly OrdemParaChecklist[];
+}
 
 const preenchido = (v: string | null | undefined): boolean => (v ?? "").trim() !== "";
 const porPosicao = <T extends { posicao: number }>(lista: readonly T[]): T[] => [...lista].sort((a, b) => a.posicao - b.posicao);

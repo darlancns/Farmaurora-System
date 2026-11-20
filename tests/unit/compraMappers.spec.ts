@@ -239,11 +239,32 @@ describe("a compra", () => {
     expect(ordens).toEqual(copia);
   });
 
-  it("item da lista: sem ordens, com o total e quantas já foram encaminhadas", () => {
-    const l = montarCompraDaLista(compraRow(), [ordemRow({ id: "o1" }), ordemRow({ id: "o2", posicao: 2, encaminhada_em: "2026-11-19T15:00:00+00:00", dir_id: "dir_1" })]);
-    expect(l).toMatchObject({ id: "cmp_1", totalOrdens: 2, totalOrdensEncaminhadas: 1 });
-    expect(l).not.toHaveProperty("ordens");
-    expect(montarCompraDaLista(compraRow(), [])).toMatchObject({ totalOrdens: 0, totalOrdensEncaminhadas: 0 });
+  it("item da lista: só o necessário, com o total de ordens e quantas já foram encaminhadas (por dir_id)", () => {
+    const l = montarCompraDaLista(
+      compraRow(),
+      [ordemRow({ id: "o1" }), ordemRow({ id: "o2", posicao: 2, encaminhada_em: "2026-11-19T15:00:00+00:00", dir_id: "dir_1" })],
+      [],
+    );
+    expect(l).toMatchObject({ id: "cmp_1", anoMes: "2026-11", sequencia: 7, totalOrdens: 2, totalOrdensEncaminhadas: 1, atualizadoEm: "2026-11-19T12:30:15.250Z" });
+    expect(Object.keys(l).sort()).toEqual(
+      ["anoMes", "atualizadoEm", "cancelada", "id", "medicamentos", "paciente", "pendencias", "sequencia", "status", "totalOrdens", "totalOrdensEncaminhadas"].sort(),
+    );
+    expect(montarCompraDaLista(compraRow(), [], [])).toMatchObject({ totalOrdens: 0, totalOrdensEncaminhadas: 0 });
+  });
+
+  it("os nomes dos medicamentos: únicos, na ordem das ordens e dos itens (por posição), sem vazios", () => {
+    const l = montarCompraDaLista(
+      compraRow(),
+      [ordemRow({ id: "o2", posicao: 2 }), ordemRow({ id: "o1", posicao: 1 })],
+      [
+        itemRow({ id: "a", ordem_id: "o2", posicao: 1, medicamento: "SEGUNDA ORDEM" }),
+        itemRow({ id: "b", ordem_id: "o1", posicao: 2, medicamento: " REPETIDO " }),
+        itemRow({ id: "c", ordem_id: "o1", posicao: 1, medicamento: "PRIMEIRO" }),
+        itemRow({ id: "d", ordem_id: "o2", posicao: 2, medicamento: "REPETIDO" }),
+        itemRow({ id: "e", ordem_id: "o2", posicao: 3, medicamento: "  " }),
+      ],
+    );
+    expect(l.medicamentos).toEqual(["PRIMEIRO", "REPETIDO", "SEGUNDA ORDEM"]);
   });
 });
 

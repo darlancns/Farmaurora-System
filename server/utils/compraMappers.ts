@@ -1,4 +1,5 @@
 import type { Compra, CompraDaLista, ItemCompra, OrdemCompra } from "../../shared/types/compra";
+import { contarPendencias, statusDaCompra, type CompraParaChecklist } from "../../shared/utils/compraChecklist";
 import type { MomentoPagamentoResumo } from "../../shared/types/compraResumo";
 
 // Mapeadores PUROS linha (Supabase: compras, compra_ordens, compra_itens) ↔ modelo — sem Supabase nem rede, testáveis isoladamente
@@ -183,12 +184,102 @@ export function montarCompra(row: CompraRow, ordens: readonly OrdemRow[], itens:
   };
 }
 
-/** Um item da lista do mês: a compra sem as ordens, com as contagens. */
-export function montarCompraDaLista(row: CompraRow, ordens: readonly OrdemRow[]): CompraDaLista {
+// ── A lista do mês ───────────────────────────────────────────────────────────────────────────────────────────────
+// A lista lê só as colunas de que a linha e a checagem precisam (nada de contatos, valores, frete nem observações).
+
+export const COLUNAS_LISTA_COMPRA =
+  "id, ano_mes, sequencia, cancelada, paciente, processo_numero, compra_particular, medico, vendedor, responsavel, despachante, pagamento_momento, local_aplicacao, entrega, documentos, updated_at";
+export const COLUNAS_LISTA_ORDEM = "id, compra_id, posicao, fornecedor, envio, po, dir_id, encaminhada_em";
+export const COLUNAS_LISTA_ITEM = "id, ordem_id, posicao, medicamento, medicamento_cadastro_id, pre_cadastro_id, apresentacao, quantidade, temperatura";
+
+export type CompraListaRow = Pick<
+  CompraRow,
+  | "id"
+  | "ano_mes"
+  | "sequencia"
+  | "cancelada"
+  | "paciente"
+  | "processo_numero"
+  | "compra_particular"
+  | "medico"
+  | "vendedor"
+  | "responsavel"
+  | "despachante"
+  | "pagamento_momento"
+  | "local_aplicacao"
+  | "entrega"
+  | "documentos"
+  | "updated_at"
+>;
+export type OrdemListaRow = Pick<OrdemRow, "id" | "compra_id" | "posicao" | "fornecedor" | "envio" | "po" | "dir_id" | "encaminhada_em">;
+export type ItemListaRow = Pick<
+  ItemRow,
+  "id" | "ordem_id" | "posicao" | "medicamento" | "medicamento_cadastro_id" | "pre_cadastro_id" | "apresentacao" | "quantidade" | "temperatura"
+>;
+
+/** O que a checagem lê de uma compra da lista (a mesma conversão linha → modelo de `montarCompra`, só das colunas lidas). */
+export function montarCompraParaChecklist(row: CompraListaRow, ordens: readonly OrdemListaRow[], itens: readonly ItemListaRow[]): CompraParaChecklist {
+  const itensDaOrdem = new Map<string, ItemListaRow[]>();
+  for (const i of itens) itensDaOrdem.set(i.ordem_id, [...(itensDaOrdem.get(i.ordem_id) ?? []), i]);
   return {
-    ...montarCompraSemOrdens(row),
-    totalOrdens: ordens.length,
-    totalOrdensEncaminhadas: ordens.filter((o) => o.encaminhada_em !== null && o.encaminhada_em !== undefined).length,
+    cancelada: row.cancelada === true,
+    paciente: texto(row.paciente),
+    processoNumero: texto(row.processo_numero),
+    compraParticular: row.compra_particular === true,
+    medico: texto(row.medico),
+    vendedor: texto(row.vendedor),
+    responsavel: texto(row.responsavel),
+    despachante: texto(row.despachante),
+    pagamentoMomento: momentoDe(row.pagamento_momento),
+    localAplicacao: texto(row.local_aplicacao),
+    entrega: texto(row.entrega),
+    documentos: row.documentos ?? null,
+    ordens: [...ordens]
+      .sort((a, b) => a.posicao - b.posicao)
+      .map((o) => ({
+        posicao: o.posicao,
+        fornecedor: texto(o.fornecedor),
+        envio: texto(o.envio),
+        po: texto(o.po),
+        dirId: o.dir_id ?? null,
+        encaminhadaEm: o.encaminhada_em === null || o.encaminhada_em === undefined ? null : instanteIso(o.encaminhada_em),
+        itens: [...(itensDaOrdem.get(o.id) ?? [])]
+          .sort((a, b) => a.posicao - b.posicao)
+          .map((i) => ({
+            posicao: i.posicao,
+            medicamento: texto(i.medicamento),
+            medicamentoCadastroId: i.medicamento_cadastro_id ?? null,
+            preCadastroId: i.pre_cadastro_id ?? null,
+            apresentacao: texto(i.apresentacao),
+            quantidade: texto(i.quantidade),
+            temperatura: texto(i.temperatura),
+          })),
+      })),
+  };
+}
+
+/** Um item da lista do mês: só o necessário para a linha do painel (ver CompraDaLista). */
+export function montarCompraDaLista(row: CompraListaRow, ordens: readonly OrdemListaRow[], itens: readonly ItemListaRow[]): CompraDaLista {
+  const compra = montarCompraParaChecklist(row, ordens, itens);
+  const nomes: string[] = [];
+  for (const o of compra.ordens) {
+    for (const i of o.itens) {
+      const nome = i.medicamento.trim();
+      if (nome !== "" && !nomes.includes(nome)) nomes.push(nome);
+    }
+  }
+  return {
+    id: row.id,
+    anoMes: row.ano_mes,
+    sequencia: row.sequencia,
+    cancelada: row.cancelada === true,
+    paciente: texto(row.paciente),
+    medicamentos: nomes,
+    totalOrdens: compra.ordens.length,
+    totalOrdensEncaminhadas: compra.ordens.filter((o) => o.dirId !== null && o.dirId.trim() !== "").length,
+    pendencias: contarPendencias(compra),
+    status: statusDaCompra(compra),
+    atualizadoEm: instanteIso(row.updated_at),
   };
 }
 

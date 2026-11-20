@@ -1,14 +1,21 @@
 import { createError } from "h3";
-import type { Compra, CompraDaLista, CompraEstado, CamposCompraEditaveis, OrdemCompraEstado } from "../../shared/types/compra";
+import { COMPRA_LISTA_POR_PAGINA, type StatusDaCompra } from "../../shared/constants/compra";
+import type { Compra, CompraDaLista, CompraEstado, CamposCompraEditaveis, ListaCompras, OrdemCompraEstado, TotaisPorStatus } from "../../shared/types/compra";
 import { dataBrasiliaDe } from "../../shared/utils/dataBrasilia";
 import {
+  COLUNAS_LISTA_COMPRA,
+  COLUNAS_LISTA_ITEM,
+  COLUNAS_LISTA_ORDEM,
   instanteIso,
   linhaDeItem,
   linhaDeOrdem,
   montarCompra,
   montarCompraDaLista,
+  type CompraListaRow,
   type CompraRow,
+  type ItemListaRow,
   type ItemRow,
+  type OrdemListaRow,
   type OrdemRow,
 } from "./compraMappers";
 import { createSupabaseAdminClient } from "./supabaseServerClient";
@@ -166,28 +173,85 @@ export async function obterCompra(id: string): Promise<Compra | null> {
   return carregada ? compraDe(carregada) : null;
 }
 
+const TAMANHO_PAGINA_LEITURA = 1000;
+
+/** Lê TODAS as linhas de uma consulta em páginas de 1000 (o PostgREST corta em silêncio), por ordem estável (`id`). */
+async function lerTudo<T>(acao: string, pagina: (de: number, ate: number) => PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>): Promise<T[]> {
+  const todas: T[] = [];
+  for (let de = 0; ; de += TAMANHO_PAGINA_LEITURA) {
+    const { data, error } = await pagina(de, de + TAMANHO_PAGINA_LEITURA - 1);
+    if (error) throw erro(acao, error);
+    const linhas = (data ?? []) as T[];
+    todas.push(...linhas);
+    if (linhas.length < TAMANHO_PAGINA_LEITURA) break;
+  }
+  return todas;
+}
+
+export interface OpcoesLista {
+  /** Só as compras neste estado. Sem isto, todas MENOS as canceladas (a menos que `incluirCanceladas`). */
+  status?: StatusDaCompra | null;
+  incluirCanceladas?: boolean;
+  /** A partir de 1. */
+  pagina?: number;
+  limite?: number;
+}
+
 /**
- * As compras do mês (AAAA-MM de Brasília), da mais recente para a mais antiga; sem as canceladas, a menos que `incluirCanceladas`.
- * Cada uma com o total de ordens e quantas já foram encaminhadas (sem as ordens em si).
+ * As compras do mês (AAAA-MM de Brasília) para o painel esquerdo: da mais recente para a mais antiga (sequencia desc), 50 por vez
+ * ("mostrar mais"). O ESTADO e as PENDÊNCIAS de cada compra são DERIVADOS (checklistCompra), então não dá para filtrar nem contar no
+ * banco: o servidor lê o mês inteiro só das colunas que a checagem usa (nada de contatos, valores nem observações), calcula, filtra,
+ * conta os `totais` por estado do mês TODO e devolve só a página pedida, só com o necessário para a linha. A DIR não é consultada
+ * (o PO repetido na DIR só entra na checagem do Encaminhar).
  */
-export async function listarComprasDoMes(anoMes: string, opcoes: { incluirCanceladas?: boolean } = {}): Promise<CompraDaLista[]> {
+export async function listarComprasDoMes(anoMes: string, opcoes: OpcoesLista = {}): Promise<ListaCompras> {
   if (!ANO_MES_RE.test(anoMes)) throw new ComprasRegraError("Mês inválido: use AAAA-MM.", 400);
   const db = createSupabaseAdminClient();
-  let consulta = db.from(COMPRAS).select("*").eq("ano_mes", anoMes);
-  if (opcoes.incluirCanceladas !== true) consulta = consulta.eq("cancelada", false);
-  const { data, error } = await consulta.order("sequencia", { ascending: false });
-  if (error) throw erro("listar as compras do mês", error);
-  const rows = (data ?? []) as CompraRow[];
-  const ordens = await lerOrdensDe(
-    db,
-    rows.map((r) => r.id),
+  const status = opcoes.status ?? null;
+  const limite = opcoes.limite ?? COMPRA_LISTA_POR_PAGINA;
+  const pagina = opcoes.pagina ?? 1;
+
+  const rows = await lerTudo<CompraListaRow>("listar as compras do mês", (de, ate) =>
+    db.from(COMPRAS).select(COLUNAS_LISTA_COMPRA).eq("ano_mes", anoMes).order("sequencia", { ascending: false }).order("id", { ascending: true }).range(de, ate),
   );
-  return rows.map((r) =>
-    montarCompraDaLista(
-      r,
-      ordens.filter((o) => o.compra_id === r.id),
-    ),
-  );
+
+  const ordens: OrdemListaRow[] = [];
+  for (const bloco of emBlocos(rows.map((r) => r.id))) {
+    ordens.push(...(await lerTudo<OrdemListaRow>("ler as ordens da lista", (de, ate) => db.from(ORDENS).select(COLUNAS_LISTA_ORDEM).in("compra_id", bloco).order("id", { ascending: true }).range(de, ate))));
+  }
+  const itens: ItemListaRow[] = [];
+  for (const bloco of emBlocos(ordens.map((o) => o.id))) {
+    itens.push(...(await lerTudo<ItemListaRow>("ler os itens da lista", (de, ate) => db.from(ITENS).select(COLUNAS_LISTA_ITEM).in("ordem_id", bloco).order("id", { ascending: true }).range(de, ate))));
+  }
+
+  const ordensDe = new Map<string, OrdemListaRow[]>();
+  for (const o of ordens) ordensDe.set(o.compra_id, [...(ordensDe.get(o.compra_id) ?? []), o]);
+  const itensDe = new Map<string, ItemListaRow[]>();
+  for (const i of itens) itensDe.set(i.ordem_id, [...(itensDe.get(i.ordem_id) ?? []), i]);
+
+  const totais: TotaisPorStatus = { rascunho: 0, pronta: 0, parcial: 0, encaminhada: 0, cancelada: 0 };
+  const casam: CompraDaLista[] = [];
+  for (const row of rows) {
+    const minhasOrdens = ordensDe.get(row.id) ?? [];
+    const minhasItens = minhasOrdens.flatMap((o) => itensDe.get(o.id) ?? []);
+    const item = montarCompraDaLista(row, minhasOrdens, minhasItens);
+    totais[item.status] += 1;
+    const entra = status !== null ? item.status === status : opcoes.incluirCanceladas === true || item.status !== "cancelada";
+    if (entra) casam.push(item);
+  }
+
+  // Já vem em sequencia desc (a leitura ordenou); a página é uma fatia, e `temMais` diz se sobrou alguma depois dela.
+  const de = (pagina - 1) * limite;
+  return {
+    anoMes,
+    compras: casam.slice(de, de + limite),
+    status,
+    pagina,
+    limite,
+    temMais: casam.length > de + limite,
+    total: casam.length,
+    totais,
+  };
 }
 
 // ── Criar, duplicar, cancelar ────────────────────────────────────────────────────────────────────────────────

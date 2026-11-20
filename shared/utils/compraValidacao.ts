@@ -12,6 +12,8 @@ import {
   COMPRA_REFERENCIA_ID_RE,
   COMPRA_TEXTO_LONGO_MAX,
   COMPRA_VALOR_MAX,
+  STATUS_DA_COMPRA,
+  type StatusDaCompra,
 } from "../constants/compra";
 import type { CamposCompraEditaveis, CompraEstado, ItemCompraEstado, OrdemCompraEstado } from "../types/compra";
 import type { MomentoPagamentoResumo } from "../types/compraResumo";
@@ -398,6 +400,31 @@ export function validarPreCadastroCompra(corpo: unknown): ResultadoCompra<PreCad
   const r = validarNovoCadastro("medicamentos", { nome: o.nome, temperatura: o.temperatura });
   if (!r.ok) return falha(r.erro);
   return ok({ nome: r.valor.nome, temperatura: r.valor.temperatura, compraId });
+}
+
+export interface ConsultaListaCompras {
+  anoMes: string;
+  status: StatusDaCompra | null;
+  incluirCanceladas: boolean;
+  pagina: number;
+}
+
+/** A consulta de GET /api/compras: `?ano_mes=AAAA-MM`, `?status=` (rascunho|pronta|parcial|encaminhada|cancelada), `?pagina=` (a partir de 1) e `?incluir_canceladas=1`. */
+export function validarConsultaListaCompras(consulta: Record<string, unknown>, anoMesPadrao: string): ResultadoCompra<ConsultaListaCompras> {
+  const mes = validarAnoMesDaConsulta(consulta.ano_mes, anoMesPadrao);
+  if (!mes.ok) return mes;
+
+  const bruto = consulta.status;
+  let status: StatusDaCompra | null = null;
+  if (bruto !== undefined && bruto !== "") {
+    if (typeof bruto !== "string" || !(STATUS_DA_COMPRA as readonly string[]).includes(bruto)) return falha(`Status inválido: use ${STATUS_DA_COMPRA.join(", ")}.`);
+    status = bruto as StatusDaCompra;
+  }
+
+  const pagina = inteiroDaConsulta(consulta.pagina, 1, 1, 100000, "Página");
+  if (!pagina.ok) return pagina;
+
+  return ok({ anoMes: mes.valor, status, incluirCanceladas: consulta.incluir_canceladas === "1", pagina: pagina.valor });
 }
 
 /** O id da compra na rota. */

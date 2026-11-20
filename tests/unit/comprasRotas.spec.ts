@@ -256,11 +256,31 @@ describe("GET /api/compras (lista)", () => {
     expect(r.compras[0]).not.toHaveProperty("ordens");
   });
 
-  it("?ano_mes inválido → 400; mês sem compras → lista vazia; o sócio lê", async () => {
+  it("?ano_mes inválido → 400; mês sem compras → lista vazia (com os totais zerados); o sócio lê", async () => {
     h.query = { ano_mes: "2026-13" };
     expect(await erroDe(chamar(listaGet, adm))).toMatchObject({ status: 400, msg: "Mês inválido: use AAAA-MM." });
     h.query = { ano_mes: "2000-01" };
-    expect(await chamar(listaGet, usuario("socio"))).toEqual({ anoMes: "2000-01", compras: [] });
+    expect(await chamar(listaGet, usuario("socio"))).toMatchObject({
+      anoMes: "2000-01",
+      compras: [],
+      temMais: false,
+      total: 0,
+      totais: { rascunho: 0, pronta: 0, parcial: 0, encaminhada: 0, cancelada: 0 },
+    });
+  });
+
+  it("?status= e ?pagina= são validados (400) e repassados; a resposta traz totais, total, pagina e limite", async () => {
+    const c = await criarCompraDireta();
+    h.query = { ano_mes: c.anoMes, status: "rascunho" };
+    const r = await chamar<{ compras: Array<{ id: string; status: string; pendencias: number }>; status: string; pagina: number; limite: number; temMais: boolean; total: number; totais: Record<string, number> }>(listaGet, adm);
+    expect(r).toMatchObject({ status: "rascunho", pagina: 1, limite: 50, temMais: false, total: 1, totais: { rascunho: 1, pronta: 0, parcial: 0, encaminhada: 0, cancelada: 0 } });
+    expect(r.compras[0]).toMatchObject({ id: c.id, status: "rascunho" });
+    h.query = { ano_mes: c.anoMes, status: "pronta" };
+    expect((await chamar<{ compras: unknown[] }>(listaGet, adm)).compras).toEqual([]);
+    for (const ruim of [{ status: "todas" }, { status: "PRONTA" }, { pagina: "0" }, { pagina: "x" }]) {
+      h.query = { ano_mes: c.anoMes, ...ruim };
+      expect((await erroDe(chamar(listaGet, adm))).status, JSON.stringify(ruim)).toBe(400);
+    }
   });
 
   it("canceladas só aparecem com ?incluir_canceladas=1", async () => {

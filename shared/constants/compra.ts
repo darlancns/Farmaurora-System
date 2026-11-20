@@ -28,3 +28,12 @@ export const COMPRA_MEDICAMENTOS_LIMITE_PADRAO = 50;
 export const COMPRA_MEDICAMENTOS_LIMITE_MAX = 100;
 /** Tamanho máximo do texto da busca (`?q=`). */
 export const COMPRA_BUSCA_MAX = 80;
+
+// A lista do mês (GET /api/compras): o estado derivado de cada compra e a paginação "mostrar mais".
+
+/** Os estados da compra na lista (statusDaCompra, em shared/utils/compraChecklist.ts). */
+export const STATUS_DA_COMPRA = ["rascunho", "pronta", "parcial", "encaminhada", "cancelada"] as const;
+export type StatusDaCompra = (typeof STATUS_DA_COMPRA)[number];
+
+/** Compras por página da lista ("mostrar mais" soma outra página de 50). */
+export const COMPRA_LISTA_POR_PAGINA = 50;

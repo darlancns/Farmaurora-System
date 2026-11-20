@@ -5,6 +5,7 @@
 // (vazio); datas e instantes são texto ISO. Quantidade é TEXTO com a unidade ("12 ampolas"). Nomes com sufixo próprio para não
 // colidir com `Medicamento` (processo.ts) nem com `MedicamentoCadastro` (Cadastro.ts).
 
+import type { StatusDaCompra } from "../constants/compra";
 import type { MomentoPagamentoResumo } from "./compraResumo";
 
 /** Um medicamento de uma ordem. */
@@ -84,11 +85,46 @@ export interface Compra {
   ordens: OrdemCompra[];
 }
 
-/** Uma compra na lista do mês: os campos dela, sem as ordens, e quantas ordens tem e quantas já foram encaminhadas. */
-export type CompraDaLista = Omit<Compra, "ordens"> & {
+/**
+ * Uma compra na lista do mês (painel esquerdo): SÓ o necessário para a linha. Nada de valores, contatos, endereços nem dados do
+ * pagamento: o detalhe é GET /api/compras/:id.
+ */
+export interface CompraDaLista {
+  id: string;
+  /** Mês de BRASÍLIA (AAAA-MM). */
+  anoMes: string;
+  sequencia: number;
+  cancelada: boolean;
+  paciente: string;
+  /** Nomes dos medicamentos de todas as ordens, sem repetir, na ordem em que aparecem (ordens e itens por posição). */
+  medicamentos: string[];
   totalOrdens: number;
+  /** Ordens com dir_id (já encaminhadas para a DIR). */
   totalOrdensEncaminhadas: number;
-};
+  /** Quantas pendências a checagem da compra acusa (contarPendencias). */
+  pendencias: number;
+  status: StatusDaCompra;
+  /** A versão (updated_at, ISO UTC). */
+  atualizadoEm: string;
+}
+
+/** Quantas compras do mês há em cada estado (o mês INTEIRO, não só a página nem o filtro). */
+export type TotaisPorStatus = Record<StatusDaCompra, number>;
+
+/** A resposta de GET /api/compras. */
+export interface ListaCompras {
+  anoMes: string;
+  compras: CompraDaLista[];
+  /** O filtro aplicado (`?status=`), ou null. */
+  status: StatusDaCompra | null;
+  /** Página (a partir de 1) e tamanho usados; há mais depois desta? */
+  pagina: number;
+  limite: number;
+  temMais: boolean;
+  /** Quantas compras casam com o filtro (todas as páginas). */
+  total: number;
+  totais: TotaisPorStatus;
+}
 
 // ── Entrada do salvamento ───────────────────────────────────────────────────────────────────────────────────
 

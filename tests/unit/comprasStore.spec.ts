@@ -25,7 +25,6 @@ const {
   cancelarCompra,
   criarCompra,
   duplicarCompra,
-  listarComprasDoMes,
   obterCompra,
   proximaVersao,
   salvarCompra,
@@ -264,7 +263,7 @@ describe("criarCompra — disputa pelo número (23505 em compras_mes_sequencia_u
 
 // ── Ler ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
-describe("obterCompra e listarComprasDoMes", () => {
+describe("obterCompra", () => {
   it("obterCompra: null se não existe; com ordens e itens POR POSIÇÃO", async () => {
     expect(await obterCompra("nao_existe")).toBeNull();
     const c = await criarCompra("Cris");
@@ -284,43 +283,6 @@ describe("obterCompra e listarComprasDoMes", () => {
     ]);
     expect(lida.ordens[1]!.frete).toBe(10.5);
     expect(lida.ordens[0]!.itens.map((i) => i.valorUnitario)).toEqual([12.3, 0]); // numeric de texto → número; "0.00" é zero
-  });
-
-  it("listarComprasDoMes: só o mês pedido, da mais recente para a mais antiga, SEM as canceladas por padrão", async () => {
-    const a = await criarCompra("Cris");
-    const b = await criarCompra("Cris");
-    const c = await criarCompra("Cris");
-    await cancelarCompra(b.id, "Cris");
-    vi.setSystemTime(new Date("2026-12-10T15:00:00.000Z"));
-    await criarCompra("Cris"); // dezembro
-
-    const lista = await listarComprasDoMes("2026-11");
-    expect(lista.map((x) => x.sequencia)).toEqual([3, 1]);
-    expect(lista.map((x) => x.id)).toEqual([c.id, a.id]);
-    expect(lista[0]).not.toHaveProperty("ordens");
-
-    const todas = await listarComprasDoMes("2026-11", { incluirCanceladas: true });
-    expect(todas.map((x) => [x.sequencia, x.cancelada])).toEqual([[3, false], [2, true], [1, false]]);
-    expect((await listarComprasDoMes("2026-12")).map((x) => x.sequencia)).toEqual([1]);
-    expect(await listarComprasDoMes("2025-01")).toEqual([]);
-  });
-
-  it("a lista traz o total de ordens e quantas já foram encaminhadas", async () => {
-    const c = await criarCompra("Cris");
-    fake.semear("compra_ordens", [
-      { id: "ord_000001", compra_id: c.id, posicao: 1, dir_id: null, encaminhada_em: null },
-      { id: "ord_000002", compra_id: c.id, posicao: 2, dir_id: "dir_1", encaminhada_em: "2026-11-19T16:00:00.000Z" },
-    ]);
-    const outra = await criarCompra("Cris");
-    const lista = await listarComprasDoMes("2026-11");
-    expect(lista.find((x) => x.id === c.id)).toMatchObject({ totalOrdens: 2, totalOrdensEncaminhadas: 1 });
-    expect(lista.find((x) => x.id === outra.id)).toMatchObject({ totalOrdens: 0, totalOrdensEncaminhadas: 0 });
-  });
-
-  it("mês fora do formato AAAA-MM é 400", async () => {
-    for (const ruim of ["2026-13", "2026-1", "26-11", "novembro", "", "2026-11-01", "2026-00"]) {
-      expect((await erroDe(listarComprasDoMes(ruim))).statusCode, ruim).toBe(400);
-    }
   });
 });
 
