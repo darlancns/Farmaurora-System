@@ -27,7 +27,7 @@ import { erro } from "./storeKit";
  * confere). Sem transação (o supabase-js não tem), então a sequência é a que torna cada passo seguro de repetir:
  *
  *   1. ler a compra; cancelada → 409;
- *   2. as ordens a encaminhar: as pedidas (`ordemIds`; ausente = todas) que AINDA não têm dir_id. Nenhuma pendente → 200 `jaEncaminhada`,
+ *   2. as ordens a encaminhar: as pedidas (`ordemIds`; ausente = todas) que AINDA não têm dir_id. Todas as pedidas já encaminhadas → 200 `jaEncaminhada`,
  *      sem escrever nada (e sem olhar a versão: o segundo clique, depois de a compra já ter mudado de versão, é inofensivo);
  *   3. a versão (`atualizadoEm`) tem de ser a atual → senão 409 com `data.atual`;
  *   4. validar (checklist, vendedor ativo, PO repetido na compra, PO já na DIR, temperatura mista confirmada);
@@ -168,8 +168,10 @@ export async function encaminharCompra(id: string, corpo: CorpoEncaminhar, _usua
   if (!compra) return null;
   if (compra.cancelada) throw cancelada(compra);
 
-  const pendentes = ordensEscolhidas(compra, corpo.ordemIds).filter((o) => !jaFoiParaDir(o));
-  if (pendentes.length === 0) return { compra, criadas: [], jaEncaminhada: true };
+  const escolhidas = ordensEscolhidas(compra, corpo.ordemIds);
+  // Compra SEM ordens não está "encaminhada": cai na validação (a checagem acusa "nenhuma ordem").
+  if (escolhidas.length > 0 && escolhidas.every(jaFoiParaDir)) return { compra, criadas: [], jaEncaminhada: true };
+  const pendentes = escolhidas.filter((o) => !jaFoiParaDir(o));
 
   if (corpo.atualizadoEm !== compra.updatedAt) throw conflitoDeVersao(compra);
 

@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Compra } from "../../shared/types/compra";
 import { statusDaCompra } from "../../shared/utils/compraChecklist";
 import { FakeSupabase } from "./helpers/fakeSupabase";
-import { CONSULTOR_INATIVO_FIXTURE, semearConsultores } from "./helpers/consultoresFixtures";
+import { CONSULTOR_INATIVO_FIXTURE } from "./helpers/consultoresFixtures";
+import { COMPRA_PRONTA_ID, COMPRA_PRONTA_VERSAO, linhaItemPronto, linhaOrdemPronta, semearCompraPronta } from "./helpers/compraProntaFixtures";
 
 // O store do Encaminhar para a DIR (server/utils/comprasEncaminhar.ts) com o Supabase em memória. Dados fictícios (TESTE).
 
@@ -14,91 +15,14 @@ vi.mock("../../server/utils/supabaseServerClient", () => ({
 const { encaminharCompra, previaEncaminhar } = await import("../../server/utils/comprasEncaminhar");
 const { obterCompra } = await import("../../server/utils/comprasStore");
 
-const ID = "cmp_teste_000001";
-const VERSAO = "2026-11-19T12:00:00.000Z";
+const ID = COMPRA_PRONTA_ID;
+const VERSAO = COMPRA_PRONTA_VERSAO;
 // 23h30 de 19/11 em Brasília (já é 20/11 em UTC): a data de emissão tem de ser 2026-11-19.
 const AGORA = new Date("2026-11-20T02:30:00.000Z");
 
-function linhaCompra(extra: Record<string, unknown> = {}): Record<string, unknown> {
-  return {
-    id: ID,
-    ano_mes: "2026-11",
-    sequencia: 1,
-    cancelada: false,
-    paciente: "paciente  teste da silva",
-    processo_numero: "123456",
-    medico: "Dr. Teste",
-    local_aplicacao: "Local Teste",
-    entrega: "Entrega Teste",
-    contatos: "",
-    termo_observacao: "",
-    despachante: "Despachante Teste",
-    isencao_para: "",
-    observacoes: "",
-    vendedor: "Mateus Morais",
-    responsavel: "Rebeca",
-    compra_particular: false,
-    local_declarado: false,
-    termo_posterior: false,
-    courier_simples: false,
-    isencao: false,
-    recorrente: false,
-    pagamento_alvara: true,
-    pagamento_momento: "vamos_pagar",
-    documentos: true,
-    pendencias: [],
-    criado_por: "Teste",
-    atualizado_por: "Teste",
-    created_at: VERSAO,
-    updated_at: VERSAO,
-    ...extra,
-  };
-}
-
-function linhaOrdem(id: string, posicao: number, extra: Record<string, unknown> = {}): Record<string, unknown> {
-  return {
-    id,
-    compra_id: ID,
-    posicao,
-    fornecedor: "Fornecedor Teste",
-    envio: "Air Cargo",
-    cia: "Cia Teste",
-    po: `PO26-11-000${posicao}`,
-    frete: null,
-    frete_real: null,
-    dir_id: null,
-    encaminhada_em: null,
-    ...extra,
-  };
-}
-
-function linhaItem(id: string, ordemId: string, posicao: number, extra: Record<string, unknown> = {}): Record<string, unknown> {
-  return {
-    id,
-    ordem_id: ordemId,
-    posicao,
-    medicamento: "MED TESTE",
-    medicamento_cadastro_id: "med_1",
-    pre_cadastro_id: null,
-    apresentacao: "10 mg",
-    referencia: "",
-    laboratorio: "",
-    quantidade: "2 caixas",
-    temperatura: "2°C a 8°C",
-    valor_unitario: null,
-    valor_real: null,
-    ...extra,
-  };
-}
-
-/** Uma compra pronta com DUAS ordens: a 1ª Air Cargo e a 2ª Courier Simples. */
-function semear(extraCompra: Record<string, unknown> = {}): void {
-  fake.tabelas.compras = [linhaCompra(extraCompra)];
-  fake.tabelas.compra_ordens = [linhaOrdem("ord_teste_0001", 1), linhaOrdem("ord_teste_0002", 2, { envio: "Courier Simples", cia: "" })];
-  fake.tabelas.compra_itens = [linhaItem("itm_teste_0001", "ord_teste_0001", 1), linhaItem("itm_teste_0002", "ord_teste_0002", 1, { medicamento: "OUTRO MED", apresentacao: "" })];
-  fake.tabelas.dir = [];
-  semearConsultores(fake);
-}
+const linhaOrdem = linhaOrdemPronta;
+const linhaItem = linhaItemPronto;
+const semear = (extraCompra: Record<string, unknown> = {}): void => semearCompraPronta(fake, extraCompra);
 
 const corpo = (extra: Record<string, unknown> = {}): { atualizadoEm: string } & Record<string, unknown> => ({ atualizadoEm: VERSAO, ...extra });
 const dir = () => fake.linhas("dir");
@@ -284,6 +208,17 @@ describe("encaminhar — o caminho feliz", () => {
 
   it("compra que não existe: null", async () => {
     expect(await encaminharCompra("cmp_nao_existe_1", corpo(), "Teste", { agora: AGORA })).toBeNull();
+  });
+
+  it("compra SEM ordens não é 'já encaminhada': 422 pela checagem (nenhuma ordem) e nada é gravado", async () => {
+    fake.tabelas.compra_ordens = [];
+    fake.tabelas.compra_itens = [];
+    const e = await erroDe(encaminharCompra(ID, corpo(), "Teste", { agora: AGORA }));
+    expect(e.status).toBe(422);
+    expect(e.data.code).toBe("checklist_com_erros");
+    expect((e.data.erros as Array<{ id: string }>).map((x) => x.id)).toEqual(["ordens"]);
+    expect(escritas("dir")).toEqual([]);
+    expect(escritas("compras")).toEqual([]);
   });
 });
 

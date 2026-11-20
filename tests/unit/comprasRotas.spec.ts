@@ -45,6 +45,8 @@ import detalheGet from "../../server/api/compras/[id].get";
 import salvarPatch from "../../server/api/compras/[id].patch";
 import duplicarPost from "../../server/api/compras/[id]/duplicar.post";
 import cancelarPost from "../../server/api/compras/[id]/cancelar.post";
+import encaminharPost from "../../server/api/compras/[id]/encaminhar.post";
+import encaminharPreviaGet from "../../server/api/compras/[id]/encaminhar-previa.get";
 import opcoesGet from "../../server/api/compras/opcoes.get";
 import medicamentosGet from "../../server/api/compras/opcoes/medicamentos.get";
 import temperaturasPost from "../../server/api/compras/temperaturas.post";
@@ -60,6 +62,8 @@ interface Rota {
   /** Arquivo em server/api/compras/ (para o scanner). */
   arquivo: string;
   escrita: boolean;
+  /** A rota cria linhas na DIR: além de compras = editar, exige dir = editar (conferido dentro do handler; o middleware só vê `compras`). */
+  exigeDir?: boolean;
 }
 
 const ID = "cmp_teste_000001";
@@ -70,6 +74,8 @@ const ROTAS: Rota[] = [
   { caminho: `/api/compras/${ID}`, metodo: "PATCH", handler: salvarPatch as Handler, arquivo: "[id].patch.ts", escrita: true },
   { caminho: `/api/compras/${ID}/duplicar`, metodo: "POST", handler: duplicarPost as Handler, arquivo: "[id]/duplicar.post.ts", escrita: true },
   { caminho: `/api/compras/${ID}/cancelar`, metodo: "POST", handler: cancelarPost as Handler, arquivo: "[id]/cancelar.post.ts", escrita: true },
+  { caminho: `/api/compras/${ID}/encaminhar-previa`, metodo: "GET", handler: encaminharPreviaGet as Handler, arquivo: "[id]/encaminhar-previa.get.ts", escrita: false },
+  { caminho: `/api/compras/${ID}/encaminhar`, metodo: "POST", handler: encaminharPost as Handler, arquivo: "[id]/encaminhar.post.ts", escrita: true, exigeDir: true },
   { caminho: "/api/compras/opcoes", metodo: "GET", handler: opcoesGet as Handler, arquivo: "opcoes.get.ts", escrita: false },
   { caminho: "/api/compras/opcoes/medicamentos", metodo: "GET", handler: medicamentosGet as Handler, arquivo: "opcoes/medicamentos.get.ts", escrita: false },
   { caminho: "/api/compras/temperaturas", metodo: "POST", handler: temperaturasPost as Handler, arquivo: "temperaturas.post.ts", escrita: true },
@@ -203,8 +209,10 @@ describe("handler (2ª camada), chamado direto sem o middleware: o mesmo quadro"
   ];
 
   for (const rota of ROTAS) {
-    it.each(casos)(`${rota.metodo} ${rota.caminho.replace(ID, ":id")} — %s`, async (_nome, user, lê, escreve) => {
-      const permitido = rota.escrita ? escreve : lê;
+    it.each(casos)(`${rota.metodo} ${rota.caminho.replace(ID, ":id")} — %s`, async (nome, user, lê, escreve) => {
+      // Rota que cria linhas na DIR: dos casos abaixo, só quem escreve em Compras E na DIR passa (os mapas deste quadro não dão `dir`).
+      const COM_ESCRITA_NA_DIR = ["administrador", "operacional"];
+      const permitido = rota.escrita ? escreve && (rota.exigeDir !== true || COM_ESCRITA_NA_DIR.includes(nome)) : lê;
       // A compra do id existe, para que "permitido" não termine em 404 por outro motivo.
       const base = await criarCompraDireta();
       h.params = { id: base.id };
