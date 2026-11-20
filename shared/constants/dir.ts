@@ -71,7 +71,11 @@ export const FORNECEDORES_DIR: string[] = [
   "Venecza",
 ];
 
-export const DESPACHANTES_DIR: string[] = ["BRUNO / NILTON", "COURIER I N/A", "SOUTH AMERICA", "STAR CUSTOMS"];
+// O despachante de uma ordem Courier Simples (não há despachante): o ÚNICO lugar onde este texto é escrito. Quem precisa dele (o
+// Encaminhar da Compra) importa a constante; um teste garante que continua dentro de DESPACHANTES_DIR.
+export const DESPACHANTE_COURIER_NA = "COURIER I N/A";
+
+export const DESPACHANTES_DIR: string[] = ["BRUNO / NILTON", DESPACHANTE_COURIER_NA, "SOUTH AMERICA", "STAR CUSTOMS"];
 
 // Inclui as situações da cotação (Pendente, Cancelado, Não Cotado), que a planilha põe no mesmo campo.
 export const BANCOS_DIR: string[] = [
@@ -100,16 +104,23 @@ export const RECEITAS_DIR: string[] = [
 
 export const TEMPERATURAS_DIR: string[] = ["2°C a 8°C", "Ambiente", "Ambiente / 2°C a 8°C no Brasil"];
 
+// Observações que o Encaminhar da Compra escreve (a Compra recorrente e a compra particular). Escritas aqui UMA vez; um teste garante que
+// continuam dentro de OBSERVACOES_DIR.
+export const OBSERVACAO_DIR_RECORRENTE = "RECORRENTE";
+export const OBSERVACAO_DIR_COMPRA_PARTICULAR = "COMPRA PARTICULAR";
+/** Separador quando a compra é recorrente E particular (o texto composto não é da lista: abre como "Outro" no formulário da DIR). */
+export const OBSERVACAO_DIR_SEPARADOR = " / ";
+
 export const OBSERVACOES_DIR: string[] = [
   "AGUARDANDO ALVARÁ CAIR",
   "AJUSTE DE QUANTIDADE NA PO",
   "CANCELAMENTO",
   "CNPJ ERRADO",
-  "COMPRA PARTICULAR",
+  OBSERVACAO_DIR_COMPRA_PARTICULAR,
   "EXIGÊNCIA",
   "FALECIMENTO",
   "MEDICAMENTO INDISPONÍVEL",
-  "RECORRENTE",
+  OBSERVACAO_DIR_RECORRENTE,
   "TUDO OK",
 ];
 
