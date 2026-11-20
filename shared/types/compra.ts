@@ -19,8 +19,17 @@ export interface ItemCompra {
   medicamento: string;
   /** Preenchido quando o medicamento é um item do Cadastro. */
   medicamentoCadastroId: string | null;
-  /** Preenchido quando o medicamento está no pré-cadastro (ainda não aprovado). */
+  /**
+   * Preenchido quando o medicamento está no pré-cadastro e ainda NÃO virou item do Cadastro. Aprovado o pré-cadastro, o item passa a ter
+   * `medicamentoCadastroId` e este campo vem null (a coluna do banco guarda o vínculo, mas a leitura já o esconde: ver montarItem).
+   */
   preCadastroId: string | null;
+  /**
+   * O estado do pré-cadastro do item (`pendente` ou `rejeitado`); null sem pré-cadastro. SÓ LEITURA: o servidor o preenche ao ler a compra e o
+   * salvamento ignora. Com `rejeitado` a tela mostra o aviso de pré-cadastro rejeitado. Ausente (a lista do mês, que não lê o pré-cadastro)
+   * vale como pendente.
+   */
+  preCadastroStatus?: StatusPreCadastro | null;
   apresentacao: string;
   referencia: string;
   laboratorio: string;

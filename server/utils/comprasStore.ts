@@ -1,6 +1,6 @@
 import { createError } from "h3";
 import { COMPRA_LISTA_POR_PAGINA, type StatusDaCompra } from "../../shared/constants/compra";
-import type { Compra, CompraDaLista, CompraEstado, CamposCompraEditaveis, ListaCompras, OrdemCompraEstado, TotaisPorStatus } from "../../shared/types/compra";
+import type { Compra, CompraDaLista, CompraEstado, CamposCompraEditaveis, ListaCompras, OrdemCompraEstado, StatusPreCadastro, TotaisPorStatus } from "../../shared/types/compra";
 import { dataBrasiliaDe } from "../../shared/utils/dataBrasilia";
 import { normalizarNumeroPo } from "../../shared/utils/numeroPo";
 import {
@@ -12,12 +12,14 @@ import {
   linhaDeOrdem,
   montarCompra,
   montarCompraDaLista,
+  preCadastroDoItem,
   type CompraListaRow,
   type CompraRow,
   type ItemListaRow,
   type ItemRow,
   type OrdemListaRow,
   type OrdemRow,
+  type StatusDosPreCadastros,
 } from "./compraMappers";
 import { createSupabaseAdminClient } from "./supabaseServerClient";
 import { erro, randomId } from "./storeKit";
@@ -46,6 +48,7 @@ import { erro, randomId } from "./storeKit";
 const COMPRAS = "compras";
 const ORDENS = "compra_ordens";
 const ITENS = "compra_itens";
+const PRE_CADASTROS = "pre_cadastro_medicamentos";
 
 const CODIGO_UNICO_VIOLADO = "23505";
 const CODIGO_CHAVE_ESTRANGEIRA = "23503";
@@ -133,6 +136,8 @@ interface CompraCarregada {
   row: CompraRow;
   ordens: OrdemRow[];
   itens: ItemRow[];
+  /** O estado (pendente, aprovado, rejeitado) dos pré-cadastros que os itens ainda mostram: a tela avisa quando foi rejeitado. */
+  statusPre: StatusDosPreCadastros;
 }
 
 async function lerOrdensDe(db: Db, compraIds: readonly string[]): Promise<OrdemRow[]> {
@@ -155,6 +160,18 @@ async function lerItensDe(db: Db, ordemIds: readonly string[]): Promise<ItemRow[
   return todos;
 }
 
+/** Só os pré-cadastros que algum item ainda mostra (item já ligado ao Cadastro não conta); sem nenhum, nem consulta. */
+async function lerStatusDosPreCadastros(db: Db, itens: readonly ItemRow[]): Promise<StatusDosPreCadastros> {
+  const ids = [...new Set(itens.map((i) => preCadastroDoItem(i)).filter((x): x is string => x !== null))];
+  const status = new Map<string, StatusPreCadastro>();
+  for (const bloco of emBlocos(ids)) {
+    const { data, error } = await db.from(PRE_CADASTROS).select("id, status").in("id", bloco);
+    if (error) throw erro("ler o estado dos pré-cadastros da compra", error);
+    for (const p of (data ?? []) as Array<{ id: string; status: StatusPreCadastro }>) status.set(p.id, p.status);
+  }
+  return status;
+}
+
 async function carregar(db: Db, id: string): Promise<CompraCarregada | null> {
   const { data, error } = await db.from(COMPRAS).select("*").eq("id", id);
   if (error) throw erro("buscar a compra", error);
@@ -165,10 +182,10 @@ async function carregar(db: Db, id: string): Promise<CompraCarregada | null> {
     db,
     ordens.map((o) => o.id),
   );
-  return { row, ordens, itens };
+  return { row, ordens, itens, statusPre: await lerStatusDosPreCadastros(db, itens) };
 }
 
-const compraDe = (c: CompraCarregada): Compra => montarCompra(c.row, c.ordens, c.itens);
+const compraDe = (c: CompraCarregada): Compra => montarCompra(c.row, c.ordens, c.itens, c.statusPre);
 
 /** A compra com as ordens e os itens por posição; null se não existe. */
 export async function obterCompra(id: string): Promise<Compra | null> {

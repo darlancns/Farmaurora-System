@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, inject, ref } from "vue";
+import { TEXTO_PRE_CADASTRO_REJEITADO } from "#shared/constants/compraChecklist";
 import type { ItemCompra, OpcaoNome } from "#shared/types/compra";
 import { chaveCadastro } from "#shared/utils/cadastroNome";
 import type { AppSelectOption } from "../../types/appSelect";
@@ -43,6 +44,9 @@ const idCampo = (nome: string): string => `item-${props.item.id}-${nome}`;
 const alvo = (regra: string): string => campoDoMedicamento(props.numeroOrdem, props.item.posicao, regra);
 
 const foraDoCadastro = computed(() => props.item.medicamento.trim() !== "" && props.item.medicamentoCadastroId === null);
+// O administrador rejeitou o pré-cadastro: o texto livre segue valendo, e a linha avisa (aviso, não erro). O estado vem do servidor ao abrir a
+// compra; toda mudança de medicamento abaixo zera `preCadastroStatus` junto com `preCadastroId`, para um estado velho nunca aparecer no pedido novo.
+const preCadastroRejeitado = computed(() => props.item.preCadastroId !== null && props.item.preCadastroStatus === "rejeitado");
 
 // ── Medicamento ──
 const falhaPreCadastro = ref(false);
@@ -56,6 +60,7 @@ function escolherDoCadastro(opcao: OpcaoBusca): void {
     medicamento: opcao.rotulo,
     medicamentoCadastroId: opcao.valor,
     preCadastroId: null,
+    preCadastroStatus: null,
     ...(temperatura.trim() !== "" ? { temperatura } : {}),
   });
 }
@@ -69,12 +74,13 @@ async function registrarPreCadastro(nome: string, temperatura: string): Promise<
     // Mudou de medicamento no meio do caminho: esta resposta não vale mais.
     if (meu !== pedido || props.item.medicamento !== nome || props.item.medicamentoCadastroId !== null) return;
     if (r.tipo === "pre-cadastro") {
-      emit("atualizar", { preCadastroId: r.id });
+      emit("atualizar", { preCadastroId: r.id, preCadastroStatus: "pendente" });
     } else {
       emit("atualizar", {
         medicamento: r.medicamento.nome,
         medicamentoCadastroId: r.medicamento.id,
         preCadastroId: null,
+        preCadastroStatus: null,
         ...(r.medicamento.temperatura.trim() !== "" ? { temperatura: r.medicamento.temperatura } : {}),
       });
       acoes.avisar("Já existe no Cadastro: usei o cadastrado");
@@ -90,14 +96,14 @@ function usarForaDoCadastro(texto: string): void {
   const vinhaDoCadastro = props.item.medicamentoCadastroId !== null;
   // A temperatura de um medicamento do Cadastro não vale para um medicamento novo: a pessoa escolhe.
   const temperatura = vinhaDoCadastro ? "" : props.item.temperatura;
-  emit("atualizar", { medicamento: nome, medicamentoCadastroId: null, preCadastroId: null, ...(vinhaDoCadastro ? { temperatura: "" } : {}) });
+  emit("atualizar", { medicamento: nome, medicamentoCadastroId: null, preCadastroId: null, preCadastroStatus: null, ...(vinhaDoCadastro ? { temperatura: "" } : {}) });
   void registrarPreCadastro(nome, temperatura);
 }
 
 function limparMedicamento(): void {
   pedido += 1;
   falhaPreCadastro.value = false;
-  emit("atualizar", { medicamento: "", medicamentoCadastroId: null, preCadastroId: null });
+  emit("atualizar", { medicamento: "", medicamentoCadastroId: null, preCadastroId: null, preCadastroStatus: null });
 }
 
 function tentarPreCadastroDeNovo(): void {
@@ -215,7 +221,8 @@ function aoAlternarDetalhes(event: Event): void {
           @novo="usarForaDoCadastro"
           @limpar="limparMedicamento"
         />
-        <p v-if="foraDoCadastro" :id="idCampo('fora-do-cadastro')" class="mt-1 text-[11px] text-ink-soft">
+        <p v-if="preCadastroRejeitado" :id="idCampo('pre-cadastro-rejeitado')" class="mt-1 text-[11px] font-medium text-warning-gold">{{ TEXTO_PRE_CADASTRO_REJEITADO }}</p>
+        <p v-else-if="foraDoCadastro" :id="idCampo('fora-do-cadastro')" class="mt-1 text-[11px] text-ink-soft">
           Fora do Cadastro: entra no pré-cadastro para aprovação.<template v-if="item.temperatura.trim() === ''"> Escolha a temperatura.</template>
         </p>
         <p v-if="falhaPreCadastro" :id="idCampo('falha-pre-cadastro')" role="alert" class="mt-1 text-[11.5px] text-danger">

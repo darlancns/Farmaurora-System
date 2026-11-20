@@ -38,6 +38,9 @@ export const REGRAS_CHECKLIST = {
   documentos: "documentos",
 } as const;
 
+/** O aviso do medicamento cujo pré-cadastro o administrador REJEITOU: a tela (linha do medicamento e checklist) mostra este texto; aviso, não erro. */
+export const TEXTO_PRE_CADASTRO_REJEITADO = "Pré-cadastro rejeitado: escolha outro medicamento do Cadastro ou mantenha o texto livre";
+
 /** Os textos. Cada regra de erro tem o texto de quando falta (`falta`) e de quando está atendida (`ok`). */
 export const TEXTOS_CHECKLIST = {
   paciente: { falta: "Paciente não preenchido", ok: "Paciente preenchido" },
@@ -86,6 +89,7 @@ export const TEXTOS_CHECKLIST = {
 
   // Avisos (não bloqueiam; só aparecem quando valem).
   preCadastro: (nome: string): string => `${nome} no pré-cadastro: a linha da DIR leva o nome digitado`,
+  preCadastroRejeitado: (nome: string): string => `${TEXTO_PRE_CADASTRO_REJEITADO} (${nome})`,
   localAplicacao: (marca: string): string => `Local de aplicação vazio (sai "${marca}" no resumo)`,
   entrega: (marca: string): string => `Entrega vazia (sai "${marca}" no resumo)`,
   documentos: "Documentos não verificados",

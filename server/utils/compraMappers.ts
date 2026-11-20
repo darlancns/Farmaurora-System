@@ -1,4 +1,4 @@
-import type { Compra, CompraDaLista, ItemCompra, OrdemCompra } from "../../shared/types/compra";
+import type { Compra, CompraDaLista, ItemCompra, OrdemCompra, StatusPreCadastro } from "../../shared/types/compra";
 import type { CompraParaChecklist } from "../../shared/utils/compraChecklist";
 import { itemDaLista } from "../../shared/utils/compraLista";
 import type { MomentoPagamentoResumo } from "../../shared/types/compraResumo";
@@ -106,13 +106,29 @@ const texto = (v: string | null | undefined): string => v ?? "";
 const MOMENTOS: readonly MomentoPagamentoResumo[] = ["vamos_pagar", "apos_awb"];
 const momentoDe = (v: string | null): MomentoPagamentoResumo | null => (MOMENTOS as readonly string[]).includes(v ?? "") ? (v as MomentoPagamentoResumo) : null;
 
-export function montarItem(row: ItemRow): ItemCompra {
+/** O estado de cada pré-cadastro (id → status) das compras lidas: só entra quem tem item apontando para ele. */
+export type StatusDosPreCadastros = ReadonlyMap<string, StatusPreCadastro>;
+
+/**
+ * O pré-cadastro que o item MOSTRA: só quando ele ainda não virou um item do Cadastro. A aprovação liga o item ao medicamento
+ * (`medicamento_cadastro_id`) SEM limpar `pre_cadastro_id` (é por essa coluna que uma repetição da aprovação reencontra os itens e as compras);
+ * então, com o medicamento do Cadastro preenchido, o pré-cadastro é história e a compra o devolve como null (o aviso de pré-cadastro some).
+ */
+export function preCadastroDoItem(row: Pick<ItemRow, "medicamento_cadastro_id" | "pre_cadastro_id">): string | null {
+  return (row.medicamento_cadastro_id ?? "") !== "" ? null : (row.pre_cadastro_id ?? null);
+}
+
+export function montarItem(row: ItemRow, statusPre?: StatusDosPreCadastros): ItemCompra {
+  const preCadastroId = preCadastroDoItem(row);
+  const status = preCadastroId === null ? undefined : statusPre?.get(preCadastroId);
   return {
     id: row.id,
     posicao: row.posicao,
     medicamento: texto(row.medicamento),
     medicamentoCadastroId: row.medicamento_cadastro_id ?? null,
-    preCadastroId: row.pre_cadastro_id ?? null,
+    preCadastroId,
+    // Só o item com pré-cadastro leva o estado (os demais ficam como sempre foram).
+    ...(status === undefined ? {} : { preCadastroStatus: status }),
     apresentacao: texto(row.apresentacao),
     referencia: texto(row.referencia),
     laboratorio: texto(row.laboratorio),
@@ -123,7 +139,7 @@ export function montarItem(row: ItemRow): ItemCompra {
   };
 }
 
-export function montarOrdem(row: OrdemRow, itens: readonly ItemRow[]): OrdemCompra {
+export function montarOrdem(row: OrdemRow, itens: readonly ItemRow[], statusPre?: StatusDosPreCadastros): OrdemCompra {
   return {
     id: row.id,
     posicao: row.posicao,
@@ -135,7 +151,7 @@ export function montarOrdem(row: OrdemRow, itens: readonly ItemRow[]): OrdemComp
     freteReal: numeroDoNumeric(row.frete_real),
     dirId: row.dir_id ?? null,
     encaminhadaEm: row.encaminhada_em ? instanteIso(row.encaminhada_em) : null,
-    itens: [...itens].sort((a, b) => a.posicao - b.posicao).map(montarItem),
+    itens: [...itens].sort((a, b) => a.posicao - b.posicao).map((i) => montarItem(i, statusPre)),
   };
 }
 
@@ -176,12 +192,12 @@ export function montarCompraSemOrdens(row: CompraRow): Omit<Compra, "ordens"> {
 }
 
 /** A compra inteira: as ordens por posição, cada uma com seus itens por posição. */
-export function montarCompra(row: CompraRow, ordens: readonly OrdemRow[], itens: readonly ItemRow[]): Compra {
+export function montarCompra(row: CompraRow, ordens: readonly OrdemRow[], itens: readonly ItemRow[], statusPre?: StatusDosPreCadastros): Compra {
   const itensDaOrdem = new Map<string, ItemRow[]>();
   for (const i of itens) itensDaOrdem.set(i.ordem_id, [...(itensDaOrdem.get(i.ordem_id) ?? []), i]);
   return {
     ...montarCompraSemOrdens(row),
-    ordens: [...ordens].sort((a, b) => a.posicao - b.posicao).map((o) => montarOrdem(o, itensDaOrdem.get(o.id) ?? [])),
+    ordens: [...ordens].sort((a, b) => a.posicao - b.posicao).map((o) => montarOrdem(o, itensDaOrdem.get(o.id) ?? [], statusPre)),
   };
 }
 
@@ -250,7 +266,7 @@ export function montarCompraParaChecklist(row: CompraListaRow, ordens: readonly 
             posicao: i.posicao,
             medicamento: texto(i.medicamento),
             medicamentoCadastroId: i.medicamento_cadastro_id ?? null,
-            preCadastroId: i.pre_cadastro_id ?? null,
+            preCadastroId: preCadastroDoItem(i),
             apresentacao: texto(i.apresentacao),
             quantidade: texto(i.quantidade),
             temperatura: texto(i.temperatura),

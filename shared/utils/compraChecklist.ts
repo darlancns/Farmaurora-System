@@ -35,7 +35,7 @@ export interface OpcoesChecklist {
 }
 
 /** O que a checagem lê de um medicamento. */
-export type ItemParaChecklist = Pick<ItemCompra, "posicao" | "medicamento" | "medicamentoCadastroId" | "preCadastroId" | "apresentacao" | "quantidade" | "temperatura">;
+export type ItemParaChecklist = Pick<ItemCompra, "posicao" | "medicamento" | "medicamentoCadastroId" | "preCadastroId" | "preCadastroStatus" | "apresentacao" | "quantidade" | "temperatura">;
 
 /** O que a checagem lê de uma ordem. */
 export type OrdemParaChecklist = Pick<OrdemCompra, "posicao" | "fornecedor" | "envio" | "po" | "dirId" | "encaminhadaEm"> & { itens: readonly ItemParaChecklist[] };
@@ -142,7 +142,11 @@ export function checklistCompra(compra: CompraParaChecklist, opcoes: OpcoesCheck
     for (const med of porPosicao(ordem.itens)) {
       const noPreCadastro = preenchido(med.preCadastroId) || !preenchido(med.medicamentoCadastroId);
       if (noPreCadastro && preenchido(med.medicamento)) {
-        aviso(`ordem-${ordem.posicao}-med-${med.posicao}-${R.preCadastro}`, T.preCadastro(med.medicamento.trim()), ordem.posicao);
+        // Pré-cadastro rejeitado (só vale com o pré-cadastro ainda no item): o texto livre segue, e o aviso diz o que fazer. É o MESMO item de
+        // checklist (mesma regra e mesmo clique para o campo Medicamento), só com outro texto.
+        const nome = med.medicamento.trim();
+        const rejeitado = preenchido(med.preCadastroId) && med.preCadastroStatus === "rejeitado";
+        aviso(`ordem-${ordem.posicao}-med-${med.posicao}-${R.preCadastro}`, rejeitado ? T.preCadastroRejeitado(nome) : T.preCadastro(nome), ordem.posicao);
       }
     }
   }
