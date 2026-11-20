@@ -149,7 +149,7 @@ describe("abrir a página", () => {
     expect(p.lista.mes.value).toBe("2026-11");
     expect(p.selecionadaId.value).toBeNull();
     expect(p.editor.compra.value).toBeNull();
-    expect(urls.at(-1)).toEqual({ mes: "2026-11" });
+    expect(urls.at(-1)).toEqual({ mes: "2026-11", aba: "lista" });
   });
 
   it("?mes= e ?status= abrem no mesmo lugar", async () => {
@@ -167,7 +167,7 @@ describe("abrir a página", () => {
     await p.iniciar();
     expect(p.selecionadaId.value).toBe("cmp_2");
     expect(p.editor.compra.value!.id).toBe("cmp_2");
-    expect(urls.at(-1)).toEqual({ mes: "2026-11", id: "cmp_2" });
+    expect(urls.at(-1)).toEqual({ mes: "2026-11", id: "cmp_2", aba: "formulario" });
   });
 
   it("id de uma compra de OUTRO mês abre no mês dela (mesmo com ?mes= diferente)", async () => {
@@ -187,7 +187,7 @@ describe("abrir a página", () => {
     expect(p.selecionadaId.value).toBeNull();
     expect(p.editor.compra.value).toBeNull();
     expect(p.lista.compras.value).toHaveLength(1);
-    expect(urls.at(-1)).toEqual({ mes: "2026-11" });
+    expect(urls.at(-1)).toEqual({ mes: "2026-11", aba: "lista" });
   });
 
   it("lixo na URL é ignorado (id inseguro, mês inválido)", async () => {
@@ -277,7 +277,7 @@ describe("trocar de mês", () => {
     expect(p.lista.mes.value).toBe("2026-10");
     expect(p.selecionadaId.value).toBeNull();
     expect(p.editor.compra.value).toBeNull();
-    expect(urls.at(-1)).toEqual({ mes: "2026-10" });
+    expect(urls.at(-1)).toEqual({ mes: "2026-10", aba: "lista" });
     await p.mesSeguinte();
     expect(p.lista.mes.value).toBe("2026-11");
   });
@@ -300,10 +300,10 @@ describe("trocar de mês", () => {
     await p.iniciar();
     await p.definirStatus("pronta");
     await nextTick();
-    expect(urls.at(-1)).toEqual({ mes: "2026-11", id: "cmp_1", status: "pronta" });
+    expect(urls.at(-1)).toEqual({ mes: "2026-11", id: "cmp_1", status: "pronta", aba: "formulario" });
     await p.definirMostrarCanceladas(true);
     await nextTick();
-    expect(urls.at(-1)).toEqual({ mes: "2026-11", id: "cmp_1", status: "pronta", canceladas: "1" });
+    expect(urls.at(-1)).toEqual({ mes: "2026-11", id: "cmp_1", status: "pronta", canceladas: "1", aba: "formulario" });
     expect(p.selecionadaId.value).toBe("cmp_1");
   });
 });
@@ -507,5 +507,77 @@ describe("sair da página", () => {
     expect(await p.antesDeSair()).toBe(false);
     expect(p.editor.estado.value).toBe("conflito");
     expect(avisos).toEqual([MENSAGEM_NAO_SALVOU]);
+  });
+});
+
+describe("aba do celular (lista, formulário, resumo)", () => {
+  it("sem aba na URL: 'lista' sem compra e 'formulario' com ?id=; uma ?aba= válida vence; lixo é ignorado", async () => {
+    const m1 = mundo([compraBase(1)]);
+    expect(pagina(m1).p.aba.value).toBe("lista");
+    expect(pagina(mundo([compraBase(1)]), { query: { id: "cmp_1" } }).p.aba.value).toBe("formulario");
+    expect(pagina(mundo([compraBase(1)]), { query: { id: "cmp_1", aba: "resumo" } }).p.aba.value).toBe("resumo");
+    expect(pagina(mundo([compraBase(1)]), { query: { aba: "tabela" } }).p.aba.value).toBe("lista");
+  });
+
+  it("recarregar com ?aba=resumo&id=... volta ao mesmo lugar (a aba fica; a compra abre)", async () => {
+    const m = mundo([compraBase(1)]);
+    const { p, urls } = pagina(m, { query: { mes: "2026-11", id: "cmp_1", aba: "resumo" } });
+    await p.iniciar();
+    expect(p.aba.value).toBe("resumo");
+    expect(p.editor.compra.value!.id).toBe("cmp_1");
+    expect(urls.at(-1)).toEqual({ mes: "2026-11", id: "cmp_1", aba: "resumo" });
+  });
+
+  it("ESCOLHER uma compra na lista leva ao Formulário", async () => {
+    const m = mundo([compraBase(1), compraBase(2)]);
+    const { p, urls } = pagina(m);
+    await p.iniciar();
+    expect(p.aba.value).toBe("lista");
+    await p.selecionar("cmp_2");
+    expect(p.aba.value).toBe("formulario");
+    await nextTick();
+    expect(urls.at(-1)).toMatchObject({ id: "cmp_2", aba: "formulario" });
+  });
+
+  it("CRIAR uma nova e DUPLICAR também levam ao Formulário", async () => {
+    const m = mundo([compraBase(1)]);
+    const { p } = pagina(m);
+    await p.iniciar();
+    await p.criarNova();
+    expect(p.aba.value).toBe("formulario");
+    p.irParaAba("lista");
+    await p.duplicar();
+    expect(p.aba.value).toBe("formulario");
+  });
+
+  it("trocar de mês volta para a lista; a escolha manual das abas funciona e vai para a URL", async () => {
+    const m = mundo([compraBase(1)]);
+    const { p, urls } = pagina(m, { query: { id: "cmp_1" } });
+    await p.iniciar();
+    p.irParaAba("resumo");
+    await nextTick();
+    expect(urls.at(-1)).toMatchObject({ aba: "resumo" });
+    await p.mesAnterior();
+    expect(p.aba.value).toBe("lista");
+  });
+
+  it("?id= que não existe: a aba cai para a lista (não fica num formulário vazio)", async () => {
+    const m = mundo([compraBase(1)]);
+    const { p } = pagina(m, { query: { id: "cmp_nao_existe" } });
+    expect(p.aba.value).toBe("formulario"); // começa assim, até saber que a compra não existe
+    await p.iniciar();
+    expect(p.aba.value).toBe("lista");
+  });
+
+  it("o aviso de falha ao salvar também vale no celular: não troca de aba por baixo do pendente (selecionar falha, a aba fica)", async () => {
+    const m = mundo([compraBase(1), compraBase(2)]);
+    const { p } = pagina(m, { query: { id: "cmp_1" } });
+    await p.iniciar();
+    p.irParaAba("lista");
+    p.editor.alterar({ paciente: "PENDENTE" });
+    m.falharSalvamentos(new TypeError("Failed to fetch"));
+    await p.selecionar("cmp_2");
+    expect(p.aba.value).toBe("lista");
+    expect(p.selecionadaId.value).toBe("cmp_1");
   });
 });

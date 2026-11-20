@@ -19,6 +19,8 @@ const props = defineProps<{
   estado: EstadoSalvamento;
   salvoEm: Date | null;
   mensagemErro?: string | null;
+  /** Acabaram as tentativas automáticas de salvar: só o clique salva de novo. */
+  esperandoClique?: boolean;
   /** Quem pode escrever em Compras (a permissão). Compra cancelada é somente leitura de qualquer jeito. */
   podeEditar: boolean;
   opcoes: OpcoesFormulario;
@@ -37,6 +39,7 @@ const emit = defineEmits<{
   tentarDeNovo: [];
   carregarVersaoSalva: [];
   manterMinhas: [];
+  voltar: [];
 }>();
 
 // Só os grupos que têm algum bloco com componente (e, neles, só os blocos com componente).
@@ -61,10 +64,12 @@ const pendencias = computed(() => contarPendencias(props.compra));
       :estado="estado"
       :salvo-em="salvoEm"
       :mensagem-erro="mensagemErro"
+      :esperando-clique="esperandoClique"
       :ocupado="ocupado"
       @duplicar="emit('duplicar')"
       @cancelar="emit('cancelar')"
       @tentar-de-novo="emit('tentarDeNovo')"
+      @voltar="emit('voltar')"
     />
 
     <CompraFaixaConflito v-if="estado === 'conflito'" :ocupado="ocupado" @carregar="emit('carregarVersaoSalva')" @manter="emit('manterMinhas')" />

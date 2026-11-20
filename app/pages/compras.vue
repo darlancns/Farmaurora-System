@@ -4,6 +4,7 @@ import { onBeforeRouteLeave } from "vue-router";
 import { useRoute, useRouter } from "#app";
 import CompraColunaDireita from "../components/compras/CompraColunaDireita.vue";
 import CompraFormulario from "../components/compras/CompraFormulario.vue";
+import ComprasAbas from "../components/compras/ComprasAbas.vue";
 import ComprasListaPainel from "../components/compras/ComprasListaPainel.vue";
 import ConfirmDialog from "../components/ConfirmDialog.vue";
 import GlobalHeader from "../components/GlobalHeader.vue";
@@ -12,6 +13,7 @@ import { useCompraAcoes } from "../composables/useCompraAcoes";
 import { useCompraOpcoes } from "../composables/useCompraOpcoes";
 import { useComprasPagina } from "../composables/useComprasPagina";
 import { useToast } from "../composables/useToast";
+import { classeDaColuna } from "../utils/comprasAbas";
 import { mesmaQuery } from "../utils/comprasUrl";
 
 // A página Compras em três colunas: a lista do mês (esquerda), o formulário (centro) e o checklist com o resumo ao vivo (direita).
@@ -67,13 +69,16 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", antesDeFecharAA
 
 <template>
   <!-- Desktop (lg+): a página NÃO rola por inteiro; cada coluna rola sozinha dentro da altura da janela menos o cabeçalho (o
-       h-full do layout + o lg:-mb-10 que cancela o pb-10 do <main>, como em Prestações). Abaixo de lg as colunas empilham na ordem lista,
-       formulário, resumo e a página rola como sempre (o celular de verdade é a etapa 6c). Teto fluido (2200px). -->
+       h-full do layout + o lg:-mb-10 que cancela o pb-10 do <main>, como em Prestações). ABAIXO de lg é UM painel por vez, escolhido nas
+       3 abas do topo (Compras, Formulário, Resumo): as colunas que não são da aba levam `max-lg:hidden` (CSS puro: o HTML do servidor e o
+       do navegador batem) e em lg+ o parâmetro aba é ignorado. Teto fluido (2200px). -->
   <div id="compras-page" class="mx-auto max-w-fluida pb-20 lg:flex lg:h-full lg:flex-col lg:pb-0">
     <GlobalHeader title="Compras" />
 
+    <ComprasAbas :model-value="pagina.aba.value" @update:model-value="(aba) => pagina.irParaAba(aba)" />
+
     <div class="grid gap-4 lg:-mb-10 lg:min-h-0 lg:flex-1 lg:grid-cols-[320px_minmax(0,1fr)_460px]">
-      <aside id="compras-coluna-esquerda" class="min-w-0 lg:min-h-0 lg:overflow-y-auto lg:pr-1 lg:pb-10">
+      <aside id="compras-coluna-esquerda" :class="['min-w-0 lg:min-h-0 lg:overflow-y-auto lg:pr-1 lg:pb-10', classeDaColuna('esquerda', pagina.aba.value)]">
         <ComprasListaPainel
           :rotulo-mes="lista.rotuloMes.value"
           :total-do-mes="lista.totalDoMes.value"
@@ -99,7 +104,7 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", antesDeFecharAA
         />
       </aside>
 
-      <section id="compras-coluna-central" class="min-w-0 lg:min-h-0 lg:overflow-y-auto lg:pb-10">
+      <section id="compras-coluna-central" :class="['min-w-0 lg:min-h-0 lg:overflow-y-auto lg:pb-10', classeDaColuna('central', pagina.aba.value)]">
         <p v-if="opcoes.erro.value" id="compras-opcoes-erro" role="alert" class="mb-3 rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-[12.5px] text-danger">
           Não foi possível carregar as opções.
           <button type="button" class="font-semibold underline" @click="opcoes.carregar(true)">Tentar de novo</button>
@@ -111,6 +116,7 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", antesDeFecharAA
           :estado="editor.estado.value"
           :salvo-em="editor.salvoEm.value"
           :mensagem-erro="editor.mensagemErro.value"
+          :esperando-clique="editor.esperandoClique.value"
           :pode-editar="podeEditar"
           :opcoes="opcoes.paraFormulario.value"
           :acoes="acoes"
@@ -121,13 +127,14 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", antesDeFecharAA
           @tentar-de-novo="editor.tentarDeNovo()"
           @carregar-versao-salva="editor.carregarVersaoSalva()"
           @manter-minhas="editor.manterMinhas()"
+          @voltar="pagina.irParaAba('lista')"
         />
         <p v-else id="compras-sem-selecao" class="rounded-lg border border-hairline bg-paper-raised px-4 py-6 text-center text-[13px] text-ink-soft">
           Escolha uma compra ou crie uma nova.
         </p>
       </section>
 
-      <aside id="compras-coluna-direita" class="min-w-0 lg:min-h-0 lg:overflow-y-auto lg:pb-10">
+      <aside id="compras-coluna-direita" :class="['min-w-0 lg:min-h-0 lg:overflow-y-auto lg:pb-10', classeDaColuna('direita', pagina.aba.value)]">
         <CompraColunaDireita v-if="editor.compra.value" :compra="editor.compra.value" :despachante-cadastro="despachanteCadastro" />
         <p v-else id="compras-direita-vazia" class="rounded-lg border border-hairline bg-paper-raised px-4 py-6 text-center text-[12.5px] text-ink-soft">
           O checklist e o resumo aparecem aqui quando você abrir uma compra.

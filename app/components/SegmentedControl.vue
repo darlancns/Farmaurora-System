@@ -13,8 +13,10 @@ const props = withDefaults(
     id: string;
     label: string;
     disabled?: boolean;
+    // Quantas colunas a grade tem. Sem ela, 2 (o de sempre). Com 3 opções (ex.: as abas da página Compras), passe 3.
+    colunas?: number;
   }>(),
-  { disabled: false }
+  { disabled: false, colunas: undefined }
 );
 
 const emit = defineEmits<{
@@ -65,7 +67,9 @@ function onKeydown(event: KeyboardEvent, index: number): void {
     role="radiogroup"
     :aria-label="label"
     :aria-disabled="disabled ? 'true' : undefined"
-    class="grid w-full grid-cols-2 gap-0.5 rounded-md bg-paper p-0 ring-1 ring-hairline ring-inset"
+    class="grid w-full gap-0.5 rounded-md bg-paper p-0 ring-1 ring-hairline ring-inset"
+    :class="colunas === undefined ? 'grid-cols-2' : undefined"
+    :style="colunas === undefined ? undefined : { gridTemplateColumns: `repeat(${colunas}, minmax(0, 1fr))` }"
   >
     <button
       v-for="(option, index) in options"

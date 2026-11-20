@@ -218,6 +218,7 @@ interface PropsCab {
   podeEditar?: boolean;
   cancelada?: boolean;
   pendencias?: number;
+  esperandoClique?: boolean;
   status?: "rascunho" | "pronta" | "parcial" | "encaminhada" | "cancelada";
 }
 function cabecalho(p: PropsCab = {}) {
@@ -234,6 +235,7 @@ function cabecalho(p: PropsCab = {}) {
           podeEditar: p.podeEditar ?? true,
           estado: p.estado ?? "ocioso",
           salvoEm: p.salvoEm ?? null,
+          esperandoClique: p.esperandoClique ?? false,
           onDuplicar: () => ev.push("duplicar"),
           onCancelar: () => ev.push("cancelar"),
           onTentarDeNovo: () => ev.push("de-novo"),
@@ -269,8 +271,8 @@ describe("cabeçalho do formulário", () => {
     expect(texto(q("#compra-salvamento"))).toBe("Salvo automaticamente às 16:22");
   });
 
-  it("erro: o botão 'Não foi possível salvar. Tentar de novo' avisa", () => {
-    const ev = cabecalho({ estado: "erro" });
+  it("erro depois de ESGOTAR as tentativas: o botão 'Não foi possível salvar. Tentar de novo' avisa", () => {
+    const ev = cabecalho({ estado: "erro", esperandoClique: true });
     const b = q<HTMLButtonElement>("#compra-salvamento-erro")!;
     expect(b.tagName).toBe("BUTTON");
     expect(texto(b)).toBe("Não foi possível salvar. Tentar de novo");

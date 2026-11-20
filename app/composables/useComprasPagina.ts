@@ -4,6 +4,7 @@ import type { Compra } from "#shared/types/compra";
 import { ordemVazia } from "#shared/utils/compraForm";
 import { tituloDaCompra } from "#shared/utils/compraMes";
 import { ApiError, apiFetch } from "../utils/apiFetch";
+import { abaInicial, type AbaCompras } from "../utils/comprasAbas";
 import { lerQueryCompras, montarQueryCompras } from "../utils/comprasUrl";
 import { getErrorMessage } from "../utils/errorMessages";
 import { useCompraEditor, type ApiCompra, type CompraEditor } from "./useCompraEditor";
@@ -53,6 +54,9 @@ export interface ComprasPagina {
   lista: ComprasMes;
   editor: CompraEditor;
   selecionadaId: Ref<string | null>;
+  /** A aba do celular (lista, formulário ou resumo); no desktop não faz nada. */
+  aba: Ref<AbaCompras>;
+  irParaAba: (aba: AbaCompras) => void;
   /** Uma ação (nova, duplicar, cancelar, trocar) está em andamento: os botões ficam parados. */
   ocupado: Ref<boolean>;
   /** O diálogo de "Cancelar compra" está aberto. */
@@ -77,6 +81,7 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
   const lista = useComprasMes({ mes: inicial.mes ?? undefined, status: inicial.status, mostrarCanceladas: inicial.canceladas, api: opcoes.apiLista, agora: opcoes.agora });
   const acoes = opcoes.apiAcoes ?? apiAcoesPadrao;
   const selecionadaId = ref<string | null>(null);
+  const aba = ref<AbaCompras>(abaInicial(inicial.aba, inicial.id !== null));
   const ocupado = ref(false);
   const confirmandoCancelar = ref(false);
 
@@ -88,8 +93,8 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
   });
 
   // A URL acompanha o mês, a compra aberta e o filtro.
-  watch([lista.mes, selecionadaId, lista.status, lista.mostrarCanceladas], () => {
-    opcoes.gravarUrl(montarQueryCompras({ mes: lista.mes.value, id: selecionadaId.value, status: lista.status.value, canceladas: lista.mostrarCanceladas.value }));
+  watch([lista.mes, selecionadaId, lista.status, lista.mostrarCanceladas, aba], () => {
+    opcoes.gravarUrl(montarQueryCompras({ mes: lista.mes.value, id: selecionadaId.value, status: lista.status.value, canceladas: lista.mostrarCanceladas.value, aba: aba.value }));
   });
 
   /** Descarrega o salvamento pendente; se não deu, avisa e devolve false (quem chama não troca nada). */
@@ -115,6 +120,7 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
   async function abrir(id: string): Promise<void> {
     await editor.carregar(id);
     selecionadaId.value = id;
+    aba.value = "formulario"; // escolher uma compra leva ao formulário (no celular)
   }
 
   async function iniciar(): Promise<void> {
@@ -127,12 +133,13 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
       } catch (e) {
         selecionadaId.value = null;
         editor.definir(null);
+        aba.value = "lista";
         opcoes.avisar(e instanceof ApiError && e.status === 404 ? "Compra não encontrada." : getErrorMessage(e, "Não foi possível abrir a compra."));
       }
     }
     await lista.carregar();
     // Grava na URL o ponto de partida (o mês sempre), mesmo que nada tenha mudado desde que a página abriu.
-    opcoes.gravarUrl(montarQueryCompras({ mes: lista.mes.value, id: selecionadaId.value, status: lista.status.value, canceladas: lista.mostrarCanceladas.value }));
+    opcoes.gravarUrl(montarQueryCompras({ mes: lista.mes.value, id: selecionadaId.value, status: lista.status.value, canceladas: lista.mostrarCanceladas.value, aba: aba.value }));
   }
 
   async function selecionar(id: string): Promise<void> {
@@ -148,6 +155,7 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
       if (!(await descarregar())) return;
       selecionadaId.value = null;
       editor.definir(null);
+      aba.value = "lista";
       await ir();
     }, "Não foi possível trocar o mês.");
   }
@@ -169,6 +177,7 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
     else lista.aplicarCompra(compra, { nova: true });
     editor.definir(compra);
     selecionadaId.value = compra.id;
+    aba.value = "formulario"; // a compra nova ou duplicada abre no formulário (no celular)
   }
 
   async function criarNova(): Promise<void> {
@@ -221,6 +230,10 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
     }, "Não foi possível cancelar a compra.");
   }
 
+  function irParaAba(destino: AbaCompras): void {
+    aba.value = destino;
+  }
+
   async function antesDeSair(): Promise<boolean> {
     return descarregar();
   }
@@ -229,6 +242,8 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
     lista,
     editor,
     selecionadaId,
+    aba,
+    irParaAba,
     ocupado,
     confirmandoCancelar,
     tituloParaDialogo: () => (editor.compra.value ? tituloDaCompra(editor.compra.value.anoMes, editor.compra.value.sequencia) : ""),

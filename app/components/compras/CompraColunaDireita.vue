@@ -34,13 +34,20 @@ async function copiarResumo(): Promise<void> {
 </script>
 
 <template>
-  <div id="compra-coluna-direita" class="flex flex-col gap-4">
+  <div id="compra-coluna-direita" class="flex flex-col gap-4 max-lg:pb-28">
     <CompraChecklistPainel :itens="checklist.itens" :pronta="checklist.pronta" />
 
-    <div class="flex flex-col gap-2">
-      <button id="btn-copiar-resumo" type="button" :class="BOTAO_PRIMARIO_CLASS" @click="copiarResumo">Copiar resumo</button>
-      <button id="btn-encaminhar-dir" type="button" :class="BOTAO_SECUNDARIO_CLASS" disabled aria-describedby="encaminhar-dir-aviso">Encaminhar para a DIR</button>
-      <p id="encaminhar-dir-aviso" class="text-[11.5px] text-ink-soft">Disponível na próxima etapa</p>
+    <!-- Abaixo de lg a barra dos botões fica FIXA no pé da tela (acima da barra de navegação do app, com o safe-area do iPhone), com
+         "Copiar resumo" e "Encaminhar" (desabilitado) lado a lado. Em lg+ são botões comuns, um embaixo do outro. -->
+    <div
+      id="compra-barra-acoes"
+      class="flex flex-col gap-2 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom,0px))] max-lg:z-30 max-lg:border-t max-lg:border-hairline max-lg:bg-paper-raised max-lg:px-4 max-lg:py-2.5"
+    >
+      <div class="flex flex-col gap-2 max-lg:flex-row">
+        <button id="btn-copiar-resumo" type="button" :class="[BOTAO_PRIMARIO_CLASS, 'max-lg:min-h-11 max-lg:flex-1']" @click="copiarResumo">Copiar resumo</button>
+        <button id="btn-encaminhar-dir" type="button" :class="[BOTAO_SECUNDARIO_CLASS, 'max-lg:min-h-11 max-lg:flex-1']" disabled aria-describedby="encaminhar-dir-aviso">Encaminhar para a DIR</button>
+      </div>
+      <p id="encaminhar-dir-aviso" class="text-[11.5px] text-ink-soft max-lg:text-center">Disponível na próxima etapa</p>
     </div>
 
     <CompraResumoPainel :texto="resumo" />

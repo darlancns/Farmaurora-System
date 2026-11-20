@@ -1,25 +1,26 @@
 import { describe, expect, it } from "vitest";
 import { lerQueryCompras, mesmaQuery, montarQueryCompras } from "../../app/utils/comprasUrl";
 
-// A URL da página Compras: ?mes=AAAA-MM&id=...&status=...&canceladas=1. Tudo que vem da URL é conferido.
+// A URL da página Compras: ?mes=AAAA-MM&id=...&status=...&canceladas=1&aba=... Tudo que vem da URL é conferido.
 
 describe("lerQueryCompras", () => {
   it("lê mês, compra, filtro e canceladas", () => {
-    expect(lerQueryCompras({ mes: "2026-11", id: "cmp_1731000000_ab12cd", status: "pronta", canceladas: "1" })).toEqual({
+    expect(lerQueryCompras({ mes: "2026-11", id: "cmp_1731000000_ab12cd", status: "pronta", canceladas: "1", aba: "resumo" })).toEqual({
       mes: "2026-11",
       id: "cmp_1731000000_ab12cd",
       status: "pronta",
       canceladas: true,
+      aba: "resumo",
     });
   });
 
   it("sem nada: tudo vazio (o mês corrente é decidido por quem usa, em Brasília)", () => {
-    expect(lerQueryCompras({})).toEqual({ mes: null, id: null, status: null, canceladas: false });
+    expect(lerQueryCompras({})).toEqual({ mes: null, id: null, status: null, canceladas: false, aba: null });
   });
 
   it("lixo é ignorado: mês fora do formato, id inseguro, estado desconhecido", () => {
-    expect(lerQueryCompras({ mes: "2026-13", id: "../x", status: "todas", canceladas: "sim" })).toEqual({ mes: null, id: null, status: null, canceladas: false });
-    expect(lerQueryCompras({ mes: "novembro", id: "a b", status: "PRONTA" })).toEqual({ mes: null, id: null, status: null, canceladas: false });
+    expect(lerQueryCompras({ mes: "2026-13", id: "../x", status: "todas", canceladas: "sim" })).toEqual({ mes: null, id: null, status: null, canceladas: false, aba: null });
+    expect(lerQueryCompras({ mes: "novembro", id: "a b", status: "PRONTA", aba: "tabela" })).toEqual({ mes: null, id: null, status: null, canceladas: false, aba: null });
     expect(lerQueryCompras({ id: "x".repeat(65) }).id).toBeNull();
   });
 
@@ -36,10 +37,11 @@ describe("montarQueryCompras", () => {
   it("o mês sempre; id, filtro e canceladas só quando em uso", () => {
     expect(montarQueryCompras({ mes: "2026-11", id: null, status: null, canceladas: false })).toEqual({ mes: "2026-11" });
     expect(montarQueryCompras({ mes: "2026-11", id: "cmp_1", status: "parcial", canceladas: true })).toEqual({ mes: "2026-11", id: "cmp_1", status: "parcial", canceladas: "1" });
+    expect(montarQueryCompras({ mes: "2026-11", id: "cmp_1", status: null, canceladas: false, aba: "formulario" })).toEqual({ mes: "2026-11", id: "cmp_1", aba: "formulario" });
   });
 
   it("ida e volta: o que se grava é o que se lê", () => {
-    const estado = { mes: "2026-10", id: "cmp_9", status: "encaminhada" as const, canceladas: true };
+    const estado = { mes: "2026-10", id: "cmp_9", status: "encaminhada" as const, canceladas: true, aba: "resumo" as const };
     expect(lerQueryCompras(montarQueryCompras(estado))).toEqual(estado);
   });
 });
