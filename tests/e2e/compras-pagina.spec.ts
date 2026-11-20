@@ -257,13 +257,13 @@ for (const [rotulo, conta] of [
       await outra.close();
     });
 
-    test("abaixo de lg as colunas empilham na ordem lista, formulário, resumo e a página rola", async ({ page }) => {
+    test("abaixo de lg é UM painel por vez (abas); o detalhe do celular está em compras-celular.spec.ts", async ({ page }) => {
       await page.setViewportSize({ width: 800, height: 900 });
       await page.goto("/compras", { waitUntil: "networkidle" });
-      await criarCompraComPaciente(page, unico());
-      const topos = await page.evaluate(() => ["compras-coluna-esquerda", "compras-coluna-central", "compras-coluna-direita"].map((id) => document.getElementById(id)!.getBoundingClientRect().top));
-      expect(topos[0]).toBeLessThan(topos[1]!);
-      expect(topos[1]).toBeLessThan(topos[2]!);
+      await expect(page.locator("#compras-abas")).toBeVisible();
+      await expect(page.locator("#compras-coluna-esquerda")).toBeVisible();
+      await expect(page.locator("#compras-coluna-central")).toBeHidden();
+      await expect(page.locator("#compras-coluna-direita")).toBeHidden();
     });
   });
 }
