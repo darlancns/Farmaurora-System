@@ -151,6 +151,40 @@ describe("a chave PIX dos Cadastros só sai por /api/cadastros", () => {
     expect(usam).toEqual(["server/api/compras/pre-cadastro-medicamentos.post.ts"]);
   });
 
+  it("as exceções FORA do store dos Cadastros são exatamente estas quatro (um arquivo novo que fale dos Cadastros falha aqui até ser decidido)", () => {
+    const foraDoStore = (c: string): boolean =>
+      permitido(c) && !/^server\/api\/cadastros\//.test(c) && !/^server\/utils\/cadastro(Acesso|Mappers)\.ts$/.test(c) && c !== "server/utils/cadastrosStore.ts" && c !== "shared/constants/cadastros.ts";
+    const exceções = todos.filter((a) => foraDoStore(a.caminho)).map((a) => a.caminho).sort();
+    expect(exceções).toEqual([
+      "server/utils/cadastroPagamentos.ts",
+      "server/utils/comprasCatalogo.ts",
+      "server/utils/comprasTemperatura.ts",
+      "server/utils/consultoresCadastro.ts",
+      "server/utils/preCadastroStore.ts",
+    ]);
+  });
+
+  it("nenhuma rota de /api/compras nem o que elas usam cita chave PIX, e nenhuma importa o store ou os mapeadores dos Cadastros", () => {
+    const rotas = todos.filter((a) => a.caminho.startsWith("server/api/compras/"));
+    expect(rotas.length).toBeGreaterThanOrEqual(9);
+    const semComentarios = (t: string): string => t.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    for (const r of rotas) {
+      const texto = semComentarios(r.texto);
+      expect(texto, r.caminho).not.toMatch(/chave_?pix/i);
+      expect(texto, r.caminho).not.toMatch(/cadastrosStore|cadastroMappers|TABELA_CADASTRO|\bcadastro_[a-z_]+/);
+    }
+    const utilsDeCompras = todos.filter((a) => /^server\/utils\/(compras[A-Z]\w*|compraMappers|preCadastroStore)\.ts$/.test(a.caminho));
+    expect(utilsDeCompras.map((a) => a.caminho).sort()).toEqual([
+      "server/utils/compraMappers.ts",
+      "server/utils/comprasAcesso.ts",
+      "server/utils/comprasCatalogo.ts",
+      "server/utils/comprasStore.ts",
+      "server/utils/comprasTemperatura.ts",
+      "server/utils/preCadastroStore.ts",
+    ]);
+    for (const u of utilsDeCompras) expect(semComentarios(u.texto), u.caminho).not.toMatch(/chave_?pix|incluirPix/i);
+  });
+
   it("só cinco rotas de API usam o store dos Cadastros: GET, POST e PATCH de /api/cadastros/:lista, mais impacto e renomear-contas dos consultores", () => {
     const usam = todos
       .filter((a) => a.caminho.startsWith("server/api/") && /cadastrosStore/.test(a.texto))
