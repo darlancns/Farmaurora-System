@@ -122,18 +122,46 @@ describe("ícone do item", () => {
   });
 });
 
-describe("página placeholder (app/pages/compras.vue)", () => {
+describe("página (app/pages/compras.vue)", () => {
   const fonte = readFileSync(join(process.cwd(), "app", "pages", "compras.vue"), "utf-8");
+  const semComentarios = fonte.replace(/<!--[\s\S]*?-->/g, "").replace(/^\s*\/\/.*$/gm, "");
 
-  it("tem o título 'Compras' (no layout padrão, com o cabeçalho das outras páginas) e o aviso 'Em construção'", () => {
+  it("tem o título 'Compras' (no layout padrão, com o cabeçalho das outras páginas), a largura FLUIDA e as três colunas", () => {
     expect(fonte).toContain('<GlobalHeader title="Compras"');
-    expect(fonte).toContain("Em construção");
     expect(fonte).toContain('id="compras-page"');
+    expect(fonte).toContain("max-w-fluida");
+    expect(fonte).toContain("lg:grid-cols-[320px_minmax(0,1fr)_460px]");
+    expect(fonte).not.toContain("Em construção");
+    // As três colunas, na ordem do DOM (que é a da pilha abaixo de lg): lista, formulário, resumo.
+    const ordem = ["compras-coluna-esquerda", "compras-coluna-central", "compras-coluna-direita"].map((id) => fonte.indexOf(`id="${id}"`));
+    expect(ordem.every((i) => i > -1)).toBe(true);
+    expect(ordem).toEqual([...ordem].sort((x, y) => x - y));
   });
 
-  it("não tem formulário, campo, botão nem chamada de API (é só um placeholder)", () => {
-    const semComentarios = fonte.replace(/^\s*\/\/.*$/gm, ""); // o comentário explica o acesso e cita /api/compras: não conta
-    expect(semComentarios).not.toMatch(/<form|<input|<button|<textarea|<select/);
-    expect(semComentarios).not.toMatch(/fetch|apiFetch|useFetch|\/api\//);
+  it("cada coluna rola sozinha no desktop e a página não rola por inteiro (h-full + lg:-mb-10, como Prestações)", () => {
+    expect(fonte).toContain("lg:flex lg:h-full lg:flex-col");
+    expect(fonte).toContain("lg:-mb-10");
+    expect((fonte.match(/lg:overflow-y-auto/g) ?? []).length).toBe(3);
+  });
+
+  it("a permissão vem de canWrite('compras') (a mesma função do servidor): nenhuma regra de cargo copiada na página", () => {
+    expect(semComentarios).toContain('canWrite("compras")');
+    expect(semComentarios).not.toMatch(/\.role\b|isAdmin|"administrador"|"operacional"|"socio"|"consultor"/);
+  });
+
+  it("a página não fala com a API: tudo passa pelos composables (useComprasPagina, useCompraOpcoes)", () => {
+    expect(semComentarios).not.toMatch(/fetch\(|apiFetch|useFetch|\/api\//);
+    expect(semComentarios).toContain("useComprasPagina");
+    expect(semComentarios).toContain("useCompraOpcoes");
+  });
+
+  it("descarrega o salvamento ao sair (onBeforeRouteLeave) e avisa ao fechar a aba (beforeunload), só para quem edita", () => {
+    expect(fonte).toContain("onBeforeRouteLeave");
+    expect(fonte).toContain('"beforeunload"');
+    expect(fonte).toMatch(/if \(!podeEditar\.value \|\| !editor\.temPendencia\.value\) return;/);
+  });
+
+  it("o diálogo de cancelar é o ConfirmDialog reforçado, em tom de perigo", () => {
+    expect(fonte).toMatch(/<ConfirmDialog[\s\S]*danger[\s\S]*reforcado/);
   });
 });
