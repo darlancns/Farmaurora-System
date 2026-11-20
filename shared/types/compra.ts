@@ -157,3 +157,65 @@ export interface DespachanteCadastroResumo {
   email?: string;
   contatoNome?: string;
 }
+
+// ── Estado já VALIDADO (o que o store recebe) ───────────────────────────────────────────────────────────────
+
+/** Um medicamento já validado e normalizado (campo ausente no corpo virou vazio): todo campo está presente. */
+export interface ItemCompraEstado {
+  id: string;
+  medicamento: string;
+  medicamentoCadastroId: string | null;
+  preCadastroId: string | null;
+  apresentacao: string;
+  referencia: string;
+  laboratorio: string;
+  quantidade: string;
+  temperatura: string;
+  valorUnitario: number | null;
+  valorReal: number | null;
+}
+
+/** Uma ordem já validada e normalizada. Não tem dirId nem encaminhadaEm: só o Encaminhar os grava. */
+export interface OrdemCompraEstado {
+  id: string;
+  fornecedor: string;
+  envio: string;
+  cia: string;
+  po: string;
+  frete: number | null;
+  freteReal: number | null;
+  itens: ItemCompraEstado[];
+}
+
+/** Os campos da compra que o salvamento pode alterar (os de identificação, numeração e auditoria não entram). */
+export interface CamposCompraEditaveis {
+  paciente: string;
+  processoNumero: string;
+  medico: string;
+  localAplicacao: string;
+  entrega: string;
+  contatos: string;
+  termoObservacao: string;
+  despachante: string;
+  isencaoPara: string;
+  observacoes: string;
+  vendedor: string;
+  responsavel: string;
+  compraParticular: boolean;
+  localDeclarado: boolean;
+  termoPosterior: boolean;
+  courierSimples: boolean;
+  isencao: boolean;
+  pagamentoAlvara: boolean | null;
+  pagamentoMomento: MomentoPagamentoResumo | null;
+  documentos: boolean | null;
+  pendencias: string[];
+}
+
+/** O salvamento validado: só os campos que vieram, e as ordens (quando vieram) como o estado COMPLETO. */
+export interface CompraEstado {
+  /** O `updatedAt` que o cliente viu. */
+  atualizadoEm: string;
+  campos: Partial<CamposCompraEditaveis>;
+  ordens?: OrdemCompraEstado[];
+}
