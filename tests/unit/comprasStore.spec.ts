@@ -564,7 +564,8 @@ describe("salvarCompra — ordens e itens", () => {
     const r = (await salvarCompra(c.id, estado(atual, atual.ordens.map((o) => ordem(o.id, o.itens.map((i) => item(i.id)), { fornecedor: `${o.fornecedor} EDITADO`, po: o.po }))), "Cris"))!;
     expect(r.ordens[0]).toMatchObject({ id: "ord_aaaaaa", fornecedor: "FORNECEDOR A EDITADO", dirId: "dir_9", encaminhadaEm: "2026-11-19T16:00:00.000Z" });
     // E mesmo numa mudança de forma (a ordem do meio sai):
-    const r2 = (await salvarCompra(c.id, estado(r, [ordem("ord_aaaaaa", r.ordens[0]!.itens.map((i) => item(i.id))), ordem("ord_cccccc", [item("itm_c00001")])]), "Cris"))!;
+    // (O PO da ordem encaminhada fica como está: trocá-lo é 409, ver comprasOrdemTravada.spec.ts.)
+    const r2 = (await salvarCompra(c.id, estado(r, [ordem("ord_aaaaaa", r.ordens[0]!.itens.map((i) => item(i.id)), { po: r.ordens[0]!.po }), ordem("ord_cccccc", [item("itm_c00001")])]), "Cris"))!;
     expect(r2.ordens[0]).toMatchObject({ dirId: "dir_9", encaminhadaEm: "2026-11-19T16:00:00.000Z" });
   });
 

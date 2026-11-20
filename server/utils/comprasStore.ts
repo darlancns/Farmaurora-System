@@ -2,6 +2,7 @@ import { createError } from "h3";
 import { COMPRA_LISTA_POR_PAGINA, type StatusDaCompra } from "../../shared/constants/compra";
 import type { Compra, CompraDaLista, CompraEstado, CamposCompraEditaveis, ListaCompras, OrdemCompraEstado, TotaisPorStatus } from "../../shared/types/compra";
 import { dataBrasiliaDe } from "../../shared/utils/dataBrasilia";
+import { normalizarNumeroPo } from "../../shared/utils/numeroPo";
 import {
   COLUNAS_LISTA_COMPRA,
   COLUNAS_LISTA_ITEM,
@@ -61,6 +62,8 @@ export const MENSAGEM_CONFLITO_VERSAO = "Esta compra foi alterada por outra pess
 export const MENSAGEM_COMPRA_CANCELADA = "Esta compra foi cancelada e não pode mais ser editada.";
 export const MENSAGEM_ID_DE_OUTRA_COMPRA = "Identificador já usado em outra compra.";
 export const MENSAGEM_REFERENCIA_INVALIDA = "Medicamento do Cadastro ou do pré-cadastro não encontrado.";
+export const MENSAGEM_ORDEM_ENCAMINHADA_REMOVIDA = "Ordem já encaminhada para a DIR não pode ser removida";
+export const MENSAGEM_PO_TRAVADO = "PO travado: já encaminhado; altere na DIR";
 
 /** Erro de regra das Compras (409 versão, 409 id alheio, 422 referência, 503 sem número). `data` vai na resposta (ex.: a versão atual). */
 export class ComprasRegraError extends Error {
@@ -462,13 +465,30 @@ async function conferirIdsDoCorpo(db: Db, atual: CompraCarregada, ordens: readon
   if (alheiaOrdem.length > 0 || alheioItem.length > 0) throw new ComprasRegraError(MENSAGEM_ID_DE_OUTRA_COMPRA, 409);
 }
 
+/**
+ * A ordem JÁ ENCAMINHADA para a DIR (tem dir_id) é travada em duas coisas: não pode ser REMOVIDA e o seu PO não pode TROCAR (409 nos dois casos,
+ * com a compra atual em `data.atual` e o motivo em `data.code`). Tudo o mais na ordem e na compra segue editável (fornecedor, envio, medicamentos,
+ * campos da compra...): a DIR não muda sozinha, mas a compra pode continuar sendo ajustada. Reenviar o MESMO po não é erro.
+ */
+function conferirOrdensEncaminhadas(atual: CompraCarregada, compraAtual: Compra, ordens: readonly OrdemCompraEstado[]): void {
+  const mesmoPo = (a: string | null, b: string): boolean => (normalizarNumeroPo(a ?? "") ?? "") === (normalizarNumeroPo(b) ?? "");
+  for (const antes of atual.ordens) {
+    if ((antes.dir_id ?? "").trim() === "") continue;
+    const depois = ordens.find((o) => o.id === antes.id);
+    if (!depois) throw new ComprasRegraError(MENSAGEM_ORDEM_ENCAMINHADA_REMOVIDA, 409, { code: "ordem_encaminhada_removida", ordemId: antes.id, atual: compraAtual });
+    if (!mesmoPo(antes.po, depois.po)) throw new ComprasRegraError(MENSAGEM_PO_TRAVADO, 409, { code: "po_travado", ordemId: antes.id, atual: compraAtual });
+  }
+}
+
 /** A "forma" das ordens: ids das ordens na ordem e, em cada uma, os ids dos itens na ordem. Igual = nada entrou, saiu nem mudou de lugar. */
 const formaDe = (ordens: ReadonlyArray<{ id: string; itens: ReadonlyArray<{ id: string }> }>): string =>
   JSON.stringify(ordens.map((o) => [o.id, o.itens.map((i) => i.id)]));
 
-async function apagarPorId(db: Db, tabela: string, ids: readonly string[], acao: string): Promise<void> {
+async function apagarPorId(db: Db, tabela: string, ids: readonly string[], acao: string, opcoes: { soSemDirId?: boolean } = {}): Promise<void> {
   for (const bloco of emBlocos(ids)) {
-    const { error } = await db.from(tabela).delete().in("id", bloco);
+    const consulta = db.from(tabela).delete().in("id", bloco);
+    // Ordem que foi encaminhada ENTRE a conferência e este comando (outra requisição) não é apagada: a trava vale também na hora de gravar.
+    const { error } = await (opcoes.soSemDirId === true ? consulta.is("dir_id", null) : consulta);
     if (error) throw erro(acao, error);
   }
 }
@@ -535,6 +555,7 @@ async function sincronizarFilhas(db: Db, compraId: string, atual: CompraCarregad
     ORDENS,
     atual.ordens.filter((o) => !ordemIdsNovos.has(o.id)).map((o) => o.id),
     "apagar as ordens removidas da compra",
+    { soSemDirId: true },
   );
 
   await gravarLista(db, ORDENS, linhasDasOrdens((i) => i + 1), "gravar as ordens da compra");
@@ -570,6 +591,7 @@ export async function salvarCompra(id: string, estadoRecebido: CompraEstado, usu
 
   const estado = (await opcoes.antesDeGravar?.(compraAtual)) ?? estadoRecebido;
   if (estado.ordens) await conferirIdsDoCorpo(db, atual, estado.ordens);
+  if (estado.ordens) conferirOrdensEncaminhadas(atual, compraAtual, estado.ordens);
 
   const { data, error } = await db
     .from(COMPRAS)
