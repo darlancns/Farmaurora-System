@@ -1,6 +1,6 @@
 import { TABELA_CADASTRO } from "../../shared/constants/cadastros";
 import { MODAIS_ENVIO } from "../../shared/constants/processos";
-import type { Compra, CompraEstado, OpcoesCompra, OrdemCompraEstado } from "../../shared/types/compra";
+import type { Compra, CompraEstado, OpcoesCompra, OrdemCompraEstado, PaginaMedicamentos } from "../../shared/types/compra";
 import type { ConsultaMedicamentos } from "../../shared/utils/compraValidacao";
 import { chaveCadastro } from "../../shared/utils/cadastroNome";
 import { listarConsultoresAtivos } from "./consultoresCadastro";
@@ -89,6 +89,28 @@ export const COLUNAS_OPCOES = {
 
 const textoOuVazio = (v: string | null | undefined): string => v ?? "";
 
+/**
+ * UMA página de medicamentos ATIVOS do Cadastro (`id, nome, temperatura`), por nome_chave, com a busca e o limite da consulta. Lê uma linha
+ * a mais que o limite para saber se há próxima página sem contar a tabela. É o que a rota leve GET /api/compras/opcoes/medicamentos devolve
+ * (e a parte de medicamentos da rota geral): nenhuma outra lista, nunca chave PIX.
+ */
+export async function listarMedicamentosDeCompra(consulta: ConsultaMedicamentos): Promise<PaginaMedicamentos> {
+  const linhas = await lerAtivos<{ id: string; nome: string; temperatura: string | null }>(
+    createSupabaseAdminClient(),
+    TABELA_CADASTRO.medicamentos,
+    COLUNAS_OPCOES.medicamentos,
+    "listar os medicamentos ativos",
+    { busca: consulta.q, de: (consulta.pagina - 1) * consulta.limite, quantidade: consulta.limite + 1 },
+  );
+  return {
+    itens: linhas.slice(0, consulta.limite).map((m) => ({ id: m.id, nome: m.nome, temperatura: textoOuVazio(m.temperatura) })),
+    pagina: consulta.pagina,
+    limite: consulta.limite,
+    temMais: linhas.length > consulta.limite,
+    q: consulta.q,
+  };
+}
+
 /** O formulário de Compras: as listas ativas (só os campos necessários) e UMA página de medicamentos (busca e limite da consulta). */
 export async function listarOpcoesDeCompra(consulta: ConsultaMedicamentos): Promise<OpcoesCompra> {
   const db = createSupabaseAdminClient();
@@ -109,12 +131,7 @@ export async function listarOpcoesDeCompra(consulta: ConsultaMedicamentos): Prom
     lerAtivos<{ nome: string }>(db, TABELA_CADASTRO.transportadoras, COLUNAS_OPCOES.transportadoras, "listar as transportadoras ativas"),
     lerAtivos<{ nome: string }>(db, TABELA_CADASTRO.temperaturas, COLUNAS_OPCOES.temperaturas, "listar as temperaturas ativas"),
     listarConsultoresAtivos(),
-    // Uma linha a mais que o limite: saber se há próxima página sem contar a tabela toda.
-    lerAtivos<{ id: string; nome: string; temperatura: string | null }>(db, TABELA_CADASTRO.medicamentos, COLUNAS_OPCOES.medicamentos, "listar os medicamentos ativos", {
-      busca: consulta.q,
-      de: (consulta.pagina - 1) * consulta.limite,
-      quantidade: consulta.limite + 1,
-    }),
+    listarMedicamentosDeCompra(consulta),
   ]);
 
   return {
@@ -134,13 +151,7 @@ export async function listarOpcoesDeCompra(consulta: ConsultaMedicamentos): Prom
     transportadoras: transportadoras.map((t) => ({ nome: t.nome })),
     consultores: consultores.map((nome) => ({ nome })),
     temperaturas: temperaturas.map((t) => ({ nome: t.nome })),
-    medicamentos: {
-      itens: medicamentos.slice(0, consulta.limite).map((m) => ({ id: m.id, nome: m.nome, temperatura: textoOuVazio(m.temperatura) })),
-      pagina: consulta.pagina,
-      limite: consulta.limite,
-      temMais: medicamentos.length > consulta.limite,
-      q: consulta.q,
-    },
+    medicamentos,
   };
 }
 

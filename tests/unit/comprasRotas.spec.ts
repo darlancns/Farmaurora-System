@@ -46,6 +46,7 @@ import salvarPatch from "../../server/api/compras/[id].patch";
 import duplicarPost from "../../server/api/compras/[id]/duplicar.post";
 import cancelarPost from "../../server/api/compras/[id]/cancelar.post";
 import opcoesGet from "../../server/api/compras/opcoes.get";
+import medicamentosGet from "../../server/api/compras/opcoes/medicamentos.get";
 import temperaturasPost from "../../server/api/compras/temperaturas.post";
 import preCadastroPost from "../../server/api/compras/pre-cadastro-medicamentos.post";
 
@@ -70,6 +71,7 @@ const ROTAS: Rota[] = [
   { caminho: `/api/compras/${ID}/duplicar`, metodo: "POST", handler: duplicarPost as Handler, arquivo: "[id]/duplicar.post.ts", escrita: true },
   { caminho: `/api/compras/${ID}/cancelar`, metodo: "POST", handler: cancelarPost as Handler, arquivo: "[id]/cancelar.post.ts", escrita: true },
   { caminho: "/api/compras/opcoes", metodo: "GET", handler: opcoesGet as Handler, arquivo: "opcoes.get.ts", escrita: false },
+  { caminho: "/api/compras/opcoes/medicamentos", metodo: "GET", handler: medicamentosGet as Handler, arquivo: "opcoes/medicamentos.get.ts", escrita: false },
   { caminho: "/api/compras/temperaturas", metodo: "POST", handler: temperaturasPost as Handler, arquivo: "temperaturas.post.ts", escrita: true },
   { caminho: "/api/compras/pre-cadastro-medicamentos", metodo: "POST", handler: preCadastroPost as Handler, arquivo: "pre-cadastro-medicamentos.post.ts", escrita: true },
 ];

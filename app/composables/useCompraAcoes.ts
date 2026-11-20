@@ -1,4 +1,4 @@
-import type { MedicamentoDoCadastro, OpcoesCompra, RespostaPreCadastro, RespostaTemperatura } from "#shared/types/compra";
+import type { MedicamentoDoCadastro, PaginaMedicamentos, RespostaPreCadastro, RespostaTemperatura } from "#shared/types/compra";
 import type { CompraOpcoes } from "./useCompraOpcoes";
 import { ApiError } from "../utils/apiFetch";
 import { readApiError } from "../utils/errorMessages";
@@ -25,11 +25,12 @@ export function useCompraAcoes(config: OpcoesAcoes): AcoesCompra {
   const rede = (): typeof fetch => config.buscarRede ?? fetch;
 
   async function buscarMedicamentos(q: string, sinal: AbortSignal): Promise<OpcaoBusca[]> {
-    const url = `/api/compras/opcoes?${new URLSearchParams({ q, limite: String(LIMITE_BUSCA_MEDICAMENTOS) }).toString()}`;
+    // A rota LEVE (só medicamentos): a rota geral devolve todas as listas e fica para a carga inicial.
+    const url = `/api/compras/opcoes/medicamentos?${new URLSearchParams({ q, limite: String(LIMITE_BUSCA_MEDICAMENTOS) }).toString()}`;
     const res = await rede()(url, { signal: sinal });
     if (!res.ok) throw new ApiError(await readApiError(res, "Não foi possível buscar."), res.status);
-    const corpo = (await res.json()) as OpcoesCompra;
-    return corpo.medicamentos.itens.map((m) => ({ valor: m.id, rotulo: m.nome, extra: { temperatura: m.temperatura } }));
+    const corpo = (await res.json()) as PaginaMedicamentos;
+    return corpo.itens.map((m) => ({ valor: m.id, rotulo: m.nome, extra: { temperatura: m.temperatura } }));
   }
 
   async function registrarTemperatura(nome: string): Promise<ResultadoTemperatura> {

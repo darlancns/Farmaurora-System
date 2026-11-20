@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthUser } from "../../shared/types/auth";
-import type { OpcoesCompra } from "../../shared/types/compra";
+import type { OpcoesCompra, PaginaMedicamentos } from "../../shared/types/compra";
 import { COMPRA_BUSCA_MAX } from "../../shared/constants/compra";
 import { normalizarBuscaCompra, validarConsultaMedicamentos } from "../../shared/utils/compraValidacao";
 import { FakeSupabase, TETO_LINHAS_POR_CONSULTA } from "./helpers/fakeSupabase";
@@ -22,6 +22,7 @@ vi.mock("../../server/utils/supabaseServerClient", () => ({
 }));
 
 import opcoesGet from "../../server/api/compras/opcoes.get";
+import medicamentosGet from "../../server/api/compras/opcoes/medicamentos.get";
 
 const PIX = "CHAVE-PIX-SECRETA-TESTE";
 
@@ -256,5 +257,75 @@ describe("permissão: compras ver", () => {
     await chamar(adm);
     expect(fake.chamadas.length).toBeGreaterThan(0);
     expect(fake.chamadas.filter((c) => c.op !== "select")).toEqual([]);
+  });
+});
+
+// ── A rota LEVE: GET /api/compras/opcoes/medicamentos ───────────────────────────────────────────────────────────
+
+describe("GET /api/compras/opcoes/medicamentos (busca leve)", () => {
+  async function leve(user: AuthUser | null, query: Record<string, unknown> = {}): Promise<PaginaMedicamentos> {
+    h.query = query;
+    return (await medicamentosGet({ context: { user } } as never)) as PaginaMedicamentos;
+  }
+
+  it("devolve SÓ a página de medicamentos ({ itens, pagina, limite, temMais, q }): nenhuma outra lista, em nenhum nível", async () => {
+    const r = await leve(adm, { q: "teste med 000", limite: "5" });
+    expect(Object.keys(r).sort()).toEqual(["itens", "limite", "pagina", "q", "temMais"]);
+    expect(r.itens.map((i) => i.id)).toEqual(["med_0000", "med_0001", "med_0002", "med_0003", "med_0004"]);
+    expect(r).toMatchObject({ pagina: 1, limite: 5, temMais: true, q: "teste med 000" });
+    const texto = JSON.stringify(r);
+    for (const outra of ["fornecedores", "despachantes", "ciasAereas", "transportadoras", "consultores", "temperaturas", "Fornecedor Teste", "Despachante Teste", "Cia Teste", "Transportadora Teste"]) {
+      expect(texto, outra).not.toContain(outra);
+    }
+  });
+
+  it("não traz chave PIX em nível nenhum (nem na lista, que nem é lida)", async () => {
+    const r = await leve(adm);
+    const texto = JSON.stringify(r);
+    expect(texto).not.toContain(PIX);
+    expect(texto.toLowerCase()).not.toMatch(/chave_?pix|\bpix\b/);
+    const chaves = new Set<string>();
+    const varrer = (v: unknown): void => {
+      if (Array.isArray(v)) v.forEach(varrer);
+      else if (v && typeof v === "object") for (const [k, f] of Object.entries(v)) (chaves.add(k), varrer(f));
+    };
+    varrer(r);
+    expect([...chaves].sort()).toEqual(["id", "itens", "limite", "nome", "pagina", "q", "temMais", "temperatura"]);
+  });
+
+  it("lê SÓ a tabela de medicamentos (nenhuma outra lista é consultada) e só faz select", async () => {
+    fake.chamadas.length = 0;
+    await leve(adm, { q: "teste" });
+    expect(new Set(fake.chamadas.map((c) => c.tabela))).toEqual(new Set(["cadastro_medicamentos"]));
+    expect(fake.chamadas.filter((c) => c.op !== "select")).toEqual([]);
+  });
+
+  it("os mesmos itens da página de medicamentos da rota geral (mesma busca, ordem, paginação e limite)", async () => {
+    for (const query of [{}, { q: "teste med 00", limite: "30", pagina: "2" }, { limite: "100", pagina: "5" }, { q: "ácido" }]) {
+      expect((await leve(adm, query)).itens, JSON.stringify(query)).toEqual((await chamar(adm, query)).medicamentos.itens);
+    }
+  });
+
+  it("só ativos; busca sem acento nem caixa; páginas sem repetir; temMais; limite 1..100", async () => {
+    fake.tabelas.cadastro_medicamentos = [linha("m1", "ÁCIDO FÓLICO TESTE"), linha("m2", "OUTRO TESTE"), linha("m3", "ACIDO ASCORBICO TESTE"), linha("m4", "Inativo ácido", {}, false)];
+    expect((await leve(adm, { q: "  Ácido " })).itens.map((i) => i.id)).toEqual(["m3", "m1"]); // ordenado por nome_chave; o inativo fica de fora
+    fake.tabelas.cadastro_medicamentos = medicamentos(414);
+    const vistos: string[] = [];
+    for (let pagina = 1; pagina <= 5; pagina++) {
+      const p = await leve(adm, { limite: "100", pagina: String(pagina) });
+      vistos.push(...p.itens.map((i) => i.id));
+      expect(p.temMais, `página ${pagina}`).toBe(pagina < 5);
+    }
+    expect(new Set(vistos).size).toBe(414);
+    for (const ruim of [{ limite: "0" }, { limite: "101" }, { limite: "abc" }, { pagina: "0" }, { q: ["a", "b"] }, { q: "a".repeat(COMPRA_BUSCA_MAX + 1) }]) {
+      expect((await erroDe(leve(adm, ruim))).status, JSON.stringify(ruim)).toBe(400);
+    }
+  });
+
+  it("permissão compras = ver: sem usuário 401, consultor 403, sócio e administrador leem", async () => {
+    expect((await erroDe(leve(null))).status).toBe(401);
+    expect((await erroDe(leve(consultor))).status).toBe(403);
+    expect(await leve(socio)).toHaveProperty("itens");
+    expect(await leve(adm)).toHaveProperty("itens");
   });
 });

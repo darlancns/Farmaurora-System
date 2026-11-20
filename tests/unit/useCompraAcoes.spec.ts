@@ -35,12 +35,13 @@ function montar(res: Response | (() => Response), compraId: string | null = "cmp
 const chamada = (f: ReturnType<typeof vi.fn>) => ({ url: String(f.mock.calls[0]![0]), init: (f.mock.calls[0]![1] ?? {}) as RequestInit });
 
 describe("buscarMedicamentos", () => {
-  it("GET /api/compras/opcoes?q=...&limite=20 (com o sinal de cancelamento) e devolve as sugestões com a temperatura", async () => {
-    const m = montar(resposta(200, { ...OPCOES, medicamentos: { itens: [{ id: "med_1", nome: "DIPIRONA TESTE", temperatura: "2°C a 8°C" }, { id: "med_2", nome: "OUTRO TESTE", temperatura: "" }], pagina: 1, limite: 20, temMais: false, q: "dipi" } }));
+  it("GET /api/compras/opcoes/medicamentos?q=...&limite=20 (a rota LEVE, com o sinal de cancelamento) e devolve as sugestões com a temperatura", async () => {
+    const m = montar(resposta(200, { itens: [{ id: "med_1", nome: "DIPIRONA TESTE", temperatura: "2°C a 8°C" }, { id: "med_2", nome: "OUTRO TESTE", temperatura: "" }], pagina: 1, limite: 20, temMais: false, q: "dipi" }));
     const controle = new AbortController();
     const r = await m.acoes.buscarMedicamentos("dipi & co", controle.signal);
     const c = chamada(m.fetchFalso);
-    expect(c.url).toBe(`/api/compras/opcoes?q=dipi+%26+co&limite=${LIMITE_BUSCA_MEDICAMENTOS}`);
+    expect(c.url).toBe(`/api/compras/opcoes/medicamentos?q=dipi+%26+co&limite=${LIMITE_BUSCA_MEDICAMENTOS}`);
+    expect(c.url).not.toBe(`/api/compras/opcoes?q=dipi+%26+co&limite=${LIMITE_BUSCA_MEDICAMENTOS}`); // não a rota geral (que devolve todas as listas)
     expect(c.init.signal).toBe(controle.signal);
     expect(r).toEqual([
       { valor: "med_1", rotulo: "DIPIRONA TESTE", extra: { temperatura: "2°C a 8°C" } },
