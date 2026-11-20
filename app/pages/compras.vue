@@ -8,6 +8,7 @@ import ComprasListaPainel from "../components/compras/ComprasListaPainel.vue";
 import ConfirmDialog from "../components/ConfirmDialog.vue";
 import GlobalHeader from "../components/GlobalHeader.vue";
 import { useAuth } from "../composables/useAuth";
+import { useCompraAcoes } from "../composables/useCompraAcoes";
 import { useCompraOpcoes } from "../composables/useCompraOpcoes";
 import { useComprasPagina } from "../composables/useComprasPagina";
 import { useToast } from "../composables/useToast";
@@ -38,6 +39,9 @@ const pagina = useComprasPagina({
 });
 
 const { lista, editor } = pagina;
+
+// O que as linhas do formulário pedem ao servidor: busca de medicamento, pré-cadastro e temperatura nova.
+const acoes = useCompraAcoes({ opcoes, compraId: () => editor.compra.value?.id ?? null, avisar: (mensagem) => showToast(mensagem) });
 
 // O despachante da compra no Cadastro (telefone, e-mail e contato; nunca PIX): o resumo o usa.
 const despachanteCadastro = computed(() => (editor.compra.value ? opcoes.despachantePeloNome(editor.compra.value.despachante) : null));
@@ -109,6 +113,7 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", antesDeFecharAA
           :mensagem-erro="editor.mensagemErro.value"
           :pode-editar="podeEditar"
           :opcoes="opcoes.paraFormulario.value"
+          :acoes="acoes"
           :ocupado="pagina.ocupado.value"
           @alterar="(m) => editor.alterar(m)"
           @duplicar="pagina.duplicar()"

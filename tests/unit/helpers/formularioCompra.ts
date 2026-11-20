@@ -3,6 +3,7 @@ import type { Compra, MudancasCompra } from "../../../shared/types/compra";
 import { courierSimplesDasOrdens } from "../../../shared/utils/compraForm";
 import CompraFormulario from "../../../app/components/compras/CompraFormulario.vue";
 import { OPCOES_VAZIAS, type OpcoesFormulario } from "../../../app/utils/comprasBlocos";
+import type { AcoesCompra } from "../../../app/utils/comprasContexto";
 
 // O formulário REAL no happy-dom, ligado a um estado como o do editor: cada `alterar` vira a nova compra (e o Courier Simples é
 // derivado das ordens, como em useCompraEditor). Assim os testes seguem o que a pessoa vê depois de cada mudança.
@@ -53,7 +54,7 @@ export interface FormularioMontado {
   opcoes: Ref<OpcoesFormulario>;
 }
 
-export function montarFormulario(inicial: Compra, extra: { opcoes?: Partial<OpcoesFormulario>; podeEditar?: boolean } = {}): FormularioMontado {
+export function montarFormulario(inicial: Compra, extra: { opcoes?: Partial<OpcoesFormulario>; podeEditar?: boolean; acoes?: AcoesCompra } = {}): FormularioMontado {
   const compra = ref(inicial) as Ref<Compra>;
   const mudancas: MudancasCompra[] = [];
   const somenteLeitura = ref(extra.podeEditar === false);
@@ -69,6 +70,7 @@ export function montarFormulario(inicial: Compra, extra: { opcoes?: Partial<Opco
           salvoEm: null,
           podeEditar: !somenteLeitura.value,
           opcoes: opcoes.value,
+          ...(extra.acoes ? { acoes: extra.acoes } : {}),
           onAlterar: (m: MudancasCompra) => {
             mudancas.push(m);
             const nova = { ...compra.value, ...m };

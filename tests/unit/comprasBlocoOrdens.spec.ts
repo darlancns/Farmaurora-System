@@ -168,13 +168,15 @@ describe("linhas de medicamento", () => {
   it("digitar em cada campo grava no item certo (e só nele)", async () => {
     const f = abrir(compraTeste({ ordens: [ordem("ord_a00001", 1, [item("itm_a", 1), item("itm_b", 2)])] }));
     await digitar("#item-itm_b-quantidade", "12 ampolas");
-    await digitar("#item-itm_b-medicamento", "MED B TESTE");
+    await digitar("#item-itm_b-medicamento", "med b teste");
+    q<HTMLInputElement>("#item-itm_b-medicamento")!.dispatchEvent(new FocusEvent("blur")); // o campo de busca aplica o texto ao sair
+    await nextTick();
     await digitar("#item-itm_b-apresentacao", "10 mg");
     await digitar("#item-itm_b-referencia", "REF B");
     await digitar("#item-itm_b-laboratorio", "LAB B");
     const [a, b] = f.compra.value.ordens[0]!.itens;
     expect(a).toMatchObject({ quantidade: "", medicamento: "", apresentacao: "" });
-    expect(b).toMatchObject({ quantidade: "12 ampolas", medicamento: "MED B TESTE", apresentacao: "10 mg", referencia: "REF B", laboratorio: "LAB B" });
+    expect(b).toMatchObject({ quantidade: "12 ampolas", medicamento: "MED B TESTE", medicamentoCadastroId: null, apresentacao: "10 mg", referencia: "REF B", laboratorio: "LAB B" });
   });
 
   it("a Temperatura vem da lista do Cadastro e um valor antigo fora da lista continua selecionado", async () => {
@@ -209,7 +211,7 @@ describe("adicionar e remover (chaves estáveis: nunca o índice)", () => {
       }),
     );
     // Uma digitação "não salva" ainda na 3ª linha: tem de sobreviver à remoção do meio.
-    await digitar("#item-itm_c-medicamento", "TERCEIRO EDITADO");
+    await digitar("#item-itm_c-apresentacao", "C mg editada");
     await clicar("#item-itm_b-remover");
     const restantes = f.compra.value.ordens[0]!.itens;
     expect(restantes.map((i) => i.id)).toEqual(["itm_a", "itm_c"]);
@@ -219,7 +221,8 @@ describe("adicionar e remover (chaves estáveis: nunca o índice)", () => {
     expect(valorDe("#item-itm_a-quantidade")).toBe("1");
     expect(valorDe("#item-itm_a-valor-unitario")).toBe("1,50");
     expect(valorDe("#item-itm_a-apresentacao")).toBe("A mg");
-    expect(valorDe("#item-itm_c-medicamento")).toBe("TERCEIRO EDITADO");
+    expect(valorDe("#item-itm_c-medicamento")).toBe("TERCEIRO");
+    expect(valorDe("#item-itm_c-apresentacao")).toBe("C mg editada");
     expect(valorDe("#item-itm_c-quantidade")).toBe("3");
     expect(valorDe("#item-itm_c-valor-unitario")).toBe("3,50");
     expect(valorDe("#item-itm_c-laboratorio")).toBe("Lab C");
@@ -332,8 +335,8 @@ describe("ordem já encaminhada para a DIR", () => {
   it("a ordem encaminhada continua editável (só a remoção é travada) e, sem data, a etiqueta é só 'Encaminhada'", async () => {
     const f = abrir(compraTeste({ ordens: [ordem("ord_a", 1, [item("itm_a", 1)], { dirId: "dir_1", encaminhadaEm: null })] }));
     expect(texto(q("#ordem-ord_a-encaminhada"))).toBe("Encaminhada");
-    await digitar("#item-itm_a-medicamento", "AINDA EDITA");
-    expect(f.compra.value.ordens[0]!.itens[0]!.medicamento).toBe("AINDA EDITA");
+    await digitar("#item-itm_a-apresentacao", "AINDA EDITA");
+    expect(f.compra.value.ordens[0]!.itens[0]!.apresentacao).toBe("AINDA EDITA");
     expect(f.compra.value.ordens[0]!.dirId).toBe("dir_1"); // o dir_id é preservado no estado
   });
 });

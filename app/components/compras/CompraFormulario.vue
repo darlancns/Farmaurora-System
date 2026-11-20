@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, provide } from "vue";
 import type { Compra, MudancasCompra } from "#shared/types/compra";
 import { contarPendencias, statusDaCompra } from "#shared/utils/compraChecklist";
 import type { EstadoSalvamento } from "../../composables/useCompraEditor";
 import type { OpcoesFormulario } from "../../utils/comprasBlocos";
+import { ACOES_COMPRA_KEY, ACOES_VAZIAS, type AcoesCompra } from "../../utils/comprasContexto";
 import { FIELDSET_CLASS, LEGEND_CLASS } from "../../utils/processoFormClasses";
 import { BLOCOS, GRUPOS } from "./blocosRegistro";
 import CompraFaixaConflito from "./CompraFaixaConflito.vue";
@@ -21,8 +22,13 @@ const props = defineProps<{
   /** Quem pode escrever em Compras (a permissão). Compra cancelada é somente leitura de qualquer jeito. */
   podeEditar: boolean;
   opcoes: OpcoesFormulario;
+  /** O que as linhas pedem ao servidor (busca de medicamento, pré-cadastro, temperatura nova). Sem ele, não buscam nem registram. */
+  acoes?: AcoesCompra;
   ocupado?: boolean;
 }>();
+
+// As linhas (três níveis abaixo) recebem as ações por provide/inject, sem repassar a prop de bloco em bloco.
+provide(ACOES_COMPRA_KEY, props.acoes ?? ACOES_VAZIAS);
 
 const emit = defineEmits<{
   alterar: [mudancas: MudancasCompra];
