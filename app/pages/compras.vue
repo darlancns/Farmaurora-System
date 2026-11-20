@@ -162,6 +162,7 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", antesDeFecharAA
           :acoes="acoes"
           :ocupado="pagina.ocupado.value"
           :po-ja-na-dir="encaminhar.conflitosPo.value"
+          :conflito="editor.conflito.value"
           @alterar="(m) => editor.alterar(m)"
           @duplicar="pagina.duplicar()"
           @cancelar="pagina.pedirCancelar()"
@@ -200,7 +201,7 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", antesDeFecharAA
     <ConfirmDialog
       v-if="pagina.confirmandoCancelar.value"
       title="Cancelar compra"
-      :message="`Cancelar a ${pagina.tituloParaDialogo()}? Ela continua na lista como cancelada e não poderá mais ser editada.`"
+      :message="pagina.mensagemCancelar()"
       confirm-label="Cancelar compra"
       cancel-label="Voltar"
       danger

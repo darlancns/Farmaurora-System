@@ -95,3 +95,16 @@ export function razaoEncaminharDesabilitado(compra: Pick<Compra, "cancelada" | "
   if (compra.ordens.every((o) => (o.dirId ?? "").trim() !== "")) return RAZAO_TODAS_ENCAMINHADAS;
   return null;
 }
+
+/**
+ * Os `data.code` do 409 do salvamento quando o servidor TRAVA a ordem já encaminhada para a DIR (remover a ordem ou trocar o PO). Repetir o mesmo
+ * estado levaria o mesmo 409: a tela só oferece "Carregar a versão salva" (nunca "Manter as minhas e salvar por cima").
+ */
+export const CODIGOS_CONFLITO_DE_TRAVA: readonly string[] = ["ordem_encaminhada_removida", "po_travado"];
+
+export const conflitoEhDeTrava = (codigo: string | null | undefined): boolean => codigo !== null && codigo !== undefined && CODIGOS_CONFLITO_DE_TRAVA.includes(codigo);
+
+export const TEXTO_CONFLITO_PADRAO = "Esta compra foi alterada por outra pessoa.";
+export const TEXTO_PO_ENCAMINHADO = "PO já encaminhado: altere na DIR";
+export const TEXTO_REMOVER_ENCAMINHADA = "Já encaminhada para a DIR";
+export const AVISO_CANCELAR_COM_ENCAMINHADAS = "Há ordens já encaminhadas para a DIR. As linhas da DIR continuam existindo e não são alteradas.";

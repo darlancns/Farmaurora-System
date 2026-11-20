@@ -52,6 +52,8 @@ interface Servidor {
   previa: PreviaEncaminhar;
   chamadas: Array<{ metodo: string; url: string; corpo?: unknown }>;
   respostaPost: () => Promise<Response>;
+  /** A resposta do salvamento automático (PATCH). */
+  respostaPatch: () => Promise<Response>;
 }
 
 const OPCOES: OpcoesCompra = {
@@ -73,6 +75,7 @@ function servidor(compra: Compra = compraTeste()): Servidor {
     compra,
     previa: previaTeste(compra),
     chamadas: [],
+    respostaPatch: async () => resposta(200, s.compra),
     respostaPost: async () => {
       const devolvida: Compra = { ...s.compra, updatedAt: "2026-12-01T12:05:00.000Z", ordens: s.compra.ordens.map((o) => ({ ...o, dirId: `dir_${o.id}`, encaminhadaEm: "2026-12-01T12:05:00.000Z" })) };
       const r: RespostaEncaminhar = { compra: devolvida, criadas: s.compra.ordens.map((o) => ({ ordemId: o.id, dirId: `dir_${o.id}`, po: o.po })), jaEncaminhada: false };
@@ -96,6 +99,7 @@ function servidor(compra: Compra = compraTeste()): Servidor {
       };
       return resposta(200, lista);
     }
+    if (url === `/api/compras/${s.compra.id}` && metodo === "PATCH") return s.respostaPatch();
     if (url === `/api/compras/${s.compra.id}`) return resposta(200, s.compra);
     if (url === `/api/compras/${s.compra.id}/encaminhar-previa`) return resposta(200, s.previa);
     if (url === `/api/compras/${s.compra.id}/encaminhar` && metodo === "POST") return s.respostaPost();
@@ -254,5 +258,58 @@ describe("o fluxo na página", () => {
     expect(texto(q("#compra-checklist-erros"))).toContain("PO26-12-9999 já existe na DIR");
     expect(q<HTMLButtonElement>("#btn-encaminhar-confirmar")!.disabled).toBe(true);
     expect(texto(q("#compra-pendencias"))).toBe("1 pendência");
+  });
+});
+
+describe("travas na página: o 409 do autosave e o cancelar", () => {
+  async function editarPaciente(): Promise<void> {
+    const campo = q<HTMLInputElement>("#compra-paciente")!;
+    campo.value = "TESTE PACIENTE EDITADO";
+    campo.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.advanceTimersByTimeAsync(900);
+    await esperar();
+  }
+
+  it("409 po_travado no autosave: a faixa mostra a mensagem do servidor e SÓ 'Carregar a versão salva'", async () => {
+    const ja = { dirId: "dir_ord_teste_0001", encaminhadaEm: "2026-12-01T10:00:00.000Z" };
+    const s = servidor(compraTeste({ ordens: [ordemTeste(1, ja), ordemTeste(2)] }));
+    s.respostaPatch = async () => resposta(409, { statusMessage: "PO travado: já encaminhado; altere na DIR", data: { code: "po_travado", ordemId: "ord_teste_0001", atual: s.compra } });
+    await abrirPagina(ADMIN, s);
+    await editarPaciente();
+    expect(texto(q("#compra-faixa-conflito-texto"))).toBe("PO travado: já encaminhado; altere na DIR");
+    expect(q("#btn-conflito-carregar")).not.toBeNull();
+    expect(q("#btn-conflito-manter")).toBeNull();
+  });
+
+  it("409 comum no autosave: as duas saídas continuam", async () => {
+    const s = servidor();
+    s.respostaPatch = async () => resposta(409, { statusMessage: "Esta compra foi alterada por outra pessoa. Recarregue para ver a versão atual.", data: { atual: s.compra } });
+    await abrirPagina(ADMIN, s);
+    await editarPaciente();
+    expect(texto(q("#compra-faixa-conflito-texto"))).toBe("Esta compra foi alterada por outra pessoa.");
+    expect(q("#btn-conflito-carregar")).not.toBeNull();
+    expect(q("#btn-conflito-manter")).not.toBeNull();
+  });
+
+  it("o PO da ordem encaminhada aparece desabilitado no formulário da página", async () => {
+    const ja = { dirId: "dir_ord_teste_0001", encaminhadaEm: "2026-12-01T10:00:00.000Z" };
+    await abrirPagina(ADMIN, servidor(compraTeste({ ordens: [ordemTeste(1, ja), ordemTeste(2)] })));
+    expect(q<HTMLInputElement>("#ordem-ord_teste_0001-po")!.disabled).toBe(true);
+    expect(q<HTMLInputElement>("#ordem-ord_teste_0002-po")!.disabled).toBe(false);
+  });
+
+  it("Cancelar compra com ordem encaminhada: o diálogo avisa que as linhas da DIR continuam; sem ordem encaminhada, não", async () => {
+    const ja = { dirId: "dir_ord_teste_0001", encaminhadaEm: "2026-12-01T10:00:00.000Z" };
+    await abrirPagina(ADMIN, servidor(compraTeste({ ordens: [ordemTeste(1, ja), ordemTeste(2)] })));
+    q<HTMLButtonElement>("#btn-cancelar-compra")!.click();
+    await esperar();
+    expect(texto(document.body)).toContain("Há ordens já encaminhadas para a DIR. As linhas da DIR continuam existindo e não são alteradas.");
+    document.body.innerHTML = "";
+    montados.pop()!();
+    await abrirPagina(ADMIN, servidor());
+    q<HTMLButtonElement>("#btn-cancelar-compra")!.click();
+    await esperar();
+    expect(texto(document.body)).toContain("Ela continua na lista como cancelada");
+    expect(texto(document.body)).not.toContain("Há ordens já encaminhadas para a DIR");
   });
 });

@@ -7,6 +7,7 @@ import { chaveCadastro } from "#shared/utils/cadastroNome";
 import { diaDoEncaminhamento } from "#shared/utils/compraChecklist";
 import { itemVazio } from "#shared/utils/compraForm";
 import { campoDaOrdem } from "../../utils/comprasCampos";
+import { TEXTO_PO_ENCAMINHADO, TEXTO_REMOVER_ENCAMINHADA } from "../../utils/comprasEncaminhar";
 import type { AppSelectOption } from "../../types/appSelect";
 import type { OpcoesFormulario } from "../../utils/comprasBlocos";
 import { BOTAO_SECUNDARIO_CLASS } from "../../utils/comprasEstilos";
@@ -103,7 +104,7 @@ function aoDigitarPo(event: Event): void {
         :id="idCampo('remover')"
         type="button"
         :disabled="desabilitado || encaminhada"
-        :title="encaminhada ? 'Já encaminhada para a DIR' : undefined"
+        :title="encaminhada ? TEXTO_REMOVER_ENCAMINHADA : undefined"
         :class="BOTAO_SECUNDARIO_CLASS"
         @click="emit('remover')"
       >
@@ -135,11 +136,13 @@ function aoDigitarPo(event: Event): void {
           placeholder="PO26-11-0000"
           :class="INPUT_MONO_CLASS"
           :value="ordem.po"
-          :disabled="desabilitado"
+          :disabled="desabilitado || encaminhada"
+          :aria-describedby="idCampo('po-apoio')"
           autocomplete="off"
           @input="aoDigitarPo"
         />
-        <p class="mt-1 text-[11px] text-ink-soft">Pode ficar para depois.</p>
+        <!-- Ordem já encaminhada: o servidor trava o PO (a linha da DIR foi criada com ele); só se altera na DIR. -->
+        <p :id="idCampo('po-apoio')" class="mt-1 text-[11px] text-ink-soft">{{ encaminhada ? TEXTO_PO_ENCAMINHADO : "Pode ficar para depois." }}</p>
       </div>
       <div>
         <label :for="idCampo('frete')" :class="LABEL_CLASS">Frete (US$)</label>

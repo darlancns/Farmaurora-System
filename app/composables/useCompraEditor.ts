@@ -2,7 +2,8 @@ import { computed, ref, type ComputedRef, type Ref } from "vue";
 import type { Compra, CompraSalvarDTO, MudancasCompra } from "#shared/types/compra";
 import { courierSimplesDasOrdens } from "#shared/utils/compraForm";
 import { corpoParaSalvar } from "#shared/utils/compraPayload";
-import { ApiError, apiFetch } from "../utils/apiFetch";
+import { ApiError, apiFetch, codigoDoErro } from "../utils/apiFetch";
+import { conflitoEhDeTrava } from "../utils/comprasEncaminhar";
 
 // O editor da compra aberta no formulário: o estado local (uma cópia da compra do servidor) e o SALVAMENTO AUTOMÁTICO.
 //
@@ -11,7 +12,8 @@ import { ApiError, apiFetch } from "../utils/apiFetch";
 //  - NUNCA dois PATCH ao mesmo tempo: mudou durante um salvamento? marca "sujo" e salva de novo logo depois do que está em curso.
 //  - `flush()` descarrega o que está pendente ANTES de trocar de compra/mês ou sair da página; false = não salvou (quem chama não troca).
 //  - 409 (outra pessoa salvou antes): para o autosave e espera a escolha — `carregarVersaoSalva()` (descarta as mudanças locais) ou
-//    `manterMinhas()` (reenvia o estado local com a versão atual). Nada some sem a pessoa escolher.
+//    `manterMinhas()` (reenvia o estado local com a versão atual). Nada some sem a pessoa escolher. O 409 de TRAVA da ordem encaminhada
+//    (data.code ordem_encaminhada_removida ou po_travado) só tem a primeira saída: `manterMinhas()` não faz nada nesse caso.
 //  - Erro de rede ou 5xx: o estado local fica; tenta de novo sozinho com recuo (3 tentativas); depois espera `tentarDeNovo()`. Erro 4xx
 //    (dado recusado) não repete sozinho: espera o clique, com a mensagem do servidor.
 //  - Somente leitura (sem permissão de escrita, ou compra cancelada): nenhum campo muda, nenhum timer, nenhuma chamada.
@@ -144,6 +146,7 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
   function aposFalha(e: unknown): void {
     if (e instanceof ApiError && e.status === 409) {
       estado.value = "conflito";
+      conflito.value = { codigo: codigoDoErro(e), mensagem: e.message };
       return;
     }
     estado.value = "erro";
@@ -273,6 +276,8 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
   async function manterMinhas(): Promise<void> {
     const atual = compra.value;
     if (!atual) return;
+    // O 409 de trava (ordem encaminhada removida, PO travado) se repetiria igual: só se carrega a versão salva.
+    if (conflitoEhDeTrava(conflito.value?.codigo)) return;
     const naBase = await api.obter(atual.id);
     if (compra.value?.id !== atual.id) return;
     atualizadoEm = naBase.updatedAt; // o meu estado local vai por cima, mas com a versão que está valendo agora
