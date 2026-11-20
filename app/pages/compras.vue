@@ -39,7 +39,6 @@ const pagina = useComprasPagina({
 
 const { lista, editor } = pagina;
 
-const consultores = computed(() => opcoes.consultores.value);
 // O despachante da compra no Cadastro (telefone, e-mail e contato; nunca PIX): o resumo o usa.
 const despachanteCadastro = computed(() => (editor.compra.value ? opcoes.despachantePeloNome(editor.compra.value.despachante) : null));
 
@@ -109,7 +108,7 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", antesDeFecharAA
           :salvo-em="editor.salvoEm.value"
           :mensagem-erro="editor.mensagemErro.value"
           :pode-editar="podeEditar"
-          :consultores="consultores"
+          :opcoes="opcoes.paraFormulario.value"
           :ocupado="pagina.ocupado.value"
           @alterar="(m) => editor.alterar(m)"
           @duplicar="pagina.duplicar()"

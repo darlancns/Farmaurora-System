@@ -554,3 +554,41 @@ describe("temPendencia (é o que o aviso de sair da página olha)", () => {
     expect(e.temPendencia.value).toBe(false);
   });
 });
+
+describe("Courier Simples da compra é DERIVADO das ordens e sincronizado a cada mudança delas", () => {
+  const ordem = (id: string, envio: string): Compra["ordens"][number] => ({
+    id,
+    posicao: 1,
+    fornecedor: "",
+    envio,
+    cia: "",
+    po: "",
+    frete: null,
+    freteReal: null,
+    dirId: null,
+    encaminhadaEm: null,
+    itens: [],
+  });
+
+  it("todas Courier Simples liga; uma que não é desliga; sem ordens desliga; vai no PATCH", async () => {
+    const s = servidor(compraBase({ ordens: [] }));
+    const e = await abrir(s);
+    e.alterar({ ordens: [ordem("ord_000001", "Courier Simples")] });
+    expect(e.compra.value!.courierSimples).toBe(true);
+    e.alterar({ ordens: [ordem("ord_000001", "Courier Simples"), ordem("ord_000002", "Air Cargo")] });
+    expect(e.compra.value!.courierSimples).toBe(false);
+    e.alterar({ ordens: [ordem("ord_000001", "Courier Simples"), ordem("ord_000002", "Courier Simples")] });
+    expect(e.compra.value!.courierSimples).toBe(true);
+    await avancar(800);
+    expect(s.salvamentos.at(-1)!.corpo.courierSimples).toBe(true);
+    e.alterar({ ordens: [] });
+    expect(e.compra.value!.courierSimples).toBe(false);
+  });
+
+  it("mudar só um campo da compra (sem ordens) não mexe no courier_simples", async () => {
+    const s = servidor(compraBase({ courierSimples: true, ordens: [ordem("ord_000001", "Courier Simples")] }));
+    const e = await abrir(s);
+    e.alterar({ paciente: "PACIENTE TESTE" });
+    expect(e.compra.value!.courierSimples).toBe(true);
+  });
+});

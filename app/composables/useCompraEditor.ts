@@ -1,5 +1,6 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
-import type { CamposCompraEditaveis, Compra, CompraSalvarDTO } from "#shared/types/compra";
+import type { Compra, CompraSalvarDTO, MudancasCompra } from "#shared/types/compra";
+import { courierSimplesDasOrdens } from "#shared/utils/compraForm";
 import { corpoParaSalvar } from "#shared/utils/compraPayload";
 import { ApiError, apiFetch } from "../utils/apiFetch";
 
@@ -61,7 +62,7 @@ export interface CompraEditor {
   temPendencia: ComputedRef<boolean>;
   carregar: (id: string) => Promise<Compra>;
   definir: (compra: Compra | null) => void;
-  alterar: (mudancas: Partial<CamposCompraEditaveis>) => void;
+  alterar: (mudancas: MudancasCompra) => void;
   flush: () => Promise<boolean>;
   tentarDeNovo: () => Promise<void>;
   carregarVersaoSalva: () => Promise<void>;
@@ -210,9 +211,12 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
     return lida;
   }
 
-  function alterar(mudancas: Partial<CamposCompraEditaveis>): void {
+  function alterar(mudancas: MudancasCompra): void {
     if (!compra.value || !podeSalvar()) return;
-    compra.value = { ...compra.value, ...mudancas };
+    const nova = { ...compra.value, ...mudancas };
+    // Courier Simples da compra NÃO é campo editável: é sempre derivado dos envios das ordens e sincronizado a cada mudança delas.
+    if (mudancas.ordens) nova.courierSimples = courierSimplesDasOrdens(nova.ordens);
+    compra.value = nova;
     versao.value += 1;
     tentativasAutomaticas = 0;
     esperandoClique.value = false;

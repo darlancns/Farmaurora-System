@@ -1,22 +1,18 @@
 <script setup lang="ts">
-import { computed, type Component } from "vue";
-import { BLOCOS_DA_COMPRA, type BlocoDaCompra } from "#shared/constants/compraResumo";
-import type { CamposCompraEditaveis, Compra, OpcaoNome } from "#shared/types/compra";
+import { computed } from "vue";
+import type { Compra, MudancasCompra } from "#shared/types/compra";
 import { contarPendencias, statusDaCompra } from "#shared/utils/compraChecklist";
 import type { EstadoSalvamento } from "../../composables/useCompraEditor";
-import CompraBlocoPaciente from "./CompraBlocoPaciente.vue";
+import type { OpcoesFormulario } from "../../utils/comprasBlocos";
+import { FIELDSET_CLASS, LEGEND_CLASS } from "../../utils/processoFormClasses";
+import { BLOCOS, GRUPOS } from "./blocosRegistro";
 import CompraFaixaConflito from "./CompraFaixaConflito.vue";
 import CompraFormCabecalho from "./CompraFormCabecalho.vue";
 
-// A coluna central: cabeçalho, as faixas (conflito e cancelada) e os BLOCOS do formulário.
+// A coluna central: cabeçalho, as faixas (conflito e cancelada) e os BLOCOS do formulário, na ordem de BLOCOS_DA_COMPRA (a do resumo).
 //
-// OS BLOCOS saem na ordem de BLOCOS_DA_COMPRA (a mesma ordem do resumo): cada bloco é um componente, registrado em BLOCOS pelo id
-// dele. Nesta etapa só existe o bloco do paciente; a etapa 6b registra os demais (ordens, pagamento, despachante, avisos...) aqui,
-// sem mexer na ordem nem neste componente. Id sem componente simplesmente não aparece.
-const BLOCOS: Partial<Record<BlocoDaCompra, Component>> = {
-  paciente: CompraBlocoPaciente,
-};
-
+// Cada bloco é um componente com `data-bloco="<id>"` no elemento raiz (registro em blocosRegistro.ts). Blocos consecutivos pequenos
+// dividem o mesmo fieldset (GRUPOS), sem mudar a ordem dos campos: a ordem do DOM é a do Tab (nenhum tabindex positivo).
 const props = defineProps<{
   compra: Compra;
   estado: EstadoSalvamento;
@@ -24,12 +20,12 @@ const props = defineProps<{
   mensagemErro?: string | null;
   /** Quem pode escrever em Compras (a permissão). Compra cancelada é somente leitura de qualquer jeito. */
   podeEditar: boolean;
-  consultores: OpcaoNome[];
+  opcoes: OpcoesFormulario;
   ocupado?: boolean;
 }>();
 
 const emit = defineEmits<{
-  alterar: [mudancas: Partial<CamposCompraEditaveis>];
+  alterar: [mudancas: MudancasCompra];
   duplicar: [];
   cancelar: [];
   tentarDeNovo: [];
@@ -37,7 +33,10 @@ const emit = defineEmits<{
   manterMinhas: [];
 }>();
 
-const blocosDesenhados = computed(() => BLOCOS_DA_COMPRA.filter((id) => BLOCOS[id] !== undefined));
+// Só os grupos que têm algum bloco com componente (e, neles, só os blocos com componente).
+const grupos = computed(() =>
+  GRUPOS.map((g) => ({ ...g, blocos: g.blocos.filter((id) => BLOCOS[id] !== undefined) })).filter((g) => g.blocos.length > 0),
+);
 const desabilitado = computed(() => !props.podeEditar || props.compra.cancelada);
 // O estado e as pendências do cabeçalho acompanham o que está na tela (a mesma checagem do painel da direita), sem esperar o salvamento.
 const status = computed(() => statusDaCompra(props.compra));
@@ -68,12 +67,18 @@ const pendencias = computed(() => contarPendencias(props.compra));
       Compra cancelada
     </p>
 
-    <template v-for="id in blocosDesenhados" :key="id">
-      <component :is="BLOCOS[id]" :compra="compra" :desabilitado="desabilitado" :consultores="consultores" @alterar="(m: Partial<CamposCompraEditaveis>) => emit('alterar', m)" />
-    </template>
-
-    <!-- 6b: demais blocos (ordens e medicamentos, pagamento, despachante, avisos, local e entrega, contatos...). Cada um é um componente
-         registrado em BLOCOS, na ordem de BLOCOS_DA_COMPRA. -->
-    <div id="compra-demais-blocos" data-etapa="6b" aria-hidden="true" />
+    <fieldset
+      v-for="grupo in grupos"
+      :id="`compra-grupo-${grupo.id}`"
+      :key="grupo.id"
+      :class="FIELDSET_CLASS"
+      :disabled="desabilitado"
+      :aria-disabled="desabilitado ? 'true' : undefined"
+    >
+      <legend :class="LEGEND_CLASS">{{ grupo.legenda }}</legend>
+      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <component :is="BLOCOS[id]" v-for="id in grupo.blocos" :key="id" :compra="compra" :desabilitado="desabilitado" :opcoes="opcoes" @alterar="(m: MudancasCompra) => emit('alterar', m)" />
+      </div>
+    </fieldset>
   </section>
 </template>

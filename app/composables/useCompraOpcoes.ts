@@ -1,6 +1,7 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
 import { useState } from "#app";
 import type { DespachanteCadastroResumo, OpcoesCompra } from "#shared/types/compra";
+import { OPCOES_VAZIAS, type OpcoesFormulario } from "../utils/comprasBlocos";
 import { chaveCadastro } from "#shared/utils/cadastroNome";
 import { apiFetch } from "../utils/apiFetch";
 
@@ -24,6 +25,8 @@ export interface CompraOpcoes {
   /** Os consultores ativos (para o Vendedor); vazio enquanto não carrega. */
   consultores: ComputedRef<Array<{ nome: string }>>;
   despachantes: ComputedRef<OpcoesCompra["despachantes"]>;
+  /** Tudo o que os blocos do formulário leem dos Cadastros (vazio enquanto não carrega). */
+  paraFormulario: ComputedRef<OpcoesFormulario>;
   /** Lê as opções se ainda não leu (uma vez por sessão); `forcar` relê (o botão "Tentar de novo"). */
   carregar: (forcar?: boolean) => Promise<void>;
   /** Os dados do despachante da compra (telefone, e-mail e contato), se ele está na lista; senão null. Só esses campos. */
@@ -65,6 +68,17 @@ export function useCompraOpcoes(config: { api?: ApiOpcoesCompra; chave?: string 
     erro,
     consultores: computed(() => opcoes.value?.consultores ?? []),
     despachantes: computed(() => opcoes.value?.despachantes ?? []),
+    paraFormulario: computed<OpcoesFormulario>(() =>
+      opcoes.value
+        ? {
+            consultores: opcoes.value.consultores,
+            despachantes: opcoes.value.despachantes,
+            fornecedores: opcoes.value.fornecedores,
+            ciasAereas: opcoes.value.ciasAereas,
+            temperaturas: opcoes.value.temperaturas,
+          }
+        : OPCOES_VAZIAS,
+    ),
     carregar,
     despachantePeloNome,
   };

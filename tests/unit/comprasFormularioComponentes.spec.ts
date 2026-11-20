@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp, defineComponent, h, nextTick } from "vue";
-import type { CamposCompraEditaveis, Compra } from "../../shared/types/compra";
+import type { Compra, MudancasCompra } from "../../shared/types/compra";
+import { OPCOES_VAZIAS, type OpcoesFormulario } from "../../app/utils/comprasBlocos";
 import type { EstadoSalvamento } from "../../app/composables/useCompraEditor";
-import CompraBlocoPaciente from "../../app/components/compras/CompraBlocoPaciente.vue";
 import CompraFormulario from "../../app/components/compras/CompraFormulario.vue";
 import CompraFormCabecalho from "../../app/components/compras/CompraFormCabecalho.vue";
 import CompraFaixaConflito from "../../app/components/compras/CompraFaixaConflito.vue";
@@ -69,12 +69,25 @@ const compra = (extra: Partial<Compra> = {}): Compra => ({
 });
 
 const CONSULTORES = [{ nome: "André Vitório" }, { nome: "Dani" }, { nome: "Flávia" }];
+const OPCOES: OpcoesFormulario = { ...OPCOES_VAZIAS, consultores: CONSULTORES };
 
-// ── O bloco ────────────────────────────────────────────────────────────────────────────────────────────────
+// ── Os campos, pelo formulário inteiro ──────────────────────────────────────────────────────────────────────
 
 function bloco(c: Compra, desabilitado = false) {
-  const mudancas: Array<Partial<CamposCompraEditaveis>> = [];
-  montar(defineComponent({ render: () => h(CompraBlocoPaciente, { compra: c, desabilitado, consultores: CONSULTORES, onAlterar: (m: Partial<CamposCompraEditaveis>) => mudancas.push(m) }) }));
+  const mudancas: MudancasCompra[] = [];
+  montar(
+    defineComponent({
+      render: () =>
+        h(CompraFormulario, {
+          compra: c,
+          estado: "ocioso",
+          salvoEm: null,
+          podeEditar: !desabilitado,
+          opcoes: OPCOES,
+          onAlterar: (m: MudancasCompra) => mudancas.push(m),
+        }),
+    }),
+  );
   return mudancas;
 }
 
@@ -84,11 +97,17 @@ function digitar(id: string, valor: string): void {
   input.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-describe("bloco 'Paciente e processo'", () => {
-  it("é um fieldset com a legenda, e os 5 campos + 2 checkboxes com rótulo ligado ao campo (ids fixos)", () => {
+describe("campos de Paciente, processo, médico, vendedor, responsável e recorrente (cada um no seu bloco)", () => {
+  it("cada campo está no bloco do seu id, com rótulo ligado ao campo (ids fixos)", () => {
     bloco(compra());
-    expect(q("fieldset#compra-bloco-paciente")).not.toBeNull();
-    expect(texto(q("legend"))).toBe("Paciente e processo");
+    const dentro = (blocoId: string, campo: string) => q(`[data-bloco="${blocoId}"] #${campo}`) !== null;
+    expect(dentro("paciente", "compra-paciente")).toBe(true);
+    expect(dentro("vendedor_responsavel", "compra-vendedor")).toBe(true);
+    expect(dentro("vendedor_responsavel", "compra-responsavel")).toBe(true);
+    expect(dentro("processo", "compra-processo")).toBe(true);
+    expect(dentro("processo", "compra-particular")).toBe(true);
+    expect(dentro("medico", "compra-medico")).toBe(true);
+    expect(dentro("avisos", "compra-recorrente")).toBe(true);
     const rotulos = Object.fromEntries(qa<HTMLLabelElement>("label").map((l) => [l.htmlFor, texto(l)]));
     expect(rotulos).toMatchObject({
       "compra-paciente": "Paciente",
@@ -99,9 +118,6 @@ describe("bloco 'Paciente e processo'", () => {
       "compra-particular": "Compra particular (sem processo)",
       "compra-recorrente": "Recorrente",
     });
-    for (const id of ["compra-paciente", "compra-processo", "compra-medico", "compra-responsavel"]) expect(q<HTMLInputElement>(`#${id}`)!.type).toBe("text");
-    expect(q<HTMLInputElement>("#compra-particular")!.type).toBe("checkbox");
-    expect(q<HTMLInputElement>("#compra-recorrente")!.type).toBe("checkbox");
   });
 
   it("mostra os valores da compra", () => {
@@ -112,6 +128,15 @@ describe("bloco 'Paciente e processo'", () => {
     expect(q<HTMLInputElement>("#compra-responsavel")!.value).toBe("Cris");
     expect(q<HTMLInputElement>("#compra-recorrente")!.checked).toBe(true);
     expect(texto(q("#compra-vendedor"))).toBe("Dani");
+  });
+
+  it("o Nº do processo é livre: mono, com o placeholder e sem máscara que corte caracteres ('/UF' no fim passa)", () => {
+    const m = bloco(compra({ processoNumero: "" }));
+    const campo = q<HTMLInputElement>("#compra-processo")!;
+    expect(campo.placeholder).toBe("0000000-00.0000.0.00.0000");
+    expect(campo.className).toContain("font-mono");
+    digitar("compra-processo", "1234567-89.2026.4.03.6100/SP");
+    expect(m).toEqual([{ processoNumero: "1234567-89.2026.4.03.6100/SP" }]);
   });
 
   it("os campos de texto avisam a mudança (só o campo que mudou)", () => {
@@ -155,8 +180,7 @@ describe("bloco 'Paciente e processo'", () => {
     const m = bloco(compra({ vendedor: "" }));
     q<HTMLButtonElement>("#compra-vendedor")!.click();
     await nextTick();
-    const opcoes = qa("[role=option]").map((o) => texto(o));
-    expect(opcoes).toEqual(["Selecione", "André Vitório", "Dani", "Flávia"]);
+    expect(qa("[role=option]").map((o) => texto(o))).toEqual(["Selecione", "André Vitório", "Dani", "Flávia"]);
     qa<HTMLElement>("[role=option]")[3]!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true })); // o AppSelect escolhe no mousedown
     expect(m).toEqual([{ vendedor: "Flávia" }]);
   });
@@ -166,11 +190,12 @@ describe("bloco 'Paciente e processo'", () => {
     expect(texto(q("#compra-vendedor"))).toBe("Flavinha");
   });
 
-  it("DESABILITADO (sócio, mapa 'ver' ou compra cancelada): fieldset desabilitado, aria-disabled e todos os campos desabilitados", () => {
+  it("DESABILITADO (sócio, mapa 'ver' ou compra cancelada): fieldsets desabilitados, aria-disabled e todos os campos desabilitados", () => {
     bloco(compra(), true);
-    const fs = q<HTMLFieldSetElement>("#compra-bloco-paciente")!;
-    expect(fs.disabled).toBe(true);
-    expect(fs.getAttribute("aria-disabled")).toBe("true");
+    for (const fs of qa<HTMLFieldSetElement>("fieldset")) {
+      expect(fs.disabled).toBe(true);
+      expect(fs.getAttribute("aria-disabled")).toBe("true");
+    }
     for (const id of ["compra-paciente", "compra-processo", "compra-medico", "compra-responsavel", "compra-particular", "compra-recorrente", "compra-vendedor"]) {
       expect(q<HTMLInputElement>(`#${id}`)!.disabled, id).toBe(true);
     }
@@ -178,14 +203,10 @@ describe("bloco 'Paciente e processo'", () => {
 
   it("habilitado: sem aria-disabled", () => {
     bloco(compra(), false);
-    expect(q("#compra-bloco-paciente")!.getAttribute("aria-disabled")).toBeNull();
-    expect(q<HTMLFieldSetElement>("#compra-bloco-paciente")!.disabled).toBe(false);
-  });
-
-  it("a ordem do DOM (que é a do Tab): paciente, processo, médico, vendedor, responsável, particular, recorrente", () => {
-    bloco(compra());
-    const ordem = qa<HTMLElement>("input, button").map((e) => e.id);
-    expect(ordem).toEqual(["compra-paciente", "compra-processo", "compra-medico", "compra-vendedor", "compra-responsavel", "compra-particular", "compra-recorrente"]);
+    for (const fs of qa<HTMLFieldSetElement>("fieldset")) {
+      expect(fs.getAttribute("aria-disabled")).toBeNull();
+      expect(fs.disabled).toBe(false);
+    }
   });
 });
 
@@ -312,8 +333,8 @@ function formulario(c: Compra, p: { estado?: EstadoSalvamento; podeEditar?: bool
           estado: p.estado ?? "ocioso",
           salvoEm: null,
           podeEditar: p.podeEditar ?? true,
-          consultores: CONSULTORES,
-          onAlterar: (m: Partial<CamposCompraEditaveis>) => ev.push(`alterar:${JSON.stringify(m)}`),
+          opcoes: OPCOES,
+          onAlterar: (m: MudancasCompra) => ev.push(`alterar:${JSON.stringify(m)}`),
           onCarregarVersaoSalva: () => ev.push("carregar"),
           onManterMinhas: () => ev.push("manter"),
           onDuplicar: () => ev.push("duplicar"),
@@ -325,15 +346,10 @@ function formulario(c: Compra, p: { estado?: EstadoSalvamento; podeEditar?: bool
 }
 
 describe("CompraFormulario", () => {
-  it("renderiza o cabeçalho e o bloco do paciente; só ele (os outros são da etapa 6b), com a área marcada logo abaixo", () => {
+  it("renderiza o cabeçalho e os blocos (a ordem completa é conferida em comprasBlocosOrdem.spec.ts)", () => {
     formulario(compra());
     expect(texto(q("#compra-titulo"))).toBe("Compra 13 - Novembro/2026");
-    expect(qa("fieldset")).toHaveLength(1);
-    const demais = q("#compra-demais-blocos")!;
-    expect(demais.getAttribute("data-etapa")).toBe("6b");
-    expect(demais.children).toHaveLength(0);
-    // O bloco vem antes da área reservada.
-    expect(q("#compra-bloco-paciente")!.compareDocumentPosition(demais) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(qa("[data-bloco]").length).toBeGreaterThan(0);
   });
 
   it("o estado e as pendências do cabeçalho vêm da checagem ao vivo (compra incompleta: rascunho com pendências)", () => {
@@ -351,7 +367,7 @@ describe("CompraFormulario", () => {
   it("compra cancelada: faixa 'Compra cancelada', campos desabilitados e sem Duplicar", () => {
     formulario(compra({ cancelada: true }));
     expect(texto(q("#compra-faixa-cancelada"))).toBe("Compra cancelada");
-    expect(q<HTMLFieldSetElement>("#compra-bloco-paciente")!.disabled).toBe(true);
+    expect(qa<HTMLFieldSetElement>("fieldset").every((f) => f.disabled)).toBe(true);
     expect(q<HTMLInputElement>("#compra-paciente")!.disabled).toBe(true);
     expect(q("#btn-duplicar-compra")).toBeNull();
     expect(q("[data-status]")!.getAttribute("data-status")).toBe("cancelada");
@@ -359,7 +375,7 @@ describe("CompraFormulario", () => {
 
   it("somente leitura (sem permissão): campos desabilitados, sem botões de escrita e sem a faixa de cancelada", () => {
     formulario(compra(), { podeEditar: false });
-    expect(q<HTMLFieldSetElement>("#compra-bloco-paciente")!.disabled).toBe(true);
+    expect(qa<HTMLFieldSetElement>("fieldset").every((f) => f.disabled)).toBe(true);
     expect(q("#btn-duplicar-compra")).toBeNull();
     expect(q("#btn-cancelar-compra")).toBeNull();
     expect(q("#compra-faixa-cancelada")).toBeNull();

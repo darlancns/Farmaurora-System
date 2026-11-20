@@ -252,6 +252,9 @@ export interface CamposCompraEditaveis {
   pendencias: string[];
 }
 
+/** O que o formulário altera de uma vez: campos da compra e/ou as ordens (com os itens) inteiras. */
+export type MudancasCompra = Partial<CamposCompraEditaveis> & { ordens?: OrdemCompra[] };
+
 /** O salvamento validado: só os campos que vieram, e as ordens (quando vieram) como o estado COMPLETO. */
 export interface CompraEstado {
   /** O `updatedAt` que o cliente viu. */
