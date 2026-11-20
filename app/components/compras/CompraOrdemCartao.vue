@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, nextTick } from "vue";
 import { COMPRA_MAX_ITENS_POR_ORDEM } from "#shared/constants/compra";
 import { MODAIS_ENVIO } from "#shared/constants/processos";
 import type { ItemCompra, OrdemCompra } from "#shared/types/compra";
@@ -34,6 +34,7 @@ const emit = defineEmits<{
 }>();
 
 const idCampo = (nome: string): string => `ordem-${props.ordem.id}-${nome}`;
+const idDoItem = (itemId: string, nome: string): string => `item-${itemId}-${nome}`;
 const encaminhada = computed(() => props.ordem.dirId !== null && props.ordem.dirId.trim() !== "");
 const dia = computed(() => diaDoEncaminhamento(props.ordem.encaminhadaEm));
 const noLimite = computed(() => props.ordem.itens.length >= COMPRA_MAX_ITENS_POR_ORDEM);
@@ -71,7 +72,11 @@ function atualizarItem(id: string, mudancas: Partial<ItemCompra>): void {
 }
 
 function removerItem(id: string): void {
+  const indice = props.ordem.itens.findIndex((i) => i.id === id);
+  const anterior = indice > 0 ? props.ordem.itens[indice - 1] : undefined;
   mudar({ itens: props.ordem.itens.filter((i) => i.id !== id).map((i, j) => ({ ...i, posicao: j + 1 })) });
+  // O botão que foi clicado some: o foco vai para o campo Medicamento da linha de antes (ou para "+ Adicionar medicamento"), nunca se perde.
+  void nextTick(() => document.getElementById(anterior ? idDoItem(anterior.id, "medicamento") : idCampo("adicionar-item"))?.focus());
 }
 
 function adicionarItem(): void {

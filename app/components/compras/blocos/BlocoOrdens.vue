@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, nextTick, ref } from "vue";
 import { COMPRA_MAX_ORDENS } from "#shared/constants/compra";
 import type { MudancasCompra, OrdemCompra } from "#shared/types/compra";
 import { ordemTemConteudo, ordemVazia, renumerar } from "#shared/utils/compraForm";
@@ -41,8 +41,12 @@ function pedirRemocao(ordem: OrdemCompra): void {
 }
 
 function remover(id: string): void {
+  const indice = props.compra.ordens.findIndex((o) => o.id === id);
+  const anterior = indice > 0 ? props.compra.ordens[indice - 1] : undefined;
   trocar(props.compra.ordens.filter((o) => o.id !== id));
   removendo.value = null;
+  // O botão que foi clicado some: o foco vai para o fim da ordem de antes ("+ Adicionar medicamento" dela) ou para "+ Adicionar ordem".
+  void nextTick(() => document.getElementById(anterior ? `ordem-${anterior.id}-adicionar-item` : "compra-adicionar-ordem")?.focus());
 }
 </script>
 
