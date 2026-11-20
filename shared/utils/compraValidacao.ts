@@ -1,10 +1,13 @@
 import {
   COMPRA_ANO_MES_RE,
+  COMPRA_BUSCA_MAX,
   COMPRA_ID_RE,
   COMPRA_LINHA_MAX,
   COMPRA_MAX_ITENS_POR_ORDEM,
   COMPRA_MAX_ORDENS,
   COMPRA_MAX_PENDENCIAS,
+  COMPRA_MEDICAMENTOS_LIMITE_MAX,
+  COMPRA_MEDICAMENTOS_LIMITE_PADRAO,
   COMPRA_MOMENTOS_PAGAMENTO,
   COMPRA_REFERENCIA_ID_RE,
   COMPRA_TEXTO_LONGO_MAX,
@@ -12,6 +15,7 @@ import {
 } from "../constants/compra";
 import type { CamposCompraEditaveis, CompraEstado, ItemCompraEstado, OrdemCompraEstado } from "../types/compra";
 import type { MomentoPagamentoResumo } from "../types/compraResumo";
+import { chaveCadastro } from "./cadastroNome";
 import { NUMERO_PO_ERRO, NUMERO_PO_REGEX, normalizarNumeroPo } from "./numeroPo";
 
 // Validação PURA do salvamento da Compra: o servidor (handlers) a usa e o formulário da Etapa 6 poderá usar as mesmas regras. Devolve o
@@ -332,6 +336,37 @@ export function validarAnoMesDaConsulta(v: unknown, padrao: string): ResultadoCo
   if (v === undefined || v === "") return ok(padrao);
   if (typeof v !== "string" || !COMPRA_ANO_MES_RE.test(v)) return falha("Mês inválido: use AAAA-MM.");
   return ok(v);
+}
+
+/** A consulta de medicamentos de `/api/compras/opcoes`: `?q=` (busca), `?limite=` (1 a 100, padrão 50) e `?pagina=` (a partir de 1). */
+export interface ConsultaMedicamentos {
+  q: string;
+  limite: number;
+  pagina: number;
+}
+
+function inteiroDaConsulta(v: unknown, padrao: number, minimo: number, maximo: number, rotulo: string): ResultadoCompra<number> {
+  if (v === undefined || v === "") return ok(padrao);
+  if (typeof v !== "string" || !/^[0-9]{1,6}$/.test(v)) return falha(`${rotulo} inválido.`);
+  const n = Number(v);
+  if (n < minimo || n > maximo) return falha(`${rotulo} inválido: use de ${minimo} a ${maximo}.`);
+  return ok(n);
+}
+
+/** O texto da busca vira a chave do Cadastro (sem acento, caixa nem espaços repetidos) e perde os curingas do LIKE (% e _) e a barra. */
+export function normalizarBuscaCompra(v: string): string {
+  return chaveCadastro(v).replace(/[%_\\]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+export function validarConsultaMedicamentos(consulta: Record<string, unknown>): ResultadoCompra<ConsultaMedicamentos> {
+  const bruto = consulta.q;
+  if (bruto !== undefined && typeof bruto !== "string") return falha("Busca inválida.");
+  if ((bruto ?? "").length > COMPRA_BUSCA_MAX) return falha(`A busca pode ter no máximo ${COMPRA_BUSCA_MAX} caracteres.`);
+  const limite = inteiroDaConsulta(consulta.limite, COMPRA_MEDICAMENTOS_LIMITE_PADRAO, 1, COMPRA_MEDICAMENTOS_LIMITE_MAX, "Limite");
+  if (!limite.ok) return limite;
+  const pagina = inteiroDaConsulta(consulta.pagina, 1, 1, 100000, "Página");
+  if (!pagina.ok) return pagina;
+  return ok({ q: normalizarBuscaCompra(bruto ?? ""), limite: limite.valor, pagina: pagina.valor });
 }
 
 /** O id da compra na rota. */

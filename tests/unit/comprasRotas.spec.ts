@@ -9,7 +9,7 @@ import type { Role } from "../../shared/utils/rbac";
 import { FakeSupabase } from "./helpers/fakeSupabase";
 import { semearConsultores } from "./helpers/consultoresFixtures";
 
-// As 6 rotas de /api/compras/** com h3 e o Supabase simulados. Duas camadas de acesso são provadas, rota por rota:
+// As rotas de /api/compras/** com h3 e o Supabase simulados. Duas camadas de acesso são provadas, rota por rota:
 //  1. o middleware (autorizarApi: caminho + método → seção "compras"), e
 //  2. o próprio handler (exigirLeituraCompras / exigirEscritaCompras), chamado direto, sem o middleware.
 // Um scanner garante que NENHUM arquivo novo em server/api/compras/ fique sem teste de permissão. Dados fictícios (TESTE).
@@ -45,6 +45,7 @@ import detalheGet from "../../server/api/compras/[id].get";
 import salvarPatch from "../../server/api/compras/[id].patch";
 import duplicarPost from "../../server/api/compras/[id]/duplicar.post";
 import cancelarPost from "../../server/api/compras/[id]/cancelar.post";
+import opcoesGet from "../../server/api/compras/opcoes.get";
 
 type Handler = (e: never) => Promise<unknown>;
 
@@ -66,6 +67,7 @@ const ROTAS: Rota[] = [
   { caminho: `/api/compras/${ID}`, metodo: "PATCH", handler: salvarPatch as Handler, arquivo: "[id].patch.ts", escrita: true },
   { caminho: `/api/compras/${ID}/duplicar`, metodo: "POST", handler: duplicarPost as Handler, arquivo: "[id]/duplicar.post.ts", escrita: true },
   { caminho: `/api/compras/${ID}/cancelar`, metodo: "POST", handler: cancelarPost as Handler, arquivo: "[id]/cancelar.post.ts", escrita: true },
+  { caminho: "/api/compras/opcoes", metodo: "GET", handler: opcoesGet as Handler, arquivo: "opcoes.get.ts", escrita: false },
 ];
 
 function usuario(role: Role, permissoes?: Permissoes): AuthUser {

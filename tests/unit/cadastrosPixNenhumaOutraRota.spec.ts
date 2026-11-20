@@ -82,23 +82,42 @@ describe("a chave PIX dos Cadastros só sai por /api/cadastros", () => {
     expect(colunas.sort()).toEqual(["id", "nome, ativo", "nome, ativo"]);
   });
 
-  it("a exceção comprasCatalogo.ts só LÊ, só colunas explícitas (`nome`), só itens ativos: sem escrita, sem `*`, sem PIX e sem a lista de transportadoras", () => {
+  it("a exceção comprasCatalogo.ts só LÊ, só colunas explícitas, só itens ativos: sem escrita, sem `*`, sem PIX (nem na lista de transportadoras)", () => {
     const texto = todos.find((a) => a.caminho === "server/utils/comprasCatalogo.ts")!.texto;
-    // Só os Cadastros de que as Compras precisam (fornecedores, despachantes, cias aéreas; consultores vão por consultoresCadastro.ts).
-    expect([...new Set(texto.match(/TABELA_CADASTRO(?:\.[a-z]+|\["[a-z-]+"\])/g))].sort()).toEqual(
-      ['TABELA_CADASTRO.despachantes', 'TABELA_CADASTRO.fornecedores', 'TABELA_CADASTRO["cias-aereas"]'].sort(),
+    const semComentarios = texto.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    // As listas que as Compras leem dos Cadastros (consultores vão por consultoresCadastro.ts).
+    expect([...new Set(semComentarios.match(/TABELA_CADASTRO(?:\.[a-z]+|\["[a-z-]+"\])/g))].sort()).toEqual(
+      [
+        'TABELA_CADASTRO.despachantes',
+        'TABELA_CADASTRO.fornecedores',
+        'TABELA_CADASTRO["cias-aereas"]',
+        'TABELA_CADASTRO.transportadoras',
+        'TABELA_CADASTRO.temperaturas',
+        'TABELA_CADASTRO.medicamentos',
+      ].sort(),
     );
-    expect(texto).not.toMatch(/cadastro_[a-z_]+/); // nenhum nome de tabela escrito à mão
-    expect(texto).not.toMatch(/cadastrosStore|cadastroMappers|listarCadastro|criarCadastro|alterarCadastro/);
-    expect(texto).not.toMatch(/\.(insert|update|upsert|delete)\(|\.rpc\(/);
-    expect(texto.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/chave_?pix|\.select\(\s*["'`]\*["'`]/i);
-    // Toda leitura passa por `lerAtivos` com a coluna "nome" e o filtro de ativos.
-    const leituras = [...texto.matchAll(/lerAtivos<[^>]*>\(createSupabaseAdminClient\(\),\s*([^,]+),\s*("[^"]*")/g)].map((m) => `${m[1]}|${m[2]}`);
-    expect(leituras.sort()).toEqual(
-      ['TABELA_CADASTRO.despachantes|"nome"', 'TABELA_CADASTRO.fornecedores|"nome"', 'TABELA_CADASTRO["cias-aereas"]|"nome"'].sort(),
-    );
-    expect(texto).toContain('.eq("ativo", true)');
-    expect(texto.match(/\.from\(/g)).toHaveLength(1); // um único ponto de leitura
+    expect(semComentarios).not.toMatch(/\bcadastro_[a-z_]+/); // nenhum nome de tabela escrito à mão
+    expect(semComentarios).not.toMatch(/cadastrosStore|cadastroMappers|listarCadastro|criarCadastro|alterarCadastro/);
+    expect(semComentarios).not.toMatch(/\.(insert|update|upsert|delete)\(|\.rpc\(/);
+    expect(semComentarios).not.toMatch(/chave_?pix/i);
+    expect(semComentarios).not.toMatch(/\.select\(\s*["'`]\*["'`]/);
+    expect(semComentarios).toContain('.eq("ativo", true)');
+    expect(semComentarios.match(/\.from\(/g)).toHaveLength(1); // um único ponto de leitura: lerAtivos
+
+    // As colunas explícitas de CADA lista (a constante exportada é a que as leituras usam): nenhuma tem PIX.
+    const colunas = /export const COLUNAS_OPCOES = \{([\s\S]*?)\} as const;/.exec(semComentarios)?.[1] ?? "";
+    expect([...colunas.matchAll(/(\w+):\s*"([^"]*)"/g)].map((m) => `${m[1]}=${m[2]}`)).toEqual([
+      "fornecedores=nome, pais, prazo_alerta_dias, sem_alerta",
+      "despachantes=nome, contato_nome, telefone, email",
+      "ciasAereas=nome",
+      "transportadoras=nome",
+      "temperaturas=nome",
+      "medicamentos=id, nome, temperatura",
+    ]);
+    // Toda chamada a lerAtivos usa uma dessas colunas (constante) ou "nome": nunca um texto livre com outra coluna.
+    const usos = [...semComentarios.matchAll(/lerAtivos<[^>]*>\(\s*(?:createSupabaseAdminClient\(\)|db),\s*([^,]+),\s*([^,]+),/g)].map((m) => m[2]!.trim());
+    expect(usos.length).toBeGreaterThanOrEqual(9);
+    for (const u of usos) expect(u === '"nome"' || /^COLUNAS_OPCOES\.\w+$/.test(u), u).toBe(true);
   });
 
   it("só cinco rotas de API usam o store dos Cadastros: GET, POST e PATCH de /api/cadastros/:lista, mais impacto e renomear-contas dos consultores", () => {

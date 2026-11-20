@@ -219,3 +219,52 @@ export interface CompraEstado {
   campos: Partial<CamposCompraEditaveis>;
   ordens?: OrdemCompraEstado[];
 }
+
+// ── Opções do formulário (GET /api/compras/opcoes) ────────────────────────────────────────────────────────────
+// Só itens ATIVOS e só os campos que o formulário usa. NUNCA há chave PIX aqui (nem nos despachantes nem nas transportadoras).
+
+export interface OpcaoFornecedor {
+  nome: string;
+  pais: string;
+  prazoAlertaDias: number | null;
+  semAlerta: boolean;
+}
+
+export interface OpcaoDespachante {
+  nome: string;
+  contatoNome: string;
+  telefone: string;
+  email: string;
+}
+
+export interface OpcaoNome {
+  nome: string;
+}
+
+/** O `id` é o `medicamentoCadastroId` do item da compra. */
+export interface OpcaoMedicamento {
+  id: string;
+  nome: string;
+  temperatura: string;
+}
+
+export interface PaginaMedicamentos {
+  itens: OpcaoMedicamento[];
+  /** Página (a partir de 1) e tamanho usados. */
+  pagina: number;
+  limite: number;
+  /** Há mais itens depois desta página. */
+  temMais: boolean;
+  /** A busca aplicada (já normalizada), "" quando não houve. */
+  q: string;
+}
+
+export interface OpcoesCompra {
+  fornecedores: OpcaoFornecedor[];
+  despachantes: OpcaoDespachante[];
+  ciasAereas: OpcaoNome[];
+  transportadoras: OpcaoNome[];
+  consultores: OpcaoNome[];
+  temperaturas: OpcaoNome[];
+  medicamentos: PaginaMedicamentos;
+}

@@ -1,6 +1,7 @@
 import { TABELA_CADASTRO } from "../../shared/constants/cadastros";
 import { MODAIS_ENVIO } from "../../shared/constants/processos";
-import type { Compra, CompraEstado, OrdemCompraEstado } from "../../shared/types/compra";
+import type { Compra, CompraEstado, OpcoesCompra, OrdemCompraEstado } from "../../shared/types/compra";
+import type { ConsultaMedicamentos } from "../../shared/utils/compraValidacao";
 import { chaveCadastro } from "../../shared/utils/cadastroNome";
 import { listarConsultoresAtivos } from "./consultoresCadastro";
 import { ComprasRegraError } from "./comprasStore";
@@ -21,19 +22,34 @@ type Db = ReturnType<typeof createSupabaseAdminClient>;
 
 const TAMANHO_PAGINA = 1000;
 
-/** Lê TODAS as linhas ativas da tabela, só das colunas pedidas, pagina de 1000 em 1000 (o PostgREST corta em silêncio), por ordem estável. */
-async function lerAtivos<T>(db: Db, tabela: string, colunas: string, acao: string): Promise<T[]> {
+interface OpcoesLeitura {
+  /** Texto já normalizado (chave do Cadastro, sem % nem _): filtra por `nome_chave` contendo o texto. */
+  busca?: string;
+  /** Só uma faixa: `quantidade` linhas a partir da `de`. Sem isto, lê TODAS (de 1000 em 1000). */
+  de?: number;
+  quantidade?: number;
+}
+
+/**
+ * Lê as linhas ATIVAS da tabela, só das colunas pedidas, por ordem estável (nome_chave, id). Sem faixa, lê TODAS, de 1000 em 1000 (o
+ * PostgREST corta em silêncio no teto). É o ÚNICO `.from(` deste arquivo: tudo que as Compras leem dos Cadastros passa por aqui.
+ */
+async function lerAtivos<T>(db: Db, tabela: string, colunas: string, acao: string, opcoes: OpcoesLeitura = {}): Promise<T[]> {
+  const faixa = async (de: number, ate: number): Promise<T[]> => {
+    let consulta = db.from(tabela).select(colunas).eq("ativo", true);
+    if (opcoes.busca) consulta = consulta.ilike("nome_chave", `%${opcoes.busca}%`);
+    const { data, error } = await consulta.order("nome_chave", { ascending: true }).order("id", { ascending: true }).range(de, ate);
+    if (error) throw erro(acao, error);
+    return (data ?? []) as unknown as T[];
+  };
+
+  if (opcoes.quantidade !== undefined) {
+    const de = opcoes.de ?? 0;
+    return faixa(de, de + opcoes.quantidade - 1);
+  }
   const todas: T[] = [];
   for (let de = 0; ; de += TAMANHO_PAGINA) {
-    const { data, error } = await db
-      .from(tabela)
-      .select(colunas)
-      .eq("ativo", true)
-      .order("nome_chave", { ascending: true })
-      .order("id", { ascending: true })
-      .range(de, de + TAMANHO_PAGINA - 1);
-    if (error) throw erro(acao, error);
-    const pagina = (data ?? []) as unknown as T[];
+    const pagina = await faixa(de, de + TAMANHO_PAGINA - 1);
     todas.push(...pagina);
     if (pagina.length < TAMANHO_PAGINA) break;
   }
@@ -56,6 +72,75 @@ export async function nomesDeDespachantesAtivos(): Promise<string[]> {
 export async function nomesDeCiasAereasAtivas(): Promise<string[]> {
   const itens = await lerAtivos<{ nome: string }>(createSupabaseAdminClient(), TABELA_CADASTRO["cias-aereas"], "nome", "listar as cias aéreas ativas");
   return itens.map((i) => i.nome);
+}
+
+// ── Opções do formulário (GET /api/compras/opcoes) ────────────────────────────────────────────────────────────
+
+/** As colunas lidas de cada lista para o formulário: explícitas, sem `*` e SEM chave PIX (despachantes e transportadoras não a têm aqui). */
+export const COLUNAS_OPCOES = {
+  fornecedores: "nome, pais, prazo_alerta_dias, sem_alerta",
+  despachantes: "nome, contato_nome, telefone, email",
+  ciasAereas: "nome",
+  transportadoras: "nome",
+  temperaturas: "nome",
+  medicamentos: "id, nome, temperatura",
+} as const;
+
+const textoOuVazio = (v: string | null | undefined): string => v ?? "";
+
+/** O formulário de Compras: as listas ativas (só os campos necessários) e UMA página de medicamentos (busca e limite da consulta). */
+export async function listarOpcoesDeCompra(consulta: ConsultaMedicamentos): Promise<OpcoesCompra> {
+  const db = createSupabaseAdminClient();
+  const [fornecedores, despachantes, ciasAereas, transportadoras, temperaturas, consultores, medicamentos] = await Promise.all([
+    lerAtivos<{ nome: string; pais: string | null; prazo_alerta_dias: number | string | null; sem_alerta: boolean }>(
+      db,
+      TABELA_CADASTRO.fornecedores,
+      COLUNAS_OPCOES.fornecedores,
+      "listar os fornecedores ativos",
+    ),
+    lerAtivos<{ nome: string; contato_nome: string | null; telefone: string | null; email: string | null }>(
+      db,
+      TABELA_CADASTRO.despachantes,
+      COLUNAS_OPCOES.despachantes,
+      "listar os despachantes ativos",
+    ),
+    lerAtivos<{ nome: string }>(db, TABELA_CADASTRO["cias-aereas"], COLUNAS_OPCOES.ciasAereas, "listar as cias aéreas ativas"),
+    lerAtivos<{ nome: string }>(db, TABELA_CADASTRO.transportadoras, COLUNAS_OPCOES.transportadoras, "listar as transportadoras ativas"),
+    lerAtivos<{ nome: string }>(db, TABELA_CADASTRO.temperaturas, COLUNAS_OPCOES.temperaturas, "listar as temperaturas ativas"),
+    listarConsultoresAtivos(),
+    // Uma linha a mais que o limite: saber se há próxima página sem contar a tabela toda.
+    lerAtivos<{ id: string; nome: string; temperatura: string | null }>(db, TABELA_CADASTRO.medicamentos, COLUNAS_OPCOES.medicamentos, "listar os medicamentos ativos", {
+      busca: consulta.q,
+      de: (consulta.pagina - 1) * consulta.limite,
+      quantidade: consulta.limite + 1,
+    }),
+  ]);
+
+  return {
+    fornecedores: fornecedores.map((f) => ({
+      nome: f.nome,
+      pais: textoOuVazio(f.pais),
+      prazoAlertaDias: f.prazo_alerta_dias === null || f.prazo_alerta_dias === undefined ? null : Number(f.prazo_alerta_dias),
+      semAlerta: f.sem_alerta === true,
+    })),
+    despachantes: despachantes.map((d) => ({
+      nome: d.nome,
+      contatoNome: textoOuVazio(d.contato_nome),
+      telefone: textoOuVazio(d.telefone),
+      email: textoOuVazio(d.email),
+    })),
+    ciasAereas: ciasAereas.map((c) => ({ nome: c.nome })),
+    transportadoras: transportadoras.map((t) => ({ nome: t.nome })),
+    consultores: consultores.map((nome) => ({ nome })),
+    temperaturas: temperaturas.map((t) => ({ nome: t.nome })),
+    medicamentos: {
+      itens: medicamentos.slice(0, consulta.limite).map((m) => ({ id: m.id, nome: m.nome, temperatura: textoOuVazio(m.temperatura) })),
+      pagina: consulta.pagina,
+      limite: consulta.limite,
+      temMais: medicamentos.length > consulta.limite,
+      q: consulta.q,
+    },
+  };
 }
 
 // ── Validação do estado da compra contra os Cadastros ────────────────────────────────────────────────────────

@@ -22,3 +22,9 @@ export const COMPRA_REFERENCIA_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$/;
 export const COMPRA_ANO_MES_RE = /^[0-9]{4}-(0[1-9]|1[0-2])$/;
 
 export const COMPRA_MOMENTOS_PAGAMENTO = ["vamos_pagar", "apos_awb"] as const;
+
+// GET /api/compras/opcoes: a lista de medicamentos tem centenas de itens, então vem paginada e com busca (nunca tudo de uma vez).
+export const COMPRA_MEDICAMENTOS_LIMITE_PADRAO = 50;
+export const COMPRA_MEDICAMENTOS_LIMITE_MAX = 100;
+/** Tamanho máximo do texto da busca (`?q=`). */
+export const COMPRA_BUSCA_MAX = 80;
