@@ -154,6 +154,22 @@ describe("a chave PIX dos Cadastros só sai por /api/cadastros", () => {
     expect(usam).toEqual(["server/api/compras/pre-cadastro-medicamentos.post.ts"]);
   });
 
+  it("a exceção preCadastroDecisao.ts só cria MEDICAMENTO pelo store (nunca altera nem lista), só toca as tabelas do pré-cadastro e das compras, sem PIX; só as rotas de pré-medicamentos a usam", () => {
+    const texto = todos.find((a) => a.caminho === "server/utils/preCadastroDecisao.ts")!.texto;
+    const semComentarios = texto.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    expect([...new Set(semComentarios.match(/\b(listarCadastro|criarCadastro|alterarCadastro)\(\s*"[a-z-]+"/g))]).toEqual(['criarCadastro("medicamentos"']);
+    expect(semComentarios).not.toMatch(/alterarCadastro|listarCadastro|renomearConsultor|alterarConsultor|TABELA_CADASTRO|cadastroMappers|chave_?pix|incluirPix/i);
+    expect([...new Set(semComentarios.match(/\bcadastro_[a-z_]+/g))]).toEqual(["cadastro_id"]);
+    expect([...new Set([...semComentarios.matchAll(/\.from\(\s*([A-Za-z_]+)\s*\)/g)].map((m) => m[1]))].sort()).toEqual(["COMPRAS", "ITENS", "ORDENS", "PRE"]);
+    for (const [constante, tabela] of [["PRE", "pre_cadastro_medicamentos"], ["ITENS", "compra_itens"], ["ORDENS", "compra_ordens"], ["COMPRAS", "compras"]]) {
+      expect(semComentarios).toContain(`const ${constante} = "${tabela}";`);
+    }
+    // Nunca apaga: nenhuma exclusão (o pré-cadastro só é decidido por update).
+    expect(semComentarios).not.toMatch(/\.delete\(|\.rpc\(/);
+    const usam = todos.filter((a) => /from\s+["'][^"']*preCadastroDecisao["']/.test(a.texto)).map((a) => a.caminho).sort();
+    expect(usam).toEqual(["server/api/cadastros/pre-medicamentos/[id]/aprovar.post.ts", "server/api/cadastros/pre-medicamentos/[id]/rejeitar.post.ts", "server/api/cadastros/pre-medicamentos/index.get.ts"]);
+  });
+
   it("a exceção dirOpcoes.ts só LÊ a lista `temperaturas` pelo store: sem escrita, sem PIX, sem outra lista, sem banco direto, e só a rota de opções da DIR a usa", () => {
     const texto = todos.find((a) => a.caminho === "server/utils/dirOpcoes.ts")!.texto;
     const semComentarios = texto.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
@@ -202,7 +218,7 @@ describe("a chave PIX dos Cadastros só sai por /api/cadastros", () => {
     for (const u of utilsDeCompras) expect(semComentarios(u.texto), u.caminho).not.toMatch(/chave_?pix|incluirPix/i);
   });
 
-  it("só cinco rotas de API usam o store dos Cadastros: GET, POST e PATCH de /api/cadastros/:lista, mais impacto e renomear-contas dos consultores", () => {
+  it("só estas rotas de API usam o store dos Cadastros: GET, POST e PATCH de /api/cadastros/:lista, impacto e renomear-contas dos consultores (a decisão dos pré-cadastros usa o store por preCadastroDecisao.ts, não direto)", () => {
     const usam = todos
       .filter((a) => a.caminho.startsWith("server/api/") && /cadastrosStore/.test(a.texto))
       .map((a) => a.caminho)
@@ -214,8 +230,8 @@ describe("a chave PIX dos Cadastros só sai por /api/cadastros", () => {
       "server/api/cadastros/[lista]/index.get.ts",
       "server/api/cadastros/[lista]/index.post.ts",
     ]);
-    const naPasta = todos.filter((a) => a.caminho.startsWith("server/api/cadastros/")).map((a) => a.caminho).sort();
-    expect(naPasta).toEqual(usam); // nenhuma rota nova escondida em /api/cadastros
+    const naPasta = todos.filter((a) => a.caminho.startsWith("server/api/cadastros/") && !a.caminho.startsWith("server/api/cadastros/pre-medicamentos/")).map((a) => a.caminho).sort();
+    expect(naPasta).toEqual(usam); // nenhuma rota nova escondida em /api/cadastros (as de pré-medicamentos têm a guarda própria acima)
   });
 
   it("o mapeador é o único lugar que monta `chavePix` num objeto de resposta, e só com o pedido explícito", () => {
