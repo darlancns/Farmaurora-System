@@ -36,10 +36,16 @@ async function abrirCompras(page: Page, query = ""): Promise<void> {
 
 const unico = (): string => `TESTE E2E ${Date.now()}`;
 
+/** O botão do select Fornecedor da primeira ordem (o id é `ordem-<id>-fornecedor`). */
+const primeiroFornecedor = (page: Page) => page.locator("[id^='ordem-'][id$='-fornecedor']").first();
+
+/** A ordem dos blocos do formulário = BLOCOS_DA_COMPRA sem o `titulo` (shared/constants/compraResumo.ts). */
+const ORDEM_DOS_BLOCOS = ["medicamentos_e_ordens", "pagamento", "paciente", "despachante", "avisos", "vendedor_responsavel", "processo", "medico", "local_entrega", "contatos"];
+
 /** Cria uma compra pela tela e digita o paciente; espera o 'Salvo automaticamente'. */
 async function criarCompraComPaciente(page: Page, paciente: string): Promise<void> {
   await page.locator("#btn-nova-compra").click();
-  await expect(page.locator("#compra-paciente")).toBeFocused();
+  await expect(primeiroFornecedor(page)).toBeFocused(); // a compra nasce com UMA ordem vazia e o foco vai ao Fornecedor da Ordem 1
   await page.locator("#compra-paciente").fill(paciente);
   await expect(page.locator("#compra-salvamento")).toContainText("Salvo automaticamente às");
 }
@@ -92,7 +98,7 @@ for (const [rotulo, conta] of [
     test("+ Nova compra: cria, seleciona, leva o foco ao Paciente; digitar salva sozinho e o resumo e o checklist mudam ao vivo", async ({ page }) => {
       await abrirCompras(page);
       await page.locator("#btn-nova-compra").click();
-      await expect(page.locator("#compra-paciente")).toBeFocused();
+      await expect(primeiroFornecedor(page)).toBeFocused();
       await expect(page.locator("#compra-titulo")).toHaveText(/^Compra \d{2,} - /);
       await expect(page.locator("#compra-checklist-erros")).toContainText("Paciente não preenchido");
 
@@ -262,6 +268,138 @@ for (const [rotulo, conta] of [
   });
 }
 
+// O formulário completo (6b). Só usa o que existe em qualquer banco local: os envios são constantes; a temperatura é criada na hora
+// ("TESTE TEMP") e o medicamento é o "TESTE MED PRE-CADASTRO" (fora do Cadastro). Fornecedor, cia e despachante dependem dos Cadastros
+// do banco local e por isso não são escolhidos aqui.
+test.describe("Compras (tela) — formulário completo (6b)", () => {
+  test.describe.configure({ retries: 1 });
+  test.skip(!tem(admin), "defina E2E_ADMIN_EMAIL / _PASSWORD");
+
+  test.beforeEach(async ({ page }) => {
+    await login(page, admin.email, admin.password);
+    await abrirCompras(page);
+  });
+
+  test("os blocos aparecem na ordem de BLOCOS_DA_COMPRA e o Tab percorre os campos nessa ordem", async ({ page }) => {
+    await criarCompraComPaciente(page, unico());
+    const ids = await page.locator("[data-bloco]").evaluateAll((els) => els.map((el) => el.getAttribute("data-bloco")));
+    expect(ids).toEqual(ORDEM_DOS_BLOCOS);
+    const positivos = await page.locator("#compra-formulario [tabindex]").evaluateAll((els) => els.filter((el) => Number(el.getAttribute("tabindex")) > 0).length);
+    expect(positivos).toBe(0);
+    // O Tab sai do Paciente e chega ao primeiro campo do Despachante/Avisos antes de qualquer campo de Vendedor/processo/médico.
+    await page.locator("#compra-paciente").focus();
+    const visitados: string[] = [];
+    for (let i = 0; i < 12; i++) {
+      await page.keyboard.press("Tab");
+      visitados.push(await page.evaluate(() => (document.activeElement as HTMLElement | null)?.closest("[data-bloco]")?.getAttribute("data-bloco") ?? ""));
+    }
+    const posicoes = visitados.filter((b) => b !== "").map((b) => ORDEM_DOS_BLOCOS.indexOf(b));
+    expect(posicoes).toEqual([...posicoes].sort((a, b) => a - b));
+  });
+
+  test("a compra nasce com UMA ordem e UM medicamento; adicionar e remover itens e ordens mantém o que foi digitado em cada linha", async ({ page }) => {
+    await criarCompraComPaciente(page, unico());
+    await expect(page.locator("[data-ordem-cartao]")).toHaveCount(1);
+    await expect(page.locator("[data-item-linha]")).toHaveCount(1);
+    const ordem = page.locator("[data-ordem-cartao]").first();
+    await ordem.getByRole("button", { name: "+ Adicionar medicamento" }).click();
+    await ordem.getByRole("button", { name: "+ Adicionar medicamento" }).click();
+    const qtds = page.locator("[id^='item-'][id$='-quantidade']");
+    await expect(qtds).toHaveCount(3);
+    await qtds.nth(0).fill("1 caixa");
+    await qtds.nth(1).fill("2 caixas");
+    await qtds.nth(2).fill("3 caixas");
+    await expect(page.locator("#compra-salvamento")).toContainText("Salvo automaticamente às");
+    // Remove o do MEIO: os outros dois ficam com os seus valores.
+    await page.locator("[data-item-linha]").nth(1).getByRole("button", { name: "Remover medicamento" }).click();
+    await expect(qtds).toHaveCount(2);
+    await expect(qtds.nth(0)).toHaveValue("1 caixa");
+    await expect(qtds.nth(1)).toHaveValue("3 caixas");
+    // O 1º item não tem ✕.
+    await expect(page.locator("[data-item-linha]").first().getByRole("button", { name: "Remover medicamento" })).toHaveCount(0);
+    // Segunda ordem: vazia, remove direto; a 1ª não tem "Remover ordem".
+    await expect(ordem.getByRole("button", { name: "Remover ordem" })).toHaveCount(0);
+    await page.getByRole("button", { name: "+ Adicionar ordem (outro fornecedor)" }).click();
+    await expect(page.locator("[data-ordem-cartao]")).toHaveCount(2);
+    await page.locator("[data-ordem-cartao]").nth(1).getByRole("button", { name: "Remover ordem" }).click();
+    await expect(page.locator("[data-ordem-cartao]")).toHaveCount(1);
+    // Recarregar traz tudo como ficou.
+    await expect(page.locator("#compra-salvamento")).toContainText("Salvo automaticamente às");
+    await page.reload({ waitUntil: "networkidle" });
+    await expect(qtds).toHaveCount(2);
+    await expect(qtds.nth(1)).toHaveValue("3 caixas");
+  });
+
+  test("PO em maiúsculas, dinheiro em US$ (vazio é vazio, 0 é 0,00) e envio Courier Simples dispensa o despachante", async ({ page }) => {
+    await criarCompraComPaciente(page, unico());
+    const po = page.locator("[id^='ordem-'][id$='-po']").first();
+    await po.fill("po26-11-0001");
+    await expect(po).toHaveValue("PO26-11-0001");
+    const frete = page.locator("[id^='ordem-'][id$='-frete']").first();
+    await frete.fill("1234,5");
+    await frete.blur();
+    await expect(frete).toHaveValue("1.234,50");
+    const freteReal = page.locator("[id^='ordem-'][id$='-frete-real']").first();
+    await freteReal.fill("0");
+    await freteReal.blur();
+    await expect(freteReal).toHaveValue("0,00");
+    await expect(page.locator("#compra-resumo-texto")).toContainText("US$ 1.234,50");
+    await expect(page.locator("#compra-despachante")).toBeVisible();
+    await page.locator("[id^='ordem-'][id$='-envio']").first().click();
+    await page.getByRole("option", { name: "Courier Simples" }).click();
+    await expect(page.locator("#compra-despachante-dispensado")).toHaveText("Dispensado: todas as ordens são Courier Simples");
+    await expect(page.locator("#compra-despachante")).toHaveCount(0);
+    await expect(page.locator("#compra-resumo-texto")).toContainText("Despachante: N/A");
+  });
+
+  test("temperatura nova ('TESTE TEMP') e medicamento fora do Cadastro ('TESTE MED PRE-CADASTRO') entram no pré-cadastro e persistem", async ({ page }) => {
+    await criarCompraComPaciente(page, unico());
+    const linha = page.locator("[data-item-linha]").first();
+    await linha.locator("[id$='-temperatura']").click();
+    await page.getByRole("option", { name: "Outro…" }).click();
+    await linha.locator("[id$='-nova-temperatura']").fill("TESTE TEMP");
+    await linha.getByRole("button", { name: "Adicionar" }).click();
+    await expect(linha.locator("[id$='-temperatura']")).toContainText("TESTE TEMP");
+    const medicamento = linha.locator("[id$='-medicamento']");
+    await medicamento.fill("teste med pre-cadastro");
+    await expect(page.getByRole("option", { name: /Usar “teste med pre-cadastro” \(fora do Cadastro\)/ })).toBeVisible();
+    await page.keyboard.press("Enter");
+    await expect(medicamento).toHaveValue(/TESTE MED PRE-CADASTRO/i);
+    await expect(linha.locator("[id$='-fora-do-cadastro']")).toContainText("Fora do Cadastro: entra no pré-cadastro para aprovação.");
+    await expect(page.locator("#compra-salvamento")).toContainText("Salvo automaticamente às");
+    await page.reload({ waitUntil: "networkidle" });
+    await expect(page.locator("[data-item-linha]").first().locator("[id$='-medicamento']")).toHaveValue("TESTE MED PRE-CADASTRO");
+    await expect(page.locator("#compra-checklist")).toContainText("TESTE MED PRE-CADASTRO no pré-cadastro");
+  });
+
+  test("pendências em chips, texto livre, isenção, 'Entrega no mesmo local' e pagamento persistem ao recarregar", async ({ page }) => {
+    await criarCompraComPaciente(page, unico());
+    await page.getByRole("button", { name: "Receita médica" }).click();
+    await page.getByRole("button", { name: "Documentos assinados" }).click();
+    await page.locator("#compra-pendencias-livre").fill("Falta o laudo");
+    await page.locator("#compra-isencao").check();
+    await page.locator("#compra-isencao-para").fill("Hospital Teste");
+    await page.locator("#compra-documentos-verificado").click();
+    await page.locator("#compra-pagamento-momento-apos_awb").click();
+    await page.locator("#compra-termo-posterior-sim").click();
+    await page.locator("#compra-termo-observacao").fill("Paga em 30 dias");
+    await page.locator("#compra-local").fill("Clínica Teste");
+    await page.locator("#compra-entrega-mesmo-local").check();
+    await expect(page.locator("#compra-entrega")).toHaveValue("Clínica Teste");
+    await expect(page.locator("#compra-entrega")).toBeDisabled();
+    await expect(page.locator("#compra-resumo-texto")).toContainText("Pendente: Documentos assinados, Receita médica, Falta o laudo");
+    await expect(page.locator("#compra-salvamento")).toContainText("Salvo automaticamente às");
+    await page.reload({ waitUntil: "networkidle" });
+    await expect(page.getByRole("button", { name: "Receita médica" })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#compra-pendencias-livre")).toHaveValue("Falta o laudo");
+    await expect(page.locator("#compra-isencao-para")).toHaveValue("Hospital Teste");
+    await expect(page.locator("#compra-documentos-verificado")).toHaveAttribute("aria-checked", "true");
+    await expect(page.locator("#compra-pagamento-momento-apos_awb")).toHaveAttribute("aria-checked", "true");
+    await expect(page.locator("#compra-termo-observacao")).toHaveValue("Paga em 30 dias");
+    await expect(page.locator("#compra-entrega-mesmo-local")).toBeChecked();
+  });
+});
+
 test.describe("Compras (tela) — sócio: só lê", () => {
   test.describe.configure({ retries: 1 });
   test.skip(!tem(socio) || !tem(admin), "defina E2E_SOCIO_* e E2E_ADMIN_* (o administrador cria a compra que o sócio abre)");
@@ -288,7 +426,9 @@ test.describe("Compras (tela) — sócio: só lê", () => {
     for (const id of ["#compra-paciente", "#compra-processo", "#compra-medico", "#compra-responsavel", "#compra-particular", "#compra-recorrente"]) {
       await expect(page.locator(id)).toBeDisabled();
     }
-    await expect(page.locator("#compra-bloco-paciente")).toHaveAttribute("aria-disabled", "true");
+    await expect(page.locator("#compra-grupo-paciente")).toHaveAttribute("aria-disabled", "true");
+    await expect(page.locator("#compra-adicionar-ordem")).toHaveCount(0);
+    await expect(page.locator("[id^='item-'][id$='-quantidade']").first()).toBeDisabled();
     await expect(page.locator("#compra-checklist")).toBeVisible();
     await expect(page.locator("#compra-resumo-texto")).toContainText("Paciente:");
     await expect(page.locator("#btn-copiar-resumo")).toBeEnabled();
