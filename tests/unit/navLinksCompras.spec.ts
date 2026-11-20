@@ -161,6 +161,11 @@ describe("página (app/pages/compras.vue)", () => {
     expect(fonte).toMatch(/if \(!podeEditar\.value \|\| !editor\.temPendencia\.value\) return;/);
   });
 
+  it("sem compra aberta, a coluna da direita mostra a nota 'O checklist e o resumo aparecem aqui quando você abrir uma compra.'", () => {
+    expect(fonte).toContain('id="compras-direita-vazia"');
+    expect(fonte).toContain("O checklist e o resumo aparecem aqui quando você abrir uma compra.");
+  });
+
   it("o diálogo de cancelar é o ConfirmDialog reforçado, em tom de perigo", () => {
     expect(fonte).toMatch(/<ConfirmDialog[\s\S]*danger[\s\S]*reforcado/);
   });

@@ -207,13 +207,29 @@ describe("ComprasListaPainel: o mês", () => {
 describe("ComprasListaPainel: chips com contagem", () => {
   it("Todas (soma sem canceladas), Rascunhos, Prontas e Encaminhadas; Parciais só aparece com algum", () => {
     painel({ totalDoMes: 13 });
-    expect(qa("#compras-filtros button").map((b) => texto(b))).toEqual(["Todas (13)", "Rascunhos (3)", "Prontas (4)", "Encaminhadas (6)"]);
+    // Texto CURTO no chip (cabem numa linha só na coluna de ~320px); o nome inteiro vai no aria-label e na dica.
+    expect(qa("#compras-filtros button").map((b) => texto(b))).toEqual(["Todas (13)", "Rasc. (3)", "Prontas (4)", "Encam. (6)"]);
+    expect(qa("#compras-filtros button").map((b) => b.getAttribute("aria-label"))).toEqual(["Todas (13)", "Rascunhos (3)", "Prontas (4)", "Encaminhadas (6)"]);
     expect(q("#compras-chip-parcial")).toBeNull();
   });
 
   it("com Parciais > 0 o chip aparece na ordem certa", () => {
     painel({ totais: { ...TOTAIS, parcial: 2 }, totalDoMes: 15 });
-    expect(qa("#compras-filtros button").map((b) => texto(b))).toEqual(["Todas (15)", "Rascunhos (3)", "Prontas (4)", "Parciais (2)", "Encaminhadas (6)"]);
+    expect(qa("#compras-filtros button").map((b) => texto(b))).toEqual(["Todas (15)", "Rasc. (3)", "Prontas (4)", "Parc. (2)", "Encam. (6)"]);
+    expect(q("#compras-chip-parcial")!.getAttribute("aria-label")).toBe("Parciais (2)");
+  });
+
+  it("os chips ficam numa LINHA só: sem quebra (flex-nowrap) e com rolagem horizontal discreta se não couber; cada chip não encolhe", () => {
+    painel({ totais: { ...TOTAIS, parcial: 2 }, totalDoMes: 15 });
+    const linha = q("#compras-filtros")!;
+    expect(linha.className).toContain("flex-nowrap");
+    expect(linha.className).toContain("overflow-x-auto");
+    expect(linha.className).not.toContain("flex-wrap");
+    for (const chip of qa("#compras-filtros button")) {
+      expect(chip.className).toContain("shrink-0");
+      expect(chip.className).toContain("whitespace-nowrap");
+      expect(chip.className).toContain("px-1.5"); // pouco padding horizontal
+    }
   });
 
   it("se o filtro Parciais está ativo, o chip fica mesmo com a contagem em 0 (não some debaixo da pessoa)", () => {
@@ -310,18 +326,18 @@ describe("ComprasListaPainel: mostrar mais", () => {
 });
 
 describe("ComprasListaPainel: vazio, carregando, erro e permissão", () => {
-  it("vazio: 'Nenhuma compra neste mês.' e, para quem edita, o botão '+ Nova compra'", () => {
-    const ev = painel({ compras: [], total: 0, totalDoMes: 0 });
-    expect(texto(q("#compras-lista-vazia"))).toContain("Nenhuma compra neste mês.");
+  it("vazio: só o texto 'Nenhuma compra neste mês.' (o '+ Nova compra' do topo da coluna basta; nada de botão dentro do aviso)", () => {
+    painel({ compras: [], total: 0, totalDoMes: 0, podeEditar: true });
+    expect(texto(q("#compras-lista-vazia"))).toBe("Nenhuma compra neste mês.");
+    expect(q("#compras-lista-vazia button")).toBeNull();
+    expect(q("#btn-nova-compra-vazio")).toBeNull();
     expect(q("#compras-cartoes")).toBeNull();
-    q<HTMLButtonElement>("#btn-nova-compra-vazio")!.click();
-    expect(ev).toEqual([["nova"]]);
+    expect(q("#btn-nova-compra")).not.toBeNull(); // o do topo continua
   });
 
   it("vazio para quem só lê: a mensagem, sem botão de criar (nem o do topo)", () => {
     painel({ compras: [], total: 0, podeEditar: false });
     expect(texto(q("#compras-lista-vazia"))).toBe("Nenhuma compra neste mês.");
-    expect(q("#btn-nova-compra-vazio")).toBeNull();
     expect(q("#btn-nova-compra")).toBeNull();
   });
 

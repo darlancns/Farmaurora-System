@@ -129,6 +129,9 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", antesDeFecharAA
 
       <aside id="compras-coluna-direita" class="min-w-0 lg:min-h-0 lg:overflow-y-auto lg:pb-10">
         <CompraColunaDireita v-if="editor.compra.value" :compra="editor.compra.value" :despachante-cadastro="despachanteCadastro" />
+        <p v-else id="compras-direita-vazia" class="rounded-lg border border-hairline bg-paper-raised px-4 py-6 text-center text-[12.5px] text-ink-soft">
+          O checklist e o resumo aparecem aqui quando você abrir uma compra.
+        </p>
       </aside>
     </div>
 
