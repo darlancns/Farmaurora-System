@@ -86,3 +86,27 @@ export function pendenciasDoFormulario(marcadas: readonly string[], livre: strin
   return texto === "" ? [...escolhidas] : [...escolhidas, texto];
 }
 
+// ── O que a ordem já tem ─────────────────────────────────────────────────────────────────────────────────────
+
+const tem = (v: string | null | undefined): boolean => (v ?? "").trim() !== "";
+
+/** O item tem algum campo preenchido? (O que o formulário mostra: ids e posição não contam.) */
+export function itemTemConteudo(i: ItemCompra): boolean {
+  return (
+    tem(i.medicamento) ||
+    tem(i.apresentacao) ||
+    tem(i.referencia) ||
+    tem(i.laboratorio) ||
+    tem(i.quantidade) ||
+    tem(i.temperatura) ||
+    i.valorUnitario !== null ||
+    i.valorReal !== null ||
+    tem(i.medicamentoCadastroId) ||
+    tem(i.preCadastroId)
+  );
+}
+
+/** A ordem tem qualquer campo ou item preenchido? É o que decide se "Remover ordem" pede confirmação. */
+export function ordemTemConteudo(o: OrdemCompra): boolean {
+  return tem(o.fornecedor) || tem(o.envio) || tem(o.cia) || tem(o.po) || o.frete !== null || o.freteReal !== null || o.itens.some(itemTemConteudo);
+}

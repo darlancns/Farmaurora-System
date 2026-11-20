@@ -1,6 +1,7 @@
 import { nextTick, ref, watch, type Ref } from "vue";
 import type { StatusDaCompra } from "#shared/constants/compra";
 import type { Compra } from "#shared/types/compra";
+import { ordemVazia } from "#shared/utils/compraForm";
 import { tituloDaCompra } from "#shared/utils/compraMes";
 import { ApiError, apiFetch } from "../utils/apiFetch";
 import { lerQueryCompras, montarQueryCompras } from "../utils/comprasUrl";
@@ -40,8 +41,8 @@ export interface OpcoesComprasPagina {
   avisar: (mensagem: string) => void;
   /** Grava a nova query na URL. */
   gravarUrl: (query: Record<string, string>) => void;
-  /** Leva o foco ao campo Paciente (depois de "+ Nova compra"). */
-  focarPaciente?: () => void;
+  /** Leva o foco ao Fornecedor da Ordem 1 (depois de "+ Nova compra"); recebe o id da ordem. */
+  focarFornecedor?: (ordemId: string) => void;
   apiLista?: ApiListaCompras;
   apiCompra?: ApiCompra;
   apiAcoes?: ApiAcoesCompra;
@@ -174,9 +175,13 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
     if (!opcoes.podeEditar()) return;
     await comOcupado(async () => {
       if (!(await descarregar())) return;
-      await mostrarNova(await acoes.criar());
+      const nova = await acoes.criar();
+      await mostrarNova(nova);
+      // A compra nasce com UMA ordem vazia contendo UM item vazio (o servidor aceita rascunho parcial): o autosave a grava.
+      if (nova.ordens.length === 0) editor.alterar({ ordens: [ordemVazia(1)] });
       await nextTick();
-      opcoes.focarPaciente?.();
+      const primeira = editor.compra.value?.ordens[0];
+      if (primeira) opcoes.focarFornecedor?.(primeira.id);
     }, "Não foi possível criar a compra.");
   }
 

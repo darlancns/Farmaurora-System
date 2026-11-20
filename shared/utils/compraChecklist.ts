@@ -62,7 +62,7 @@ const porPosicao = <T extends { posicao: number }>(lista: readonly T[]): T[] => 
 const foiParaDir = (o: Pick<OrdemCompra, "dirId">): boolean => preenchido(o.dirId);
 
 /** "dd/mm" do dia (de BRASÍLIA) em que a ordem foi encaminhada; "" se não há data válida. */
-function diaDoEncaminhamento(encaminhadaEm: string | null): string {
+export function diaDoEncaminhamento(encaminhadaEm: string | null): string {
   if (!preenchido(encaminhadaEm)) return "";
   const t = new Date(encaminhadaEm as string).getTime();
   return Number.isNaN(t) ? "" : formatarDiaMes(dataBrasiliaDe(t));

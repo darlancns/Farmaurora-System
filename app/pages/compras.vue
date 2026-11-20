@@ -34,7 +34,7 @@ const pagina = useComprasPagina({
   gravarUrl: (query) => {
     if (!mesmaQuery(route.query, query)) void router.replace({ query });
   },
-  focarPaciente: () => document.getElementById("compra-paciente")?.focus(),
+  focarFornecedor: (ordemId) => document.getElementById(`ordem-${ordemId}-fornecedor`)?.focus(),
 });
 
 const { lista, editor } = pagina;

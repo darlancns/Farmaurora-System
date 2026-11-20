@@ -130,7 +130,7 @@ function pagina(m: ReturnType<typeof mundo>, extra: { query?: Record<string, unk
     podeEditar: () => extra.podeEditar ?? true,
     avisar: (msg) => avisos.push(msg),
     gravarUrl: (q) => urls.push(q),
-    focarPaciente: foco,
+    focarFornecedor: foco,
     apiLista: m.apiLista,
     apiCompra: m.apiCompra,
     apiAcoes: m.apiAcoes,
@@ -313,7 +313,7 @@ function erro500(): ApiError {
 }
 
 describe("+ Nova compra", () => {
-  it("cria, mostra no topo da lista, abre no formulário e leva o foco ao Paciente", async () => {
+  it("cria, mostra no topo da lista, abre no formulário com UMA ordem vazia (UM item vazio) e leva o foco ao Fornecedor da Ordem 1", async () => {
     const m = mundo([compraBase(1)]);
     const { p, foco, urls } = pagina(m);
     await p.iniciar();
@@ -322,7 +322,14 @@ describe("+ Nova compra", () => {
     expect(p.selecionadaId.value).toBe("cmp_2");
     expect(p.lista.compras.value.map((c) => c.sequencia)).toEqual([2, 1]);
     expect(p.lista.totais.value.rascunho).toBe(2);
+    const ordens = p.editor.compra.value!.ordens;
+    expect(ordens).toHaveLength(1);
+    expect(ordens[0]).toMatchObject({ posicao: 1, fornecedor: "", envio: "", po: "", dirId: null });
+    expect(ordens[0]!.itens).toHaveLength(1);
+    expect(ordens[0]!.itens[0]).toMatchObject({ posicao: 1, medicamento: "", quantidade: "" });
     expect(foco).toHaveBeenCalledTimes(1);
+    expect(foco).toHaveBeenCalledWith(ordens[0]!.id);
+    expect(p.editor.estado.value).toBe("pendente"); // o autosave grava a ordem vazia
     expect(urls.at(-1)).toMatchObject({ id: "cmp_2" });
   });
 

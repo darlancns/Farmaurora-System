@@ -68,7 +68,7 @@ function montar(c: Compra = compra): HTMLElement {
 }
 
 // Blocos que ainda não têm componente NESTE commit (a lista encolhe a cada commit da etapa 6b e termina vazia).
-const AINDA_SEM_COMPONENTE: readonly string[] = ["medicamentos_e_ordens"];
+const AINDA_SEM_COMPONENTE: readonly string[] = [];
 
 describe("a ordem dos blocos é a de BLOCOS_DA_COMPRA", () => {
   const todos = BLOCOS_DA_COMPRA.filter((id) => !BLOCOS_SEM_FORMULARIO.includes(id));
