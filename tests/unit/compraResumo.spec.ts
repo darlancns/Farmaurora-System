@@ -87,7 +87,7 @@ function compraMinima(extra: Partial<CompraResumoEntrada> = {}): CompraResumoEnt
     termoPosterior: { sim: false },
     paciente: "",
     despachante: null,
-    avisos: { isencao: false, documentos: null, pendencias: [] },
+    avisos: { isencao: false, documentos: null, pendencias: [], recorrente: false },
     vendedor: "",
     responsavel: "",
     processo: { particular: false },
@@ -471,8 +471,8 @@ describe("(h) despachante", () => {
 
 describe("avisos: isenção, documentos, pendências e observações", () => {
   const linhasDeAvisos = (a: Partial<CompraResumoEntrada["avisos"]>): string[] => {
-    const texto = montarResumoCompra(compra({ avisos: { isencao: false, documentos: null, pendencias: [], ...a } }));
-    return texto.split("\n").filter((l) => /^(Pedir isenção|Verificação|Pendente:|Obs\.:)/.test(l));
+    const texto = montarResumoCompra(compra({ avisos: { isencao: false, documentos: null, pendencias: [], recorrente: false, ...a } }));
+    return texto.split("\n").filter((l) => /^(Pedir isenção|Verificação|Pendente:|Obs\.:|Recorrente)/.test(l));
   };
 
   it("isenção sem e com destinatário", () => {
@@ -493,18 +493,36 @@ describe("avisos: isenção, documentos, pendências e observações", () => {
     expect(linhasDeAvisos({ observacoes: "  Obs   de teste " })).toEqual(["Obs.: Obs de teste"]);
   });
 
-  it("a ordem é isenção, documentos, pendências e observações", () => {
-    expect(linhasDeAvisos({ isencao: true, documentos: false, pendencias: ["A"], observacoes: "B" })).toEqual([
+  it("a ordem é isenção, documentos, pendências, observações e recorrente (a Recorrente é a ÚLTIMA)", () => {
+    expect(linhasDeAvisos({ isencao: true, documentos: false, pendencias: ["A"], observacoes: "B", recorrente: true })).toEqual([
       "Pedir isenção imposto ❗",
       "Verificação de documento e validação de assinatura ❌",
       "Pendente: A",
       "Obs.: B",
+      "Recorrente",
     ]);
   });
 
+  it("recorrente: a linha 'Recorrente' (do TEXTOS_RESUMO) sai só quando é true, sozinha ou com os outros avisos; false não sai", () => {
+    expect(TEXTOS_RESUMO.recorrente).toBe("Recorrente");
+    expect(linhasDeAvisos({ recorrente: true })).toEqual(["Recorrente"]);
+    expect(linhasDeAvisos({ recorrente: false })).toEqual([]);
+    expect(linhasDeAvisos({ observacoes: "B", recorrente: true })).toEqual(["Obs.: B", "Recorrente"]);
+    // Está no MESMO bloco dos outros avisos (sem linha em branco no meio) e antes do bloco do vendedor.
+    const texto = montarResumoCompra(compra({ avisos: { isencao: true, documentos: null, pendencias: [], observacoes: "B", recorrente: true } }));
+    expect(texto).toContain("Obs.: B\nRecorrente\n\n");
+    expect(texto.indexOf("Recorrente")).toBeLessThan(texto.indexOf("Vendedor:"));
+  });
+
+  it("só recorrente já basta para o bloco de avisos aparecer (e a conta de blocos não muda)", () => {
+    const sem = montarResumoCompra(compra({ avisos: { isencao: false, documentos: null, pendencias: [], recorrente: false } }));
+    const com = montarResumoCompra(compra({ avisos: { isencao: false, documentos: null, pendencias: [], recorrente: true } }));
+    expect(com.split("\n\n").length).toBe(sem.split("\n\n").length + 1);
+  });
+
   it("sem nenhum aviso o bloco some", () => {
-    const texto = montarResumoCompra(compra({ avisos: { isencao: false, documentos: null, pendencias: [] } }));
-    expect(texto).not.toMatch(/isenção|Verificação|Pendente:|Obs\./);
+    const texto = montarResumoCompra(compra({ avisos: { isencao: false, documentos: null, pendencias: [], recorrente: false } }));
+    expect(texto).not.toMatch(/isenção|Verificação|Pendente:|Obs\.|Recorrente/);
     expect(texto).not.toContain("\n\n\n");
   });
 });
@@ -649,7 +667,7 @@ describe("auxiliares", () => {
   });
 
   it("as frases fixas vêm de TEXTOS_RESUMO (o resumo usa o texto de lá)", () => {
-    const texto = montarResumoCompra(compra({ avisos: { isencao: true, documentos: true, pendencias: [] } }));
+    const texto = montarResumoCompra(compra({ avisos: { isencao: true, documentos: true, pendencias: [], recorrente: false } }));
     expect(texto).toContain(TEXTOS_RESUMO.isencao);
     expect(texto).toContain(TEXTOS_RESUMO.documentosOk);
     expect(montarResumoCompra(compraMinima())).toContain(TEXTOS_RESUMO.pendenteMarca);

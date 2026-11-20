@@ -67,6 +67,8 @@ export interface AvisosResumo {
   /** Chips e texto livre JÁ UNIDOS por quem chama. */
   readonly pendencias: readonly string[];
   readonly observacoes?: string;
+  /** Compra recorrente: a linha "Recorrente" sai por ÚLTIMO no bloco de avisos. */
+  readonly recorrente: boolean;
 }
 
 export interface ProcessoResumo {

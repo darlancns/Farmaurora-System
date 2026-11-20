@@ -75,7 +75,7 @@ export function validarDinheiroCompra(v: unknown, rotulo: string): ResultadoComp
 
 // ── Campos da compra ──────────────────────────────────────────────────────────────────────────────────────────
 
-type CampoTextoCompra = Exclude<keyof CamposCompraEditaveis, "compraParticular" | "localDeclarado" | "termoPosterior" | "courierSimples" | "isencao" | "pagamentoAlvara" | "pagamentoMomento" | "documentos" | "pendencias">;
+type CampoTextoCompra = Exclude<keyof CamposCompraEditaveis, "compraParticular" | "localDeclarado" | "termoPosterior" | "courierSimples" | "isencao" | "recorrente" | "pagamentoAlvara" | "pagamentoMomento" | "documentos" | "pendencias">;
 
 /** Campos de texto da compra: rótulo (para a mensagem) e teto. */
 export const CAMPOS_TEXTO_COMPRA: Record<CampoTextoCompra, { rotulo: string; max: number }> = {
@@ -99,6 +99,7 @@ const CAMPOS_BOOLEANOS_COMPRA = {
   termoPosterior: "Termo de pagamento posterior",
   courierSimples: "Courier Simples",
   isencao: "Isenção",
+  recorrente: "Recorrente",
 } as const;
 
 const CAMPOS_BOOLEANOS_OU_NULO_COMPRA = {

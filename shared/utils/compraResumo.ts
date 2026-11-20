@@ -190,6 +190,7 @@ function linhasDosAvisos(avisos: AvisosResumo): string[] {
   const pendencias = avisos.pendencias.map(limparTextoResumo).filter((p) => p !== "");
   linhas.push(...linha(T.pendencias, pendencias.join(", ")));
   linhas.push(...linha(T.observacoes, limparTextoResumo(avisos.observacoes)));
+  if (avisos.recorrente) linhas.push(T.recorrente);
   return linhas;
 }
 
@@ -294,6 +295,7 @@ export function compraParaResumoEntrada(compra: Compra, despachanteCadastro: Des
       documentos: compra.documentos,
       pendencias: [...compra.pendencias],
       observacoes: compra.observacoes,
+      recorrente: compra.recorrente,
     },
     vendedor: compra.vendedor,
     responsavel: compra.responsavel,

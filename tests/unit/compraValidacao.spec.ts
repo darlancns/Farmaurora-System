@@ -98,7 +98,7 @@ describe("campos de texto da compra", () => {
 
 describe("booleanos, pagamento e pendências", () => {
   it("booleanos estritos: só true/false (texto 'true' e número são recusados)", () => {
-    for (const campo of ["compraParticular", "localDeclarado", "termoPosterior", "courierSimples", "isencao"]) {
+    for (const campo of ["compraParticular", "localDeclarado", "termoPosterior", "courierSimples", "isencao", "recorrente"]) {
       expect(valorDe(base({ [campo]: true })).campos).toEqual({ [campo]: true });
       expect(valorDe(base({ [campo]: false })).campos).toEqual({ [campo]: false });
       for (const ruim of ["true", 1, 0, null, "sim"]) expect(validarCompraSalvar(base({ [campo]: ruim })).ok, `${campo}=${String(ruim)}`).toBe(false);

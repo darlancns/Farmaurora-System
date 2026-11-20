@@ -28,6 +28,7 @@ function compra(extra: Partial<Compra> = {}): Compra {
     termoPosterior: true,
     courierSimples: false,
     isencao: true,
+    recorrente: true,
     pagamentoAlvara: true,
     pagamentoMomento: "apos_awb",
     documentos: false,
@@ -90,7 +91,7 @@ describe("compraParaResumoEntrada", () => {
       pagamento: { alvara: true, momento: "apos_awb" },
       termoPosterior: { sim: true, observacao: "" },
       processo: { particular: false, numero: "0000000-00.0000.0.00.0000/SP" },
-      avisos: { isencao: true, isencaoPara: "Hospital Teste", documentos: false, pendencias: ["Receita", "Laudo"], observacoes: "Obs de teste" },
+      avisos: { isencao: true, isencaoPara: "Hospital Teste", documentos: false, pendencias: ["Receita", "Laudo"], observacoes: "Obs de teste", recorrente: true },
     });
     expect(e.ordens).toEqual([
       {
@@ -181,6 +182,7 @@ describe("compraParaResumoEntrada", () => {
       contatos: "",
       despachante: "",
       isencao: false,
+      recorrente: false,
       isencaoPara: "",
       observacoes: "",
       vendedor: "",

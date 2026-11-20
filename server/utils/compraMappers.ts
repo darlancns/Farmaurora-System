@@ -52,6 +52,7 @@ export interface CompraRow {
   termo_posterior: boolean;
   courier_simples: boolean;
   isencao: boolean;
+  recorrente: boolean;
   pagamento_alvara: boolean | null;
   pagamento_momento: string | null;
   documentos: boolean | null;
@@ -160,6 +161,7 @@ export function montarCompraSemOrdens(row: CompraRow): Omit<Compra, "ordens"> {
     termoPosterior: row.termo_posterior === true,
     courierSimples: row.courier_simples === true,
     isencao: row.isencao === true,
+    recorrente: row.recorrente === true,
     pagamentoAlvara: row.pagamento_alvara ?? null,
     pagamentoMomento: momentoDe(row.pagamento_momento),
     documentos: row.documentos ?? null,

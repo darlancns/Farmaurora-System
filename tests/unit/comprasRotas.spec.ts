@@ -417,6 +417,23 @@ describe("PATCH /api/compras/:id (autosave)", () => {
   });
 });
 
+describe("recorrente pelas rotas", () => {
+  it("PATCH grava, GET devolve, duplicar copia; valor que não é booleano → 400", async () => {
+    const c = await criarCompraDireta();
+    h.params = { id: c.id };
+    h.body = { atualizadoEm: c.updatedAt, recorrente: true };
+    const salvo = await chamar<Compra>(salvarPatch, adm);
+    expect(salvo.recorrente).toBe(true);
+    expect((await chamar<Compra>(detalheGet, usuario("socio"))).recorrente).toBe(true);
+    expect((await chamar<Compra>(duplicarPost, adm)).recorrente).toBe(true);
+    for (const ruim of ["true", 1, null]) {
+      h.params = { id: c.id };
+      h.body = { atualizadoEm: salvo.updatedAt, recorrente: ruim };
+      expect((await erroDe(chamar(salvarPatch, adm))).status, String(ruim)).toBe(400);
+    }
+  });
+});
+
 describe("POST /api/compras/:id/duplicar", () => {
   it("201, nova compra com o próximo número, mesmos dados e ordens com ids novos; 404 se a original não existe", async () => {
     const c = await criarCompraDireta();

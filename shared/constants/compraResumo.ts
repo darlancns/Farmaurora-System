@@ -104,6 +104,7 @@ export const TEXTOS_RESUMO = {
   documentosNaoOk: "Verificação de documento e validação de assinatura ❌",
   pendencias: "Pendente",
   observacoes: "Obs.",
+  recorrente: "Recorrente",
 
   // vendedor e responsável
   vendedor: "Vendedor",

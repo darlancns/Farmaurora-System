@@ -69,6 +69,8 @@ export interface Compra {
   termoPosterior: boolean;
   courierSimples: boolean;
   isencao: boolean;
+  /** Compra recorrente (avisa no resumo). */
+  recorrente: boolean;
   /** null = ainda não decidido. */
   pagamentoAlvara: boolean | null;
   pagamentoMomento: MomentoPagamentoResumo | null;
@@ -143,6 +145,7 @@ export interface CompraSalvarDTO {
   termoPosterior?: boolean;
   courierSimples?: boolean;
   isencao?: boolean;
+  recorrente?: boolean;
   pagamentoAlvara?: boolean | null;
   pagamentoMomento?: MomentoPagamentoResumo | null;
   documentos?: boolean | null;
@@ -206,6 +209,7 @@ export interface CamposCompraEditaveis {
   termoPosterior: boolean;
   courierSimples: boolean;
   isencao: boolean;
+  recorrente: boolean;
   pagamentoAlvara: boolean | null;
   pagamentoMomento: MomentoPagamentoResumo | null;
   documentos: boolean | null;
