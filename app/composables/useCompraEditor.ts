@@ -35,6 +35,12 @@ export const DEBOUNCE_SALVAR_MS = 800;
 /** Esperas antes de cada nova tentativa automática depois de uma falha de rede ou 5xx (3 tentativas). */
 export const RECUO_TENTATIVAS_MS: readonly number[] = [2000, 5000, 10000];
 
+/** Por que o editor parou em "conflito": `codigo` é o `data.code` do 409 (null = alguém salvou antes), `mensagem` a do servidor, se houver. */
+export interface ConflitoEditor {
+  codigo: string | null;
+  mensagem: string | null;
+}
+
 export interface OpcoesCompraEditor {
   api?: ApiCompra;
   /** true = ninguém edita (conta sem permissão de escrita). Lido a cada uso (a permissão pode carregar depois). */
@@ -56,6 +62,8 @@ export interface CompraEditor {
   mensagemErro: Ref<string | null>;
   /** Acabaram as tentativas automáticas (ou o erro não se repete sozinho): só o clique salva de novo. */
   esperandoClique: Ref<boolean>;
+  /** Quando `estado` é "conflito": o motivo (a faixa de conflito mostra a mensagem e decide as saídas). */
+  conflito: Ref<ConflitoEditor | null>;
   /** Nenhum campo é editável (sem permissão, ou compra cancelada, ou nenhuma compra aberta). */
   somenteLeituraAgora: ComputedRef<boolean>;
   /** Há algo ainda não salvo (ou salvando, ou com falha): é o que o aviso de "sair da página" olha. */
@@ -67,6 +75,8 @@ export interface CompraEditor {
   tentarDeNovo: () => Promise<void>;
   carregarVersaoSalva: () => Promise<void>;
   manterMinhas: () => Promise<void>;
+  /** Para o salvamento e abre a faixa de conflito (quem soube do 409 por outro caminho, como o Encaminhar). Nada local some. */
+  sinalizarConflito: (motivo?: ConflitoEditor) => void;
 }
 
 export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
@@ -80,6 +90,7 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
   const salvoEm = ref<Date | null>(null);
   const mensagemErro = ref<string | null>(null);
   const esperandoClique = ref(false);
+  const conflito = ref<ConflitoEditor | null>(null);
   /** Mudou, não salvou? (contadores: `versao` sobe a cada mudança; `versaoSalva` é a do último PATCH que passou). */
   const versao = ref(0);
   const versaoSalva = ref(0);
@@ -201,6 +212,7 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
     tentativasAutomaticas = 0;
     esperandoClique.value = false;
     mensagemErro.value = null;
+    conflito.value = null;
     estado.value = "ocioso";
     emVoo = null;
   }
@@ -245,6 +257,13 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
     await executar();
   }
 
+  function sinalizarConflito(motivo: ConflitoEditor = { codigo: null, mensagem: null }): void {
+    if (!compra.value) return;
+    limparTimer();
+    conflito.value = motivo;
+    estado.value = "conflito";
+  }
+
   async function carregarVersaoSalva(): Promise<void> {
     const id = compra.value?.id;
     if (!id) return;
@@ -257,6 +276,7 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
     const naBase = await api.obter(atual.id);
     if (compra.value?.id !== atual.id) return;
     atualizadoEm = naBase.updatedAt; // o meu estado local vai por cima, mas com a versão que está valendo agora
+    conflito.value = null;
     estado.value = "ocioso";
     versao.value += 1;
     await executar();
@@ -268,6 +288,7 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
     salvoEm,
     mensagemErro,
     esperandoClique,
+    conflito,
     somenteLeituraAgora,
     temPendencia,
     carregar,
@@ -277,5 +298,6 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
     tentarDeNovo,
     carregarVersaoSalva,
     manterMinhas,
+    sinalizarConflito,
   };
 }

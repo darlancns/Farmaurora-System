@@ -14,6 +14,11 @@ export function getErrorMessage(error: unknown, fallback: string): string {
  * usePatients, useProcessos).
  */
 export async function readApiError(res: Response, fallback: string): Promise<string> {
-  const body = (await res.json().catch(() => ({}))) as { statusMessage?: string; message?: string };
-  return body.statusMessage || body.message || fallback;
+  return (await readApiErrorDetalhado(res, fallback)).mensagem;
+}
+
+/** Como `readApiError`, e também o `data` do erro (o h3 `createError({ data })`: ex.: `code`, `atual`, `pos`). Nunca lança. */
+export async function readApiErrorDetalhado(res: Response, fallback: string): Promise<{ mensagem: string; data: unknown }> {
+  const body = (await res.json().catch(() => ({}))) as { statusMessage?: string; message?: string; data?: unknown };
+  return { mensagem: body.statusMessage || body.message || fallback, data: body.data };
 }
