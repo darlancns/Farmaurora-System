@@ -16,6 +16,7 @@ import {
 import type { CamposCompraEditaveis, CompraEstado, ItemCompraEstado, OrdemCompraEstado } from "../types/compra";
 import type { MomentoPagamentoResumo } from "../types/compraResumo";
 import { chaveCadastro } from "./cadastroNome";
+import { validarNovoCadastro } from "./cadastroValidacao";
 import { NUMERO_PO_ERRO, NUMERO_PO_REGEX, normalizarNumeroPo } from "./numeroPo";
 
 // Validação PURA do salvamento da Compra: o servidor (handlers) a usa e o formulário da Etapa 6 poderá usar as mesmas regras. Devolve o
@@ -367,6 +368,35 @@ export function validarConsultaMedicamentos(consulta: Record<string, unknown>): 
   const pagina = inteiroDaConsulta(consulta.pagina, 1, 1, 100000, "Página");
   if (!pagina.ok) return pagina;
   return ok({ q: normalizarBuscaCompra(bruto ?? ""), limite: limite.valor, pagina: pagina.valor });
+}
+
+/** `{ nome }` de POST /api/compras/temperaturas: as mesmas regras de nome do Cadastro de Temperaturas (aparado, espaços colapsados, tamanho máximo, "Outro" reservado, chave desconhecida recusada). */
+export function validarNovaTemperaturaCompra(corpo: unknown): ResultadoCompra<{ nome: string }> {
+  const r = validarNovoCadastro("temperaturas", corpo);
+  return r.ok ? ok({ nome: r.valor.nome }) : falha(r.erro);
+}
+
+export interface PreCadastroMedicamentoDTO {
+  /** Em MAIÚSCULAS, aparado, espaços colapsados (como o nome de um medicamento do Cadastro). */
+  nome: string;
+  temperatura: string;
+  compraId: string | null;
+}
+
+/** `{ nome, temperatura, compraId? }` de POST /api/compras/pre-cadastro-medicamentos. */
+export function validarPreCadastroCompra(corpo: unknown): ResultadoCompra<PreCadastroMedicamentoDTO> {
+  if (!corpo || typeof corpo !== "object" || Array.isArray(corpo)) return falha("Dados inválidos.");
+  const o = corpo as Record<string, unknown>;
+  const desconhecida = Object.keys(o).find((k) => !["nome", "temperatura", "compraId"].includes(k));
+  if (desconhecida) return falha(`Campo desconhecido: ${desconhecida}.`);
+
+  const compraId = o.compraId ?? null;
+  if (compraId !== null && !idDaCompraValido(compraId)) return falha("Compra inválida.");
+
+  // Nome e temperatura seguem as regras do medicamento do Cadastro (o pré-cadastro vira um medicamento quando aprovado).
+  const r = validarNovoCadastro("medicamentos", { nome: o.nome, temperatura: o.temperatura });
+  if (!r.ok) return falha(r.erro);
+  return ok({ nome: r.valor.nome, temperatura: r.valor.temperatura, compraId });
 }
 
 /** O id da compra na rota. */

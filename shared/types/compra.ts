@@ -268,3 +268,57 @@ export interface OpcoesCompra {
   temperaturas: OpcaoNome[];
   medicamentos: PaginaMedicamentos;
 }
+
+// ── Criar temperatura e pré-cadastro de medicamento (POST /api/compras/temperaturas e /pre-cadastro-medicamentos) ─────────────────
+
+/** A temperatura do Cadastro (a mesma forma da lista de Temperaturas, sem PIX: ela não tem). */
+export interface TemperaturaCriada {
+  id: string;
+  nome: string;
+  ativo: boolean;
+}
+
+/** 201 `{ criada: true }` (nova) ou 200 `{ criada: false }` (já existia e está ativa). Existente INATIVA é 409 (ver RespostaTemperaturaInativa). */
+export interface RespostaTemperatura {
+  criada: boolean;
+  item: TemperaturaCriada;
+}
+
+/** O `data` do 409 de temperatura que já existe mas está INATIVA: o administrador decide (reativar) pelos Cadastros. */
+export interface RespostaTemperaturaInativa {
+  criada: false;
+  inativo: true;
+  item: TemperaturaCriada;
+}
+
+export type StatusPreCadastro = "pendente" | "aprovado" | "rejeitado";
+
+export interface PreCadastroMedicamento {
+  id: string;
+  nome: string;
+  temperatura: string;
+  status: StatusPreCadastro;
+  compraId: string | null;
+  cadastroId: string | null;
+  solicitadoPor: string;
+}
+
+/** O medicamento que já está no Cadastro (o `data` do 409 do pré-cadastro; a tela passa a usá-lo). */
+export interface MedicamentoDoCadastro {
+  id: string;
+  nome: string;
+  temperatura: string;
+  ativo: boolean;
+}
+
+/** 201 `{ criado: true }` (pendente novo) ou 200 `{ criado: false }` (já havia um pendente com o mesmo nome: o mesmo é devolvido). */
+export interface RespostaPreCadastro {
+  criado: boolean;
+  preCadastro: PreCadastroMedicamento;
+}
+
+/** O `data` do 409 do pré-cadastro: o medicamento já existe no Cadastro. */
+export interface RespostaMedicamentoJaCadastrado {
+  criado: false;
+  medicamento: MedicamentoDoCadastro;
+}

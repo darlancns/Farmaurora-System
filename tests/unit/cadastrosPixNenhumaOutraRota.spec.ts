@@ -38,7 +38,9 @@ const todos = PASTAS.flatMap((p) => arquivos(join(RAIZ, p))).map((f) => ({
 //
 // As ÚNICAS exceções fora do store são server/utils/consultoresCadastro.ts (lê `cadastro_consultores` de propósito, só `nome, ativo`, para
 // a validação do consultor em Follow-Up, Prestação, DIR e contas) e server/utils/comprasCatalogo.ts (a porta das Compras para as
-// listas: só LÊ, só colunas explícitas sem PIX, só itens ativos); um teste abaixo trava o que cada uma pode fazer.
+// listas: só LÊ, só colunas explícitas sem PIX, só itens ativos), server/utils/comprasTemperatura.ts (criar temperatura passando
+// pelo store dos Cadastros, só a lista sem PIX) e server/utils/preCadastroStore.ts (a tabela pre_cadastro_medicamentos tem uma COLUNA
+// `cadastro_id`, que a regra confundiria com tabela; não toca em nenhuma cadastro_*); um teste abaixo trava o que cada uma pode fazer.
 const PERMITIDOS = [
   /^server\/api\/cadastros\//,
   /^server\/utils\/cadastro(Acesso|Mappers)\.ts$/,
@@ -47,6 +49,8 @@ const PERMITIDOS = [
   /^server\/utils\/cadastroPagamentos\.ts$/,
   /^server\/utils\/consultoresCadastro\.ts$/,
   /^server\/utils\/comprasCatalogo\.ts$/,
+  /^server\/utils\/comprasTemperatura\.ts$/,
+  /^server\/utils\/preCadastroStore\.ts$/,
 ];
 const permitido = (caminho: string): boolean => PERMITIDOS.some((re) => re.test(caminho));
 
@@ -102,7 +106,9 @@ describe("a chave PIX dos Cadastros só sai por /api/cadastros", () => {
     expect(semComentarios).not.toMatch(/chave_?pix/i);
     expect(semComentarios).not.toMatch(/\.select\(\s*["'`]\*["'`]/);
     expect(semComentarios).toContain('.eq("ativo", true)');
-    expect(semComentarios.match(/\.from\(/g)).toHaveLength(1); // um único ponto de leitura: lerAtivos
+    // Dois pontos de leitura, e só: lerAtivos (só ativos) e buscarMedicamentoPorNome (um medicamento pela chave, ativo ou inativo).
+    expect(semComentarios.match(/\.from\(/g)).toHaveLength(2);
+    expect(semComentarios).toMatch(/\.from\(TABELA_CADASTRO\.medicamentos\)\s*\.select\("id, nome, temperatura, ativo"\)\s*\.eq\("nome_chave", chave\)/);
 
     // As colunas explícitas de CADA lista (a constante exportada é a que as leituras usam): nenhuma tem PIX.
     const colunas = /export const COLUNAS_OPCOES = \{([\s\S]*?)\} as const;/.exec(semComentarios)?.[1] ?? "";
@@ -118,6 +124,31 @@ describe("a chave PIX dos Cadastros só sai por /api/cadastros", () => {
     const usos = [...semComentarios.matchAll(/lerAtivos<[^>]*>\(\s*(?:createSupabaseAdminClient\(\)|db),\s*([^,]+),\s*([^,]+),/g)].map((m) => m[2]!.trim());
     expect(usos.length).toBeGreaterThanOrEqual(9);
     for (const u of usos) expect(u === '"nome"' || /^COLUNAS_OPCOES\.\w+$/.test(u), u).toBe(true);
+  });
+
+  it("a exceção comprasTemperatura.ts só cria e lista a lista `temperaturas` pelo store: sem PIX, sem outra lista, sem banco direto", () => {
+    const texto = todos.find((a) => a.caminho === "server/utils/comprasTemperatura.ts")!.texto;
+    const semComentarios = texto.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    // Só o que a criação precisa do store: listar e criar (nunca alterar) — e sempre a lista "temperaturas".
+    expect([...new Set(semComentarios.match(/\b(listarCadastro|criarCadastro|alterarCadastro)\(\s*"[a-z-]+"/g))].sort()).toEqual(['criarCadastro("temperaturas"', 'listarCadastro("temperaturas"'].sort());
+    expect(semComentarios).not.toMatch(/alterarCadastro|renomearConsultor|alterarConsultor/);
+    expect(semComentarios).not.toMatch(/incluirPix|chave_?pix|TABELA_CADASTRO|\bcadastro_[a-z_]+|\.from\(|createSupabaseAdminClient/i);
+    // Quem usa este módulo: só a rota de temperaturas das Compras.
+    const usam = todos.filter((a) => /from\s+["'][^"']*comprasTemperatura["']/.test(a.texto)).map((a) => a.caminho);
+    expect(usam).toEqual(["server/api/compras/temperaturas.post.ts"]);
+  });
+
+  it("a exceção preCadastroStore.ts não toca em tabela cadastro_*: só `pre_cadastro_medicamentos`, `compras` e a coluna `cadastro_id`; o medicamento do Cadastro vem pela porta das Compras", () => {
+    const texto = todos.find((a) => a.caminho === "server/utils/preCadastroStore.ts")!.texto;
+    const semComentarios = texto.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    expect([...new Set(semComentarios.match(/\bcadastro_[a-z_]+/g))]).toEqual(["cadastro_id"]);
+    expect([...semComentarios.matchAll(/\.from\(\s*("[^"]*"|[A-Za-z_]+)\s*\)/g)].map((m) => m[1]).sort()).toEqual(['"compras"', "TABELA", "TABELA"].sort());
+    expect(semComentarios).toMatch(/const TABELA = "pre_cadastro_medicamentos";/);
+    expect(semComentarios).not.toMatch(/cadastrosStore|cadastroMappers|listarCadastro|criarCadastro|alterarCadastro|TABELA_CADASTRO|chave_?pix|incluirPix/i);
+    expect(semComentarios).toContain("buscarMedicamentoPorNome");
+    // Só a rota de pré-cadastro usa o módulo (a aprovação, quando existir, será outra rota e outra mudança nesta guarda).
+    const usam = todos.filter((a) => /from\s+["'][^"']*preCadastroStore["']/.test(a.texto)).map((a) => a.caminho);
+    expect(usam).toEqual(["server/api/compras/pre-cadastro-medicamentos.post.ts"]);
   });
 
   it("só cinco rotas de API usam o store dos Cadastros: GET, POST e PATCH de /api/cadastros/:lista, mais impacto e renomear-contas dos consultores", () => {

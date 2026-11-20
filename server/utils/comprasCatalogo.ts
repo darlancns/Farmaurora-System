@@ -13,8 +13,9 @@ import { erro } from "./storeKit";
  * tests/unit/cadastrosPixNenhumaOutraRota.spec.ts permite este arquivo (como consultoresCadastro.ts) e TRAVA o que ele pode fazer:
  *  - só LÊ, e só colunas explícitas SEM chave PIX (nunca `*`, nunca chave_pix) — as listas de despachantes e transportadoras daqui
  *    NÃO têm o campo, então nenhuma rota de Compras consegue devolvê-lo;
- *  - só itens ATIVOS (`ativo = true`);
- *  - não escreve em tabela cadastro_* (a criação de temperatura, mais adiante, passa pelo store dos Cadastros).
+ *  - só itens ATIVOS (`ativo = true`), com UMA exceção: `buscarMedicamentoPorNome` enxerga também o inativo (para o pré-cadastro saber que
+ *    o nome já existe no Cadastro e a tela não pedir duplicata);
+ *  - não escreve em tabela cadastro_* (a criação de temperatura passa pelo store dos Cadastros, em comprasTemperatura.ts).
  * Tudo que as rotas de Compras precisam do Cadastro entra e sai por aqui.
  */
 
@@ -141,6 +142,20 @@ export async function listarOpcoesDeCompra(consulta: ConsultaMedicamentos): Prom
       q: consulta.q,
     },
   };
+}
+
+/**
+ * O medicamento do Cadastro com esta CHAVE (chaveCadastro do nome), ativo OU inativo (a `nome_chave` é única contando os inativos, então
+ * um inativo também impede criar o mesmo nome). Só leitura, só `id, nome, temperatura, ativo`. null se não existe.
+ */
+export async function buscarMedicamentoPorNome(chave: string): Promise<{ id: string; nome: string; temperatura: string; ativo: boolean } | null> {
+  const { data, error } = await createSupabaseAdminClient()
+    .from(TABELA_CADASTRO.medicamentos)
+    .select("id, nome, temperatura, ativo")
+    .eq("nome_chave", chave);
+  if (error) throw erro("buscar o medicamento no Cadastro", error);
+  const row = ((data ?? []) as Array<{ id: string; nome: string; temperatura: string | null; ativo: boolean }>)[0];
+  return row ? { id: row.id, nome: row.nome, temperatura: row.temperatura ?? "", ativo: row.ativo === true } : null;
 }
 
 // ── Validação do estado da compra contra os Cadastros ────────────────────────────────────────────────────────
