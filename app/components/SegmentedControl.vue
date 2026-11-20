@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="T extends string">
-import { nextTick, ref } from "vue";
+import { computed, nextTick, ref } from "vue";
 import type { AppSelectOption } from "../types/appSelect";
 
 // Escolha única entre poucas opções (2–3), sempre visíveis: radiogroup com tabindex
@@ -22,6 +22,9 @@ const emit = defineEmits<{
 }>();
 
 const radioRefs = ref<(HTMLButtonElement | null)[]>([]);
+
+// Sem nenhuma opção escolhida (valor vazio), a 1ª entra no Tab: o grupo continua alcançável pelo teclado.
+const temEscolhido = computed(() => props.options.some((option) => option.value === props.modelValue));
 
 function selecionar(index: number, focar: boolean): void {
   const option = props.options[index];
@@ -72,7 +75,7 @@ function onKeydown(event: KeyboardEvent, index: number): void {
       type="button"
       role="radio"
       :aria-checked="option.value === modelValue"
-      :tabindex="option.value === modelValue ? 0 : -1"
+      :tabindex="option.value === modelValue || (!temEscolhido && index === 0) ? 0 : -1"
       :disabled="disabled"
       class="min-h-11 rounded-md px-3 text-[16px] font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-dark disabled:cursor-not-allowed disabled:opacity-60 lg:min-h-[38px] lg:text-[13.5px]"
       :class="

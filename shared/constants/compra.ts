@@ -37,3 +37,17 @@ export type StatusDaCompra = (typeof STATUS_DA_COMPRA)[number];
 
 /** Compras por página da lista ("mostrar mais" soma outra página de 50). */
 export const COMPRA_LISTA_POR_PAGINA = 50;
+
+/**
+ * As pendências que viram chip no bloco Avisos do formulário (clique para marcar). O que se grava em `pendencias[]` é o RÓTULO do chip
+ * marcado (por isso o texto daqui é parte do dado: mudar um rótulo faz as compras antigas passarem a mostrar o texto no campo livre).
+ */
+export const PENDENCIAS_PADRAO = [
+  "Documentos assinados",
+  "Comprovante de endereço",
+  "Comprovante atualizado",
+  "Decisão judicial nova",
+  "Termo de recebimento",
+  "Transcrição médica",
+  "Receita médica",
+] as const;

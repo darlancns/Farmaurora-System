@@ -1,8 +1,10 @@
 import type { Component } from "vue";
 import type { BlocoDaCompra } from "#shared/constants/compraResumo";
 import BlocoAvisos from "./blocos/BlocoAvisos.vue";
+import BlocoDespachante from "./blocos/BlocoDespachante.vue";
 import BlocoMedico from "./blocos/BlocoMedico.vue";
 import BlocoPaciente from "./blocos/BlocoPaciente.vue";
+import BlocoPagamento from "./blocos/BlocoPagamento.vue";
 import BlocoProcesso from "./blocos/BlocoProcesso.vue";
 import BlocoVendedorResponsavel from "./blocos/BlocoVendedorResponsavel.vue";
 
@@ -10,7 +12,9 @@ import BlocoVendedorResponsavel from "./blocos/BlocoVendedorResponsavel.vue";
 // componente, registrado AQUI. `titulo` nunca terá componente (é só o título do resumo). Um id novo em BLOCOS_DA_COMPRA sem componente
 // nem entrada em BLOCOS_SEM_FORMULARIO quebra tests/unit/comprasBlocosOrdem.spec.ts.
 export const BLOCOS: Partial<Record<BlocoDaCompra, Component>> = {
+  pagamento: BlocoPagamento,
   paciente: BlocoPaciente,
+  despachante: BlocoDespachante,
   vendedor_responsavel: BlocoVendedorResponsavel,
   processo: BlocoProcesso,
   medico: BlocoMedico,

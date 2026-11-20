@@ -1,3 +1,4 @@
+import { PENDENCIAS_PADRAO } from "../constants/compra";
 import { MODAL_COURIER_SIMPLES } from "../constants/processos";
 import type { ItemCompra, OrdemCompra } from "../types/compra";
 
@@ -57,3 +58,31 @@ export function renumerar(ordens: readonly OrdemCompra[]): OrdemCompra[] {
 export function courierSimplesDasOrdens(ordens: readonly Pick<OrdemCompra, "envio">[]): boolean {
   return ordens.length > 0 && ordens.every((o) => o.envio === MODAL_COURIER_SIMPLES);
 }
+
+// ── Pendências: chips + texto livre ↔ pendencias[] ───────────────────────────────────────────────────────────
+
+/** Separador do texto livre quando as entradas fora da lista padrão são mostradas juntas no campo "Outras pendências". */
+export const SEPARADOR_PENDENCIAS_LIVRES = "; ";
+
+export interface PendenciasNoFormulario {
+  /** Os rótulos de PENDENCIAS_PADRAO marcados. */
+  marcadas: string[];
+  /** As entradas que NÃO estão na lista padrão, unidas por "; ". */
+  livre: string;
+}
+
+/** pendencias[] da compra → o que o formulário mostra: chips marcados e o campo livre. */
+export function pendenciasParaFormulario(pendencias: readonly string[]): PendenciasNoFormulario {
+  const padrao = new Set<string>(PENDENCIAS_PADRAO);
+  const marcadas = PENDENCIAS_PADRAO.filter((p) => pendencias.includes(p));
+  const livres = pendencias.map((p) => p.trim()).filter((p) => p !== "" && !padrao.has(p));
+  return { marcadas: [...marcadas], livre: livres.join(SEPARADOR_PENDENCIAS_LIVRES) };
+}
+
+/** O que o formulário mostra → pendencias[]: os chips marcados (pelo rótulo, na ordem da lista padrão) + UMA entrada final com o texto livre, se houver. */
+export function pendenciasDoFormulario(marcadas: readonly string[], livre: string): string[] {
+  const escolhidas = PENDENCIAS_PADRAO.filter((p) => marcadas.includes(p));
+  const texto = livre.trim();
+  return texto === "" ? [...escolhidas] : [...escolhidas, texto];
+}
+
