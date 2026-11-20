@@ -14,6 +14,7 @@ const emit = defineEmits<{ alterar: [mudancas: MudancasCompra] }>();
       <label for="compra-paciente" :class="LABEL_CLASS">Paciente</label>
       <input
         id="compra-paciente"
+        data-campo="paciente"
         type="text"
         maxlength="300"
         :class="INPUT_CLASS"

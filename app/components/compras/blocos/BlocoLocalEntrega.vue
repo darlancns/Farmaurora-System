@@ -46,7 +46,7 @@ function aoMarcarMesmoLocal(event: Event): void {
   <div data-bloco="local_entrega" class="contents">
     <div class="sm:col-span-2">
       <label for="compra-local" :class="LABEL_CLASS">Local de aplicação</label>
-      <input id="compra-local" type="text"
+      <input id="compra-local" data-campo="local-aplicacao" type="text"
         maxlength="300" :class="INPUT_CLASS" :value="compra.localAplicacao" :disabled="desabilitado" autocomplete="off" @input="aoDigitarLocal" />
     </div>
 
@@ -71,6 +71,7 @@ function aoMarcarMesmoLocal(event: Event): void {
       <label for="compra-entrega" :class="LABEL_CLASS">Entrega (Doctor/AJC)</label>
       <input
         id="compra-entrega"
+        data-campo="entrega"
         type="text"
         maxlength="300"
         :class="INPUT_CLASS"

@@ -20,6 +20,7 @@ function aoMarcarParticular(event: Event): void {
       <label for="compra-processo" :class="LABEL_CLASS">Nº do processo</label>
       <input
         id="compra-processo"
+        data-campo="processo"
         type="text"
         maxlength="300"
         :class="INPUT_MONO_CLASS"
@@ -31,7 +32,7 @@ function aoMarcarParticular(event: Event): void {
       />
     </div>
     <label :class="[ROTULO_CHECKBOX_CLASS, 'self-end']" for="compra-particular">
-      <input id="compra-particular" type="checkbox" :class="CHECKBOX_CLASS" :checked="compra.compraParticular" :disabled="desabilitado" @change="aoMarcarParticular" />
+      <input id="compra-particular" data-campo="processo-particular" type="checkbox" :class="CHECKBOX_CLASS" :checked="compra.compraParticular" :disabled="desabilitado" @change="aoMarcarParticular" />
       <span>Compra particular (sem processo)</span>
     </label>
   </div>

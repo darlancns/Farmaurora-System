@@ -63,7 +63,7 @@ function remover(id: string): void {
     />
 
     <div v-if="!desabilitado" class="flex flex-wrap items-center gap-2">
-      <button id="compra-adicionar-ordem" type="button" :disabled="noLimite" :title="noLimite ? 'Limite de 10 ordens por compra' : undefined" :class="BOTAO_SECUNDARIO_CLASS" @click="adicionarOrdem">
+      <button id="compra-adicionar-ordem" data-campo="ordens" type="button" :disabled="noLimite" :title="noLimite ? 'Limite de 10 ordens por compra' : undefined" :class="BOTAO_SECUNDARIO_CLASS" @click="adicionarOrdem">
         + Adicionar ordem (outro fornecedor)
       </button>
       <span v-if="noLimite" class="text-[11.5px] text-ink-soft">Limite de {{ COMPRA_MAX_ORDENS }} ordens por compra.</span>

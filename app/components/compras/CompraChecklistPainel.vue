@@ -2,13 +2,19 @@
 import { computed, ref } from "vue";
 import type { ItemChecklist } from "#shared/utils/compraChecklist";
 
+/** Um item do checklist com o campo do formulário que o resolve (data-campo), ou null quando não há campo. */
+export type ItemComCampo = ItemChecklist & { campo: string | null };
+
 // "Antes de encaminhar": a checagem da compra (checklistCompra). Os erros primeiro (✕ vermelho), depois os avisos (! âmbar) e os
-// itens "ok" recolhidos num contador que expande. Cada item de ordem leva a etiqueta "Ordem N". Só desenha: quem calcula é a
-// coluna da direita, ao vivo, a cada digitação.
+// itens "ok" recolhidos num contador que expande. Cada item de ordem leva a etiqueta "Ordem N". Erro ou aviso que corresponde a um campo
+// é um BOTÃO: clicar rola até o campo e leva o foco a ele (`irParaCampo`); item "ok" nunca é botão. Só desenha: quem calcula é a coluna
+// da direita, ao vivo, a cada digitação.
 const props = defineProps<{
-  itens: ItemChecklist[];
+  itens: ItemComCampo[];
   pronta: boolean;
 }>();
+
+const emit = defineEmits<{ irParaCampo: [campo: string] }>();
 
 const okAberto = ref(false);
 
@@ -28,7 +34,9 @@ const rotuloOk = computed(() => (oks.value.length === 1 ? "1 item ok" : `${oks.v
       <li v-for="item in erros" :key="item.id" :data-item="item.id" class="flex items-start gap-2 text-[12.5px] text-ink">
         <span class="mt-px w-3.5 shrink-0 text-center font-bold text-danger" aria-hidden="true">✕</span>
         <span class="min-w-0">
-          <span class="sr-only">Pendência: </span>{{ item.texto }}
+          <span class="sr-only">Pendência: </span>
+          <button v-if="item.campo" type="button" :data-ir-campo="item.campo" class="min-h-11 text-left underline-offset-2 hover:text-accent-dark hover:underline focus-visible:outline-2 focus-visible:outline-accent-dark lg:min-h-0" @click="emit('irParaCampo', item.campo)">{{ item.texto }}</button>
+          <template v-else>{{ item.texto }}</template>
           <span v-if="item.ordemPosicao !== undefined" class="ml-1 rounded bg-hairline/50 px-1.5 py-px text-[10.5px] font-semibold text-ink-soft">Ordem {{ item.ordemPosicao }}</span>
         </span>
       </li>
@@ -38,7 +46,9 @@ const rotuloOk = computed(() => (oks.value.length === 1 ? "1 item ok" : `${oks.v
       <li v-for="item in avisos" :key="item.id" :data-item="item.id" class="flex items-start gap-2 text-[12.5px] text-ink-soft">
         <span class="mt-px w-3.5 shrink-0 text-center font-bold text-warning-gold" aria-hidden="true">!</span>
         <span class="min-w-0">
-          <span class="sr-only">Aviso: </span>{{ item.texto }}
+          <span class="sr-only">Aviso: </span>
+          <button v-if="item.campo" type="button" :data-ir-campo="item.campo" class="min-h-11 text-left underline-offset-2 hover:text-accent-dark hover:underline focus-visible:outline-2 focus-visible:outline-accent-dark lg:min-h-0" @click="emit('irParaCampo', item.campo)">{{ item.texto }}</button>
+          <template v-else>{{ item.texto }}</template>
           <span v-if="item.ordemPosicao !== undefined" class="ml-1 rounded bg-hairline/50 px-1.5 py-px text-[10.5px] font-semibold text-ink-soft">Ordem {{ item.ordemPosicao }}</span>
         </span>
       </li>

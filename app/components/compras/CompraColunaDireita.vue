@@ -5,8 +5,9 @@ import { checklistCompra } from "#shared/utils/compraChecklist";
 import { compraParaResumoEntrada, montarResumoCompra } from "#shared/utils/compraResumo";
 import { useCopiarTexto } from "../../composables/useCopiarTexto";
 import { useToast } from "../../composables/useToast";
+import { campoDoItem } from "../../utils/comprasCampos";
 import { BOTAO_PRIMARIO_CLASS, BOTAO_SECUNDARIO_CLASS } from "../../utils/comprasEstilos";
-import CompraChecklistPainel from "./CompraChecklistPainel.vue";
+import CompraChecklistPainel, { type ItemComCampo } from "./CompraChecklistPainel.vue";
 import CompraResumoPainel from "./CompraResumoPainel.vue";
 
 // A coluna da direita: "Antes de encaminhar" (checklist), os botões e o resumo ao vivo. Tudo é calculado AQUI, na hora, a partir da
@@ -21,10 +22,14 @@ const props = defineProps<{
   despachanteCadastro: DespachanteCadastroResumo | null;
 }>();
 
+const emit = defineEmits<{ irParaCampo: [campo: string] }>();
+
 const { copiar } = useCopiarTexto();
 const { showToast } = useToast();
 
 const checklist = computed(() => checklistCompra(props.compra));
+// Cada erro ou aviso que corresponde a um campo vira botão (o mapa único está em comprasCampos.ts); item ok nunca é botão.
+const itensComCampo = computed<ItemComCampo[]>(() => checklist.value.itens.map((i) => ({ ...i, campo: i.nivel === "ok" ? null : campoDoItem(i.id, props.compra) })));
 const resumo = computed(() => montarResumoCompra(compraParaResumoEntrada(props.compra, props.despachanteCadastro)));
 
 async function copiarResumo(): Promise<void> {
@@ -35,7 +40,7 @@ async function copiarResumo(): Promise<void> {
 
 <template>
   <div id="compra-coluna-direita" class="flex flex-col gap-4 max-lg:pb-28">
-    <CompraChecklistPainel :itens="checklist.itens" :pronta="checklist.pronta" />
+    <CompraChecklistPainel :itens="itensComCampo" :pronta="checklist.pronta" @ir-para-campo="(campo: string) => emit('irParaCampo', campo)" />
 
     <!-- Abaixo de lg a barra dos botões fica FIXA no pé da tela (acima da barra de navegação do app, com o safe-area do iPhone), com
          "Copiar resumo" e "Encaminhar" (desabilitado) lado a lado. Em lg+ são botões comuns, um embaixo do outro. -->

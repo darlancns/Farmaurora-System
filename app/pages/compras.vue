@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted } from "vue";
 import { onBeforeRouteLeave } from "vue-router";
 import { useRoute, useRouter } from "#app";
 import CompraColunaDireita from "../components/compras/CompraColunaDireita.vue";
@@ -13,6 +13,8 @@ import { useCompraAcoes } from "../composables/useCompraAcoes";
 import { useCompraOpcoes } from "../composables/useCompraOpcoes";
 import { useComprasPagina } from "../composables/useComprasPagina";
 import { useToast } from "../composables/useToast";
+import { esperarQuadro, irParaCampoComAba } from "../utils/comprasFoco";
+import { telaLargaAgora } from "../utils/telaLarga";
 import { classeDaColuna } from "../utils/comprasAbas";
 import { mesmaQuery } from "../utils/comprasUrl";
 
@@ -47,6 +49,20 @@ const acoes = useCompraAcoes({ opcoes, compraId: () => editor.compra.value?.id ?
 
 // O despachante da compra no Cadastro (telefone, e-mail e contato; nunca PIX): o resumo o usa.
 const despachanteCadastro = computed(() => (editor.compra.value ? opcoes.despachantePeloNome(editor.compra.value.despachante) : null));
+
+// Clicar num item do checklist: no celular troca para a aba Formulário (o painel ainda está escondido) e espera ele desenhar; depois
+// rola até o campo (a coluna do formulário, nunca a janela inteira no desktop), foca e destaca.
+async function irParaCampo(campo: string): Promise<void> {
+  await irParaCampoComAba(campo, {
+    telaLarga: telaLargaAgora,
+    abaAtual: () => pagina.aba.value,
+    irParaAba: (aba) => pagina.irParaAba(aba),
+    aguardar: async () => {
+      await nextTick();
+      await esperarQuadro();
+    },
+  });
+}
 
 // Sair da página: descarrega o salvamento pendente; se não der, a navegação fica (e a pessoa é avisada).
 onBeforeRouteLeave(async () => (await pagina.antesDeSair()) !== false);
@@ -135,7 +151,7 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", antesDeFecharAA
       </section>
 
       <aside id="compras-coluna-direita" :class="['min-w-0 lg:min-h-0 lg:overflow-y-auto lg:pb-10', classeDaColuna('direita', pagina.aba.value)]">
-        <CompraColunaDireita v-if="editor.compra.value" :compra="editor.compra.value" :despachante-cadastro="despachanteCadastro" />
+        <CompraColunaDireita v-if="editor.compra.value" :compra="editor.compra.value" :despachante-cadastro="despachanteCadastro" @ir-para-campo="(campo) => irParaCampo(campo)" />
         <p v-else id="compras-direita-vazia" class="rounded-lg border border-hairline bg-paper-raised px-4 py-6 text-center text-[12.5px] text-ink-soft">
           O checklist e o resumo aparecem aqui quando você abrir uma compra.
         </p>

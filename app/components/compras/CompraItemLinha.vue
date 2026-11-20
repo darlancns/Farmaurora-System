@@ -3,6 +3,7 @@ import { computed, inject, ref } from "vue";
 import type { ItemCompra, OpcaoNome } from "#shared/types/compra";
 import { chaveCadastro } from "#shared/utils/cadastroNome";
 import type { AppSelectOption } from "../../types/appSelect";
+import { campoDoMedicamento } from "../../utils/comprasCampos";
 import { ACOES_COMPRA_KEY, ACOES_VAZIAS, VALOR_OUTRA_TEMPERATURA } from "../../utils/comprasContexto";
 import { BOTAO_SECUNDARIO_CLASS } from "../../utils/comprasEstilos";
 import { BOTAO_REMOVER_CLASS, INPUT_COMPACTO_CLASS, LABEL_CLASS, SELECT_CAMPO_CLASS } from "../../utils/processoFormClasses";
@@ -23,6 +24,8 @@ import CampoDinheiro from "./CampoDinheiro.vue";
 // só oferece "Usar"; senão POST: 201 ou 200 seleciona; 409 (inativa) avisa e não seleciona; erro de rede: "Tentar de novo".
 const props = defineProps<{
   item: ItemCompra;
+  /** A posição (1..N) da ordem na tela: entra no data-campo (alvo do checklist clicável). */
+  numeroOrdem: number;
   /** O ✕ aparece (todos menos o primeiro). */
   podeRemover: boolean;
   desabilitado: boolean;
@@ -36,6 +39,8 @@ const emit = defineEmits<{
 
 const acoes = inject(ACOES_COMPRA_KEY, ACOES_VAZIAS);
 const idCampo = (nome: string): string => `item-${props.item.id}-${nome}`;
+// O data-campo é estável e usa as POSIÇÕES exibidas: ordem-N-med-M-nome | temperatura | quantidade (alvo do checklist clicável).
+const alvo = (regra: string): string => campoDoMedicamento(props.numeroOrdem, props.item.posicao, regra);
 
 const foraDoCadastro = computed(() => props.item.medicamento.trim() !== "" && props.item.medicamentoCadastroId === null);
 
@@ -184,6 +189,7 @@ function aoAlternarDetalhes(event: Event): void {
         <label :for="idCampo('quantidade')" :class="LABEL_CLASS">Qtd</label>
         <input
           :id="idCampo('quantidade')"
+          :data-campo="alvo('quantidade')"
           type="text"
           maxlength="300"
           placeholder="ex.: 12 ampolas"
@@ -199,6 +205,7 @@ function aoAlternarDetalhes(event: Event): void {
         <label :for="idCampo('medicamento')" :class="LABEL_CLASS">Medicamento</label>
         <AppSearchSelect
           :id="idCampo('medicamento')"
+          :data-campo="alvo('nome')"
           :model-value="item.medicamento"
           :buscar="acoes.buscarMedicamentos"
           permitir-novo
@@ -243,7 +250,7 @@ function aoAlternarDetalhes(event: Event): void {
 
       <div :class="[SELECT_CAMPO_CLASS, 'max-lg:order-3 lg:col-span-1']">
         <label :for="idCampo('temperatura')" :class="LABEL_CLASS">Temperatura</label>
-        <AppSelect :id="idCampo('temperatura')" :model-value="item.temperatura" :options="temperaturaOptions" :disabled="desabilitado" @update:model-value="aoMudarTemperatura" />
+        <AppSelect :id="idCampo('temperatura')" :data-campo="alvo('temperatura')" :model-value="item.temperatura" :options="temperaturaOptions" :disabled="desabilitado" @update:model-value="aoMudarTemperatura" />
       </div>
 
       <div class="max-lg:absolute max-lg:top-0 max-lg:right-0 max-lg:order-7 flex items-end justify-end lg:justify-center lg:pt-5">

@@ -12,7 +12,7 @@ const emit = defineEmits<{ alterar: [mudancas: MudancasCompra] }>();
   <div data-bloco="medico" class="contents">
     <div>
       <label for="compra-medico" :class="LABEL_CLASS">Médico(a)</label>
-      <input id="compra-medico" type="text"
+      <input id="compra-medico" data-campo="medico" type="text"
         maxlength="300" :class="INPUT_CLASS" :value="compra.medico" :disabled="desabilitado" autocomplete="off" @input="emit('alterar', { medico: ($event.target as HTMLInputElement).value })" />
     </div>
   </div>

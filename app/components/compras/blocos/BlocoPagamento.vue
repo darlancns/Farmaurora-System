@@ -44,6 +44,7 @@ const termo = computed(() => (props.compra.termoPosterior ? "sim" : "na"));
       <span :class="LABEL_CLASS">Quando pagar</span>
       <SegmentedControl
         id="compra-pagamento-momento"
+        data-campo="pagamento-momento"
         label="Quando pagar"
         :model-value="momento"
         :options="OPCOES_MOMENTO"

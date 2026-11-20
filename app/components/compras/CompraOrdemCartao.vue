@@ -6,6 +6,7 @@ import type { ItemCompra, OrdemCompra } from "#shared/types/compra";
 import { chaveCadastro } from "#shared/utils/cadastroNome";
 import { diaDoEncaminhamento } from "#shared/utils/compraChecklist";
 import { itemVazio } from "#shared/utils/compraForm";
+import { campoDaOrdem } from "../../utils/comprasCampos";
 import type { AppSelectOption } from "../../types/appSelect";
 import type { OpcoesFormulario } from "../../utils/comprasBlocos";
 import { BOTAO_SECUNDARIO_CLASS } from "../../utils/comprasEstilos";
@@ -85,7 +86,7 @@ function aoDigitarPo(event: Event): void {
 </script>
 
 <template>
-  <section :id="`ordem-${ordem.id}`" data-ordem-cartao :aria-label="`Ordem ${numero}`" class="rounded-lg border border-hairline bg-paper-raised p-3.5">
+  <section :id="`ordem-${ordem.id}`" :data-campo="`ordem-${numero}`" data-ordem-cartao :aria-label="`Ordem ${numero}`" class="rounded-lg border border-hairline bg-paper-raised p-3.5">
     <header class="mb-3 flex flex-wrap items-center gap-2">
       <h3 class="text-[13px] font-semibold text-ink">Ordem {{ numero }}</h3>
       <span v-if="encaminhada" :id="idCampo('encaminhada')" class="rounded-full bg-farm-blue-soft px-2 py-0.5 text-[11px] font-semibold text-farm-blue">
@@ -109,11 +110,11 @@ function aoDigitarPo(event: Event): void {
     <div class="grid grid-cols-2 gap-3 xl:grid-cols-4">
       <div :class="[SELECT_CAMPO_CLASS, 'col-span-2 sm:col-span-1']">
         <label :for="idCampo('fornecedor')" :class="LABEL_CLASS">Fornecedor</label>
-        <AppSelect :id="idCampo('fornecedor')" :model-value="ordem.fornecedor" :options="fornecedorOptions" :disabled="desabilitado" @update:model-value="(v: string) => mudar({ fornecedor: v })" />
+        <AppSelect :id="idCampo('fornecedor')" :data-campo="campoDaOrdem(numero, 'fornecedor')" :model-value="ordem.fornecedor" :options="fornecedorOptions" :disabled="desabilitado" @update:model-value="(v: string) => mudar({ fornecedor: v })" />
       </div>
       <div :class="[SELECT_CAMPO_CLASS, 'col-span-2 sm:col-span-1']">
         <label :for="idCampo('envio')" :class="LABEL_CLASS">Envio</label>
-        <AppSelect :id="idCampo('envio')" :model-value="ordem.envio" :options="envioOptions" :disabled="desabilitado" @update:model-value="(v: string) => mudar({ envio: v })" />
+        <AppSelect :id="idCampo('envio')" :data-campo="campoDaOrdem(numero, 'envio')" :model-value="ordem.envio" :options="envioOptions" :disabled="desabilitado" @update:model-value="(v: string) => mudar({ envio: v })" />
       </div>
       <div :class="[SELECT_CAMPO_CLASS, 'col-span-2 sm:col-span-1']">
         <label :for="idCampo('cia')" :class="LABEL_CLASS">Cia. aérea</label>
@@ -123,6 +124,7 @@ function aoDigitarPo(event: Event): void {
         <label :for="idCampo('po')" :class="LABEL_CLASS">PO</label>
         <input
           :id="idCampo('po')"
+          :data-campo="campoDaOrdem(numero, 'po')"
           type="text"
           maxlength="12"
           placeholder="PO26-11-0000"
@@ -150,6 +152,7 @@ function aoDigitarPo(event: Event): void {
         v-for="(item, indice) in ordem.itens"
         :key="item.id"
         :item="item"
+        :numero-ordem="numero"
         :pode-remover="indice > 0"
         :desabilitado="desabilitado"
         :temperaturas="opcoes.temperaturas"
@@ -157,7 +160,7 @@ function aoDigitarPo(event: Event): void {
         @remover="removerItem(item.id)"
       />
       <div v-if="!desabilitado" class="flex items-center gap-2">
-        <button :id="idCampo('adicionar-item')" type="button" :disabled="noLimite" :title="noLimite ? 'Limite de 30 medicamentos por ordem' : undefined" :class="BOTAO_SECUNDARIO_CLASS" @click="adicionarItem">
+        <button :id="idCampo('adicionar-item')" :data-campo="campoDaOrdem(numero, 'medicamentos')" type="button" :disabled="noLimite" :title="noLimite ? 'Limite de 30 medicamentos por ordem' : undefined" :class="BOTAO_SECUNDARIO_CLASS" @click="adicionarItem">
           + Adicionar medicamento
         </button>
         <span v-if="noLimite" class="text-[11.5px] text-ink-soft">Limite de {{ COMPRA_MAX_ITENS_POR_ORDEM }} medicamentos por ordem.</span>

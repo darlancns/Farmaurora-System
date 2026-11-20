@@ -22,12 +22,13 @@ const vendedorOptions = computed(() =>
   <div data-bloco="vendedor_responsavel" class="contents">
     <div :class="SELECT_CAMPO_CLASS">
       <label for="compra-vendedor" :class="LABEL_CLASS">Vendedor</label>
-      <AppSelect id="compra-vendedor" :model-value="compra.vendedor" :options="vendedorOptions" :disabled="desabilitado" @update:model-value="(v: string) => emit('alterar', { vendedor: v })" />
+      <AppSelect id="compra-vendedor" data-campo="vendedor" :model-value="compra.vendedor" :options="vendedorOptions" :disabled="desabilitado" @update:model-value="(v: string) => emit('alterar', { vendedor: v })" />
     </div>
     <div>
       <label for="compra-responsavel" :class="LABEL_CLASS">Responsável</label>
       <input
         id="compra-responsavel"
+        data-campo="responsavel"
         type="text"
         maxlength="300"
         :class="INPUT_CLASS"

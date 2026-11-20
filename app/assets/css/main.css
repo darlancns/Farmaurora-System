@@ -94,3 +94,18 @@ html {
 @utility shadow-postit {
   box-shadow: 4px 7px 14px -4px color-mix(in srgb, var(--color-ink) 32%, transparent);
 }
+
+/* Compras: o destaque curto (~1,5 s) do campo para onde o checklist levou a pessoa (app/utils/comprasFoco.ts). Contorno na cor primária;
+   com prefers-reduced-motion não há transição (o contorno aparece e some sem animar). */
+[data-destaque] {
+  outline: 2px solid var(--color-accent-dark);
+  outline-offset: 3px;
+  border-radius: 0.375rem;
+  transition: outline-color 0.25s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-destaque] {
+    transition: none;
+  }
+}

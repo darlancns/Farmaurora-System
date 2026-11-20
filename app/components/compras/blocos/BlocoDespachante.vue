@@ -48,7 +48,7 @@ const apoio = computed(() => {
     </p>
     <div v-else :class="[SELECT_CAMPO_CLASS, 'sm:col-span-2']">
       <label for="compra-despachante" :class="LABEL_CLASS">Despachante</label>
-      <AppSelect id="compra-despachante" :model-value="compra.despachante" :options="options" :disabled="desabilitado" @update:model-value="(v: string) => emit('alterar', { despachante: v })" />
+      <AppSelect id="compra-despachante" data-campo="despachante" :model-value="compra.despachante" :options="options" :disabled="desabilitado" @update:model-value="(v: string) => emit('alterar', { despachante: v })" />
       <p v-if="apoio.length > 0" id="compra-despachante-contato" class="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-[12px] text-ink-soft">
         <span v-for="linha in apoio" :key="linha.rotulo">{{ linha.rotulo }}: {{ linha.valor }}</span>
       </p>

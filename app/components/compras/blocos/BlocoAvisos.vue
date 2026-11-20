@@ -79,6 +79,7 @@ function aoDigitarLivre(event: Event): void {
       <span :class="LABEL_CLASS">Verificação de documento e assinatura</span>
       <SegmentedControl
         id="compra-documentos"
+        data-campo="documentos"
         label="Verificação de documento e assinatura"
         :model-value="documentos"
         :options="OPCOES_DOCUMENTOS"
