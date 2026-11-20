@@ -175,9 +175,12 @@ function aoAlternarDetalhes(event: Event): void {
 </script>
 
 <template>
-  <div :id="`item-${item.id}`" data-item-linha class="rounded-md border border-hairline/70 bg-paper/40 p-2.5">
+  <!-- Abaixo de lg a linha é um CARTÃO empilhado (Medicamento; Qtd + Temperatura; Valor unit. + Valor real; Apresentação) e o ✕ vai no canto
+         de cima, com área de toque de 44px (o cartão ganha uma faixa no topo para ele). Em lg+ é uma linha de 7 colunas. A ordem visual do celular
+         vem de `max-lg:order-*` (o DOM segue a ordem das colunas do desktop, que é a do Tab). -->
+  <div :id="`item-${item.id}`" data-item-linha class="relative rounded-md border border-hairline/70 bg-paper/40 p-2.5" :class="{ 'max-lg:pt-12': podeRemover && !desabilitado }">
     <div class="grid grid-cols-2 gap-2 lg:grid-cols-[minmax(6rem,0.7fr)_minmax(11rem,2.2fr)_minmax(8rem,1.2fr)_minmax(6rem,0.8fr)_minmax(6rem,0.8fr)_minmax(9rem,1.3fr)_2.75rem] lg:items-start">
-      <div>
+      <div class="max-lg:order-2">
         <label :for="idCampo('quantidade')" :class="LABEL_CLASS">Qtd</label>
         <input
           :id="idCampo('quantidade')"
@@ -192,7 +195,7 @@ function aoAlternarDetalhes(event: Event): void {
         />
       </div>
 
-      <div class="col-span-2 lg:col-span-1">
+      <div class="col-span-2 max-lg:order-1 lg:col-span-1">
         <label :for="idCampo('medicamento')" :class="LABEL_CLASS">Medicamento</label>
         <AppSearchSelect
           :id="idCampo('medicamento')"
@@ -214,7 +217,7 @@ function aoAlternarDetalhes(event: Event): void {
         </p>
       </div>
 
-      <div class="col-span-2 lg:col-span-1">
+      <div class="col-span-2 max-lg:order-6 lg:col-span-1">
         <label :for="idCampo('apresentacao')" :class="LABEL_CLASS">Apresentação</label>
         <input
           :id="idCampo('apresentacao')"
@@ -228,22 +231,22 @@ function aoAlternarDetalhes(event: Event): void {
         />
       </div>
 
-      <div>
+      <div class="max-lg:order-4">
         <label :for="idCampo('valor-unitario')" :class="LABEL_CLASS">Valor unit. (US$)</label>
         <CampoDinheiro :id="idCampo('valor-unitario')" :model-value="item.valorUnitario" :disabled="desabilitado" @update:model-value="(v: number | null) => emit('atualizar', { valorUnitario: v })" />
       </div>
 
-      <div>
+      <div class="max-lg:order-5">
         <label :for="idCampo('valor-real')" :class="LABEL_CLASS">Valor real (US$)</label>
         <CampoDinheiro :id="idCampo('valor-real')" :model-value="item.valorReal" :disabled="desabilitado" @update:model-value="(v: number | null) => emit('atualizar', { valorReal: v })" />
       </div>
 
-      <div :class="[SELECT_CAMPO_CLASS, 'col-span-2 lg:col-span-1']">
+      <div :class="[SELECT_CAMPO_CLASS, 'max-lg:order-3 lg:col-span-1']">
         <label :for="idCampo('temperatura')" :class="LABEL_CLASS">Temperatura</label>
         <AppSelect :id="idCampo('temperatura')" :model-value="item.temperatura" :options="temperaturaOptions" :disabled="desabilitado" @update:model-value="aoMudarTemperatura" />
       </div>
 
-      <div class="flex items-end justify-end lg:justify-center lg:pt-5">
+      <div class="max-lg:absolute max-lg:top-0 max-lg:right-0 max-lg:order-7 flex items-end justify-end lg:justify-center lg:pt-5">
         <button
           v-if="podeRemover && !desabilitado"
           :id="idCampo('remover')"

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { telaLargaAgora } from "../utils/telaLarga";
 import { INPUT_CLASS } from "../utils/processoFormClasses";
 
 // Combobox com BUSCA (acessível): digita, espera 250 ms, busca no servidor e mostra as sugestões. Genérico: quem usa decide o que
@@ -12,6 +13,8 @@ import { INPUT_CLASS } from "../utils/processoFormClasses";
 //  - Ao SAIR do campo com texto diferente do valor: com `permitirNovo` o texto vira `novo` (a mesma regra de "Usar “X”"); sem ele, o
 //    campo volta ao valor de antes. Campo esvaziado avisa `limpar`.
 //  - Mínimo de 1 caractere para buscar; "Carregando…" e "Nada encontrado" na lista.
+//  - CELULAR: ao focar o campo ele rola para o meio da tela (o teclado e a barra de navegação do app não cobrem a lista) e a lista abre para
+//    o lado que tem mais espaço visível (para baixo ou para cima), com altura máxima ajustada a esse espaço e rolagem própria.
 export interface OpcaoBusca {
   valor: string;
   rotulo: string;
@@ -60,6 +63,9 @@ const resultados = ref<OpcaoBusca[]>([]);
 const destaque = ref(-1);
 const raiz = ref<HTMLElement | null>(null);
 const opcaoRefs = ref<(HTMLElement | null)[]>([]);
+// Onde e quão alta a lista abre (calculado ao abrir, pelo espaço visível: o teclado do celular encolhe a área visível).
+const paraCima = ref(false);
+const alturaMaxima = ref(224);
 
 let temporizador: ReturnType<typeof setTimeout> | null = null;
 let numeroBusca = 0;
@@ -84,6 +90,35 @@ watch(
     texto.value = novo;
   },
 );
+
+const ALTURA_MAXIMA_LISTA = 224;
+const ALTURA_MINIMA_LISTA = 96;
+const RESERVA_BARRA_INFERIOR_PX = 72; // a barra de navegação do app (60px) + folga, só no celular
+
+/** Decide se a lista abre para baixo ou para cima e a altura máxima, pelo espaço que está VISÍVEL (visualViewport: sem o teclado). */
+function posicionarLista(): void {
+  const campo = raiz.value?.querySelector("input");
+  if (!campo || typeof window === "undefined") return;
+  const caixa = campo.getBoundingClientRect();
+  const vv = window.visualViewport;
+  const topoVisivel = vv ? vv.offsetTop : 0;
+  const fundoVisivel = topoVisivel + (vv ? vv.height : window.innerHeight);
+  const reserva = telaLargaAgora() ? 8 : RESERVA_BARRA_INFERIOR_PX;
+  const abaixo = fundoVisivel - caixa.bottom - reserva;
+  const acima = caixa.top - topoVisivel - 8;
+  const limitar = (v: number): number => Math.round(Math.min(ALTURA_MAXIMA_LISTA, Math.max(ALTURA_MINIMA_LISTA, v)));
+  if (abaixo >= 160 || abaixo >= acima) {
+    paraCima.value = false;
+    alturaMaxima.value = limitar(abaixo);
+  } else {
+    paraCima.value = true;
+    alturaMaxima.value = limitar(acima);
+  }
+}
+
+watch(aberto, (agoraAberto) => {
+  if (agoraAberto) void nextTick(posicionarLista);
+});
 
 function cancelarBusca(): void {
   if (temporizador !== null) {
@@ -245,6 +280,10 @@ function aoSair(): void {
 
 function aoFocar(): void {
   if (props.disabled) return;
+  // No celular o campo vai para o meio da tela (depois de o teclado subir), para a lista não ficar sob ele nem sob a barra de baixo.
+  if (!telaLargaAgora()) {
+    setTimeout(() => raiz.value?.querySelector('input')?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }), 250);
+  }
   if (textoLimpo.value.length >= props.minimo && resultados.value.length > 0) aberto.value = true;
 }
 
@@ -276,7 +315,9 @@ onBeforeUnmount(cancelarBusca);
       v-if="aberto"
       :id="listaId"
       role="listbox"
-      class="absolute z-50 mt-1 max-h-56 w-full min-w-[12rem] overflow-y-auto rounded-md border border-hairline bg-paper-raised py-1 text-[13.5px] shadow-lg"
+      class="absolute z-50 w-full min-w-[12rem] overflow-y-auto overscroll-contain rounded-md border border-hairline bg-paper-raised py-1 text-[16px] shadow-lg lg:text-[13.5px]"
+      :class="paraCima ? 'bottom-full mb-1' : 'mt-1'"
+      :style="{ maxHeight: `${alturaMaxima}px` }"
     >
       <li v-if="carregando" role="presentation" class="px-2.5 py-2 text-ink-soft"><span role="status">Carregando…</span></li>
       <li v-else-if="erroBusca" role="presentation" class="px-2.5 py-2 text-danger"><span role="status">Não foi possível buscar.</span></li>
@@ -288,7 +329,7 @@ onBeforeUnmount(cancelarBusca);
         :ref="(el) => (opcaoRefs[i] = el as HTMLElement | null)"
         role="option"
         :aria-selected="i === destaque"
-        class="cursor-pointer px-2.5 py-2 transition-colors"
+        class="cursor-pointer px-2.5 py-2.5 transition-colors lg:py-2"
         :class="i === destaque ? 'bg-paper text-accent-dark' : 'text-ink'"
         @mousedown.prevent="escolherIndice(i)"
         @mouseenter="destaque = i"
@@ -302,7 +343,7 @@ onBeforeUnmount(cancelarBusca);
         role="option"
         data-opcao-novo
         :aria-selected="destaque === resultados.length"
-        class="cursor-pointer border-t border-hairline px-2.5 py-2 font-semibold transition-colors"
+        class="cursor-pointer border-t border-hairline px-2.5 py-2.5 font-semibold transition-colors lg:py-2"
         :class="destaque === resultados.length ? 'bg-paper text-accent-dark' : 'text-ink'"
         @mousedown.prevent="escolherIndice(resultados.length)"
         @mouseenter="destaque = resultados.length"

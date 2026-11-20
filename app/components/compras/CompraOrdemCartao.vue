@@ -105,20 +105,21 @@ function aoDigitarPo(event: Event): void {
       </button>
     </header>
 
-    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <div :class="SELECT_CAMPO_CLASS">
+    <!-- Celular: 1 coluna, e Frete + Frete real lado a lado (cabem em 2); sm: 2 colunas; xl: 4. -->
+    <div class="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div :class="[SELECT_CAMPO_CLASS, 'col-span-2 sm:col-span-1']">
         <label :for="idCampo('fornecedor')" :class="LABEL_CLASS">Fornecedor</label>
         <AppSelect :id="idCampo('fornecedor')" :model-value="ordem.fornecedor" :options="fornecedorOptions" :disabled="desabilitado" @update:model-value="(v: string) => mudar({ fornecedor: v })" />
       </div>
-      <div :class="SELECT_CAMPO_CLASS">
+      <div :class="[SELECT_CAMPO_CLASS, 'col-span-2 sm:col-span-1']">
         <label :for="idCampo('envio')" :class="LABEL_CLASS">Envio</label>
         <AppSelect :id="idCampo('envio')" :model-value="ordem.envio" :options="envioOptions" :disabled="desabilitado" @update:model-value="(v: string) => mudar({ envio: v })" />
       </div>
-      <div :class="SELECT_CAMPO_CLASS">
+      <div :class="[SELECT_CAMPO_CLASS, 'col-span-2 sm:col-span-1']">
         <label :for="idCampo('cia')" :class="LABEL_CLASS">Cia. aérea</label>
         <AppSelect :id="idCampo('cia')" :model-value="ordem.cia" :options="ciaOptions" :disabled="desabilitado" @update:model-value="(v: string) => mudar({ cia: v })" />
       </div>
-      <div>
+      <div class="col-span-2 sm:col-span-1">
         <label :for="idCampo('po')" :class="LABEL_CLASS">PO</label>
         <input
           :id="idCampo('po')"
