@@ -15,6 +15,7 @@ const emit = defineEmits<{ alterar: [mudancas: MudancasCompra] }>();
       <input
         id="compra-paciente"
         type="text"
+        maxlength="300"
         :class="INPUT_CLASS"
         :value="compra.paciente"
         :disabled="desabilitado"

@@ -21,6 +21,7 @@ function aoMarcarParticular(event: Event): void {
       <input
         id="compra-processo"
         type="text"
+        maxlength="300"
         :class="INPUT_MONO_CLASS"
         placeholder="0000000-00.0000.0.00.0000"
         :value="compra.compraParticular ? '' : compra.processoNumero"

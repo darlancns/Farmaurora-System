@@ -29,6 +29,7 @@ const vendedorOptions = computed(() =>
       <input
         id="compra-responsavel"
         type="text"
+        maxlength="300"
         :class="INPUT_CLASS"
         :value="compra.responsavel"
         :disabled="desabilitado"

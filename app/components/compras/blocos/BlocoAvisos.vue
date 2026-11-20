@@ -65,6 +65,7 @@ function aoDigitarLivre(event: Event): void {
         <input
           id="compra-isencao-para"
           type="text"
+          maxlength="300"
           :class="INPUT_CLASS"
           :value="compra.isencaoPara"
           :disabled="desabilitado"

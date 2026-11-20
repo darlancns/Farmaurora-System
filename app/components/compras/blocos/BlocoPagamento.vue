@@ -69,6 +69,7 @@ const termo = computed(() => (props.compra.termoPosterior ? "sim" : "na"));
       <input
         id="compra-termo-observacao"
         type="text"
+        maxlength="2000"
         :class="INPUT_CLASS"
         :value="compra.termoObservacao"
         :disabled="desabilitado"

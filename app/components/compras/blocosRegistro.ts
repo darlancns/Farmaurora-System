@@ -1,7 +1,9 @@
 import type { Component } from "vue";
 import type { BlocoDaCompra } from "#shared/constants/compraResumo";
 import BlocoAvisos from "./blocos/BlocoAvisos.vue";
+import BlocoContatos from "./blocos/BlocoContatos.vue";
 import BlocoDespachante from "./blocos/BlocoDespachante.vue";
+import BlocoLocalEntrega from "./blocos/BlocoLocalEntrega.vue";
 import BlocoMedico from "./blocos/BlocoMedico.vue";
 import BlocoPaciente from "./blocos/BlocoPaciente.vue";
 import BlocoPagamento from "./blocos/BlocoPagamento.vue";
@@ -19,6 +21,8 @@ export const BLOCOS: Partial<Record<BlocoDaCompra, Component>> = {
   processo: BlocoProcesso,
   medico: BlocoMedico,
   avisos: BlocoAvisos,
+  local_entrega: BlocoLocalEntrega,
+  contatos: BlocoContatos,
 };
 
 /** Ids que existem no resumo e NÃO têm campo no formulário. */
