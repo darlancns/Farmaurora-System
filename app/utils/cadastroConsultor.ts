@@ -6,12 +6,13 @@ import type { ImpactoRenomearConsultor, ResultadoContasConsultor } from "#shared
 
 const plural = (n: number, singular: string, pluralTexto: string): string => `${n} ${n === 1 ? singular : pluralTexto}`;
 
-/** "3 processos do Follow-Up, 1 prestação, 0 POs da DIR e 2 contas de login". */
+/** "3 processos do Follow-Up, 1 prestação, 0 POs da DIR, 4 compras e 2 contas de login". */
 export function resumoImpactoRenomear(impacto: Omit<ImpactoRenomearConsultor, "nome">): string {
   return [
     plural(impacto.processos, "processo do Follow-Up", "processos do Follow-Up"),
     plural(impacto.pacientes, "prestação", "prestações"),
     plural(impacto.dir, "PO da DIR", "POs da DIR"),
+    plural(impacto.compras, "compra", "compras"),
   ]
     .join(", ")
     .concat(` e ${plural(impacto.contas, "conta de login", "contas de login")}`);

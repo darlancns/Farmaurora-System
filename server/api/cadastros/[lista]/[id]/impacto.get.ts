@@ -5,7 +5,7 @@ import { contarContasDoConsultor } from "../../../../utils/consultorContas";
 import type { ImpactoRenomearConsultor } from "../../../../../shared/types/Cadastro";
 import type { AuthUser } from "../../../../../shared/types/auth";
 
-// SÓ LEITURA. Quantos registros o renomear do consultor vai atualizar: processos (Follow-Up), prestações, POs da DIR e contas de
+// SÓ LEITURA. Quantos registros o renomear do consultor vai atualizar: processos (Follow-Up), prestações, POs da DIR, compras e contas de
 // login com o nome atual. A tela mostra isto na confirmação ANTES de salvar. Só o administrador; só a lista de consultores.
 // Nunca devolve nem registra dados de pacientes: só números e o nome do consultor.
 export default defineEventHandler(async (event): Promise<ImpactoRenomearConsultor> => {

@@ -1,9 +1,10 @@
 import type { FakeSupabase, FuncaoRpc } from "./fakeSupabase";
 
-// Emulação em JS da função SQL `public.renomear_consultor` (supabase/migrations/20261118231000_renomear_consultor.sql) sobre as
+// Emulação em JS da função SQL `public.renomear_consultor` (supabase/migrations/20261118231000_renomear_consultor.sql e
+// 20261120120000_renomear_consultor_compras.sql) sobre as
 // tabelas do FakeSupabase: mesmas regras (nome inválido, consultor inexistente → P0002, chave de OUTRO consultor → 23505, nome
-// igual → zeros) e mesma propagação (cadastro_consultores, follow_up.consultor, prestacao_pacientes.consultor, dir.vendedor, só
-// onde o valor é IGUAL ao nome antigo). tests/unit/renomearConsultorMigration.spec.ts confere que o SQL de verdade tem as mesmas peças.
+// igual → zeros) e mesma propagação (cadastro_consultores, follow_up.consultor, prestacao_pacientes.consultor, dir.vendedor,
+// compras.vendedor, só onde o valor é IGUAL ao nome antigo). tests/unit/renomearConsultorMigration.spec.ts confere que o SQL de verdade tem as mesmas peças.
 
 export const renomearConsultorSql: FuncaoRpc = (args, db) => {
   const id = String(args.p_id);
@@ -17,7 +18,7 @@ export const renomearConsultorSql: FuncaoRpc = (args, db) => {
   if (cadastro.some((r) => r.nome_chave === chave && r.id !== id)) return { error: { message: "nome_repetido", code: "23505" } };
 
   const antigo = String(atual.nome);
-  if (antigo === novo) return { data: { nomeAntigo: antigo, followUp: 0, prestacao: 0, dir: 0 } };
+  if (antigo === novo) return { data: { nomeAntigo: antigo, followUp: 0, prestacao: 0, dir: 0, compras: 0 } };
 
   Object.assign(atual, { nome: novo, nome_chave: chave, updated_at: new Date().toISOString(), atualizado_por: args.p_por });
   const trocar = (tabela: string, coluna: string): number => {
@@ -36,6 +37,7 @@ export const renomearConsultorSql: FuncaoRpc = (args, db) => {
       followUp: trocar("follow_up", "consultor"),
       prestacao: trocar("prestacao_pacientes", "consultor"),
       dir: trocar("dir", "vendedor"),
+      compras: trocar("compras", "vendedor"),
     },
   };
 };

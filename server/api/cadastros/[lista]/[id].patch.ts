@@ -39,6 +39,7 @@ export default defineEventHandler(async (event): Promise<Cadastro | ConsultorAtu
           processos: renomeacao.followUp,
           pacientes: renomeacao.prestacao,
           dir: renomeacao.dir,
+          compras: renomeacao.compras,
           contas,
         },
       };

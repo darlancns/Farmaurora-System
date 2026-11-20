@@ -32,7 +32,11 @@ describe("migration de Compras", () => {
     const anteriores = readdirSync(MIGRATIONS_DIR)
       .filter((n) => n !== arquivo && /^\d{14}_/.test(n))
       .map((n) => n.slice(0, 14));
-    for (const ts of anteriores) expect(ts < "20261119190000", ts).toBe(true);
+    // Tudo o que existe é anterior a ela, EXCETO a função que levou o renomear de consultor a `compras` (que só faz sentido depois da tabela).
+    const posteriores = anteriores.filter((ts) => ts > "20261119190000");
+    expect(posteriores).toEqual(["20261120120000"]);
+    expect(readdirSync(MIGRATIONS_DIR).some((n) => n === "20261120120000_renomear_consultor_compras.sql")).toBe(true);
+    for (const ts of anteriores.filter((t) => !posteriores.includes(t))) expect(ts < "20261119190000", ts).toBe(true);
     expect(anteriores).toContain("20261119160000");
   });
 

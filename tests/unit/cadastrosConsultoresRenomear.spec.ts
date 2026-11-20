@@ -8,7 +8,7 @@ import { aplicarRenomearConsultor } from "./helpers/renomearConsultorFake";
 // RENOMEAR um consultor (a única lista cujo nome muda): PATCH /api/cadastros/consultores/:id com `nome`, o endpoint de impacto
 // (só leitura, para a confirmação) e o "tentar de novo" das contas. Handlers e stores REAIS; só h3, o Supabase em memória (com a
 // função SQL emulada em helpers/renomearConsultorFake.ts) e o Supabase Auth (contas em memória) são simulados.
-// Só itens "TESTE": nenhum nome de paciente — as linhas de follow_up/prestacao/dir levam só id e o consultor.
+// Só itens "TESTE": nenhum nome de paciente — as linhas de follow_up/prestacao/dir/compras levam só id e o consultor.
 
 const h = vi.hoisted(() => ({
   body: {} as unknown,
@@ -106,6 +106,12 @@ function semear(): void {
     { id: "d3", vendedor: NOME_ANTIGO },
     { id: "d4", vendedor: "Braulio (3RB)" },
   ];
+  fake.tabelas["compras"] = [
+    { id: "k1", vendedor: NOME_ANTIGO },
+    { id: "k2", vendedor: NOME_ANTIGO },
+    { id: "k3", vendedor: "Outro Teste" },
+    { id: "k4", vendedor: "" },
+  ];
   h.contas.clear();
   h.contas.set("c1", { email: "c1@x.com", app_metadata: { role: "consultor", consultorNome: NOME_ANTIGO, nome: "Conta Um" } });
   h.contas.set("c2", { email: "c2@x.com", app_metadata: { role: "consultor", consultorNome: NOME_ANTIGO, nome: "Conta Dois" } });
@@ -137,7 +143,7 @@ describe("PATCH renomear consultor — só administrador", () => {
     expect(h.updates).toHaveLength(0);
   });
 
-  it("administrador renomeia: o Cadastro, follow_up, prestacao_pacientes, dir e as contas passam a ter o nome novo (só onde era IGUAL ao antigo)", async () => {
+  it("administrador renomeia: o Cadastro, follow_up, prestacao_pacientes, dir, compras e as contas passam a ter o nome novo (só onde era IGUAL ao antigo)", async () => {
     const r = (await chamar(alterar, admin, { ...LISTA, id: "cons_a" }, { nome: "Novo Teste" })) as ConsultorAtualizado;
 
     expect(r).toMatchObject({ id: "cons_a", nome: "Novo Teste", ativo: true, atualizadoPor: "Cris Admin" });
@@ -145,6 +151,7 @@ describe("PATCH renomear consultor — só administrador", () => {
     expect(valores("follow_up", "consultor")).toEqual(["Novo Teste", "Novo Teste", "Outro Teste"]);
     expect(valores("prestacao_pacientes", "consultor")).toEqual(["Novo Teste", null]);
     expect(valores("dir", "vendedor")).toEqual(["Novo Teste", "Novo Teste", "Novo Teste", "Braulio (3RB)"]);
+    expect(valores("compras", "vendedor")).toEqual(["Novo Teste", "Novo Teste", "Outro Teste", ""]);
     // Contas: só as que tinham o nome antigo; o resto do app_metadata é preservado (merge).
     expect(consultorDe("c1")).toBe("Novo Teste");
     expect(consultorDe("c2")).toBe("Novo Teste");
@@ -157,6 +164,7 @@ describe("PATCH renomear consultor — só administrador", () => {
       processos: 2,
       pacientes: 1,
       dir: 3,
+      compras: 2,
       contas: { atualizadas: 2, falhas: [] },
     });
   });
@@ -308,10 +316,10 @@ describe("renomear: falha parcial das contas e 'tentar de novo'", () => {
 });
 
 describe("GET impacto do renomear (só leitura)", () => {
-  it("administrador recebe as contagens: processos, prestações, POs da DIR e contas com o nome atual — só números", async () => {
+  it("administrador recebe as contagens: processos, prestações, POs da DIR, compras e contas com o nome atual — só números", async () => {
     const r = (await chamar(impacto, admin, { ...LISTA, id: "cons_a" })) as ImpactoRenomearConsultor;
-    expect(r).toEqual({ nome: NOME_ANTIGO, processos: 2, pacientes: 1, dir: 3, contas: 2 });
-    expect(Object.keys(r).sort()).toEqual(["contas", "dir", "nome", "pacientes", "processos"]); // só o nome do consultor e números
+    expect(r).toEqual({ nome: NOME_ANTIGO, processos: 2, pacientes: 1, dir: 3, compras: 2, contas: 2 });
+    expect(Object.keys(r).sort()).toEqual(["compras", "contas", "dir", "nome", "pacientes", "processos"]); // só o nome do consultor e números
     expect(JSON.stringify(r)).not.toMatch(/@x\.com/); // nem e-mails de conta
   });
 
@@ -324,7 +332,7 @@ describe("GET impacto do renomear (só leitura)", () => {
 
   it("consultor sem registros: zeros", async () => {
     const r = (await chamar(impacto, admin, { ...LISTA, id: "cons_c" })) as ImpactoRenomearConsultor;
-    expect(r).toEqual({ nome: "Inativo Teste", processos: 0, pacientes: 0, dir: 0, contas: 0 });
+    expect(r).toEqual({ nome: "Inativo Teste", processos: 0, pacientes: 0, dir: 0, compras: 0, contas: 0 });
   });
 
   it("sócio, operacional, consultor e sem login levam 403 (as contagens são só do administrador); outra lista e item inexistente são 404", async () => {

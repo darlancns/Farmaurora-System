@@ -57,17 +57,17 @@ describe("cadastroForm — consultor", () => {
 
 describe("textos do renomear (só números e nomes de consultor)", () => {
   it("resumoImpactoRenomear: singular e plural", () => {
-    expect(resumoImpactoRenomear({ processos: 3, pacientes: 1, dir: 0, contas: 2 })).toBe(
-      "3 processos do Follow-Up, 1 prestação, 0 POs da DIR e 2 contas de login",
+    expect(resumoImpactoRenomear({ processos: 3, pacientes: 1, dir: 0, compras: 4, contas: 2 })).toBe(
+      "3 processos do Follow-Up, 1 prestação, 0 POs da DIR, 4 compras e 2 contas de login",
     );
-    expect(resumoImpactoRenomear({ processos: 1, pacientes: 2, dir: 1, contas: 1 })).toBe(
-      "1 processo do Follow-Up, 2 prestações, 1 PO da DIR e 1 conta de login",
+    expect(resumoImpactoRenomear({ processos: 1, pacientes: 2, dir: 1, compras: 1, contas: 1 })).toBe(
+      "1 processo do Follow-Up, 2 prestações, 1 PO da DIR, 1 compra e 1 conta de login",
     );
   });
 
   it("mensagemConfirmarRenomear: nome atual, nome novo, as contagens e o aviso de que vale para todo o sistema", () => {
-    expect(mensagemConfirmarRenomear("Antigo Teste", "Novo Teste", { processos: 2, pacientes: 0, dir: 5, contas: 1 })).toBe(
-      'Renomear "Antigo Teste" para "Novo Teste"? O novo nome passa a valer em 2 processos do Follow-Up, 0 prestações, 5 POs da DIR e 1 conta de login. Vale para todo o sistema e não é desfeito automaticamente.',
+    expect(mensagemConfirmarRenomear("Antigo Teste", "Novo Teste", { processos: 2, pacientes: 0, dir: 5, compras: 3, contas: 1 })).toBe(
+      'Renomear "Antigo Teste" para "Novo Teste"? O novo nome passa a valer em 2 processos do Follow-Up, 0 prestações, 5 POs da DIR, 3 compras e 1 conta de login. Vale para todo o sistema e não é desfeito automaticamente.',
     );
   });
 

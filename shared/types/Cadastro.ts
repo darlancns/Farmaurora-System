@@ -95,6 +95,7 @@ export interface RenomeacaoConsultor {
   processos: number;
   pacientes: number;
   dir: number;
+  compras: number;
   contas: ResultadoContasConsultor;
 }
 
@@ -107,6 +108,7 @@ export interface ImpactoRenomearConsultor {
   processos: number;
   pacientes: number;
   dir: number;
+  compras: number;
   contas: number;
 }
 

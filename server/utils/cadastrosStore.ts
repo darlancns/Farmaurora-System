@@ -285,9 +285,10 @@ function mensagemDuplicadoNoRenomear(outroAtivo: boolean): string {
 }
 
 // ── Consultores: renomear (a ÚNICA lista cujo nome pode mudar) ───────────────────────────────────────────────
-// O nome do consultor é gravado como TEXTO em follow_up.consultor, prestacao_pacientes.consultor e dir.vendedor (e nas contas, em
+// O nome do consultor é gravado como TEXTO em follow_up.consultor, prestacao_pacientes.consultor, dir.vendedor e compras.vendedor (e nas contas, em
 // app_metadata.consultorNome). Renomear precisa mudar tudo junto: a função SQL `renomear_consultor` (supabase/migrations/
-// 20261118231000_renomear_consultor.sql) faz, NUMA transação, o cadastro e as três tabelas, e devolve as contagens. As contas de
+// 20261118231000_renomear_consultor.sql e 20261120120000_renomear_consultor_compras.sql) faz, NUMA transação, o cadastro e as quatro
+// tabelas, e devolve as contagens. As contas de
 // login são atualizadas depois, pelo handler (server/utils/consultorContas.ts), porque o Auth não entra na transação do banco.
 
 /** Contagens devolvidas pela função SQL (linhas atualizadas por tabela). */
@@ -296,6 +297,7 @@ export interface RenomeacaoNoBanco {
   followUp: number;
   prestacao: number;
   dir: number;
+  compras: number;
 }
 
 // Códigos do PostgREST/Postgres quando a função ainda não existe no banco (migration pendente).
@@ -324,7 +326,7 @@ export async function renomearConsultor(id: string, nomeNovo: string, por: strin
 
   const r = (data ?? {}) as Record<string, unknown>;
   const n = (v: unknown): number => (typeof v === "number" ? v : Number(v ?? 0) || 0);
-  return { nomeAntigo: String(r.nomeAntigo ?? ""), followUp: n(r.followUp), prestacao: n(r.prestacao), dir: n(r.dir) };
+  return { nomeAntigo: String(r.nomeAntigo ?? ""), followUp: n(r.followUp), prestacao: n(r.prestacao), dir: n(r.dir), compras: n(r.compras) };
 }
 
 /**
@@ -378,10 +380,10 @@ export async function existeOutroConsultorComNome(nome: string, idIgnorado: stri
   return ((data ?? []) as Array<{ id: string }>).some((r) => r.id !== idIgnorado);
 }
 
-/** Quantos registros do banco têm o nome do consultor `id` (só leitura): follow_up, prestacao_pacientes e dir. null = não existe. */
+/** Quantos registros do banco têm o nome do consultor `id` (só leitura): follow_up, prestacao_pacientes, dir e compras. null = não existe. */
 export async function contarImpactoConsultor(
   id: string,
-): Promise<{ nome: string; processos: number; pacientes: number; dir: number } | null> {
+): Promise<{ nome: string; processos: number; pacientes: number; dir: number; compras: number } | null> {
   const consultor = await buscarConsultor(id);
   if (!consultor) return null;
 
@@ -391,10 +393,11 @@ export async function contarImpactoConsultor(
     if (error) throw erro(`contar registros de ${tabela}`, error);
     return count ?? 0;
   }
-  const [processos, pacientes, dir] = await Promise.all([
+  const [processos, pacientes, dir, compras] = await Promise.all([
     contar("follow_up", "consultor"),
     contar("prestacao_pacientes", "consultor"),
     contar("dir", "vendedor"),
+    contar("compras", "vendedor"),
   ]);
-  return { nome: consultor.nome, processos, pacientes, dir };
+  return { nome: consultor.nome, processos, pacientes, dir, compras };
 }

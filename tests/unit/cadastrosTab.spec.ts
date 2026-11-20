@@ -84,7 +84,7 @@ function instalarServidor(role: AuthUser["role"]): void {
     falhas: [],
     segurar: null,
     comPix: role !== "consultor",
-    impacto: { nome: "Mateus Morais", processos: 25, pacientes: 4, dir: 106, contas: 1 },
+    impacto: { nome: "Mateus Morais", processos: 25, pacientes: 4, dir: 106, compras: 7, contas: 1 },
     contasNoPatch: { atualizadas: 1, falhas: [] },
     contasNoRetry: { atualizadas: 1, falhas: [] },
   };
@@ -122,7 +122,7 @@ function instalarServidor(role: AuthUser["role"]): void {
       Object.assign(alvo, corpo);
       // Renomear consultor: o servidor devolve também o que mudou e o resultado das contas de login.
       if (lista === "consultores" && corpo && "nome" in corpo && corpo.nome !== nomeAntigo) {
-        return json({ ...visivel(alvo), renomeacao: { nomeAntigo, processos: 25, pacientes: 4, dir: 106, contas: servidor.contasNoPatch } });
+        return json({ ...visivel(alvo), renomeacao: { nomeAntigo, processos: 25, pacientes: 4, dir: 106, compras: 7, contas: servidor.contasNoPatch } });
       }
       return json(visivel(alvo));
     }),
@@ -763,7 +763,7 @@ describe("CadastrosTab — renomear consultor (só consultores; com confirmaçã
     expect(gravacoes()).toEqual([]);
     expect(texto(q("#confirm-dialog-title"))).toBe("Renomear consultor");
     expect(texto(q("#confirm-dialog-message"))).toBe(
-      'Renomear "Mateus Morais" para "Mateus Teste"? O novo nome passa a valer em 25 processos do Follow-Up, 4 prestações, 106 POs da DIR e 1 conta de login. Vale para todo o sistema e não é desfeito automaticamente.',
+      'Renomear "Mateus Morais" para "Mateus Teste"? O novo nome passa a valer em 25 processos do Follow-Up, 4 prestações, 106 POs da DIR, 7 compras e 1 conta de login. Vale para todo o sistema e não é desfeito automaticamente.',
     );
     expect(q("#cadastro-painel")).not.toBeNull(); // o painel continua aberto até confirmar
   });
