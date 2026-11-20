@@ -53,6 +53,11 @@ const ID_PREFIXO: Record<ListaCadastro, string> = {
 /** Opções de leitura/gravação. `incluirPix` (padrão false): ler e devolver a chave PIX (só quem pode: ver cadastroPix.ts). */
 export interface OpcoesCadastro {
   incluirPix?: boolean;
+  /**
+   * Só em `criarCadastro`: o id do item novo (padrão: um id aleatório com o prefixo da lista). Quem precisa REPETIR a criação com segurança (a
+   * aprovação de um pré-cadastro de medicamento) usa um id determinístico: a repetição reconhece a linha que já criou.
+   */
+  id?: string;
 }
 
 // Colunas lidas SEM a chave PIX (listas que têm PIX); as demais listas leem tudo.
@@ -149,7 +154,7 @@ export async function criarCadastro<L extends ListaCadastro>(
 
   const agora = new Date().toISOString();
   const row = {
-    id: randomId(ID_PREFIXO[lista]),
+    id: opcoes.id ?? randomId(ID_PREFIXO[lista]),
     ...colunasNovoCadastro(lista, dto),
     atualizado_por: por,
     created_at: agora,

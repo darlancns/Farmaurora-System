@@ -428,6 +428,25 @@ export function proximaVersao(anterior: string, agora: number = Date.now()): str
   return new Date(Number.isNaN(base) ? agora : Math.max(agora, base + 1)).toISOString();
 }
 
+const TENTATIVAS_DE_VERSAO = 3;
+
+/**
+ * Sobe a versão da compra (compare-and-swap relendo a versão atual; até 3 tentativas): editar em outra aba depois disto leva 409. Usado pelo
+ * Encaminhar e pela decisão de pré-cadastros (que mudam a compra por fora do salvamento). Compra que não existe mais: não faz nada.
+ */
+export async function subirVersaoDaCompra(compraId: string): Promise<void> {
+  const db = createSupabaseAdminClient();
+  for (let tentativa = 0; tentativa < TENTATIVAS_DE_VERSAO; tentativa++) {
+    const { data: lida, error: erroLeitura } = await db.from(COMPRAS).select("updated_at").eq("id", compraId);
+    if (erroLeitura) throw erro("ler a versão da compra", erroLeitura);
+    const atual = ((lida ?? []) as Array<{ updated_at: string }>)[0]?.updated_at;
+    if (!atual) return;
+    const { data, error } = await db.from(COMPRAS).update({ updated_at: proximaVersao(atual) }).eq("id", compraId).eq("updated_at", atual).select("id");
+    if (error) throw erro("atualizar a versão da compra", error);
+    if (((data ?? []) as unknown[]).length > 0) return;
+  }
+}
+
 export function conflitoDeVersao(atual: Compra): ComprasRegraError {
   return new ComprasRegraError(MENSAGEM_CONFLITO_VERSAO, 409, { atual });
 }

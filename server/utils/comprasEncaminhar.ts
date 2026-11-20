@@ -18,7 +18,7 @@ import { erroContratoCambio, isValidDirPayload } from "./dirValidation";
 import { colunasDeDir, montarDir, type DirRow } from "./dirMappers";
 import { inserirLinhasDaCompra, listarLinhasDaDirPorPo } from "./dirStore";
 import { erroDoConsultorEnviado } from "./consultoresCadastro";
-import { ComprasRegraError, MENSAGEM_COMPRA_CANCELADA, conflitoDeVersao, obterCompra, proximaVersao } from "./comprasStore";
+import { ComprasRegraError, MENSAGEM_COMPRA_CANCELADA, conflitoDeVersao, obterCompra, subirVersaoDaCompra } from "./comprasStore";
 import { createSupabaseAdminClient } from "./supabaseServerClient";
 import { erro } from "./storeKit";
 
@@ -48,7 +48,6 @@ export const MENSAGEM_ORDEM_DE_OUTRA_COMPRA = "Alguma ordem informada não perte
 
 const ORDENS = "compra_ordens";
 const COMPRAS = "compras";
-const TENTATIVAS_DE_VERSAO = 3;
 
 export interface OpcoesEncaminhar {
   /** O instante do encaminhamento (só o teste escolhe). */
@@ -144,20 +143,6 @@ export async function previaEncaminhar(id: string, opcoes: OpcoesEncaminhar = {}
   return { linhas: a.linhas, conflitosPo: a.conflitosPo, erros: a.erros, vendedorInativo: a.vendedorInativo, posRepetidosNaCompra: a.posRepetidosNaCompra };
 }
 
-/** Sobe a versão da compra (compare-and-swap relendo a versão atual; até 3 tentativas): editar em outra aba depois disto leva 409. */
-async function subirVersao(compraId: string): Promise<void> {
-  const db = createSupabaseAdminClient();
-  for (let tentativa = 0; tentativa < TENTATIVAS_DE_VERSAO; tentativa++) {
-    const { data: lida, error: erroLeitura } = await db.from(COMPRAS).select("updated_at").eq("id", compraId);
-    if (erroLeitura) throw erro("ler a versão da compra", erroLeitura);
-    const atual = ((lida ?? []) as Array<{ updated_at: string }>)[0]?.updated_at;
-    if (!atual) return;
-    const { data, error } = await db.from(COMPRAS).update({ updated_at: proximaVersao(atual) }).eq("id", compraId).eq("updated_at", atual).select("id");
-    if (error) throw erro("atualizar a versão da compra", error);
-    if (((data ?? []) as unknown[]).length > 0) return;
-  }
-}
-
 /**
  * Encaminha as ordens para a DIR (ver o cabeçalho). `usuario` não é gravado na DIR (a linha nasce como a de "Novo PO"); fica na assinatura
  * para a rota e para uma futura auditoria. null = a compra não existe.
@@ -202,7 +187,7 @@ export async function encaminharCompra(id: string, corpo: CorpoEncaminhar, _usua
     if (((data ?? []) as unknown[]).length > 0) criadas.push({ ordemId: ordem.id, dirId, po: normalizarNumeroPo(ordem.po) ?? "" });
   }
 
-  if (criadas.length > 0) await subirVersao(id);
+  if (criadas.length > 0) await subirVersaoDaCompra(id);
 
   const atualizada = await obterCompra(id);
   if (!atualizada) return null;
