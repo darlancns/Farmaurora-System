@@ -94,6 +94,8 @@ function instalarServidor(role: AuthUser["role"]): void {
       const metodo = (opts?.method ?? "GET").toUpperCase();
       const corpo = opts?.body ? (JSON.parse(String(opts.body)) as Record<string, unknown>) : null;
       servidor.chamadas.push({ metodo, url: String(url), corpo });
+      // Pré-cadastros pendentes (sem nenhum nesta aba; a seção de pendentes tem o spec próprio).
+      if (String(url).startsWith("/api/cadastros/pre-medicamentos")) return json({ status: "pendente", total: 0, itens: [] });
       // Consultores: impacto (só leitura) e "tentar de novo" das contas de login.
       if (/^\/api\/cadastros\/consultores\/[\w-]+\/impacto$/.test(String(url))) return json(servidor.impacto);
       if (/^\/api\/cadastros\/consultores\/[\w-]+\/renomear-contas$/.test(String(url))) return json(servidor.contasNoRetry);
@@ -198,9 +200,12 @@ describe("CadastrosTab — seções recolhíveis", () => {
     expect(SECOES.map((l) => texto(q(`#cadastro-titulo-${l}`)))).toEqual(["Fornecedores", "Despachantes", "Transportadoras", "Cias aéreas", "Consultores", "Temperaturas", "Medicamentos"]);
     expect(SECOES.map((l) => texto(q(`#cadastro-contagem-${l}`)))).toEqual(["2 · 1 ativo", "2 · 2 ativos", "2 · 1 ativo", "2 · 2 ativos", "2 · 1 ativo", "2 · 1 ativo", "2 · 1 ativo"]);
     for (const l of SECOES) expect(texto(q(`#btn-adicionar-cadastro-${l}`)), l).toBe("+ Adicionar");
+    // As sete listas e, só para o administrador, os pré-cadastros pendentes (a seção "Pendentes de aprovação" some quando não há nenhum).
     expect(servidor.chamadas.filter((c) => c.metodo === "GET").map((c) => c.url).sort()).toEqual(
-      SECOES.map((l) => `/api/cadastros/${l}`).sort(),
+      [...SECOES.map((l) => `/api/cadastros/${l}`), "/api/cadastros/pre-medicamentos?status=pendente"].sort(),
     );
+    expect(q("#cadastro-pendentes")).toBeNull();
+    expect(q("#cadastro-pendentes-etiqueta-medicamentos")).toBeNull();
   });
 
   it("TODAS as seções começam FECHADAS (aria-expanded false e corpo escondido); não há abas internas", async () => {

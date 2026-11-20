@@ -38,7 +38,9 @@ const props = withDefaults(defineProps<{
   pendentes: Record<string, boolean>;
   /** Quantos itens desenhar agora (a página atual, múltiplo de CADASTRO_TAMANHO_PAGINA); quem manda é o pai. */
   limite?: number;
-}>(), { limite: CADASTRO_TAMANHO_PAGINA });
+  /** Só em Medicamentos: quantos pré-cadastros esperam aprovação. A etiqueta "N pendentes" aparece no título quando for maior que 0 e some quando for 0. */
+  pendentesAprovacao?: number;
+}>(), { limite: CADASTRO_TAMANHO_PAGINA, pendentesAprovacao: 0 });
 
 const emit = defineEmits<{
   alternar: [];
@@ -56,6 +58,8 @@ const primeiraCarga = computed(() => props.carregando && props.itens.length === 
 const contagem = computed(() => (props.buscaAtiva ? textoEncontrados(props.visiveis.length) : textoContagem(props.itens)));
 const pagina = computed(() => paginaDaLista(props.visiveis, props.limite));
 const semItens = computed(() => !props.carregando && props.visiveis.length === 0);
+const textoPendentes = computed(() => (props.pendentesAprovacao === 1 ? "1 pendente" : `${props.pendentesAprovacao} pendentes`));
+const descritoPor = computed(() => (props.pendentesAprovacao > 0 ? `cadastro-contagem-${props.lista} cadastro-pendentes-etiqueta-${props.lista}` : `cadastro-contagem-${props.lista}`));
 const textoVazio = computed(() => (props.buscaAtiva ? "Nenhum item encontrado." : "Nenhum item cadastrado."));
 
 const valorAtivo = (item: Cadastro): boolean => props.pendentes[`${props.lista}:${item.id}`] ?? item.ativo;
@@ -75,7 +79,7 @@ const rotuloSwitch = (item: Cadastro): string => `Ativo: ${item.nome}`;
           class="min-h-11 cursor-pointer rounded-md text-left tracking-wide uppercase focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-dark"
           :aria-expanded="aberta"
           :aria-controls="`cadastro-corpo-${lista}`"
-          :aria-describedby="`cadastro-contagem-${lista}`"
+          :aria-describedby="descritoPor"
           @click="emit('alternar')"
         >
           {{ rotulo }}
@@ -88,6 +92,14 @@ const rotuloSwitch = (item: Cadastro): string => `Ativo: ${item.nome}`;
         @click="emit('alternar')"
       >
         {{ primeiraCarga ? "Carregando…" : contagem }}
+      </span>
+      <span
+        v-if="pendentesAprovacao > 0"
+        :id="`cadastro-pendentes-etiqueta-${lista}`"
+        class="cursor-pointer rounded-full bg-mainz-gold-soft px-2 py-0.5 text-[11.5px] font-semibold whitespace-nowrap text-ink"
+        @click="emit('alternar')"
+      >
+        {{ textoPendentes }}
       </span>
       <div class="min-h-11 flex-1 cursor-pointer" aria-hidden="true" @click="emit('alternar')" />
       <button

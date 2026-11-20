@@ -10,17 +10,21 @@ import type {
   PatchPorLista,
   ContaNaoAtualizada,
 } from "#shared/types/Cadastro";
+import type { PreCadastroDaLista } from "#shared/types/PreCadastro";
 import { chaveCadastro } from "#shared/utils/cadastroNome";
 import { podeVerPixCadastro } from "#shared/utils/cadastroPix";
 import { useAuth } from "../../composables/useAuth";
 import { useCadastros } from "../../composables/useCadastros";
+import { usePreCadastros, type ResultadoDecisao } from "../../composables/usePreCadastros";
 import { useToast } from "../../composables/useToast";
 import { filtrarPorNome, limiteParaMostrar } from "../../utils/cadastroColunas";
 import { mensagemConfirmarRenomear, mensagemContasNaoAtualizadas } from "../../utils/cadastroConsultor";
+import { TITULO_CONFIRMAR_REJEITAR, textoAprovado, textoConfirmarRejeitar, textoJaDecidido, textoRejeitado, textoVinculado } from "../../utils/cadastroPreMedicamentos";
 import { getErrorMessage } from "../../utils/errorMessages";
 import ConfirmDialog from "../ConfirmDialog.vue";
 import CadastroDesfazer from "./CadastroDesfazer.vue";
 import CadastroPainel from "./CadastroPainel.vue";
+import CadastroPendentes from "./CadastroPendentes.vue";
 import CadastroSecao from "./CadastroSecao.vue";
 
 // Aba "Cadastros" de /configuracoes (só administrador — ver app/utils/abasConfiguracoes.ts). Sete SEÇÕES recolhíveis
@@ -36,16 +40,25 @@ import CadastroSecao from "./CadastroSecao.vue";
 //
 // Chave PIX (dado financeiro): o painel só mostra o campo, e a tabela só a coluna "Cadastrada/—", para quem a API entrega
 // (administrador ou quem lê Pagamentos: podeVerPixCadastro, a mesma função do servidor). A chave nunca vai para toast.
+//
+// MEDICAMENTOS, PENDENTES DE APROVAÇÃO: acima da seção Medicamentos fica a seção "Pendentes de aprovação" (só aparece quando há o que decidir; a
+// etiqueta "N pendentes" no título de Medicamentos também some quando é 0). Aprovar cria o medicamento e liga os itens das compras; "Vincular ao
+// cadastro existente" (nome que já existe) não cria linha nova; Rejeitar pede confirmação e nunca apaga. Quem decide é só o administrador (esta aba
+// já é só dele; o servidor confere de novo). Ver usePreCadastros.ts.
 
 const { user, canWrite } = useAuth();
-const { showToast } = useToast();
-const { itens, loading, error, fetchCadastros, criar, alterar, impactoDoConsultor, renomearContasDoConsultor } = useCadastros();
+const { showToast, showAviso } = useToast();
+const { itens, loading, error, fetchCadastros, fetchLista, criar, alterar, impactoDoConsultor, renomearContasDoConsultor } = useCadastros();
+const preCadastros = usePreCadastros();
+const temperaturasDoCadastro = computed(() => itens.value.temperaturas);
 
 const podeEditar = computed<boolean>(() => canWrite("config"));
 const podeVerPix = computed<boolean>(() => podeVerPixCadastro(user.value));
 
 onMounted(() => {
   void fetchCadastros();
+  // Só quem escreve nos Cadastros decide (e a lista é só dele no servidor): sem isso nem se pede.
+  if (podeEditar.value) void preCadastros.carregar();
 });
 
 onBeforeUnmount(() => {
@@ -393,6 +406,45 @@ async function desfazerDesativacao(): Promise<void> {
     showToast(getErrorMessage(e, "Erro ao reativar o item."));
   }
 }
+
+// ── Pendentes de aprovação: medicamentos pedidos pelas compras ────────────────────────────────────────────────────────────
+// Aprovar, vincular e rejeitar vivem em usePreCadastros (que devolve um RESULTADO); aqui só se decide o aviso. Conflito de nome e erro ficam na
+// própria linha; a decisão simultânea de outra pessoa (409) já relê a lista e vira aviso.
+const rejeitando = ref<PreCadastroDaLista | null>(null);
+const rejeitandoOcupado = computed<boolean>(() => (rejeitando.value ? preCadastros.estadoDa(rejeitando.value.id).ocupado : false));
+
+function avisarDecisao(resultado: ResultadoDecisao, nome: string): void {
+  if (resultado.tipo === "decidido") {
+    const ligados = resultado.resposta.itens;
+    showToast(resultado.acao === "aprovado" ? textoAprovado(nome, ligados) : resultado.acao === "vinculado" ? textoVinculado(nome, ligados) : textoRejeitado(nome));
+  } else if (resultado.tipo === "ja-decidido") {
+    showAviso(textoJaDecidido(resultado.status));
+  }
+}
+
+async function aprovarPendente(id: string, ajustes: { nome: string; temperatura: string }): Promise<void> {
+  const resultado = await preCadastros.aprovar(id, ajustes);
+  avisarDecisao(resultado, ajustes.nome);
+  // O medicamento novo entra na lista de Medicamentos (só se a aprovação criou a linha).
+  if (resultado.tipo === "decidido") fetchLista("medicamentos").catch(() => undefined);
+}
+
+async function vincularPendente(id: string, nome: string): Promise<void> {
+  avisarDecisao(await preCadastros.vincular(id, nome), nome);
+}
+
+function pedirRejeitar(item: PreCadastroDaLista): void {
+  rejeitando.value = item;
+}
+
+async function confirmarRejeitar(): Promise<void> {
+  const item = rejeitando.value;
+  if (!item || rejeitandoOcupado.value) return;
+  const resultado = await preCadastros.rejeitar(item.id);
+  rejeitando.value = null;
+  avisarDecisao(resultado, item.nome);
+  if (resultado.tipo === "erro") showToast(resultado.mensagem);
+}
 </script>
 
 <template>
@@ -467,10 +519,24 @@ async function desfazerDesativacao(): Promise<void> {
       </p>
     </div>
 
-    <!-- Uma seção recolhível por lista; todas fechadas ao abrir a aba -->
+    <!-- Uma seção recolhível por lista; todas fechadas ao abrir a aba. Acima de Medicamentos, os pendentes de aprovação (só quando há). -->
+    <template v-for="lista in LISTAS_CADASTRO" :key="lista">
+    <CadastroPendentes
+      v-if="lista === 'medicamentos' && podeEditar"
+      :itens="preCadastros.itens.value"
+      :carregando="preCadastros.carregando.value"
+      :carregou="preCadastros.carregou.value"
+      :erro="preCadastros.erro.value"
+      :temperaturas="temperaturasDoCadastro"
+      :estados="preCadastros.linhas"
+      :pode-editar="podeEditar"
+      @aprovar="aprovarPendente"
+      @vincular="vincularPendente"
+      @rejeitar="pedirRejeitar"
+      @editou="preCadastros.limparConflito"
+      @recarregar="preCadastros.carregar"
+    />
     <CadastroSecao
-      v-for="lista in LISTAS_CADASTRO"
-      :key="lista"
       :lista="lista"
       :itens="itens[lista]"
       :visiveis="visiveis[lista]"
@@ -481,12 +547,14 @@ async function desfazerDesativacao(): Promise<void> {
       :pode-ver-pix="podeVerPix"
       :pendentes="pendentes"
       :limite="limites[lista]"
+      :pendentes-aprovacao="lista === 'medicamentos' && podeEditar ? preCadastros.total.value : 0"
       @alternar="alternarSecao(lista)"
       @mostrar-mais="mostrarMais(lista)"
       @adicionar="abrirNovo(lista)"
       @abrir="abrirItem(lista, $event)"
       @ativo="(item, valor) => alternarAtivo(lista, item, valor)"
     />
+    </template>
 
     <CadastroPainel
       v-if="painelLista"
@@ -512,6 +580,18 @@ async function desfazerDesativacao(): Promise<void> {
       :loading="busy"
       @confirm="confirmarRenomear"
       @close="confirmacaoRenomear = null"
+    />
+
+    <ConfirmDialog
+      v-if="rejeitando"
+      :title="TITULO_CONFIRMAR_REJEITAR"
+      :message="textoConfirmarRejeitar(rejeitando.nome)"
+      confirm-label="Rejeitar"
+      danger
+      reforcado
+      :loading="rejeitandoOcupado"
+      @confirm="confirmarRejeitar"
+      @close="rejeitando = null"
     />
 
     <CadastroDesfazer v-if="desfazer" mensagem="Desativado." :nome-item="desfazer.nome" @desfazer="desfazerDesativacao" />

@@ -259,6 +259,8 @@ describe("a chave PIX dos Cadastros só sai por /api/cadastros", () => {
     expect(componentes.map((a) => a.caminho).sort()).toEqual([
       "app/components/configuracoes/CadastroDesfazer.vue",
       "app/components/configuracoes/CadastroPainel.vue",
+      "app/components/configuracoes/CadastroPendenteLinha.vue",
+      "app/components/configuracoes/CadastroPendentes.vue",
       "app/components/configuracoes/CadastroSecao.vue",
       "app/components/configuracoes/CadastroSwitch.vue",
       "app/components/configuracoes/CadastrosTab.vue",
