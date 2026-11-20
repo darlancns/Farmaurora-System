@@ -34,6 +34,9 @@ export class FakeSupabase {
   // DEFERRABLE em autocommit (ou uma imediata sem trocas no meio do comando). Violou: o comando inteiro é desfeito e o erro é 23505.
   private unicos: Array<{ tabela: string; colunas: string[]; nome: string }> = [];
 
+  // Ganchos de teste: `antes(tabela, op, fn)` roda `fn` UMA vez, logo antes da próxima operação dessa tabela (simula outra requisição que chegou no meio).
+  private ganchos: Array<{ tabela: string; op: Op; fn: () => void }> = [];
+
   // Funções SQL simuladas por nome (db.rpc); o teste registra a que precisa.
   readonly rpcs: Record<string, FuncaoRpc> = {};
   readonly chamadasRpc: Array<{ nome: string; args: Record<string, unknown> }> = [];
@@ -44,6 +47,15 @@ export class FakeSupabase {
 
   linhas(tabela: string): Row[] {
     return this.tabelas[tabela] ?? [];
+  }
+
+  antes(tabela: string, op: Op, fn: () => void): void {
+    this.ganchos.push({ tabela, op, fn });
+  }
+
+  tirarGancho(tabela: string, op: Op): (() => void) | null {
+    const i = this.ganchos.findIndex((g) => g.tabela === tabela && g.op === op);
+    return i < 0 ? null : this.ganchos.splice(i, 1)[0]!.fn;
   }
 
   falhar(tabela: string, op: Op, mensagem = "falha injetada"): void {
@@ -195,6 +207,7 @@ class Consulta implements PromiseLike<Resultado> {
 
   private executar(): Resultado {
     this.db.chamadas.push({ tabela: this.tabela, op: this.op });
+    this.db.tirarGancho(this.tabela, this.op)?.();
     const falha = this.db.tirarFalha(this.tabela, this.op);
     if (falha) return { data: null, error: { message: falha } };
 

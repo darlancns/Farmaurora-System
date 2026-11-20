@@ -425,7 +425,7 @@ export function proximaVersao(anterior: string, agora: number = Date.now()): str
   return new Date(Number.isNaN(base) ? agora : Math.max(agora, base + 1)).toISOString();
 }
 
-function conflitoDeVersao(atual: Compra): ComprasRegraError {
+export function conflitoDeVersao(atual: Compra): ComprasRegraError {
   return new ComprasRegraError(MENSAGEM_CONFLITO_VERSAO, 409, { atual });
 }
 

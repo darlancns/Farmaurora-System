@@ -150,6 +150,35 @@ export async function patchDir(id: string, patch: DirPatchDTO, por: string): Pro
   return row ? montarDir(row) : null;
 }
 
+// ── O Encaminhar da Compra (server/utils/comprasEncaminhar.ts) ───────────────────────────────────────────────
+// A DIR não é validada de novo aqui (quem monta o DTO é o mapa da compra, e a rota confere antes); o que este store garante é a
+// gravação IDEMPOTENTE: o id da linha é determinístico (`dir_` + id da ordem) e o insert é "on conflict (id) do nothing".
+
+/** Linhas da DIR (só `id` e `po`) com algum destes POs. Serve para a rota dizer QUAIS POs já existem, sem devolver mais nada. */
+export async function listarLinhasDaDirPorPo(pos: readonly string[]): Promise<Array<{ id: string; po: string }>> {
+  const achadas: Array<{ id: string; po: string }> = [];
+  if (pos.length === 0) return achadas;
+  const db = createSupabaseAdminClient();
+  for (let i = 0; i < pos.length; i += 100) {
+    const { data, error } = await db.from(TABELA).select("id, po").in("po", pos.slice(i, i + 100));
+    if (error) throw erro("buscar os POs na DIR", error);
+    achadas.push(...((data ?? []) as Array<{ id: string; po: string }>));
+  }
+  return achadas;
+}
+
+/**
+ * Cria as linhas da DIR de uma compra num ÚNICO comando: `insert ... on conflict (id) do nothing`. Uma linha cujo id já existe (uma tentativa
+ * anterior que parou antes de gravar o dir_id na ordem) NÃO é tocada nem duplicada: repetir é seguro. Sem nenhuma validação (ver acima).
+ */
+export async function inserirLinhasDaCompra(linhas: ReadonlyArray<{ id: string; dto: NewDirDTO }>, agoraIso: string): Promise<void> {
+  if (linhas.length === 0) return;
+  const db = createSupabaseAdminClient();
+  const rows = linhas.map(({ id, dto }) => ({ id, ...colunasDeDir(dto), created_at: agoraIso, updated_at: agoraIso }));
+  const { error } = await db.from(TABELA).upsert(rows, { onConflict: "id", ignoreDuplicates: true });
+  if (error) throw erro("criar as linhas da DIR a partir da compra", error);
+}
+
 export async function deleteDir(id: string): Promise<boolean> {
   const db = createSupabaseAdminClient();
 

@@ -15,7 +15,7 @@ import {
   STATUS_DA_COMPRA,
   type StatusDaCompra,
 } from "../constants/compra";
-import type { CamposCompraEditaveis, CompraEstado, ItemCompraEstado, OrdemCompraEstado } from "../types/compra";
+import type { CamposCompraEditaveis, CompraEstado, CorpoEncaminhar, ItemCompraEstado, OrdemCompraEstado } from "../types/compra";
 import type { MomentoPagamentoResumo } from "../types/compraResumo";
 import { chaveCadastro } from "./cadastroNome";
 import { validarNovoCadastro } from "./cadastroValidacao";
@@ -333,6 +333,39 @@ export function validarCompraSalvar(corpo: unknown): ResultadoCompra<CompraEstad
     estado.ordens = ordens.valor;
   }
   return ok(estado);
+}
+
+/** O corpo do POST /api/compras/:id/encaminhar: a versão que o cliente viu, `ordemIds` opcional e `confirmarTemperaturaMista` opcional. */
+export function validarEncaminharCompra(corpo: unknown): ResultadoCompra<CorpoEncaminhar> {
+  const o = objeto(corpo);
+  if (!o) return falha("Dados inválidos.");
+  const desconhecida = chavesDesconhecidas(o, ["atualizadoEm", "ordemIds", "confirmarTemperaturaMista"], "");
+  if (desconhecida) return falha(desconhecida);
+
+  const versao = validarVersao(o.atualizadoEm);
+  if (!versao.ok) return versao;
+
+  const valor: CorpoEncaminhar = { atualizadoEm: versao.valor };
+
+  if (o.ordemIds !== undefined) {
+    if (!Array.isArray(o.ordemIds) || o.ordemIds.length === 0 || o.ordemIds.length > COMPRA_MAX_ORDENS) {
+      return falha(`ordemIds: informe de 1 a ${COMPRA_MAX_ORDENS} identificadores de ordem.`);
+    }
+    const ids: string[] = [];
+    for (const [i, bruto] of o.ordemIds.entries()) {
+      const id = idDoCorpo(bruto, `ordemIds[${i}]`);
+      if (!id.ok) return id;
+      if (!ids.includes(id.valor)) ids.push(id.valor);
+    }
+    valor.ordemIds = ids;
+  }
+
+  if (o.confirmarTemperaturaMista !== undefined) {
+    const b = booleano(o.confirmarTemperaturaMista, "confirmarTemperaturaMista");
+    if (!b.ok) return b;
+    valor.confirmarTemperaturaMista = b.valor;
+  }
+  return ok(valor);
 }
 
 /** O mês da lista (`?ano_mes=AAAA-MM`); ausente = o `padrao`. */
