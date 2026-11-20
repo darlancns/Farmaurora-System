@@ -148,11 +148,15 @@ for (const [rotulo, conta] of [
       expect(copiado).toBe(naTela);
     });
 
-    test("Encaminhar para a DIR aparece desabilitado ('Disponível na próxima etapa')", async ({ page }) => {
+    test("Encaminhar para a DIR está habilitado para quem escreve em Compras e na DIR e só ABRE o painel (a prévia é só leitura)", async ({ page }) => {
       await abrirCompras(page);
       await criarCompraComPaciente(page, unico());
-      await expect(page.locator("#btn-encaminhar-dir")).toBeDisabled();
-      await expect(page.locator("#encaminhar-dir-aviso")).toHaveText("Disponível na próxima etapa");
+      await expect(page.locator("#btn-encaminhar-dir")).toBeEnabled();
+      await expect(page.locator("#encaminhar-dir-aviso")).toHaveText("Cria uma linha na DIR para cada ordem.");
+      await page.locator("#btn-encaminhar-dir").click();
+      await expect(page.locator("#compra-encaminhar")).toBeVisible();
+      await page.locator("#btn-encaminhar-voltar").click();
+      await expect(page.locator("#compra-encaminhar")).toHaveCount(0);
     });
 
     test("Duplicar cria a próxima compra com os mesmos dados e a abre", async ({ page }) => {

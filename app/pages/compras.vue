@@ -11,6 +11,8 @@ import GlobalHeader from "../components/GlobalHeader.vue";
 import { useAuth } from "../composables/useAuth";
 import { useCompraAcoes } from "../composables/useCompraAcoes";
 import { useCompraOpcoes } from "../composables/useCompraOpcoes";
+import { useDir } from "../composables/useDir";
+import { useEncaminharCompra } from "../composables/useEncaminharCompra";
 import { useComprasPagina } from "../composables/useComprasPagina";
 import { useToast } from "../composables/useToast";
 import { esperarQuadro, irParaCampoComAba } from "../utils/comprasFoco";
@@ -30,6 +32,8 @@ const { canWrite } = useAuth();
 const { showToast } = useToast();
 
 const podeEditar = computed<boolean>(() => canWrite("compras"));
+// O Encaminhar cria linhas na DIR: exige escrever em Compras E na DIR (as mesmas funções de permissão do app; o servidor confere de novo).
+const podeEscreverDir = computed<boolean>(() => canWrite("dir"));
 const opcoes = useCompraOpcoes();
 
 const pagina = useComprasPagina({
@@ -46,6 +50,26 @@ const { lista, editor } = pagina;
 
 // O que as linhas do formulário pedem ao servidor: busca de medicamento, pré-cadastro e temperatura nova.
 const acoes = useCompraAcoes({ opcoes, compraId: () => editor.compra.value?.id ?? null, avisar: (mensagem) => showToast(mensagem) });
+
+// O "Encaminhar para a DIR": o painel da coluna direita. Abrir descarrega o autosave; depois de criar linhas, a página invalida o cache da DIR
+// (para a linha aparecer ao abrir /dir), troca a compra do editor pela devolvida e atualiza o cartão e os totais da lista.
+const dir = useDir();
+const encaminhar = useEncaminharCompra({
+  compra: () => editor.compra.value,
+  flush: () => editor.flush(),
+  pendente: () => ["pendente", "salvando", "erro"].includes(editor.estado.value),
+  emConflito: () => editor.estado.value === "conflito",
+  aplicarCompra: (compra) => {
+    editor.definir(compra);
+    lista.aplicarCompra(compra);
+  },
+  sinalizarConflito: () => editor.sinalizarConflito(),
+  aoEncaminhar: (criadas) => {
+    dir.invalidarDir();
+    showToast(criadas.length === 1 ? "1 linha criada na DIR" : `${criadas.length} linhas criadas na DIR`);
+  },
+  avisar: (mensagem) => showToast(mensagem),
+});
 
 // O despachante da compra no Cadastro (telefone, e-mail e contato; nunca PIX): o resumo o usa.
 const despachanteCadastro = computed(() => (editor.compra.value ? opcoes.despachantePeloNome(editor.compra.value.despachante) : null));
@@ -137,6 +161,7 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", antesDeFecharAA
           :opcoes="opcoes.paraFormulario.value"
           :acoes="acoes"
           :ocupado="pagina.ocupado.value"
+          :po-ja-na-dir="encaminhar.conflitosPo.value"
           @alterar="(m) => editor.alterar(m)"
           @duplicar="pagina.duplicar()"
           @cancelar="pagina.pedirCancelar()"
@@ -151,7 +176,21 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", antesDeFecharAA
       </section>
 
       <aside id="compras-coluna-direita" :class="['min-w-0 lg:min-h-0 lg:overflow-y-auto lg:pb-10', classeDaColuna('direita', pagina.aba.value)]">
-        <CompraColunaDireita v-if="editor.compra.value" :compra="editor.compra.value" :despachante-cadastro="despachanteCadastro" @ir-para-campo="(campo) => irParaCampo(campo)" />
+        <CompraColunaDireita
+          v-if="editor.compra.value"
+          :compra="editor.compra.value"
+          :despachante-cadastro="despachanteCadastro"
+          :pode-escrever-compras="podeEditar"
+          :pode-escrever-dir="podeEscreverDir"
+          :encaminhar="encaminhar.painel.value"
+          :po-ja-na-dir="encaminhar.conflitosPo.value"
+          @ir-para-campo="(campo) => irParaCampo(campo)"
+          @encaminhar="encaminhar.abrir()"
+          @voltar-ao-resumo="encaminhar.fechar()"
+          @enviar-encaminhar="encaminhar.enviar()"
+          @confirmar-temperatura="(chave, valor) => encaminhar.confirmar(chave, valor)"
+          @recarregar-previa="encaminhar.recarregarPrevia()"
+        />
         <p v-else id="compras-direita-vazia" class="rounded-lg border border-hairline bg-paper-raised px-4 py-6 text-center text-[12.5px] text-ink-soft">
           O checklist e o resumo aparecem aqui quando você abrir uma compra.
         </p>

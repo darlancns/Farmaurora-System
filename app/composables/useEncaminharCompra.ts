@@ -72,6 +72,8 @@ export interface OpcoesUseEncaminharCompra {
   flush: () => Promise<boolean>;
   /** Há algo ainda não salvo? Enquanto houver, o Encaminhar espera (a prévia é do que está salvo). */
   pendente?: () => boolean;
+  /** O editor está parado num conflito de versão? Enquanto estiver, o Encaminhar espera a pessoa resolver. */
+  emConflito?: () => boolean;
   /** Troca a compra do editor pela devolvida pelo servidor (e atualiza o cartão e os totais da lista). */
   aplicarCompra: (compra: Compra) => void;
   /** 409 de versão: abre a faixa de conflito do editor (com "Carregar a versão salva"). */
@@ -228,6 +230,7 @@ export function useEncaminharCompra(opcoes: OpcoesUseEncaminharCompra): Encaminh
     if (!aberto.value || resultado.value !== null || trava.emAndamento.value) return null;
     if (carregando.value || (previa.value === null && erroPrevia.value === null)) return "Carregando a conferência…";
     if (erroPrevia.value !== null) return "Não foi possível carregar a conferência. Tente de novo.";
+    if (opcoes.emConflito?.()) return "Resolva o conflito de versão da compra (faixa no topo do formulário).";
     if (opcoes.pendente?.()) return "Salvando as alterações da compra…";
     if (desatualizada.value) return "Atualizando a conferência…";
     if (erroEnvio.value?.bloqueia) return "Carregue a versão salva da compra para continuar.";

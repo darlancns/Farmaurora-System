@@ -72,3 +72,26 @@ export function itensDaConferencia(previa: PreviaEncaminhar | null, compra: Comp
   }
   return itens;
 }
+
+/** As permissões que o Encaminhar exige: escrever em Compras E na DIR (as mesmas funções do app: canWrite). */
+export interface PermissoesEncaminhar {
+  compras: boolean;
+  dir: boolean;
+}
+
+export const RAZAO_SEM_PERMISSAO_COMPRAS = "Sem permissão para editar Compras";
+export const RAZAO_SEM_PERMISSAO_DIR = "Sem permissão para escrever na DIR";
+export const RAZAO_COMPRA_CANCELADA = "Compra cancelada";
+export const RAZAO_SEM_ORDENS = "Adicione uma ordem para encaminhar";
+export const RAZAO_TODAS_ENCAMINHADAS = "Todas as ordens já foram encaminhadas";
+export const TEXTO_ENCAMINHAR_DISPONIVEL = "Cria uma linha na DIR para cada ordem.";
+
+/** Por que o botão "Encaminhar para a DIR" está desabilitado (texto ao lado do botão), ou null quando pode abrir o painel. */
+export function razaoEncaminharDesabilitado(compra: Pick<Compra, "cancelada" | "ordens">, permissoes: PermissoesEncaminhar): string | null {
+  if (!permissoes.compras) return RAZAO_SEM_PERMISSAO_COMPRAS;
+  if (!permissoes.dir) return RAZAO_SEM_PERMISSAO_DIR;
+  if (compra.cancelada) return RAZAO_COMPRA_CANCELADA;
+  if (compra.ordens.length === 0) return RAZAO_SEM_ORDENS;
+  if (compra.ordens.every((o) => (o.dirId ?? "").trim() !== "")) return RAZAO_TODAS_ENCAMINHADAS;
+  return null;
+}

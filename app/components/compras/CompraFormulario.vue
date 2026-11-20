@@ -27,6 +27,8 @@ const props = defineProps<{
   /** O que as linhas pedem ao servidor (busca de medicamento, pré-cadastro, temperatura nova). Sem ele, não buscam nem registram. */
   acoes?: AcoesCompra;
   ocupado?: boolean;
+  /** POs que a prévia do Encaminhar diz que já existem na DIR: entram na checagem (estado e "N pendências" do cabeçalho). */
+  poJaNaDir?: readonly string[];
 }>();
 
 // As linhas (três níveis abaixo) recebem as ações por provide/inject, sem repassar a prop de bloco em bloco.
@@ -48,8 +50,9 @@ const grupos = computed(() =>
 );
 const desabilitado = computed(() => !props.podeEditar || props.compra.cancelada);
 // O estado e as pendências do cabeçalho acompanham o que está na tela (a mesma checagem do painel da direita), sem esperar o salvamento.
-const status = computed(() => statusDaCompra(props.compra));
-const pendencias = computed(() => contarPendencias(props.compra));
+const opcoesChecklist = computed(() => ((props.poJaNaDir?.length ?? 0) > 0 ? { poJaNaDir: [...(props.poJaNaDir ?? [])] } : {}));
+const status = computed(() => statusDaCompra(props.compra, opcoesChecklist.value));
+const pendencias = computed(() => contarPendencias(props.compra, opcoesChecklist.value));
 </script>
 
 <template>

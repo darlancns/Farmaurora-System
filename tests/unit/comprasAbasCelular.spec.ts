@@ -193,7 +193,7 @@ describe("Resumo no celular: barra de ações fixa no pé da tela", () => {
     montar(defineComponent({ render: () => h(CompraColunaDireita, { compra, despachanteCadastro: null }) }));
   }
 
-  it("'Copiar resumo' e 'Encaminhar para a DIR' (desabilitado) lado a lado numa barra FIXA acima da barra de navegação, com o safe-area", () => {
+  it("'Copiar resumo' e 'Encaminhar para a DIR' lado a lado numa barra FIXA acima da barra de navegação, com o safe-area", () => {
     resumo();
     const barra = q<HTMLElement>("#compra-barra-acoes")!;
     for (const c of ["max-lg:fixed", "max-lg:inset-x-0", "max-lg:bottom-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom,0px))]", "max-lg:bg-paper-raised", "max-lg:z-30"]) {
@@ -206,7 +206,7 @@ describe("Resumo no celular: barra de ações fixa no pé da tela", () => {
     expect(copiar.className).toContain("max-lg:min-h-11");
     expect(encaminhar.disabled).toBe(true);
     expect(copiar.disabled).toBe(false);
-    expect(texto(q("#encaminhar-dir-aviso"))).toBe("Disponível na próxima etapa");
+    expect(texto(q("#encaminhar-dir-aviso"))).toBe("Sem permissão para editar Compras"); // a coluna aqui não recebe as permissões
   });
 
   it("a coluna reserva espaço no fim para a barra fixa não cobrir o resumo (só abaixo de lg)", () => {

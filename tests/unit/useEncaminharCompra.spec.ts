@@ -299,6 +299,20 @@ describe("pode enviar?", () => {
     expect(e.painel.value).toMatchObject({ podeEnviar: false, motivoBloqueio: "Salvando as alterações da compra…" });
   });
 
+  it("o editor parado num conflito de versão segura o Encaminhar (com o motivo)", async () => {
+    const c = cenario();
+    let conflito = false;
+    const e = useEncaminharCompra({ compra: () => c.compra.value, flush: c.flush, emConflito: () => conflito, aplicarCompra: c.aplicarCompra, sinalizarConflito: c.sinalizarConflito, api: c.api });
+    await e.abrir();
+    await avancar(0);
+    expect(e.painel.value.podeEnviar).toBe(true);
+    conflito = true;
+    c.salvouVersao("2026-12-01T12:09:00.000Z"); // qualquer mudança reavalia o estado do painel
+    await nextTick();
+    expect(e.painel.value.motivoBloqueio).toBe("Resolva o conflito de versão da compra (faixa no topo do formulário).");
+    expect(e.painel.value.podeEnviar).toBe(false);
+  });
+
   it("conta só as ordens ainda sem dir_id", async () => {
     const base = compraTeste({ ordens: [ordemTeste(1, { dirId: "dir_ord_teste_0001", encaminhadaEm: "2026-12-01T12:00:00.000Z" }), ordemTeste(2)] });
     const e = await aberto(cenario(base));

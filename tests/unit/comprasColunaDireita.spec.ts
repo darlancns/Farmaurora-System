@@ -230,13 +230,13 @@ describe("coluna direita", () => {
     expect(q("#compra-resumo-texto")!.textContent).toContain("Paciente: *Paciente Novo*");
   });
 
-  it("'Encaminhar para a DIR': secundário, DESABILITADO, com 'Disponível na próxima etapa'", () => {
+  it("'Encaminhar para a DIR': secundário; sem as permissões (a coluna não as recebe) fica DESABILITADO com a razão ao lado (o resto está em comprasEncaminharBotao.spec.ts)", () => {
     coluna(compraCompleta());
     const b = q<HTMLButtonElement>("#btn-encaminhar-dir")!;
     expect(b.disabled).toBe(true);
     expect(texto(b)).toBe("Encaminhar para a DIR");
     expect(b.className).not.toContain("bg-accent-dark");
-    expect(texto(q("#encaminhar-dir-aviso"))).toBe("Disponível na próxima etapa");
+    expect(texto(q("#encaminhar-dir-aviso"))).toBe("Sem permissão para editar Compras");
     expect(b.getAttribute("aria-describedby")).toBe("encaminhar-dir-aviso");
   });
 
