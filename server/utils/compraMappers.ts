@@ -1,5 +1,6 @@
 import type { Compra, CompraDaLista, ItemCompra, OrdemCompra } from "../../shared/types/compra";
-import { contarPendencias, statusDaCompra, type CompraParaChecklist } from "../../shared/utils/compraChecklist";
+import type { CompraParaChecklist } from "../../shared/utils/compraChecklist";
+import { itemDaLista } from "../../shared/utils/compraLista";
 import type { MomentoPagamentoResumo } from "../../shared/types/compraResumo";
 
 // Mapeadores PUROS linha (Supabase: compras, compra_ordens, compra_itens) ↔ modelo — sem Supabase nem rede, testáveis isoladamente
@@ -258,29 +259,15 @@ export function montarCompraParaChecklist(row: CompraListaRow, ordens: readonly 
   };
 }
 
-/** Um item da lista do mês: só o necessário para a linha do painel (ver CompraDaLista). */
+/** Um item da lista do mês: só o necessário para a linha do painel (ver CompraDaLista; a regra é a mesma do cliente: itemDaLista). */
 export function montarCompraDaLista(row: CompraListaRow, ordens: readonly OrdemListaRow[], itens: readonly ItemListaRow[]): CompraDaLista {
-  const compra = montarCompraParaChecklist(row, ordens, itens);
-  const nomes: string[] = [];
-  for (const o of compra.ordens) {
-    for (const i of o.itens) {
-      const nome = i.medicamento.trim();
-      if (nome !== "" && !nomes.includes(nome)) nomes.push(nome);
-    }
-  }
-  return {
+  return itemDaLista({
+    ...montarCompraParaChecklist(row, ordens, itens),
     id: row.id,
     anoMes: row.ano_mes,
     sequencia: row.sequencia,
-    cancelada: row.cancelada === true,
-    paciente: texto(row.paciente),
-    medicamentos: nomes,
-    totalOrdens: compra.ordens.length,
-    totalOrdensEncaminhadas: compra.ordens.filter((o) => o.dirId !== null && o.dirId.trim() !== "").length,
-    pendencias: contarPendencias(compra),
-    status: statusDaCompra(compra),
     atualizadoEm: instanteIso(row.updated_at),
-  };
+  });
 }
 
 // ── Modelo → linha (escrita) ─────────────────────────────────────────────────────────────────────────────────────
