@@ -478,9 +478,10 @@ async function sincronizarFilhas(db: Db, compraId: string, atual: CompraCarregad
 export interface OpcoesSalvarCompra {
   /**
    * Chamado com a compra como está no banco, DEPOIS de conferir a versão e ANTES de gravar qualquer coisa: é onde as rotas validam
-   * o estado contra os Cadastros (e aceitam o valor que a compra já tinha). Se lançar, nada é gravado.
+   * o estado contra os Cadastros (e aceitam o valor que a compra já tinha). Se lançar, nada é gravado. Se DEVOLVER um estado, é ele
+   * que é gravado (as rotas devolvem o estado com os nomes como estão no Cadastro).
    */
-  antesDeGravar?: (atual: Compra) => Promise<void>;
+  antesDeGravar?: (atual: Compra) => Promise<CompraEstado | void>;
 }
 
 /**
@@ -492,16 +493,16 @@ export interface OpcoesSalvarCompra {
  *    estado completo (o que não vier é apagado).
  * O UPDATE da compra é compare-and-swap pela versão lida: de dois salvamentos simultâneos só um passa, o outro leva 409.
  */
-export async function salvarCompra(id: string, estado: CompraEstado, usuario: string, opcoes: OpcoesSalvarCompra = {}): Promise<Compra | null> {
+export async function salvarCompra(id: string, estadoRecebido: CompraEstado, usuario: string, opcoes: OpcoesSalvarCompra = {}): Promise<Compra | null> {
   const db = createSupabaseAdminClient();
   const atual = await carregar(db, id);
   if (!atual) return null;
 
   const compraAtual = compraDe(atual);
   if (atual.row.cancelada === true) throw new ComprasRegraError(MENSAGEM_COMPRA_CANCELADA, 409, { atual: compraAtual });
-  if (estado.atualizadoEm !== instanteIso(atual.row.updated_at)) throw conflitoDeVersao(compraAtual);
+  if (estadoRecebido.atualizadoEm !== instanteIso(atual.row.updated_at)) throw conflitoDeVersao(compraAtual);
 
-  await opcoes.antesDeGravar?.(compraAtual);
+  const estado = (await opcoes.antesDeGravar?.(compraAtual)) ?? estadoRecebido;
   if (estado.ordens) await conferirIdsDoCorpo(db, atual, estado.ordens);
 
   const { data, error } = await db
