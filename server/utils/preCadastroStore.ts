@@ -1,6 +1,7 @@
 import type { MedicamentoDoCadastro, PreCadastroMedicamento, RespostaMedicamentoJaCadastrado, RespostaPreCadastro, StatusPreCadastro } from "../../shared/types/compra";
 import type { PreCadastroMedicamentoDTO } from "../../shared/utils/compraValidacao";
 import { chaveCadastro } from "../../shared/utils/cadastroNome";
+import { instanteIso } from "./compraMappers";
 import { buscarMedicamentoPorNome } from "./comprasCatalogo";
 import { ComprasRegraError } from "./comprasStore";
 import { createSupabaseAdminClient } from "./supabaseServerClient";
@@ -22,7 +23,7 @@ import { erro, randomId } from "./storeKit";
  */
 
 const TABELA = "pre_cadastro_medicamentos";
-const COLUNAS = "id, nome, nome_chave, temperatura, status, compra_id, cadastro_id, solicitado_por";
+const COLUNAS = "id, nome, nome_chave, temperatura, status, compra_id, cadastro_id, solicitado_por, created_at";
 const CODIGO_UNICO_VIOLADO = "23505";
 
 export const MENSAGEM_MEDICAMENTO_JA_CADASTRADO = "Esse medicamento já está no Cadastro. Use o do Cadastro.";
@@ -37,6 +38,8 @@ interface PreCadastroRow {
   compra_id: string | null;
   cadastro_id: string | null;
   solicitado_por: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export function montarPreCadastro(row: PreCadastroRow): PreCadastroMedicamento {
@@ -48,6 +51,7 @@ export function montarPreCadastro(row: PreCadastroRow): PreCadastroMedicamento {
     compraId: row.compra_id ?? null,
     cadastroId: row.cadastro_id ?? null,
     solicitadoPor: row.solicitado_por ?? "",
+    criadoEm: instanteIso(row.created_at ?? ""),
   };
 }
 
@@ -84,6 +88,7 @@ export async function pedirPreCadastro(dto: PreCadastroMedicamentoDTO, por: stri
   const pendente = await pendentePelaChave(db, chave);
   if (pendente) return { status: 200, corpo: { criado: false, preCadastro: montarPreCadastro(pendente) } };
 
+  const agora = new Date().toISOString();
   const row: PreCadastroRow = {
     id: randomId("pre_"),
     nome: dto.nome,
@@ -93,6 +98,8 @@ export async function pedirPreCadastro(dto: PreCadastroMedicamentoDTO, por: stri
     compra_id: dto.compraId,
     cadastro_id: null,
     solicitado_por: por,
+    created_at: agora,
+    updated_at: agora,
   };
   const { error } = await db.from(TABELA).insert(row);
   if (error) {

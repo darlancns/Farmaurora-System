@@ -301,6 +301,8 @@ export interface PreCadastroMedicamento {
   compraId: string | null;
   cadastroId: string | null;
   solicitadoPor: string;
+  /** Quando foi pedido (ISO, UTC). */
+  criadoEm: string;
 }
 
 /** O medicamento que já está no Cadastro (o `data` do 409 do pré-cadastro; a tela passa a usá-lo). */

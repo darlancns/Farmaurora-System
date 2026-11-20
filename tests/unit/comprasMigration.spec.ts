@@ -36,8 +36,25 @@ describe("migration de Compras", () => {
     expect(anteriores).toContain("20261119160000");
   });
 
-  it("o cabeçalho avisa que JÁ FOI APLICADA em produção e que NÃO se reaplica", () => {
-    expect(bruto.split(/\r?\n/)[0]).toBe("-- JÁ APLICADA EM PRODUÇÃO EM 19/11/2026; NÃO REAPLICAR.");
+  it("o cabeçalho avisa que JÁ FOI APLICADA em produção e que NÃO se reaplica, e que a recorrente veio por ALTER separado", () => {
+    const linhas = bruto.split(/\r?\n/);
+    expect(linhas[0]).toBe("-- JÁ APLICADA EM PRODUÇÃO EM 19/11/2026; NÃO REAPLICAR.");
+    expect(linhas[1]).toBe("-- recorrente adicionada em 19/11/2026 por ALTER separado; este arquivo mostra o estado final.");
+  });
+
+  // O espelho tem de ser IDÊNTICO à produção: contar as colunas pega uma coluna esquecida ou a mais.
+  it.each([
+    ["compras", 30],
+    ["compra_ordens", 13],
+    ["compra_itens", 15],
+    ["pre_cadastro_medicamentos", 12],
+  ])("%s tem exatamente %i colunas", (tabela, esperado) => {
+    const corpo = bloco(tabela).slice(bloco(tabela).indexOf("(") + 1);
+    const colunas = corpo
+      .split(/,(?![^()]*\))/) // vírgulas fora de parênteses (numeric(14, 2), check (...))
+      .map((c) => c.trim())
+      .filter((c) => c !== "" && !/^(constraint|primary key|unique|check|foreign key)\b/.test(c));
+    expect(colunas, colunas.join(" | ")).toHaveLength(esperado);
   });
 
   it("não tem drop, delete nem truncate, e não mexe em dados (sem insert nem update: nenhuma carga)", () => {
@@ -75,6 +92,7 @@ describe("migration de Compras", () => {
       "termo_posterior boolean not null default false",
       "courier_simples boolean not null default false",
       "isencao boolean not null default false",
+      "recorrente boolean not null default false",
       "pagamento_alvara boolean,",
       "pagamento_momento text,",
       "documentos boolean,",
@@ -122,6 +140,8 @@ describe("migration de Compras", () => {
       "frete_real numeric(14, 2),",
       "dir_id text,",
       "encaminhada_em timestamptz,",
+      "created_at timestamptz not null default now()",
+      "updated_at timestamptz not null default now()",
     ]) {
       expect(b, coluna).toContain(coluna);
     }
@@ -148,6 +168,8 @@ describe("migration de Compras", () => {
       "temperatura text not null default ''",
       "valor_unitario numeric(14, 2),",
       "valor_real numeric(14, 2),",
+      "created_at timestamptz not null default now()",
+      "updated_at timestamptz not null default now()",
     ]) {
       expect(b, coluna).toContain(coluna);
     }
@@ -169,6 +191,8 @@ describe("migration de Compras", () => {
       "solicitado_por text,",
       "decidido_por text,",
       "decidido_em timestamptz",
+      "created_at timestamptz not null default now()",
+      "updated_at timestamptz not null default now()",
     ]) {
       expect(b, coluna).toContain(coluna);
     }

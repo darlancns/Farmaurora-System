@@ -200,10 +200,11 @@ describe("POST /api/compras/pre-cadastro-medicamentos", () => {
       compraId: "cmp_teste_1",
       cadastroId: null,
       solicitadoPor: "Op Teste",
+      criadoEm: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
     });
     expect(r.corpo.preCadastro.id).toMatch(/^pre_/);
     expect(fake.tabelas.pre_cadastro_medicamentos).toEqual([
-      expect.objectContaining({ nome: "MEDICAMENTO NOVO TESTE", nome_chave: "medicamento novo teste", status: "pendente", compra_id: "cmp_teste_1", cadastro_id: null, solicitado_por: "Op Teste" }),
+      expect.objectContaining({ nome: "MEDICAMENTO NOVO TESTE", nome_chave: "medicamento novo teste", status: "pendente", compra_id: "cmp_teste_1", cadastro_id: null, solicitado_por: "Op Teste", created_at: expect.any(String), updated_at: expect.any(String) }),
     ]);
     // Nada foi escrito no Cadastro de medicamentos (a aprovação é de outra etapa).
     expect(fake.tabelas.cadastro_medicamentos).toHaveLength(2);

@@ -1,4 +1,5 @@
 -- JÁ APLICADA EM PRODUÇÃO EM 19/11/2026; NÃO REAPLICAR.
+-- recorrente adicionada em 19/11/2026 por ALTER separado; este arquivo mostra o estado final.
 --
 -- Compras: as quatro tabelas da página Compras (compras, compra_ordens, compra_itens e pre_cadastro_medicamentos).
 --
@@ -43,6 +44,7 @@ create table if not exists public.compras (
   termo_posterior   boolean     not null default false,
   courier_simples   boolean     not null default false,
   isencao           boolean     not null default false,
+  recorrente        boolean     not null default false,
   pagamento_alvara  boolean,
   pagamento_momento text,
   documentos        boolean,
@@ -67,6 +69,8 @@ create table if not exists public.pre_cadastro_medicamentos (
   solicitado_por text,
   decidido_por   text,
   decidido_em    timestamptz,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now(),
   constraint pre_cadastro_medicamentos_status_valido check (status in ('pendente', 'aprovado', 'rejeitado'))
 );
 
@@ -86,6 +90,8 @@ create table if not exists public.compra_ordens (
   frete_real    numeric(14, 2),
   dir_id        text,
   encaminhada_em timestamptz,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now(),
   constraint compra_ordens_posicao_valida check (posicao >= 1),
   constraint compra_ordens_po_valido check (po = '' or po ~ '^PO[0-9]{2}-[0-9]{2}-[0-9]{4}$'),
   constraint compra_ordens_frete_valido check (frete is null or frete >= 0),
@@ -107,6 +113,8 @@ create table if not exists public.compra_itens (
   temperatura            text        not null default '',
   valor_unitario         numeric(14, 2),
   valor_real             numeric(14, 2),
+  created_at             timestamptz not null default now(),
+  updated_at             timestamptz not null default now(),
   constraint compra_itens_posicao_valida check (posicao >= 1),
   constraint compra_itens_valor_unitario_valido check (valor_unitario is null or valor_unitario >= 0),
   constraint compra_itens_valor_real_valido check (valor_real is null or valor_real >= 0),
