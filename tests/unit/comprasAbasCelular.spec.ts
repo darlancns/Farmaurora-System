@@ -6,7 +6,7 @@ import ComprasAbas from "../../app/components/compras/ComprasAbas.vue";
 import CompraColunaDireita from "../../app/components/compras/CompraColunaDireita.vue";
 import CompraFormCabecalho from "../../app/components/compras/CompraFormCabecalho.vue";
 import { ABA_DA_COLUNA, ABAS_COMPRAS, abaInicial, abaValida, classeDaColuna, ROTULO_ABA_COMPRAS, type AbaCompras } from "../../app/utils/comprasAbas";
-import { compraTeste } from "./helpers/formularioCompra";
+import { compraDeTeste } from "./helpers/compraFixtures";
 
 // A navegação em ABAS abaixo de lg (um painel por vez), o cabeçalho de duas linhas com o menu "…" e a barra fixa do Resumo. O que muda
 // com a largura é CSS (max-lg:/lg:): aqui se confere o contrato das classes; o comportamento por JS (que depende da largura) fica em
@@ -116,8 +116,6 @@ describe("cabeçalho do formulário no celular", () => {
           h(CompraFormCabecalho, {
             anoMes: "2026-11",
             sequencia: 13,
-            status: "rascunho",
-            pendencias: 3,
             cancelada: extra.cancelada ?? false,
             podeEditar: extra.podeEditar ?? true,
             estado: "salvo",
@@ -142,14 +140,19 @@ describe("cabeçalho do formulário no celular", () => {
     expect(ev).toEqual(["voltar"]);
   });
 
-  it("duas linhas: título e selo em cima; pendências, salvamento e o menu '…' embaixo", () => {
+  it("duas linhas: título (e selo Cancelada, se for) em cima; salvamento e o menu '…' embaixo; sem contador de pendências nem chips", () => {
     cabecalho();
     expect(texto(q("#compra-titulo"))).toBe("Compra 13 - Novembro/2026");
-    expect(texto(q("#compra-pendencias-celular"))).toBe("3 pendências");
-    expect(q("#compra-pendencias-celular")!.className).toContain("lg:hidden");
-    expect(q("#compra-pendencias")!.className).toContain("lg:inline"); // a versão larga (escondida abaixo de lg)
+    expect(q("#compra-pendencias-celular")).toBeNull();
+    expect(q("#compra-pendencias")).toBeNull();
+    expect(q("[data-status]")).toBeNull();
     expect(texto(q("#compra-salvamento"))).toBe("Salvo automaticamente às 16:22");
     expect(q("#btn-menu-compra")).not.toBeNull();
+  });
+
+  it("compra cancelada: o selo 'Cancelada' aparece ao lado do título", () => {
+    cabecalho({ cancelada: true });
+    expect(texto(q("[data-selo-cancelada]"))).toBe("Cancelada");
   });
 
   it("Duplicar e Cancelar viram o menu '…' (padrão ActionsMenu) no celular, e os botões comuns só em lg+", () => {
@@ -189,7 +192,7 @@ describe("cabeçalho do formulário no celular", () => {
 });
 
 describe("Resumo no celular: barra de ações fixa no pé da tela", () => {
-  function resumo(compra: Compra = compraTeste({ paciente: "PACIENTE TESTE" })) {
+  function resumo(compra: Compra = compraDeTeste({ paciente: "PACIENTE TESTE" })) {
     montar(defineComponent({ render: () => h(CompraColunaDireita, { compra, despachanteCadastro: null }) }));
   }
 
@@ -202,7 +205,9 @@ describe("Resumo no celular: barra de ações fixa no pé da tela", () => {
     const copiar = q<HTMLButtonElement>("#btn-copiar-resumo")!;
     const encaminhar = q<HTMLButtonElement>("#btn-encaminhar-dir")!;
     expect(copiar.parentElement).toBe(encaminhar.parentElement); // na mesma linha
-    expect(copiar.parentElement!.className).toContain("max-lg:flex-row");
+    expect(copiar.parentElement).toBe(barra);
+    expect(copiar.className).toContain("flex-1");
+    expect(encaminhar.className).toContain("flex-1");
     expect(copiar.className).toContain("max-lg:min-h-11");
     expect(encaminhar.disabled).toBe(true);
     expect(copiar.disabled).toBe(false);

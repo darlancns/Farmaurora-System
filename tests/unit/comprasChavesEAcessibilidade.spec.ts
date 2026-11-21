@@ -1,16 +1,15 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp, defineComponent, h, nextTick } from "vue";
-import type { ItemCompra, OrdemCompra } from "../../shared/types/compra";
+import type { ItemCompra } from "../../shared/types/compra";
 import CompraFormCabecalho from "../../app/components/compras/CompraFormCabecalho.vue";
 import ComprasListaPainel from "../../app/components/compras/ComprasListaPainel.vue";
 import { PENDENCIAS_PADRAO } from "../../shared/constants/compra";
-import { itemVazio, ordemVazia } from "../../shared/utils/compraForm";
-import { compraTeste, clicar, digitar, montarFormulario, q, qa, texto, type FormularioMontado } from "./helpers/formularioCompra";
+import { clicar, compraComUmMedicamento, digitar, itemDeTeste, montarFormulario, q, qa, texto, type FormularioMontado } from "./helpers/montarFormulario";
 
-// (1) A CHAVE DAS ORDENS é o id (nunca o índice): remover a ordem do MEIO com campos diferentes em cada ordem não troca nada nas outras —
-//     e o DOM da ordem que fica é o MESMO (foco, cursor e texto em digitação sobrevivem). (2) Acessibilidade mínima: região aria-live do
-//     salvamento, role=alert só quando falha de vez, botões só de ícone com aria-label, foco depois de remover, chips com aria-pressed.
+// (1) A CHAVE DOS MEDICAMENTOS é o id (nunca o índice): remover o do MEIO, com campos diferentes em cada um, não troca nada nos outros — e o
+//     DOM do que fica é o MESMO (foco e texto em digitação sobrevivem). (2) Acessibilidade mínima: região aria-live do salvamento, role=alert só
+//     quando falha de vez, botões só de ícone com aria-label, foco depois de remover, chips com aria-pressed. Dados fictícios (TESTE).
 
 let montado: FormularioMontado | null = null;
 const extras: Array<() => void> = [];
@@ -21,129 +20,78 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-const item = (id: string, posicao: number, extra: Partial<ItemCompra> = {}): ItemCompra => ({ ...itemVazio(posicao), id, ...extra });
-const ordem = (id: string, posicao: number, itens: ItemCompra[], extra: Partial<OrdemCompra> = {}): OrdemCompra => ({ ...ordemVazia(posicao), id, posicao, itens, ...extra });
+const med = (id: string, campo: string): string => `#compra-item-${id}-${campo}`;
 
-const OPCOES = {
-  fornecedores: [
-    { nome: "Fornecedor Teste A", pais: "", prazoAlertaDias: null, semAlerta: true },
-    { nome: "Fornecedor Teste B", pais: "", prazoAlertaDias: null, semAlerta: true },
-    { nome: "Fornecedor Teste C", pais: "", prazoAlertaDias: null, semAlerta: true },
-  ],
-  ciasAereas: [{ nome: "Cia A" }, { nome: "Cia B" }, { nome: "Cia C" }],
-  temperaturas: [{ nome: "2°C a 8°C" }, { nome: "Ambiente" }],
-};
-
-function tresOrdensDiferentes(): OrdemCompra[] {
+function tresMedicamentosDiferentes(): ItemCompra[] {
   return [
-    ordem("ord_aaaaaa", 1, [item("itm_a1", 1, { medicamento: "MED A", quantidade: "1 cx", valorUnitario: 1.5, laboratorio: "Lab A" })], { fornecedor: "Fornecedor Teste A", envio: "Air Cargo", cia: "Cia A", po: "PO26-11-0001", frete: 10, freteReal: 11 }),
-    ordem("ord_bbbbbb", 2, [item("itm_b1", 1, { medicamento: "MED B", quantidade: "2 cx", valorUnitario: 2.5 }), item("itm_b2", 2, { medicamento: "MED B2", quantidade: "22 cx" })], { fornecedor: "Fornecedor Teste B", envio: "Courier Formal", cia: "Cia B", po: "PO26-11-0002", frete: 20, freteReal: 21 }),
-    ordem("ord_cccccc", 3, [item("itm_c1", 1, { medicamento: "MED C", quantidade: "3 cx", valorUnitario: 3.5, referencia: "REF C" })], { fornecedor: "Fornecedor Teste C", envio: "Courier Simples", cia: "Cia C", po: "PO26-11-0003", frete: 30.5, freteReal: null }),
+    itemDeTeste(1, { id: "itm_aaaaaa", medicamento: "MED A", laboratorio: "Lab A", brand: "bioequivalente", quantidade: "1 cx", temperatura: "Ambiente", valorUnitario: 1.5, valorReal: 1 }),
+    itemDeTeste(2, { id: "itm_bbbbbb", medicamento: "MED B", laboratorio: "Lab B", brand: "referencia", quantidade: "2 cx", temperatura: "2°C a 8°C", valorUnitario: 2.5, valorReal: 2 }),
+    itemDeTeste(3, { id: "itm_cccccc", medicamento: "MED C", laboratorio: "Lab C", brand: "", quantidade: "3 cx", temperatura: "", valorUnitario: 3.5, valorReal: null }),
   ];
 }
 
-describe("chave por id nas ordens: remover a ordem do MEIO", () => {
-  it("as outras duas mantêm TODOS os seus valores (fornecedor, envio, cia, PO, fretes e itens), cada uma diferente da outra", async () => {
-    const f = (montado = montarFormulario(compraTeste({ ordens: tresOrdensDiferentes() }), { opcoes: OPCOES }));
-    await clicar("#ordem-ord_bbbbbb-remover");
-    [...document.querySelectorAll("[role=alertdialog] button")].find((b) => texto(b) === "Remover ordem")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    await nextTick();
-    expect(f.compra.value.ordens.map((o) => [o.id, o.posicao])).toEqual([
-      ["ord_aaaaaa", 1],
-      ["ord_cccccc", 2],
-    ]);
-    // A ordem A não mudou.
-    expect(texto(q("#ordem-ord_aaaaaa-fornecedor"))).toBe("Fornecedor Teste A");
-    expect(texto(q("#ordem-ord_aaaaaa-envio"))).toBe("Air Cargo");
-    expect(texto(q("#ordem-ord_aaaaaa-cia"))).toBe("Cia A");
-    expect(q<HTMLInputElement>("#ordem-ord_aaaaaa-po")!.value).toBe("PO26-11-0001");
-    expect(q<HTMLInputElement>("#ordem-ord_aaaaaa-frete")!.value).toBe("10,00");
-    expect(q<HTMLInputElement>("#ordem-ord_aaaaaa-frete-real")!.value).toBe("11,00");
-    expect(q<HTMLInputElement>("#item-itm_a1-medicamento")!.value).toBe("MED A");
-    expect(q<HTMLInputElement>("#item-itm_a1-laboratorio")!.value).toBe("Lab A");
-    // A ordem C (agora a 2ª) manteve os dela, e o título dela virou "Ordem 2".
-    expect(texto(q("#ordem-ord_cccccc h3"))).toBe("Ordem 2");
-    expect(texto(q("#ordem-ord_cccccc-fornecedor"))).toBe("Fornecedor Teste C");
-    expect(texto(q("#ordem-ord_cccccc-envio"))).toBe("Courier Simples");
-    expect(texto(q("#ordem-ord_cccccc-cia"))).toBe("Cia C");
-    expect(q<HTMLInputElement>("#ordem-ord_cccccc-po")!.value).toBe("PO26-11-0003");
-    expect(q<HTMLInputElement>("#ordem-ord_cccccc-frete")!.value).toBe("30,50");
-    expect(q<HTMLInputElement>("#ordem-ord_cccccc-frete-real")!.value).toBe("");
-    expect(q<HTMLInputElement>("#item-itm_c1-medicamento")!.value).toBe("MED C");
-    expect(q<HTMLInputElement>("#item-itm_c1-quantidade")!.value).toBe("3 cx");
-    expect(q<HTMLInputElement>("#item-itm_c1-referencia")!.value).toBe("REF C");
-    expect(q<HTMLDetailsElement>("#item-itm_c1 details")!.open).toBe(true);
-    expect(q<HTMLDetailsElement>("#item-itm_a1 details")!.open).toBe(true); // a A tinha laboratório
-    expect(q("#ordem-ord_bbbbbb")).toBeNull();
-    expect(q("#item-itm_b1")).toBeNull();
+const OPCOES = { temperaturas: [{ nome: "2°C a 8°C" }, { nome: "Ambiente" }] };
+
+describe("chave por id nos medicamentos: remover o do MEIO", () => {
+  it("os outros dois mantêm TODOS os seus valores (medicamento, laboratório, brand, quantidade, temperatura e valores), cada um diferente do outro", async () => {
+    montado = montarFormulario(compraComUmMedicamento({ itens: tresMedicamentosDiferentes() }), { opcoes: OPCOES });
+    await clicar(med("itm_bbbbbb", "remover"));
+    expect(montado.compra().itens.map((i) => [i.id, i.posicao])).toEqual([["itm_aaaaaa", 1], ["itm_cccccc", 2]]);
+    expect(q<HTMLInputElement>(med("itm_aaaaaa", "laboratorio"))!.value).toBe("Lab A");
+    expect(q<HTMLInputElement>(med("itm_cccccc", "laboratorio"))!.value).toBe("Lab C");
+    expect(q<HTMLInputElement>(med("itm_aaaaaa", "quantidade"))!.value).toBe("1 cx");
+    expect(q<HTMLInputElement>(med("itm_cccccc", "quantidade"))!.value).toBe("3 cx");
+    expect(q<HTMLInputElement>(med("itm_aaaaaa", "medicamento"))!.value).toBe("MED A");
+    expect(q<HTMLInputElement>(med("itm_cccccc", "medicamento"))!.value).toBe("MED C");
+    expect(texto(q(med("itm_aaaaaa", "brand")))).toBe("Bioequivalente");
+    expect(texto(q(med("itm_aaaaaa", "temperatura")))).toBe("Ambiente");
+    expect(q<HTMLInputElement>(med("itm_aaaaaa", "valor-unitario"))!.value).toBe("1,50");
+    expect(q(med("itm_bbbbbb", "laboratorio"))).toBeNull();
   });
 
-  it("o DOM da ordem que fica é o MESMO: o foco e o texto que estava sendo digitado na ordem C sobrevivem à remoção da B", async () => {
-    const f = (montado = montarFormulario(compraTeste({ ordens: tresOrdensDiferentes() }), { opcoes: OPCOES }));
-    const cartaoC = q<HTMLElement>("#ordem-ord_cccccc")!;
-    const freteC = q<HTMLInputElement>("#ordem-ord_cccccc-frete")!;
-    const poC = q<HTMLInputElement>("#ordem-ord_cccccc-po")!;
-    await digitar("#ordem-ord_cccccc-frete", "12,3"); // texto cru, sem sair do campo
-    poC.focus();
-    expect(document.activeElement).toBe(poC);
-    // A B some (como se outra pessoa/outro caminho a tivesse tirado; o foco estava na C).
-    f.compra.value = { ...f.compra.value, ordens: [f.compra.value.ordens[0]!, { ...f.compra.value.ordens[2]!, posicao: 2 }] };
-    await nextTick();
-    expect(q("#ordem-ord_cccccc")).toBe(cartaoC); // o MESMO elemento (chave = id)
-    expect(q("#ordem-ord_cccccc-po")).toBe(poC);
-    expect(document.activeElement).toBe(poC); // o foco ficou onde estava
-    expect(q("#ordem-ord_cccccc-frete")).toBe(freteC);
-    expect(freteC.value).toBe("12,3"); // e o texto cru também
+  it("o DOM do que fica é o MESMO: o texto que estava sendo digitado no Med. C sobrevive à remoção do B", async () => {
+    montado = montarFormulario(compraComUmMedicamento({ itens: tresMedicamentosDiferentes() }));
+    const antes = q<HTMLInputElement>(med("itm_cccccc", "laboratorio"))!;
+    await digitar(med("itm_cccccc", "laboratorio"), "Lab C digitando");
+    await clicar(med("itm_bbbbbb", "remover"));
+    const depois = q<HTMLInputElement>(med("itm_cccccc", "laboratorio"))!;
+    expect(depois).toBe(antes); // o mesmo elemento (chave por id, não por índice)
+    expect(depois.value).toBe("Lab C digitando");
   });
 
-  it("remover a 1ª ordem (pelo estado) também mantém o DOM das outras duas", async () => {
-    const f = (montado = montarFormulario(compraTeste({ ordens: tresOrdensDiferentes() }), { opcoes: OPCOES }));
-    const cartaoB = q<HTMLElement>("#ordem-ord_bbbbbb")!;
-    const cartaoC = q<HTMLElement>("#ordem-ord_cccccc")!;
-    f.compra.value = { ...f.compra.value, ordens: [{ ...f.compra.value.ordens[1]!, posicao: 1 }, { ...f.compra.value.ordens[2]!, posicao: 2 }] };
-    await nextTick();
-    expect(q("#ordem-ord_bbbbbb")).toBe(cartaoB);
-    expect(q("#ordem-ord_cccccc")).toBe(cartaoC);
-    expect(q("#ordem-ord_aaaaaa")).toBeNull();
+  it("remover o 1º (pelo estado) também mantém o DOM dos outros dois", async () => {
+    montado = montarFormulario(compraComUmMedicamento({ itens: tresMedicamentosDiferentes() }));
+    const b = q(med("itm_bbbbbb", "laboratorio"));
+    const c = q(med("itm_cccccc", "laboratorio"));
+    await clicar(med("itm_aaaaaa", "remover"));
+    expect(q(med("itm_bbbbbb", "laboratorio"))).toBe(b);
+    expect(q(med("itm_cccccc", "laboratorio"))).toBe(c);
+    expect(qa('[data-linha="laboratorio"] label').map((l) => texto(l)).filter((t) => t.startsWith("Med."))).toEqual(["Med. 1", "Med. 2"]); // renumerado
   });
 });
 
 describe("foco depois de remover (nada se perde)", () => {
-  it("remover um medicamento leva o foco ao campo Medicamento da linha de ANTES", async () => {
-    montado = montarFormulario(compraTeste({ ordens: [ordem("ord_a", 1, [item("itm_1", 1), item("itm_2", 2), item("itm_3", 3)])] }), { opcoes: OPCOES });
-    await clicar("#item-itm_3-remover");
+  it("remover um medicamento leva o foco ao campo Medicamento do de ANTES", async () => {
+    montado = montarFormulario(compraComUmMedicamento({ itens: tresMedicamentosDiferentes() }));
+    await clicar(med("itm_cccccc", "remover"));
     await nextTick();
-    expect((document.activeElement as HTMLElement).id).toBe("item-itm_2-medicamento");
-    await clicar("#item-itm_2-remover");
-    await nextTick();
-    expect((document.activeElement as HTMLElement).id).toBe("item-itm_1-medicamento");
+    expect(document.activeElement).toBe(q(med("itm_bbbbbb", "medicamento")));
   });
 
-  it("remover o item do MEIO também foca o de antes", async () => {
-    montado = montarFormulario(compraTeste({ ordens: [ordem("ord_a", 1, [item("itm_1", 1), item("itm_2", 2), item("itm_3", 3)])] }), { opcoes: OPCOES });
-    await clicar("#item-itm_2-remover");
+  it("remover o do MEIO também foca o de antes", async () => {
+    montado = montarFormulario(compraComUmMedicamento({ itens: tresMedicamentosDiferentes() }));
+    await clicar(med("itm_bbbbbb", "remover"));
     await nextTick();
-    expect((document.activeElement as HTMLElement).id).toBe("item-itm_1-medicamento");
+    expect(document.activeElement).toBe(q(med("itm_aaaaaa", "medicamento")));
   });
 
-  it("remover uma ordem VAZIA leva o foco ao '+ Adicionar medicamento' da ordem de antes", async () => {
-    montado = montarFormulario(compraTeste({ ordens: [ordem("ord_a", 1, [item("itm_a", 1)]), ordem("ord_b", 2, [item("itm_b", 1)])] }), { opcoes: OPCOES });
-    await clicar("#ordem-ord_b-remover");
+  it("remover o PRIMEIRO foca o que passou a ser o primeiro", async () => {
+    montado = montarFormulario(compraComUmMedicamento({ itens: tresMedicamentosDiferentes() }));
+    await clicar(med("itm_aaaaaa", "remover"));
     await nextTick();
-    expect((document.activeElement as HTMLElement).id).toBe("ordem-ord_a-adicionar-item");
-  });
-
-  it("remover uma ordem PREENCHIDA (depois da confirmação) também leva o foco à ordem de antes", async () => {
-    montado = montarFormulario(compraTeste({ ordens: [ordem("ord_a", 1, [item("itm_a", 1)]), ordem("ord_b", 2, [item("itm_b", 1, { medicamento: "MED B" })])] }), { opcoes: OPCOES });
-    await clicar("#ordem-ord_b-remover");
-    [...document.querySelectorAll("[role=alertdialog] button")].find((b) => texto(b) === "Remover ordem")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    await nextTick();
-    await nextTick();
-    expect((document.activeElement as HTMLElement).id).toBe("ordem-ord_a-adicionar-item");
+    expect(document.activeElement).toBe(q(med("itm_bbbbbb", "medicamento")));
   });
 });
-
-// ── Acessibilidade mínima ─────────────────────────────────────────────────────────────────────────────────
 
 describe("salvamento: região aria-live e alerta só quando falha de vez", () => {
   function cabecalho(p: { estado: "ocioso" | "pendente" | "salvando" | "salvo" | "erro" | "conflito"; esperandoClique?: boolean }) {
@@ -155,8 +103,6 @@ describe("salvamento: região aria-live e alerta só quando falha de vez", () =>
           h(CompraFormCabecalho, {
             anoMes: "2026-11",
             sequencia: 1,
-            status: "rascunho",
-            pendencias: 0,
             cancelada: false,
             podeEditar: true,
             estado: p.estado,
@@ -211,15 +157,19 @@ describe("salvamento: região aria-live e alerta só quando falha de vez", () =>
 describe("botões só de ícone têm nome acessível em português", () => {
   const SIMBOLOS = /^[✕‹›…×⋯]$/;
 
-  it("no formulário com várias ordens e itens: todo botão sem texto de verdade (✕, setas, …) tem aria-label", () => {
-    montado = montarFormulario(compraTeste({ ordens: tresOrdensDiferentes() }), { opcoes: OPCOES });
+  it("no formulário com vários medicamentos: todo botão sem texto de verdade (✕, setas, …) tem aria-label", () => {
+    montado = montarFormulario(compraComUmMedicamento({ itens: tresMedicamentosDiferentes() }), { opcoes: OPCOES });
     const botoes = qa<HTMLButtonElement>("#compra-formulario button");
     const soIcone = botoes.filter((b) => texto(b) === "" || SIMBOLOS.test(texto(b)));
     expect(soIcone.length).toBeGreaterThan(0); // há ✕ de remover
-    for (const b of soIcone) {
-      expect(b.getAttribute("aria-label"), b.id || b.outerHTML.slice(0, 60)).toMatch(/\S/);
-    }
-    expect(q("#item-itm_b2-remover")!.getAttribute("aria-label")).toBe("Remover medicamento");
+    for (const b of soIcone) expect(b.getAttribute("aria-label"), b.id || b.outerHTML.slice(0, 60)).toMatch(/\S/);
+    expect(q(med("itm_bbbbbb", "remover"))!.getAttribute("aria-label")).toBe("Remover Med. 2");
+  });
+
+  it("os botões de seta do stepper de Ordens têm aria-label ('Aumentar Ordens', 'Diminuir Ordens')", () => {
+    montado = montarFormulario(compraComUmMedicamento());
+    expect(q("#compra-ordens-mais")!.getAttribute("aria-label")).toBe("Aumentar Ordens");
+    expect(q("#compra-ordens-menos")!.getAttribute("aria-label")).toBe("Diminuir Ordens");
   });
 
   it("na lista: as setas do mês e o interruptor têm aria-label ('Mês anterior', 'Próximo mês', 'Mostrar canceladas')", () => {
@@ -232,10 +182,9 @@ describe("botões só de ícone têm nome acessível em português", () => {
             rotuloMes: "Novembro/2026",
             totalDoMes: 0,
             compras: [],
-            totais: { rascunho: 0, pronta: 0, cancelada: 0 },
+            totais: { ativas: 0, canceladas: 0 },
             total: 0,
             temMais: false,
-            status: null,
             mostrarCanceladas: false,
             selecionadaId: null,
             carregando: false,
@@ -260,7 +209,7 @@ describe("botões só de ícone têm nome acessível em português", () => {
   it("o menu '…' do celular e o botão de voltar têm nome acessível", () => {
     const el = document.createElement("div");
     document.body.appendChild(el);
-    const app = createApp(defineComponent({ render: () => h(CompraFormCabecalho, { anoMes: "2026-11", sequencia: 1, status: "rascunho", pendencias: 0, cancelada: false, podeEditar: true, estado: "ocioso", salvoEm: null }) }));
+    const app = createApp(defineComponent({ render: () => h(CompraFormCabecalho, { anoMes: "2026-11", sequencia: 1, cancelada: false, podeEditar: true, estado: "ocioso", salvoEm: null }) }));
     app.mount(el);
     extras.push(() => {
       app.unmount();
@@ -273,7 +222,7 @@ describe("botões só de ícone têm nome acessível em português", () => {
 
 describe("chips de pendência: aria-pressed correto", () => {
   it("cada chip tem aria-pressed 'true' ou 'false' (nunca ausente) e muda ao clicar e ao desmarcar", async () => {
-    montado = montarFormulario(compraTeste({ pendencias: ["Receita médica"] }));
+    montado = montarFormulario(compraComUmMedicamento({ pendencias: ["Receita médica"] }));
     const chips = () => qa<HTMLButtonElement>("[id^='compra-pendencia-chip-']");
     expect(chips()).toHaveLength(PENDENCIAS_PADRAO.length);
     expect(chips().every((c) => c.getAttribute("aria-pressed") === "true" || c.getAttribute("aria-pressed") === "false")).toBe(true);
@@ -284,11 +233,11 @@ describe("chips de pendência: aria-pressed correto", () => {
     expect(chips()[6]!.getAttribute("aria-pressed")).toBe("false");
   });
 
-  it("os chips têm um grupo com nome (aria-labelledby) e botão de verdade", () => {
-    montado = montarFormulario(compraTeste());
-    const grupo = q<HTMLElement>("[role=group][aria-labelledby='compra-pendencias-rotulo']")!;
+  it("os chips ficam num grupo com nome (o rótulo 'Pendente', por aria-labelledby) e são botões de verdade", () => {
+    montado = montarFormulario(compraComUmMedicamento());
+    const grupo = q<HTMLElement>("[role=group][aria-labelledby='compra-linha-pendencias-rotulo']")!;
     expect(grupo).not.toBeNull();
-    expect(texto(q("#compra-pendencias-rotulo"))).toBe("Pendências (clique para marcar)");
+    expect(texto(q("#compra-linha-pendencias-rotulo"))).toBe("Pendente");
     expect(qa("[id^='compra-pendencia-chip-']").every((c) => c.tagName === "BUTTON")).toBe(true);
   });
 });

@@ -4,11 +4,10 @@ import { createApp, defineComponent, h, nextTick } from "vue";
 import AppSearchSelect, { type OpcaoBusca } from "../../app/components/AppSearchSelect.vue";
 import { BOTAO_PRIMARIO_CLASS, BOTAO_SECUNDARIO_CLASS } from "../../app/utils/comprasEstilos";
 import { LARGURA_LG_PX, telaLargaAgora } from "../../app/utils/telaLarga";
-import { itemVazio, ordemVazia } from "../../shared/utils/compraForm";
-import { compraTeste, montarFormulario, q, qa, texto, type FormularioMontado } from "./helpers/formularioCompra";
+import { compraComUmMedicamento, itemDeTeste, montarFormulario, q, qa, texto, type FormularioMontado } from "./helpers/montarFormulario";
 
-// Campos e linha de medicamento no CELULAR: 16px/44px, grades de 1 coluna (2 quando cabe), a linha de medicamento vira um cartão
-// empilhado com o ✕ no canto, e a lista de sugestões não é cortada. O que muda com a largura é CSS; o que o JS decide por largura usa
+// Campos do formulário único no CELULAR: 16px/44px, rótulo acima do controle, controles por medicamento empilhados, e a lista de sugestões
+// não é cortada. O que muda com a largura é CSS; o que o JS decide por largura usa
 // telaLargaAgora (matchMedia simulado em 375, 1280 e 2130 px).
 
 let montado: FormularioMontado | null = null;
@@ -32,9 +31,6 @@ function larguraDaJanela(px: number): void {
   });
 }
 
-const item = (id: string, posicao: number) => ({ ...itemVazio(posicao), id });
-const ordem = (id: string, itens: ReturnType<typeof item>[]) => ({ ...ordemVazia(1), id, itens });
-
 describe("telaLargaAgora (breakpoint lg = 1024px)", () => {
   it.each([
     [375, false],
@@ -56,22 +52,23 @@ describe("telaLargaAgora (breakpoint lg = 1024px)", () => {
 });
 
 describe("campos de 16px e 44px no celular (o padrão do app), voltando ao desktop em lg+", () => {
-  it("campos de texto, de busca, de dinheiro e selects levam text-[16px] e min-h-11, e o tamanho do desktop só em lg:", () => {
-    montado = montarFormulario(compraTeste({ ordens: [ordem("ord_a", [item("itm_a", 1)])] }));
+  it("campos de texto, de busca e de dinheiro do formulário único levam text-[16px] e min-h-11, e o tamanho do desktop só em lg:", () => {
+    montado = montarFormulario(compraComUmMedicamento({ itens: [itemDeTeste(1, { medicamento: "" })] }));
     const campos = [
       "#compra-paciente",
       "#compra-processo",
       "#compra-medico",
       "#compra-responsavel",
       "#compra-local",
+      "#compra-entrega",
       "#compra-pendencias-livre",
-      "#ordem-ord_a-po",
-      "#ordem-ord_a-frete",
-      "#item-itm_a-quantidade",
-      "#item-itm_a-medicamento",
-      "#item-itm_a-apresentacao",
-      "#item-itm_a-valor-unitario",
-      "#item-itm_a-referencia",
+      "#compra-frete",
+      "#compra-frete-real",
+      "#compra-item-itm_teste_0001-medicamento",
+      "#compra-item-itm_teste_0001-laboratorio",
+      "#compra-item-itm_teste_0001-quantidade",
+      "#compra-item-itm_teste_0001-valor-unitario",
+      "#compra-item-itm_teste_0001-valor-real",
     ];
     for (const sel of campos) {
       const classe = q<HTMLElement>(sel)!.className;
@@ -82,100 +79,36 @@ describe("campos de 16px e 44px no celular (o padrão do app), voltando ao deskt
     }
   });
 
-  it("os botões de ação da Compra têm 44px de altura no celular (primário e secundário)", () => {
+  it("os botões de ação da Compra têm 44px de altura no celular (primário e secundário e o '+ Adicionar medicamento')", () => {
     expect(BOTAO_PRIMARIO_CLASS).toContain("max-lg:min-h-11");
     expect(BOTAO_SECUNDARIO_CLASS).toContain("max-lg:min-h-11");
-    montado = montarFormulario(compraTeste({ ordens: [ordem("ord_a", [item("itm_a", 1)])] }));
-    expect(q("#compra-adicionar-ordem")!.className).toContain("max-lg:min-h-11");
-    expect(q("#ordem-ord_a-adicionar-item")!.className).toContain("max-lg:min-h-11");
+    montado = montarFormulario(compraComUmMedicamento());
+    expect(q("#compra-adicionar-medicamento")!.className).toContain("min-h-11");
   });
 
-  it("as caixas de marcar têm rótulo de 44px de altura no celular", () => {
-    montado = montarFormulario(compraTeste());
-    for (const id of ["compra-particular", "compra-recorrente", "compra-isencao", "compra-alvara"]) {
+  it("as caixas de marcar têm rótulo (ou linha) de 44px de altura no celular", () => {
+    montado = montarFormulario(compraComUmMedicamento());
+    for (const id of ["compra-particular", "compra-alvara", "compra-entrega-mesmo-local"]) {
       expect(q(`label[for='${id}']`)!.className, id).toContain("min-h-11");
     }
-  });
-});
-
-describe("grades: 1 coluna no celular, 2 quando cabe", () => {
-  it("os blocos usam 1 coluna abaixo de sm (grid sem colunas), 2 em sm e 4 em xl", () => {
-    montado = montarFormulario(compraTeste());
-    const grade = q<HTMLElement>("#compra-grupo-paciente > div")!;
-    expect(grade.className).toContain("sm:grid-cols-2");
-    expect(grade.className).toContain("xl:grid-cols-4");
-    expect(grade.className).not.toMatch(/(^|\s)grid-cols-/);
-  });
-
-  it("na ordem: Fornecedor, Envio, Cia e PO ocupam a linha toda no celular; Frete e Frete real ficam lado a lado (2 colunas)", () => {
-    montado = montarFormulario(compraTeste({ ordens: [ordem("ord_a", [item("itm_a", 1)])] }));
-    const grade = q<HTMLElement>("#ordem-ord_a > div:nth-of-type(1)")!;
-    expect(grade.className).toContain("grid-cols-2");
-    const celula = (sel: string) => q<HTMLElement>(sel)!.closest("div[class*='col-span'], div.grid > div")!.className;
-    for (const campo of ["fornecedor", "envio", "cia", "po"]) {
-      const c = q<HTMLElement>(`#ordem-ord_a-${campo}`)!;
-      const caixa = c.closest("div.grid > div")!;
-      expect(caixa.className, campo).toContain("col-span-2");
-      expect(caixa.className, campo).toContain("sm:col-span-1");
+    for (const id of ["compra-isencao", "compra-recorrente"]) {
+      expect(q(`#${id}`)!.parentElement!.className, id).toContain("min-h-11");
     }
-    for (const campo of ["frete", "frete-real"]) {
-      const caixa = q<HTMLElement>(`#ordem-ord_a-${campo}`)!.closest("div.grid > div")!;
-      expect(caixa.className, campo).not.toContain("col-span-2");
+  });
+
+  it("a linha do formulário é 1 coluna no celular (rótulo acima) e [210px | controle] só em lg+", () => {
+    montado = montarFormulario(compraComUmMedicamento());
+    for (const linha of qa<HTMLElement>("#compra-campos [data-linha]")) {
+      expect(linha.className).toContain("lg:grid-cols-[210px_minmax(0,1fr)]");
+      expect(linha.className).not.toMatch(/(^|\s)grid-cols-/);
     }
-    expect(celula("#ordem-ord_a-frete")).not.toContain("col-span-2");
-  });
-});
-
-describe("a linha de medicamento vira um CARTÃO empilhado no celular", () => {
-  const ordemVisual = (sel: string): string => /max-lg:order-(\d)/.exec(q<HTMLElement>(sel)!.closest("div.grid > div")!.className)?.[1] ?? "";
-
-  it("a ordem visual abaixo de lg: Medicamento, Qtd, Temperatura, Valor unit., Valor real, Apresentação", () => {
-    montado = montarFormulario(compraTeste({ ordens: [ordem("ord_a", [item("itm_a", 1)])] }));
-    const porCampo = ["medicamento", "quantidade", "temperatura", "valor-unitario", "valor-real", "apresentacao"].map((c) => [c, ordemVisual(`#item-itm_a-${c}`)]);
-    expect(porCampo).toEqual([
-      ["medicamento", "1"],
-      ["quantidade", "2"],
-      ["temperatura", "3"],
-      ["valor-unitario", "4"],
-      ["valor-real", "5"],
-      ["apresentacao", "6"],
-    ]);
   });
 
-  it("Medicamento e Apresentação ocupam a linha toda; Qtd + Temperatura e Valor unit. + Valor real dividem a linha (2 colunas)", () => {
-    montado = montarFormulario(compraTeste({ ordens: [ordem("ord_a", [item("itm_a", 1)])] }));
-    const cx = (c: string) => q<HTMLElement>(`#item-itm_a-${c}`)!.closest("div.grid > div")!.className;
-    expect(cx("medicamento")).toContain("col-span-2");
-    expect(cx("apresentacao")).toContain("col-span-2");
-    for (const c of ["quantidade", "temperatura", "valor-unitario", "valor-real"]) expect(cx(c)).not.toContain("col-span-2");
-    expect(q("[data-item-linha] .grid")!.className).toContain("grid-cols-2");
-  });
-
-  it("em lg+ volta a uma linha de 7 colunas (a ordem do DOM é a das colunas do desktop)", () => {
-    montado = montarFormulario(compraTeste({ ordens: [ordem("ord_a", [item("itm_a", 1)])] }));
-    expect(q("[data-item-linha] .grid")!.className).toContain("lg:grid-cols-[");
-    const ids = qa<HTMLElement>("[data-item-linha] .grid input, [data-item-linha] .grid button").map((e) => e.id.replace("item-itm_a-", ""));
-    expect(ids.slice(0, 6)).toEqual(["quantidade", "medicamento", "apresentacao", "valor-unitario", "valor-real", "temperatura"]);
-  });
-
-  it("o ✕ de remover fica no canto de cima do cartão, com área de toque de 44px; o cartão ganha uma faixa para ele", () => {
-    montado = montarFormulario(compraTeste({ ordens: [ordem("ord_a", [item("itm_a", 1), item("itm_b", 2)])] }));
-    const x = q<HTMLElement>("#item-itm_b-remover")!;
-    expect(x.className).toContain("min-h-11");
-    expect(x.className).toContain("min-w-11");
-    expect(x.parentElement!.className).toContain("max-lg:absolute");
-    expect(x.parentElement!.className).toContain("max-lg:top-0");
-    expect(x.parentElement!.className).toContain("max-lg:right-0");
-    expect(q("#item-itm_b")!.className).toContain("relative");
-    expect(q("#item-itm_b")!.className).toContain("max-lg:pt-12");
-    // O primeiro item não tem ✕ e não reserva a faixa.
-    expect(q("#item-itm_a-remover")).toBeNull();
-    expect(q("#item-itm_a")!.className).not.toContain("max-lg:pt-12");
-  });
-
-  it("'Detalhes' continua recolhido", () => {
-    montado = montarFormulario(compraTeste({ ordens: [ordem("ord_a", [item("itm_a", 1)])] }));
-    expect(q<HTMLDetailsElement>("#item-itm_a details")!.open).toBe(false);
+  it("com 2 medicamentos, cada linha por medicamento empilha os controles (Med. 1 acima do Med. 2) no celular", () => {
+    montado = montarFormulario(compraComUmMedicamento({ itens: [itemDeTeste(1), itemDeTeste(2)] }));
+    const grupos = qa<HTMLElement>('[data-linha="laboratorio"] [role="group"][aria-label^="Med."]');
+    expect(grupos).toHaveLength(2);
+    expect(grupos[0]!.parentElement!.className).toContain("flex-col");
   });
 });
 

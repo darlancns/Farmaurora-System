@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { nextTick } from "vue";
 import { LIMITE_LABORATORIO } from "#shared/constants/processos";
 import { COMPRA_LINHA_MAX, COMPRA_MAX_ITENS } from "#shared/constants/compra";
 import type { BrandMedicamento } from "#shared/types/processo";
@@ -17,7 +18,14 @@ const emit = defineEmits<{ alterar: [mudancas: MudancasCompra] }>();
 
 const atualizar = (id: string, mudancas: Partial<Compra["itens"][number]>): void => emit("alterar", { itens: atualizarItem(props.compra.itens, id, mudancas) });
 const adicionar = (): void => emit("alterar", { itens: adicionarItem(props.compra.itens, COMPRA_MAX_ITENS) });
-const remover = (id: string): void => emit("alterar", { itens: removerItem(props.compra.itens, id) });
+// Remover: o foco vai para o campo Medicamento do medicamento de ANTES (ou, se era o primeiro, do que passou a ser o primeiro): nada se perde.
+function remover(id: string): void {
+  const itens = props.compra.itens;
+  const i = itens.findIndex((x) => x.id === id);
+  const vizinho = itens[i - 1] ?? itens[i + 1];
+  emit("alterar", { itens: removerItem(itens, id) });
+  if (vizinho) void nextTick(() => document.getElementById(`compra-item-${vizinho.id}-medicamento`)?.focus());
+}
 
 const noLimite = (): boolean => props.compra.itens.length >= COMPRA_MAX_ITENS;
 </script>

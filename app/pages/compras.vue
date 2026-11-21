@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted } from "vue";
+import { computed, onBeforeUnmount, onMounted } from "vue";
 import { onBeforeRouteLeave } from "vue-router";
 import { useRoute, useRouter } from "#app";
 import CompraColunaDireita from "../components/compras/CompraColunaDireita.vue";
@@ -13,14 +13,11 @@ import { useCompraAcoes } from "../composables/useCompraAcoes";
 import { useCompraOpcoes } from "../composables/useCompraOpcoes";
 import { useComprasPagina } from "../composables/useComprasPagina";
 import { useToast } from "../composables/useToast";
-import { esperarQuadro, irParaCampoComAba } from "../utils/comprasFoco";
-import { telaLargaAgora } from "../utils/telaLarga";
 import { classeDaColuna } from "../utils/comprasAbas";
 import { mesmaQuery } from "../utils/comprasUrl";
 
-// A página Compras em três colunas: a lista do mês (esquerda), o formulário (centro) e o checklist com o resumo ao vivo (direita).
-// Esta etapa só tem o bloco "Paciente e processo" no formulário; os outros entram na 6b. A lógica (trocar de compra com o salvamento
-// descarregado, URL, nova/duplicar/cancelar) está em useComprasPagina; aqui só se liga tudo e se desenha.
+// A página Compras em três colunas: a lista do mês (esquerda), o formulário único (centro) e o resumo ao vivo (direita). A lógica (trocar de
+// compra com o salvamento descarregado, URL, nova/duplicar/cancelar) está em useComprasPagina; aqui só se liga tudo e se desenha.
 //
 // ACESSO: ler Compras é decidido pela seção "compras" (guarda global + servidor). Quem só LÊ (sócio, ou mapa "ver") vê tudo, sem
 // botões de escrita e com os campos desabilitados; a decisão é `canWrite("compras")`, a mesma função do servidor.
@@ -39,7 +36,6 @@ const pagina = useComprasPagina({
   gravarUrl: (query) => {
     if (!mesmaQuery(route.query, query)) void router.replace({ query });
   },
-  focarFornecedor: (ordemId) => document.getElementById(`ordem-${ordemId}-fornecedor`)?.focus(),
 });
 
 const { lista, editor } = pagina;
@@ -49,20 +45,6 @@ const acoes = useCompraAcoes({ opcoes, compraId: () => editor.compra.value?.id ?
 
 // O despachante da compra no Cadastro (telefone, e-mail e contato; nunca PIX): o resumo o usa.
 const despachanteCadastro = computed(() => (editor.compra.value ? opcoes.despachantePeloNome(editor.compra.value.despachante) : null));
-
-// Clicar num item do checklist: no celular troca para a aba Formulário (o painel ainda está escondido) e espera ele desenhar; depois
-// rola até o campo (a coluna do formulário, nunca a janela inteira no desktop), foca e destaca.
-async function irParaCampo(campo: string): Promise<void> {
-  await irParaCampoComAba(campo, {
-    telaLarga: telaLargaAgora,
-    abaAtual: () => pagina.aba.value,
-    irParaAba: (aba) => pagina.irParaAba(aba),
-    aguardar: async () => {
-      await nextTick();
-      await esperarQuadro();
-    },
-  });
-}
 
 // Sair da página: descarrega o salvamento pendente; se não der, a navegação fica (e a pessoa é avisada).
 onBeforeRouteLeave(async () => (await pagina.antesDeSair()) !== false);
@@ -102,7 +84,6 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", antesDeFecharAA
           :totais="lista.totais.value"
           :total="lista.total.value"
           :tem-mais="lista.temMais.value"
-          :status="lista.status.value"
           :mostrar-canceladas="lista.mostrarCanceladas.value"
           :selecionada-id="pagina.selecionadaId.value"
           :carregando="lista.carregando.value"
@@ -111,7 +92,6 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", antesDeFecharAA
           :pode-editar="podeEditar"
           @anterior="pagina.mesAnterior()"
           @proximo="pagina.mesSeguinte()"
-          @status="(s) => pagina.definirStatus(s)"
           @mostrar-canceladas="(v) => pagina.definirMostrarCanceladas(v)"
           @selecionar="(id) => pagina.selecionar(id)"
           @nova="pagina.criarNova()"
@@ -137,6 +117,7 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", antesDeFecharAA
           :opcoes="opcoes.paraFormulario.value"
           :acoes="acoes"
           :ocupado="pagina.ocupado.value"
+          :pedido-de-foco-medicamento="pagina.pedidoDeFocoMedicamento.value"
           @alterar="(m) => editor.alterar(m)"
           @duplicar="pagina.duplicar()"
           @cancelar="pagina.pedirCancelar()"
@@ -155,10 +136,9 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", antesDeFecharAA
           v-if="editor.compra.value"
           :compra="editor.compra.value"
           :despachante-cadastro="despachanteCadastro"
-          @ir-para-campo="(campo) => irParaCampo(campo)"
         />
         <p v-else id="compras-direita-vazia" class="rounded-lg border border-hairline bg-paper-raised px-4 py-6 text-center text-[12.5px] text-ink-soft">
-          O checklist e o resumo aparecem aqui quando você abrir uma compra.
+          O resumo aparece aqui quando você abrir uma compra.
         </p>
       </aside>
     </div>
