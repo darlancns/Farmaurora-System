@@ -85,25 +85,20 @@ beforeEach(() => {
     linha("d2", "Despachante Sem Dados", { contato_nome: null, telefone: null, email: null, chave_pix: PIX }),
     linha("d3", "Despachante Inativo", { chave_pix: PIX }, false),
   ];
-  fake.tabelas.cadastro_cias_aereas = [linha("c1", "Cia Teste"), linha("c2", "Cia Inativa", {}, false)];
   fake.tabelas.cadastro_transportadoras = [linha("t1", "Transportadora Teste", { chave_pix: PIX }), linha("t2", "Transportadora Inativa", { chave_pix: PIX }, false)];
   fake.tabelas.cadastro_temperaturas = [linha("p1", "2°C a 8°C"), linha("p2", "Ambiente"), linha("p3", "Antiga", {}, false)];
   fake.tabelas.cadastro_medicamentos = medicamentos(414);
 });
 
 describe("o conteúdo: só ativos, só os campos necessários", () => {
-  it("fornecedores (nome, país, prazo), despachantes (nome, contato, telefone, e-mail), cias, transportadoras, consultores e temperaturas, em ordem alfabética", async () => {
+  it("fornecedores (só o nome), despachantes (nome, contato, telefone, e-mail), consultores e temperaturas, em ordem alfabética; sem cias nem transportadoras", async () => {
     const o = await chamar(adm);
-    expect(o.fornecedores).toEqual([
-      { nome: "Fornecedor Teste A", pais: "", prazoAlertaDias: null, semAlerta: true },
-      { nome: "Fornecedor Teste B", pais: "Alemanha", prazoAlertaDias: 30, semAlerta: false },
-    ]);
+    expect(o.fornecedores).toEqual([{ nome: "Fornecedor Teste A" }, { nome: "Fornecedor Teste B" }]);
+    expect(Object.keys(o).sort()).toEqual(["consultores", "despachantes", "fornecedores", "medicamentos", "temperaturas"]);
     expect(o.despachantes).toEqual([
       { nome: "Despachante Sem Dados", contatoNome: "", telefone: "", email: "" },
       { nome: "Despachante Teste", contatoNome: "Contato TESTE", telefone: "11 90000-0000", email: "d@x.com" },
     ]);
-    expect(o.ciasAereas).toEqual([{ nome: "Cia Teste" }]);
-    expect(o.transportadoras).toEqual([{ nome: "Transportadora Teste" }]);
     expect(o.temperaturas.map((t) => t.nome)).toEqual(["2°C a 8°C", "Ambiente"]);
     expect(o.consultores.map((c) => c.nome)).toEqual(["André Vitório", "Bolívar", "Dani", "Flávia", "Mateus Morais", "Paulo Braga"]); // o inativo (Junior) não vem
   });
@@ -123,9 +118,9 @@ describe("o conteúdo: só ativos, só os campos necessários", () => {
   });
 
   it("listas vazias viram [] (nunca erro)", async () => {
-    for (const t of ["cadastro_fornecedores", "cadastro_despachantes", "cadastro_cias_aereas", "cadastro_transportadoras", "cadastro_temperaturas", "cadastro_medicamentos"]) fake.tabelas[t] = [];
+    for (const t of ["cadastro_fornecedores", "cadastro_despachantes", "cadastro_temperaturas", "cadastro_medicamentos"]) fake.tabelas[t] = [];
     const o = await chamar(adm);
-    expect(o).toMatchObject({ fornecedores: [], despachantes: [], ciasAereas: [], transportadoras: [], temperaturas: [], medicamentos: { itens: [], temMais: false } });
+    expect(o).toMatchObject({ fornecedores: [], despachantes: [], temperaturas: [], medicamentos: { itens: [], temMais: false } });
   });
 
   it("as listas completas passam do teto de 1000 linhas por consulta do PostgREST (lê em páginas)", async () => {
@@ -136,7 +131,7 @@ describe("o conteúdo: só ativos, só os campos necessários", () => {
 });
 
 describe("chave PIX: nunca, em nível nenhum", () => {
-  it("a resposta inteira não tem a chave (nem o campo, em chave de objeto nenhuma), mesmo com PIX em despachantes e transportadoras", async () => {
+  it("a resposta inteira não tem a chave (nem o campo, em chave de objeto nenhuma), mesmo com PIX em despachantes (e em transportadoras, que a Compra nem lê mais)", async () => {
     const o = await chamar(adm, { q: "teste" });
     const texto = JSON.stringify(o);
     expect(texto).not.toContain(PIX);
@@ -155,7 +150,7 @@ describe("chave PIX: nunca, em nível nenhum", () => {
     varrer(o);
     expect([...chaves].filter((k) => /pix/i.test(k))).toEqual([]);
     expect([...chaves].sort()).toEqual(
-      ["ciasAereas", "consultores", "contatoNome", "despachantes", "email", "fornecedores", "id", "itens", "limite", "medicamentos", "nome", "pagina", "pais", "prazoAlertaDias", "q", "semAlerta", "telefone", "temMais", "temperatura", "temperaturas", "transportadoras"].sort(),
+      ["consultores", "contatoNome", "despachantes", "email", "fornecedores", "id", "itens", "limite", "medicamentos", "nome", "pagina", "q", "telefone", "temMais", "temperatura", "temperaturas"].sort(),
     );
   });
 
@@ -274,7 +269,7 @@ describe("GET /api/compras/opcoes/medicamentos (busca leve)", () => {
     expect(r.itens.map((i) => i.id)).toEqual(["med_0000", "med_0001", "med_0002", "med_0003", "med_0004"]);
     expect(r).toMatchObject({ pagina: 1, limite: 5, temMais: true, q: "teste med 000" });
     const texto = JSON.stringify(r);
-    for (const outra of ["fornecedores", "despachantes", "ciasAereas", "transportadoras", "consultores", "temperaturas", "Fornecedor Teste", "Despachante Teste", "Cia Teste", "Transportadora Teste"]) {
+    for (const outra of ["fornecedores", "despachantes", "consultores", "temperaturas", "Fornecedor Teste", "Despachante Teste"]) {
       expect(texto, outra).not.toContain(outra);
     }
   });

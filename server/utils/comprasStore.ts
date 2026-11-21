@@ -1,14 +1,13 @@
 import { createError } from "h3";
-import { COMPRA_LISTA_POR_PAGINA, type StatusDaCompra } from "../../shared/constants/compra";
-import type { Compra, CompraDaLista, CompraEstado, CamposCompraEditaveis, ListaCompras, OrdemCompraEstado, StatusPreCadastro, TotaisPorStatus } from "../../shared/types/compra";
+import { COMPRA_LISTA_POR_PAGINA } from "../../shared/constants/compra";
+import { EMPRESAS_PROCESSO } from "../../shared/constants/processos";
+import type { Compra, CompraDaLista, CompraEstado, CamposCompraEditaveis, ItemCompraEstado, ListaCompras, StatusPreCadastro, TotaisDaLista } from "../../shared/types/compra";
 import { dataBrasiliaDe } from "../../shared/utils/dataBrasilia";
 import {
   COLUNAS_LISTA_COMPRA,
   COLUNAS_LISTA_ITEM,
-  COLUNAS_LISTA_ORDEM,
   instanteIso,
   linhaDeItem,
-  linhaDeOrdem,
   montarCompra,
   montarCompraDaLista,
   preCadastroDoItem,
@@ -16,36 +15,34 @@ import {
   type CompraRow,
   type ItemListaRow,
   type ItemRow,
-  type OrdemListaRow,
-  type OrdemRow,
   type StatusDosPreCadastros,
 } from "./compraMappers";
+import { nomesDosMedicamentosDoCadastro } from "./comprasCatalogo";
 import { createSupabaseAdminClient } from "./supabaseServerClient";
 import { erro, randomId } from "./storeKit";
 
 /**
- * Persistência das Compras (Etapa 4) — tabelas `compras`, `compra_ordens` e `compra_itens` (supabase/migrations/20261119190000_compras.sql).
- * Mesmo molde dos outros stores: cliente admin do servidor, mapeadores puros em compraMappers.ts.
+ * Persistência das Compras — tabelas `compras` e `compra_itens` (supabase/migrations/20261121130000_compras_uma_por_fornecedor.sql): UMA compra
+ * por fornecedor, com os medicamentos como itens dela. Mesmo molde dos outros stores: cliente admin do servidor, mapeadores puros em compraMappers.ts.
  *
  * REGRAS
  *  - NÃO existe exclusão de COMPRA (o service_role nem tem DELETE na tabela): cancelar é `cancelada = true`.
  *  - O NÚMERO da compra é por MÊS DE BRASÍLIA: ano_mes = mês civil em America/Sao_Paulo (nunca o do fuso do servidor), sequencia =
  *    maior do mês + 1. O unique (ano_mes, sequencia) é a trava: se dois pedidos pegam o mesmo número, o segundo leva 23505 e o
  *    servidor recalcula e tenta de novo (até MAX_TENTATIVAS_NUMERO vezes; esgotou, 503).
- *  - SALVAR (`salvarCompra`) é o salvamento automático: recebe o estado e sincroniza compra, ordens e itens. Concorrência
+ *  - SALVAR (`salvarCompra`) é o salvamento automático: recebe o estado e sincroniza a compra e os itens. Concorrência
  *    OTIMISTA: o cliente devolve o `updatedAt` que viu; se mudou, 409 com a versão atual.
+ *  - O estado da compra é só DERIVADO: ativa ou cancelada (não há coluna de estado).
  *
- * TRANSAÇÃO — LIMITAÇÃO (explicada em `sincronizarFilhas`): o supabase-js não tem transação e o contrato desta etapa não criou uma
- * função SQL (RPC). Cada chamada é um comando em autocommit. A estratégia é a mais segura sem transação: (1) o UPDATE da compra é
- * "compare-and-swap" pela versão (só um de dois salvamentos simultâneos passa); (2) as posições das ordens e dos itens são trocadas
- * em UM comando (upsert em lista) — as constraints de posição são DEFERRABLE INITIALLY DEFERRED, então só o estado final do
- * comando é conferido —, e quando ordens ou itens entram, saem ou mudam de lugar usam-se posições TEMPORÁRIAS acima de todas as
- * existentes antes das finais, para o meio do caminho nunca violar a unicidade. Uma falha entre dois comandos deixa a compra
- * consistente (só talvez sem as últimas mudanças); o cliente recarrega e salva de novo.
+ * TRANSAÇÃO — LIMITAÇÃO (explicada em `sincronizarItens`): o supabase-js não tem transação e o contrato não criou uma função SQL (RPC).
+ * Cada chamada é um comando em autocommit. A estratégia é a mais segura sem transação: (1) o UPDATE da compra é "compare-and-swap"
+ * pela versão (só um de dois salvamentos simultâneos passa); (2) as posições dos itens são trocadas em UM comando (upsert em lista) — a
+ * constraint de posição é DEFERRABLE INITIALLY DEFERRED, então só o estado final do comando é conferido —, e quando itens entram,
+ * saem ou mudam de lugar usam-se posições TEMPORÁRIAS acima de todas as existentes antes das finais, para o meio do caminho nunca violar
+ * a unicidade. Uma falha entre dois comandos deixa a compra consistente (só talvez sem as últimas mudanças); o cliente recarrega e salva de novo.
  */
 
 const COMPRAS = "compras";
-const ORDENS = "compra_ordens";
 const ITENS = "compra_itens";
 const PRE_CADASTROS = "pre_cadastro_medicamentos";
 
@@ -131,30 +128,17 @@ async function inserirCompraNumerada(db: Db, base: Omit<CompraRow, "ano_mes" | "
 
 interface CompraCarregada {
   row: CompraRow;
-  ordens: OrdemRow[];
   itens: ItemRow[];
   /** O estado (pendente, aprovado, rejeitado) dos pré-cadastros que os itens ainda mostram: a tela avisa quando foi rejeitado. */
   statusPre: StatusDosPreCadastros;
+  /** O nome, no Cadastro, de cada medicamento ligado a um item (só leitura: vira `medicamentoCadastroNome`). */
+  nomesDoCadastro: ReadonlyMap<string, string>;
 }
 
-async function lerOrdensDe(db: Db, compraIds: readonly string[]): Promise<OrdemRow[]> {
-  const todas: OrdemRow[] = [];
-  for (const bloco of emBlocos(compraIds)) {
-    const { data, error } = await db.from(ORDENS).select("*").in("compra_id", bloco).order("posicao", { ascending: true });
-    if (error) throw erro("ler as ordens da compra", error);
-    todas.push(...((data ?? []) as OrdemRow[]));
-  }
-  return todas;
-}
-
-async function lerItensDe(db: Db, ordemIds: readonly string[]): Promise<ItemRow[]> {
-  const todos: ItemRow[] = [];
-  for (const bloco of emBlocos(ordemIds)) {
-    const { data, error } = await db.from(ITENS).select("*").in("ordem_id", bloco).order("posicao", { ascending: true });
-    if (error) throw erro("ler os itens da compra", error);
-    todos.push(...((data ?? []) as ItemRow[]));
-  }
-  return todos;
+async function lerItensDe(db: Db, compraId: string): Promise<ItemRow[]> {
+  const { data, error } = await db.from(ITENS).select("*").eq("compra_id", compraId).order("posicao", { ascending: true });
+  if (error) throw erro("ler os itens da compra", error);
+  return (data ?? []) as ItemRow[];
 }
 
 /** Só os pré-cadastros que algum item ainda mostra (item já ligado ao Cadastro não conta); sem nenhum, nem consulta. */
@@ -174,17 +158,14 @@ async function carregar(db: Db, id: string): Promise<CompraCarregada | null> {
   if (error) throw erro("buscar a compra", error);
   const row = ((data ?? []) as CompraRow[])[0];
   if (!row) return null;
-  const ordens = await lerOrdensDe(db, [id]);
-  const itens = await lerItensDe(
-    db,
-    ordens.map((o) => o.id),
-  );
-  return { row, ordens, itens, statusPre: await lerStatusDosPreCadastros(db, itens) };
+  const itens = await lerItensDe(db, id);
+  const idsDoCadastro = [...new Set(itens.map((i) => i.medicamento_cadastro_id).filter((x): x is string => x !== null && x !== ""))];
+  return { row, itens, statusPre: await lerStatusDosPreCadastros(db, itens), nomesDoCadastro: await nomesDosMedicamentosDoCadastro(idsDoCadastro) };
 }
 
-const compraDe = (c: CompraCarregada): Compra => montarCompra(c.row, c.ordens, c.itens, c.statusPre);
+const compraDe = (c: CompraCarregada): Compra => montarCompra(c.row, c.itens, c.statusPre, c.nomesDoCadastro);
 
-/** A compra com as ordens e os itens por posição; null se não existe. */
+/** A compra com os itens por posição; null se não existe. */
 export async function obterCompra(id: string): Promise<Compra | null> {
   const carregada = await carregar(createSupabaseAdminClient(), id);
   return carregada ? compraDe(carregada) : null;
@@ -206,8 +187,7 @@ async function lerTudo<T>(acao: string, pagina: (de: number, ate: number) => Pro
 }
 
 export interface OpcoesLista {
-  /** Só as compras neste estado. Sem isto, todas MENOS as canceladas (a menos que `incluirCanceladas`). */
-  status?: StatusDaCompra | null;
+  /** Junto com as ativas, também as canceladas. Sem isto, só as ativas. */
   incluirCanceladas?: boolean;
   /** A partir de 1. */
   pagina?: number;
@@ -216,14 +196,12 @@ export interface OpcoesLista {
 
 /**
  * As compras do mês (AAAA-MM de Brasília) para o painel esquerdo: da mais recente para a mais antiga (sequencia desc), 50 por vez
- * ("mostrar mais"). O ESTADO e as PENDÊNCIAS de cada compra são DERIVADOS (checklistCompra), então não dá para filtrar nem contar no
- * banco: o servidor lê o mês inteiro só das colunas que a checagem usa (nada de contatos, valores nem observações), calcula, filtra,
- * conta os `totais` por estado do mês TODO e devolve só a página pedida, só com o necessário para a linha. A DIR não é consultada.
+ * ("mostrar mais"). O estado é só derivado (ativa ou cancelada): o servidor lê o mês inteiro só das colunas que a linha usa (nada de
+ * contatos, valores nem observações), conta os `totais` do mês TODO e devolve só a página pedida. A DIR não é consultada.
  */
 export async function listarComprasDoMes(anoMes: string, opcoes: OpcoesLista = {}): Promise<ListaCompras> {
   if (!ANO_MES_RE.test(anoMes)) throw new ComprasRegraError("Mês inválido: use AAAA-MM.", 400);
   const db = createSupabaseAdminClient();
-  const status = opcoes.status ?? null;
   const limite = opcoes.limite ?? COMPRA_LISTA_POR_PAGINA;
   const pagina = opcoes.pagina ?? 1;
 
@@ -231,29 +209,20 @@ export async function listarComprasDoMes(anoMes: string, opcoes: OpcoesLista = {
     db.from(COMPRAS).select(COLUNAS_LISTA_COMPRA).eq("ano_mes", anoMes).order("sequencia", { ascending: false }).order("id", { ascending: true }).range(de, ate),
   );
 
-  const ordens: OrdemListaRow[] = [];
-  for (const bloco of emBlocos(rows.map((r) => r.id))) {
-    ordens.push(...(await lerTudo<OrdemListaRow>("ler as ordens da lista", (de, ate) => db.from(ORDENS).select(COLUNAS_LISTA_ORDEM).in("compra_id", bloco).order("id", { ascending: true }).range(de, ate))));
-  }
   const itens: ItemListaRow[] = [];
-  for (const bloco of emBlocos(ordens.map((o) => o.id))) {
-    itens.push(...(await lerTudo<ItemListaRow>("ler os itens da lista", (de, ate) => db.from(ITENS).select(COLUNAS_LISTA_ITEM).in("ordem_id", bloco).order("id", { ascending: true }).range(de, ate))));
+  for (const bloco of emBlocos(rows.map((r) => r.id))) {
+    itens.push(...(await lerTudo<ItemListaRow>("ler os itens da lista", (de, ate) => db.from(ITENS).select(COLUNAS_LISTA_ITEM).in("compra_id", bloco).order("id", { ascending: true }).range(de, ate))));
   }
-
-  const ordensDe = new Map<string, OrdemListaRow[]>();
-  for (const o of ordens) ordensDe.set(o.compra_id, [...(ordensDe.get(o.compra_id) ?? []), o]);
   const itensDe = new Map<string, ItemListaRow[]>();
-  for (const i of itens) itensDe.set(i.ordem_id, [...(itensDe.get(i.ordem_id) ?? []), i]);
+  for (const i of itens) itensDe.set(i.compra_id, [...(itensDe.get(i.compra_id) ?? []), i]);
 
-  const totais: TotaisPorStatus = { rascunho: 0, pronta: 0, cancelada: 0 };
+  const totais: TotaisDaLista = { ativas: 0, canceladas: 0 };
   const casam: CompraDaLista[] = [];
   for (const row of rows) {
-    const minhasOrdens = ordensDe.get(row.id) ?? [];
-    const minhasItens = minhasOrdens.flatMap((o) => itensDe.get(o.id) ?? []);
-    const item = montarCompraDaLista(row, minhasOrdens, minhasItens);
-    totais[item.status] += 1;
-    const entra = status !== null ? item.status === status : opcoes.incluirCanceladas === true || item.status !== "cancelada";
-    if (entra) casam.push(item);
+    const item = montarCompraDaLista(row, itensDe.get(row.id) ?? []);
+    if (item.cancelada) totais.canceladas += 1;
+    else totais.ativas += 1;
+    if (!item.cancelada || opcoes.incluirCanceladas === true) casam.push(item);
   }
 
   // Já vem em sequencia desc (a leitura ordenou); a página é uma fatia, e `temMais` diz se sobrou alguma depois dela.
@@ -261,7 +230,6 @@ export async function listarComprasDoMes(anoMes: string, opcoes: OpcoesLista = {
   return {
     anoMes,
     compras: casam.slice(de, de + limite),
-    status,
     pagina,
     limite,
     temMais: casam.length > de + limite,
@@ -276,6 +244,13 @@ function linhaNova(id: string, agora: string, por: string, responsavel: string):
   return {
     id,
     cancelada: false,
+    fornecedor: "",
+    envio: "",
+    cia: "",
+    frete: null,
+    frete_real: null,
+    empresa: EMPRESAS_PROCESSO[0]!,
+    numero_ordens: 1,
     paciente: "",
     processo_numero: "",
     medico: "",
@@ -284,14 +259,11 @@ function linhaNova(id: string, agora: string, por: string, responsavel: string):
     contatos: "",
     termo_observacao: "",
     despachante: "",
-    isencao_para: "",
     observacoes: "",
-    vendedor: "",
+    consultor: "",
     responsavel,
     compra_particular: false,
-    local_declarado: false,
     termo_posterior: false,
-    courier_simples: false,
     isencao: false,
     recorrente: false,
     pagamento_alvara: null,
@@ -306,20 +278,20 @@ function linhaNova(id: string, agora: string, por: string, responsavel: string):
 }
 
 /**
- * Cria uma compra VAZIA (rascunho) com o próximo número do mês de Brasília. `responsavel` começa com o nome de quem criou.
- * `agora` só existe para o teste escolher o instante.
+ * Cria uma compra VAZIA (rascunho) com o próximo número do mês de Brasília: empresa FARMAURORA, uma ordem, sem medicamentos.
+ * `responsavel` começa com o nome de quem criou. `agora` só existe para o teste escolher o instante.
  */
 export async function criarCompra(usuario: string, opcoes: { agora?: Date } = {}): Promise<Compra> {
   const db = createSupabaseAdminClient();
   const agora = opcoes.agora ?? new Date();
   const row = await inserirCompraNumerada(db, linhaNova(randomId("cmp_"), agora.toISOString(), usuario, usuario), anoMesDeBrasilia(agora));
-  return montarCompra(row, [], []);
+  return montarCompra(row, []);
 }
 
 /**
- * Duplica a compra: uma NOVA compra com o próximo número do mês ATUAL de Brasília, com os mesmos dados e as mesmas ordens e itens
- * (ids novos). Limpa o po das ordens e `cancelada`; o resto fica. Se copiar as ordens e itens falhar, a cópia
- * é cancelada (compra não se apaga) e o erro sobe. null = a original não existe.
+ * Duplica a compra: uma NOVA compra com o próximo número do mês ATUAL de Brasília, com os mesmos dados e os mesmos medicamentos (ids
+ * novos). Só `cancelada` volta a false; o resto fica. Se copiar os itens falhar, a cópia é cancelada (compra não se apaga) e o erro
+ * sobe. null = a original não existe.
  */
 export async function duplicarCompra(id: string, usuario: string, opcoes: { agora?: Date } = {}): Promise<Compra | null> {
   const db = createSupabaseAdminClient();
@@ -343,31 +315,22 @@ export async function duplicarCompra(id: string, usuario: string, opcoes: { agor
   const nova = await inserirCompraNumerada(db, copia, anoMesDeBrasilia(agora));
 
   try {
-    const ordensNovas: Array<Omit<OrdemRow, never>> = [];
-    const itensNovos: ItemRow[] = [];
-    const ordensOrdenadas = [...original.ordens].sort((a, b) => a.posicao - b.posicao);
-    for (const [i, ordem] of ordensOrdenadas.entries()) {
-      const novoId = randomId("ord_");
-      ordensNovas.push(
-        linhaDeOrdem(nova.id, i + 1, {
-          id: novoId,
-          fornecedor: ordem.fornecedor ?? "",
-          envio: ordem.envio ?? "",
-          cia: ordem.cia ?? "",
-          po: "", // o PO é de UMA ordem: a cópia começa sem ele
-          frete: ordem.frete === null ? null : Number(ordem.frete),
-          freteReal: ordem.frete_real === null ? null : Number(ordem.frete_real),
-        }),
-      );
-      const itensDaOrdem = original.itens.filter((x) => x.ordem_id === ordem.id).sort((a, b) => a.posicao - b.posicao);
-      for (const [j, item] of itensDaOrdem.entries()) {
-        itensNovos.push({ ...item, id: randomId("itm_"), ordem_id: novoId, posicao: j + 1 });
-      }
-    }
-    if (ordensNovas.length > 0) {
-      const { error } = await db.from(ORDENS).insert(ordensNovas);
-      if (error) throw erro("copiar as ordens da compra", error);
-    }
+    const itensNovos: ItemRow[] = [...original.itens]
+      .sort((a, b) => a.posicao - b.posicao)
+      .map((item, j) => ({
+        id: randomId("itm_"),
+        compra_id: nova.id,
+        posicao: j + 1,
+        medicamento: item.medicamento,
+        medicamento_cadastro_id: item.medicamento_cadastro_id,
+        pre_cadastro_id: item.pre_cadastro_id,
+        brand: item.brand,
+        laboratorio: item.laboratorio,
+        quantidade: item.quantidade,
+        temperatura: item.temperatura,
+        valor_unitario: item.valor_unitario,
+        valor_real: item.valor_real,
+      }));
     if (itensNovos.length > 0) {
       const { error } = await db.from(ITENS).insert(itensNovos);
       if (error) throw erro("copiar os itens da compra", error);
@@ -399,28 +362,32 @@ export async function cancelarCompra(id: string, usuario: string): Promise<Compr
 // ── Salvar (o salvamento automático) ─────────────────────────────────────────────────────────────────────────
 
 const COLUNA_DO_CAMPO: Record<keyof CamposCompraEditaveis, string> = {
+  fornecedor: "fornecedor",
+  envio: "envio",
+  cia: "cia",
+  empresa: "empresa",
+  numeroOrdens: "numero_ordens",
+  frete: "frete",
+  freteReal: "frete_real",
   paciente: "paciente",
   processoNumero: "processo_numero",
+  compraParticular: "compra_particular",
+  recorrente: "recorrente",
   medico: "medico",
   localAplicacao: "local_aplicacao",
   entrega: "entrega",
   contatos: "contatos",
-  termoObservacao: "termo_observacao",
   despachante: "despachante",
-  isencaoPara: "isencao_para",
-  observacoes: "observacoes",
-  vendedor: "vendedor",
-  responsavel: "responsavel",
-  compraParticular: "compra_particular",
-  localDeclarado: "local_declarado",
-  termoPosterior: "termo_posterior",
-  courierSimples: "courier_simples",
-  isencao: "isencao",
-  recorrente: "recorrente",
   pagamentoAlvara: "pagamento_alvara",
   pagamentoMomento: "pagamento_momento",
+  termoPosterior: "termo_posterior",
+  termoObservacao: "termo_observacao",
+  isencao: "isencao",
   documentos: "documentos",
   pendencias: "pendencias",
+  observacoes: "observacoes",
+  consultor: "consultor",
+  responsavel: "responsavel",
 };
 
 /** Só as colunas dos campos que vieram (ausente = não muda). */
@@ -444,7 +411,7 @@ export function proximaVersao(anterior: string, agora: number = Date.now()): str
 const TENTATIVAS_DE_VERSAO = 3;
 
 /**
- * Sobe a versão da compra (compare-and-swap relendo a versão atual; até 3 tentativas): editar em outra aba depois disto leva 409. Usado pelo
+ * Sobe a versão da compra (compare-and-swap relendo a versão atual; até 3 tentativas): editar em outra aba depois disto leva 409. Usado pela
  * decisão de pré-cadastros (que muda a compra por fora do salvamento). Compra que não existe mais: não faz nada.
  */
 export async function subirVersaoDaCompra(compraId: string): Promise<void> {
@@ -472,108 +439,70 @@ function erroDeEscrita(acao: string, e: { message: string; code?: string }): Err
 }
 
 /**
- * Um id do corpo que já existe no banco precisa ser DESTA compra. Id de ordem ou de item que pertence a outra compra é recusado
- * (409): sem isto, o upsert por id roubaria a linha de outra compra. Ids que não existem em lugar nenhum são novos (vêm do cliente).
+ * Um id de item do corpo que já existe no banco precisa ser DESTA compra. Id de item que pertence a outra compra é recusado (409): sem
+ * isto, o upsert por id roubaria a linha de outra compra. Ids que não existem em lugar nenhum são novos (vêm do cliente).
  */
-async function conferirIdsDoCorpo(db: Db, atual: CompraCarregada, ordens: readonly OrdemCompraEstado[]): Promise<void> {
-  const ordemIdsAtuais = new Set(atual.ordens.map((o) => o.id));
+async function conferirIdsDoCorpo(db: Db, atual: CompraCarregada, itens: readonly ItemCompraEstado[]): Promise<void> {
   const itemIdsAtuais = new Set(atual.itens.map((i) => i.id));
-
-  const ordemIds = ordens.map((o) => o.id);
-  const itemIds = ordens.flatMap((o) => o.itens.map((i) => i.id));
-
-  async function existentes(tabela: string, ids: readonly string[]): Promise<string[]> {
-    const achados: string[] = [];
-    for (const bloco of emBlocos(ids)) {
-      const { data, error } = await db.from(tabela).select("id").in("id", bloco);
-      if (error) throw erro("conferir os identificadores da compra", error);
-      achados.push(...((data ?? []) as Array<{ id: string }>).map((r) => r.id));
-    }
-    return achados;
+  const itemIds = itens.map((i) => i.id);
+  const achados: string[] = [];
+  for (const bloco of emBlocos(itemIds)) {
+    const { data, error } = await db.from(ITENS).select("id").in("id", bloco);
+    if (error) throw erro("conferir os identificadores da compra", error);
+    achados.push(...((data ?? []) as Array<{ id: string }>).map((r) => r.id));
   }
-
-  const alheiaOrdem = (await existentes(ORDENS, ordemIds)).filter((id) => !ordemIdsAtuais.has(id));
-  const alheioItem = (await existentes(ITENS, itemIds)).filter((id) => !itemIdsAtuais.has(id));
-  if (alheiaOrdem.length > 0 || alheioItem.length > 0) throw new ComprasRegraError(MENSAGEM_ID_DE_OUTRA_COMPRA, 409);
+  if (achados.some((id) => !itemIdsAtuais.has(id))) throw new ComprasRegraError(MENSAGEM_ID_DE_OUTRA_COMPRA, 409);
 }
 
-/** A "forma" das ordens: ids das ordens na ordem e, em cada uma, os ids dos itens na ordem. Igual = nada entrou, saiu nem mudou de lugar. */
-const formaDe = (ordens: ReadonlyArray<{ id: string; itens: ReadonlyArray<{ id: string }> }>): string =>
-  JSON.stringify(ordens.map((o) => [o.id, o.itens.map((i) => i.id)]));
+/** A "forma" dos itens: os ids na ordem. Igual = nada entrou, saiu nem mudou de lugar. */
+const formaDe = (itens: ReadonlyArray<{ id: string }>): string => JSON.stringify(itens.map((i) => i.id));
 
-async function apagarPorId(db: Db, tabela: string, ids: readonly string[], acao: string): Promise<void> {
+async function apagarPorId(db: Db, ids: readonly string[], acao: string): Promise<void> {
   for (const bloco of emBlocos(ids)) {
-    const { error } = await db.from(tabela).delete().in("id", bloco);
+    const { error } = await db.from(ITENS).delete().in("id", bloco);
     if (error) throw erro(acao, error);
   }
 }
 
-async function gravarLista(db: Db, tabela: string, linhas: ReadonlyArray<Record<string, unknown>>, acao: string): Promise<void> {
+async function gravarItens(db: Db, linhas: readonly ItemRow[], acao: string): Promise<void> {
   if (linhas.length === 0) return;
-  const { error } = await db.from(tabela).upsert([...linhas], { onConflict: "id" });
+  const { error } = await db.from(ITENS).upsert([...linhas] as unknown as Array<Record<string, unknown>>, { onConflict: "id" });
   if (error) throw erroDeEscrita(acao, error);
 }
 
 /**
- * Faz as ordens e os itens do banco ficarem iguais ao estado: o que está no estado é gravado (upsert por id, com a posição = a ordem
- * do array, de 1 a N) e o que não está é APAGADO.
+ * Faz os itens do banco ficarem iguais ao estado: o que está no estado é gravado (upsert por id, com a posição = a ordem do array, de 1
+ * a N) e o que não está é APAGADO.
  *
  * POR QUE NÃO É UMA TRANSAÇÃO: o supabase-js só faz um comando por chamada. O que protege a unicidade das posições:
- *  1. caminho RÁPIDO (a forma não mudou: mesmas ordens, mesmos itens, mesma ordem): só os dois upserts com as posições finais, que
- *     já são as que existem — nenhuma posição troca de dono;
- *  2. caminho com MUDANÇA de forma (ordem removida do meio, itens trocados de lugar, item movido de ordem, ordem nova): as posições
- *     finais de duas linhas podem colidir com as atuais de outras, e as constraints (deferrable initially deferred) só aceitam isso
- *     DENTRO de um comando. Então: (a) as ordens vão para posições TEMPORÁRIAS acima de todas as atuais; (b) idem os itens;
- *     (c) apaga-se os itens que saíram; (d) apaga-se as ordens que saíram (os itens movidos já estão em outra ordem, a cascata não
- *     os leva); (e) um upsert em lista põe as ordens nas posições finais; (f) idem os itens. Cada passo é um comando que nunca
- *     viola a unicidade. Se um deles falhar, as linhas ficam com posições válidas (as temporárias são >= 1 e únicas) e o próximo
- *     salvamento conserta tudo.
+ *  1. caminho RÁPIDO (a forma não mudou: mesmos itens, mesma ordem): só um upsert com as posições finais, que já são as que existem —
+ *     nenhuma posição troca de dono;
+ *  2. caminho com MUDANÇA de forma (item removido do meio, itens reordenados, item novo): as posições finais de duas linhas podem colidir
+ *     com as atuais de outras, e a constraint (deferrable initially deferred) só aceita isso DENTRO de um comando. Então: (a) os itens do
+ *     estado vão para posições TEMPORÁRIAS acima de todas as atuais; (b) apagam-se os itens que saíram; (c) um upsert em lista põe os itens
+ *     nas posições finais. Cada passo é um comando que nunca viola a unicidade. Se um deles falhar, as linhas ficam com posições válidas
+ *     (as temporárias são >= 1 e únicas) e o próximo salvamento conserta tudo.
  */
-async function sincronizarFilhas(db: Db, compraId: string, atual: CompraCarregada, ordens: readonly OrdemCompraEstado[]): Promise<void> {
-  const ordensAtuais = [...atual.ordens].sort((a, b) => a.posicao - b.posicao);
-  const itensAtuais = (ordemId: string): ItemRow[] => atual.itens.filter((i) => i.ordem_id === ordemId).sort((a, b) => a.posicao - b.posicao);
-  const formaAtual = formaDe(ordensAtuais.map((o) => ({ id: o.id, itens: itensAtuais(o.id) })));
+async function sincronizarItens(db: Db, compraId: string, atual: CompraCarregada, itens: readonly ItemCompraEstado[]): Promise<void> {
+  const itensAtuais = [...atual.itens].sort((a, b) => a.posicao - b.posicao);
+  const linhas = (posicaoDe: (indice: number) => number): ItemRow[] => itens.map((item, i) => linhaDeItem(compraId, posicaoDe(i), item));
 
-  const linhasDasOrdens = (posicaoDe: (indice: number) => number): Array<Record<string, unknown>> =>
-    ordens.map((o, i) => linhaDeOrdem(compraId, posicaoDe(i), o));
-  const linhasDosItens = (posicaoDe: (ordemIndice: number, itemIndice: number, sequencial: number) => number): Array<Record<string, unknown>> => {
-    let sequencial = 0;
-    return ordens.flatMap((o, oi) =>
-      o.itens.map((item, ii) => {
-        sequencial += 1;
-        return linhaDeItem(o.id, posicaoDe(oi, ii, sequencial), item) as unknown as Record<string, unknown>;
-      }),
-    );
-  };
-
-  if (formaDe(ordens) === formaAtual) {
-    await gravarLista(db, ORDENS, linhasDasOrdens((i) => i + 1), "gravar as ordens da compra");
-    await gravarLista(db, ITENS, linhasDosItens((_oi, ii) => ii + 1), "gravar os itens da compra");
+  if (formaDe(itens) === formaDe(itensAtuais)) {
+    await gravarItens(db, linhas((i) => i + 1), "gravar os itens da compra");
     return;
   }
 
-  const maiorPosicaoDeOrdem = Math.max(0, ...atual.ordens.map((o) => o.posicao));
-  const maiorPosicaoDeItem = Math.max(0, ...atual.itens.map((i) => i.posicao));
-  await gravarLista(db, ORDENS, linhasDasOrdens((i) => maiorPosicaoDeOrdem + 1 + i), "gravar as ordens da compra");
-  await gravarLista(db, ITENS, linhasDosItens((_oi, _ii, n) => maiorPosicaoDeItem + n), "gravar os itens da compra");
+  const maiorPosicao = Math.max(0, ...atual.itens.map((i) => i.posicao));
+  await gravarItens(db, linhas((i) => maiorPosicao + 1 + i), "gravar os itens da compra");
 
-  const itemIdsNovos = new Set(ordens.flatMap((o) => o.itens.map((i) => i.id)));
-  const ordemIdsNovos = new Set(ordens.map((o) => o.id));
+  const idsNovos = new Set(itens.map((i) => i.id));
   await apagarPorId(
     db,
-    ITENS,
-    atual.itens.filter((i) => !itemIdsNovos.has(i.id)).map((i) => i.id),
+    atual.itens.filter((i) => !idsNovos.has(i.id)).map((i) => i.id),
     "apagar os itens removidos da compra",
   );
-  await apagarPorId(
-    db,
-    ORDENS,
-    atual.ordens.filter((o) => !ordemIdsNovos.has(o.id)).map((o) => o.id),
-    "apagar as ordens removidas da compra",
-  );
 
-  await gravarLista(db, ORDENS, linhasDasOrdens((i) => i + 1), "gravar as ordens da compra");
-  await gravarLista(db, ITENS, linhasDosItens((_oi, ii) => ii + 1), "gravar os itens da compra");
+  await gravarItens(db, linhas((i) => i + 1), "gravar os itens da compra");
 }
 
 export interface OpcoesSalvarCompra {
@@ -588,10 +517,10 @@ export interface OpcoesSalvarCompra {
 /**
  * O salvamento automático: aplica o estado à compra `id` e devolve a compra como ficou. null = não existe.
  *  - 409 se a compra foi CANCELADA, se `atualizadoEm` não é a versão atual (a resposta traz a compra atual em `data.atual`) ou se
- *    um id de ordem/item pertence a outra compra;
+ *    um id de item pertence a outra compra;
  *  - 422 se um medicamento do Cadastro ou pré-cadastro referenciado não existe;
- *  - `campos` ausente/parcial = os que não vieram não mudam; `ordens` ausente = não mexe nas ordens e itens; `ordens` presente =
- *    estado completo (o que não vier é apagado).
+ *  - `campos` ausente/parcial = os que não vieram não mudam; `itens` ausente = não mexe nos itens; `itens` presente = estado completo
+ *    (o que não vier é apagado).
  * O UPDATE da compra é compare-and-swap pela versão lida: de dois salvamentos simultâneos só um passa, o outro leva 409.
  */
 export async function salvarCompra(id: string, estadoRecebido: CompraEstado, usuario: string, opcoes: OpcoesSalvarCompra = {}): Promise<Compra | null> {
@@ -604,7 +533,7 @@ export async function salvarCompra(id: string, estadoRecebido: CompraEstado, usu
   if (estadoRecebido.atualizadoEm !== instanteIso(atual.row.updated_at)) throw conflitoDeVersao(compraAtual);
 
   const estado = (await opcoes.antesDeGravar?.(compraAtual)) ?? estadoRecebido;
-  if (estado.ordens) await conferirIdsDoCorpo(db, atual, estado.ordens);
+  if (estado.itens) await conferirIdsDoCorpo(db, atual, estado.itens);
 
   const { data, error } = await db
     .from(COMPRAS)
@@ -620,6 +549,6 @@ export async function salvarCompra(id: string, estadoRecebido: CompraEstado, usu
     throw conflitoDeVersao(maisNova);
   }
 
-  if (estado.ordens) await sincronizarFilhas(db, id, atual, estado.ordens);
+  if (estado.itens) await sincronizarItens(db, id, atual, estado.itens);
   return obterCompra(id);
 }

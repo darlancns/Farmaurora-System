@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Compra, CompraEstado, ItemCompraEstado, OrdemCompraEstado } from "../../shared/types/compra";
+import type { Compra, CompraEstado, ItemCompraEstado } from "../../shared/types/compra";
 import { FakeSupabase } from "./helpers/fakeSupabase";
 
-// comprasStore com o cliente Supabase em memória (tests/unit/helpers/fakeSupabase.ts). As unicidades do banco são ligadas no fake
-// (`unico`), conferidas no FIM de cada comando, como as constraints deferrable: a troca de posições num comando só passa, e a
-// duplicata entre dois comandos derruba o comando. Dados fictícios (TESTE).
+// comprasStore (UMA compra por fornecedor: compras + compra_itens) com o cliente Supabase em memória (tests/unit/helpers/fakeSupabase.ts).
+// As unicidades do banco são ligadas no fake (`unico`), conferidas no FIM de cada comando, como as constraints deferrable: a troca de
+// posições num comando só passa, e a duplicata entre dois comandos derruba o comando. Dados fictícios (TESTE).
 
 const fake = new FakeSupabase();
 vi.mock("../../server/utils/supabaseServerClient", () => ({
@@ -28,23 +28,22 @@ const {
   obterCompra,
   proximaVersao,
   salvarCompra,
+  subirVersaoDaCompra,
 } = store;
 
-const NOME_UNICO_ORDEM = "compra_ordens_compra_posicao_uq";
-const NOME_UNICO_ITEM = "compra_itens_ordem_posicao_uq";
+const NOME_UNICO_ITEM = "compra_itens_compra_posicao_uq";
 
 function limparBanco(): void {
-  for (const t of ["compras", "compra_ordens", "compra_itens"]) fake.tabelas[t] = [];
+  for (const t of ["compras", "compra_itens", "cadastro_medicamentos", "pre_cadastro_medicamentos"]) fake.tabelas[t] = [];
   fake.chamadas.length = 0;
 }
 
 beforeEach(() => {
   limparBanco();
-  // O banco de verdade impõe estas três unicidades.
+  // O banco de verdade impõe estas duas unicidades.
   (fake as unknown as { unicos: unknown[] }).unicos = [];
   fake.unico("compras", ["ano_mes", "sequencia"], NOME_UNICO_SEQUENCIA);
-  fake.unico("compra_ordens", ["compra_id", "posicao"], NOME_UNICO_ORDEM);
-  fake.unico("compra_itens", ["ordem_id", "posicao"], NOME_UNICO_ITEM);
+  fake.unico("compra_itens", ["compra_id", "posicao"], NOME_UNICO_ITEM);
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-11-19T15:00:00.000Z"));
 });
@@ -60,9 +59,8 @@ const item = (id: string, medicamento = `TESTE MED ${id}`, extra: Partial<ItemCo
   medicamento,
   medicamentoCadastroId: null,
   preCadastroId: null,
-  apresentacao: "",
-  referencia: "",
   laboratorio: "",
+  brand: "",
   quantidade: "",
   temperatura: "",
   valorUnitario: null,
@@ -70,27 +68,14 @@ const item = (id: string, medicamento = `TESTE MED ${id}`, extra: Partial<ItemCo
   ...extra,
 });
 
-const ordem = (id: string, itens: ItemCompraEstado[], extra: Partial<OrdemCompraEstado> = {}): OrdemCompraEstado => ({
-  id,
-  fornecedor: "",
-  envio: "",
-  cia: "",
-  po: "",
-  frete: null,
-  freteReal: null,
-  itens,
-  ...extra,
-});
-
-const estado = (c: Compra, ordens?: OrdemCompraEstado[], campos: CompraEstado["campos"] = {}): CompraEstado => ({
+const estado = (c: Compra, itens?: ItemCompraEstado[], campos: CompraEstado["campos"] = {}): CompraEstado => ({
   atualizadoEm: c.updatedAt,
   campos,
-  ...(ordens ? { ordens } : {}),
+  ...(itens ? { itens } : {}),
 });
 
-/** A forma de uma compra: [[ordem, [itens...]]...] na ordem do banco. */
-const forma = (c: Compra): Array<[string, string[]]> => c.ordens.map((o) => [o.id, o.itens.map((i) => i.id)]);
-const posicoes = (c: Compra): Array<[number, number[]]> => c.ordens.map((o) => [o.posicao, o.itens.map((i) => i.posicao)]);
+const ids = (c: Compra): string[] => c.itens.map((i) => i.id);
+const posicoes = (c: Compra): number[] => c.itens.map((i) => i.posicao);
 
 async function erroDe(promessa: Promise<unknown>): Promise<InstanceType<typeof ComprasRegraError>> {
   try {
@@ -100,6 +85,24 @@ async function erroDe(promessa: Promise<unknown>): Promise<InstanceType<typeof C
     throw e;
   }
   throw new Error("esperava um erro de regra das Compras, mas a chamada passou");
+}
+
+/** Guarda o que cada `upsert` em compra_itens recebeu (as posições gravadas), sem mudar o comportamento do fake. */
+function espiarUpsertsDeItens(): Array<Array<{ id: string; posicao: number }>> {
+  const gravados: Array<Array<{ id: string; posicao: number }>> = [];
+  const from = fake.from.bind(fake);
+  vi.spyOn(fake, "from").mockImplementation(((tabela: string) => {
+    const consulta = from(tabela);
+    if (tabela !== "compra_itens") return consulta;
+    const upsert = consulta.upsert.bind(consulta);
+    return Object.assign(consulta, {
+      upsert: (linhas: Array<{ id: string; posicao: number }>, opcoes: unknown) => {
+        gravados.push(linhas.map((l) => ({ id: l.id, posicao: l.posicao })));
+        return upsert(linhas as never, opcoes as never);
+      },
+    });
+  }) as unknown as typeof fake.from);
+  return gravados;
 }
 
 // ── Mês de Brasília ───────────────────────────────────────────────────────────────────────────────────────────
@@ -138,28 +141,45 @@ describe("proximaVersao — a versão nunca fica igual nem menor que a anterior"
 // ── Criar e o contador mensal ─────────────────────────────────────────────────────────────────────────────────
 
 describe("criarCompra — o número do mês", () => {
-  it("nasce vazia (rascunho), com responsável e criado_por = quem criou, e número 1", async () => {
+  it("nasce vazia (rascunho): empresa FARMAURORA, 1 ordem, sem itens, responsável e criado_por = quem criou, número 1", async () => {
     const c = await criarCompra("Cris");
     expect(c).toMatchObject({
       anoMes: "2026-11",
       sequencia: 1,
       cancelada: false,
+      fornecedor: "",
+      envio: "",
+      cia: "",
+      empresa: "FARMAURORA",
+      numeroOrdens: 1,
+      frete: null,
+      freteReal: null,
       paciente: "",
-      vendedor: "",
+      consultor: "",
       responsavel: "Cris",
       criadoPor: "Cris",
       atualizadoPor: "Cris",
       compraParticular: false,
       termoPosterior: false,
+      isencao: false,
+      recorrente: false,
       pagamentoAlvara: null,
       pagamentoMomento: null,
       documentos: null,
       pendencias: [],
-      ordens: [],
+      itens: [],
     });
     expect(c.id).toMatch(/^cmp_/);
     expect(c.createdAt).toBe("2026-11-19T15:00:00.000Z");
     expect(c.updatedAt).toBe("2026-11-19T15:00:00.000Z");
+  });
+
+  it("a linha gravada tem exatamente as 34 colunas do schema novo (nada de vendedor, ordens, courier_simples, local_declarado, isencao_para)", async () => {
+    await criarCompra("Cris");
+    const colunas = Object.keys(fake.linhas("compras")[0]!).sort();
+    expect(colunas).toHaveLength(34);
+    for (const c of ["consultor", "fornecedor", "envio", "cia", "frete", "frete_real", "empresa", "numero_ordens"]) expect(colunas, c).toContain(c);
+    for (const c of ["vendedor", "courier_simples", "local_declarado", "isencao_para"]) expect(colunas, c).not.toContain(c);
   });
 
   it("sequencia = maior do mês + 1 (1, 2, 3...), e cada mês tem a sua contagem", async () => {
@@ -264,25 +284,94 @@ describe("criarCompra — disputa pelo número (23505 em compras_mes_sequencia_u
 // ── Ler ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
 describe("obterCompra", () => {
-  it("obterCompra: null se não existe; com ordens e itens POR POSIÇÃO", async () => {
+  it("null se não existe; com os itens POR POSIÇÃO e os numeric de texto convertidos ('0.00' é zero)", async () => {
     expect(await obterCompra("nao_existe")).toBeNull();
     const c = await criarCompra("Cris");
+    Object.assign(fake.linhas("compras")[0]!, { frete: "10.50", frete_real: "0.00", numero_ordens: 3 });
     // Linhas semeadas fora de ordem.
-    fake.semear("compra_ordens", [
-      { id: "ord_b0001", compra_id: c.id, posicao: 2, fornecedor: "B", envio: "", cia: "", po: "", frete: "10.50", frete_real: null },
-      { id: "ord_a0001", compra_id: c.id, posicao: 1, fornecedor: "A", envio: "", cia: "", po: "", frete: null, frete_real: null },
-    ]);
     fake.semear("compra_itens", [
-      { id: "itm_a0002", ordem_id: "ord_a0001", posicao: 2, medicamento: "SEGUNDO", valor_unitario: "0.00" },
-      { id: "itm_a0001", ordem_id: "ord_a0001", posicao: 1, medicamento: "PRIMEIRO", valor_unitario: "12.30" },
+      { id: "itm_a0002", compra_id: c.id, posicao: 2, medicamento: "SEGUNDO", brand: "referencia", valor_unitario: "0.00" },
+      { id: "itm_a0001", compra_id: c.id, posicao: 1, medicamento: "PRIMEIRO", brand: "", valor_unitario: "12.30" },
     ]);
     const lida = (await obterCompra(c.id))!;
-    expect(forma(lida)).toEqual([
-      ["ord_a0001", ["itm_a0001", "itm_a0002"]],
-      ["ord_b0001", []],
+    expect(ids(lida)).toEqual(["itm_a0001", "itm_a0002"]);
+    expect(lida).toMatchObject({ frete: 10.5, freteReal: 0, numeroOrdens: 3 });
+    expect(lida.itens.map((i) => i.valorUnitario)).toEqual([12.3, 0]);
+    expect(lida.itens.map((i) => i.brand)).toEqual(["", "referencia"]);
+  });
+
+  it("não traz os itens de OUTRA compra", async () => {
+    const a = await criarCompra("Cris");
+    const b = await criarCompra("Cris");
+    fake.semear("compra_itens", [
+      { id: "itm_da_a01", compra_id: a.id, posicao: 1, medicamento: "DA A" },
+      { id: "itm_da_b01", compra_id: b.id, posicao: 1, medicamento: "DA B" },
     ]);
-    expect(lida.ordens[1]!.frete).toBe(10.5);
-    expect(lida.ordens[0]!.itens.map((i) => i.valorUnitario)).toEqual([12.3, 0]); // numeric de texto → número; "0.00" é zero
+    expect(ids((await obterCompra(a.id))!)).toEqual(["itm_da_a01"]);
+  });
+});
+
+describe("medicamentoCadastroNome — o nome do Cadastro, só leitura (1 consulta extra, sem DDL)", () => {
+  async function comItens(): Promise<Compra> {
+    const c = await criarCompra("Cris");
+    fake.semear("cadastro_medicamentos", [
+      { id: "med_1", nome: "KEYTRUDA 100MG", temperatura: "2°C a 8°C", ativo: true },
+      { id: "med_inativo", nome: "MED DESATIVADO", temperatura: "Ambiente", ativo: false },
+    ]);
+    fake.semear("compra_itens", [
+      { id: "itm_000001", compra_id: c.id, posicao: 1, medicamento: "KEYTRUDA 100MG - 2 vials per box", medicamento_cadastro_id: "med_1" },
+      { id: "itm_000002", compra_id: c.id, posicao: 2, medicamento: "TEXTO LIVRE", medicamento_cadastro_id: null },
+      { id: "itm_000003", compra_id: c.id, posicao: 3, medicamento: "ID QUE SUMIU", medicamento_cadastro_id: "med_sumiu" },
+      { id: "itm_000004", compra_id: c.id, posicao: 4, medicamento: "DESATIVADO", medicamento_cadastro_id: "med_inativo" },
+    ]);
+    return c;
+  }
+
+  it("ligado: o nome do Cadastro (o texto do item pode ter mais); não ligado: null; Cadastro sem esse id: null; inativo ainda tem nome", async () => {
+    const c = await comItens();
+    const lida = (await obterCompra(c.id))!;
+    expect(lida.itens.map((i) => [i.medicamentoCadastroId, i.medicamentoCadastroNome])).toEqual([
+      ["med_1", "KEYTRUDA 100MG"],
+      [null, null],
+      ["med_sumiu", null],
+      ["med_inativo", "MED DESATIVADO"],
+    ]);
+    expect(lida.itens[0]!.medicamento).toBe("KEYTRUDA 100MG - 2 vials per box"); // o texto continua como foi digitado
+  });
+
+  it("a leitura faz UMA consulta ao Cadastro (e nenhuma quando nenhum item está ligado)", async () => {
+    const c = await comItens();
+    fake.chamadas.length = 0;
+    await obterCompra(c.id);
+    expect(fake.chamadas.filter((x) => x.tabela === "cadastro_medicamentos")).toHaveLength(1);
+
+    const vazia = await criarCompra("Cris");
+    fake.chamadas.length = 0;
+    await obterCompra(vazia.id);
+    expect(fake.chamadas.filter((x) => x.tabela === "cadastro_medicamentos")).toEqual([]);
+  });
+
+  it("é só leitura: o que o salvamento grava não tem a coluna (nem o campo vem no estado)", async () => {
+    const c = await comItens();
+    const lida = (await obterCompra(c.id))!;
+    await salvarCompra(c.id, estado(lida, lida.itens.map((i) => item(i.id, i.medicamento, { medicamentoCadastroId: i.medicamentoCadastroId }))), "Cris");
+    for (const linha of fake.linhas("compra_itens")) expect(Object.keys(linha)).not.toContain("medicamento_cadastro_nome");
+  });
+});
+
+describe("o estado do pré-cadastro do item (só leitura)", () => {
+  it("o item mostra o pré-cadastro e o estado dele enquanto não virou item do Cadastro; ligado ao Cadastro, o pré-cadastro some", async () => {
+    const c = await criarCompra("Cris");
+    fake.semear("pre_cadastro_medicamentos", [{ id: "pre_1", status: "rejeitado" }, { id: "pre_2", status: "aprovado" }]);
+    fake.semear("cadastro_medicamentos", [{ id: "med_1", nome: "MED UM", ativo: true }]);
+    fake.semear("compra_itens", [
+      { id: "itm_000001", compra_id: c.id, posicao: 1, medicamento: "A", pre_cadastro_id: "pre_1" },
+      { id: "itm_000002", compra_id: c.id, posicao: 2, medicamento: "B", pre_cadastro_id: "pre_2", medicamento_cadastro_id: "med_1" },
+    ]);
+    const lida = (await obterCompra(c.id))!;
+    expect(lida.itens[0]).toMatchObject({ preCadastroId: "pre_1", preCadastroStatus: "rejeitado" });
+    expect(lida.itens[1]!.preCadastroId).toBeNull();
+    expect(lida.itens[1]).not.toHaveProperty("preCadastroStatus");
   });
 });
 
@@ -301,7 +390,7 @@ describe("cancelarCompra — cancelada = true, NUNCA um DELETE", () => {
 
   it("nenhuma operação de exclusão em compras, em nenhum caminho do store", async () => {
     const c = await criarCompra("Cris");
-    await salvarCompra(c.id, estado(c, [ordem("ord_000001", [item("itm_000001")])]), "Cris");
+    await salvarCompra(c.id, estado(c, [item("itm_000001")]), "Cris");
     const atual = (await obterCompra(c.id))!;
     await salvarCompra(c.id, estado(atual, []), "Cris");
     await duplicarCompra(c.id, "Cris");
@@ -309,12 +398,21 @@ describe("cancelarCompra — cancelada = true, NUNCA um DELETE", () => {
     expect(fake.chamadas.filter((x) => x.tabela === "compras" && x.op === "delete")).toEqual([]);
   });
 
-  it("depois de cancelada, salvar é 409 (compra cancelada) e não grava nada", async () => {
+  it("depois de cancelada, salvar é 409 (compra cancelada, com a compra atual em data.atual) e não grava nada", async () => {
     const c = await criarCompra("Cris");
     const cancelada = (await cancelarCompra(c.id, "Cris"))!;
     const e = await erroDe(salvarCompra(c.id, estado(cancelada, undefined, { paciente: "NOVO" }), "Cris"));
     expect(e).toMatchObject({ statusCode: 409, message: MENSAGEM_COMPRA_CANCELADA });
+    expect((e.data as { atual: Compra }).atual).toMatchObject({ cancelada: true });
     expect(fake.linhas("compras")[0]!.paciente).toBe("");
+  });
+
+  it("compra cancelada não tem os itens mexidos nem com `itens` no corpo", async () => {
+    const c = await criarCompra("Cris");
+    const r = (await salvarCompra(c.id, estado(c, [item("itm_000001")]), "Cris"))!;
+    const cancelada = (await cancelarCompra(r.id, "Cris"))!;
+    await erroDe(salvarCompra(c.id, estado(cancelada, []), "Cris"));
+    expect(fake.linhas("compra_itens")).toHaveLength(1);
   });
 });
 
@@ -331,11 +429,24 @@ describe("salvarCompra — campos", () => {
     expect(r2).toMatchObject({ paciente: "PACIENTE TESTE", medico: "Dr. Teste", isencao: true, pagamentoMomento: null }); // o resto ficou
   });
 
-  it("sem `ordens` não mexe nas ordens e itens", async () => {
+  it("os campos da compra única: fornecedor, envio, cia, empresa, numeroOrdens, frete, freteReal e consultor vão para as colunas certas", async () => {
     const c = await criarCompra("Cris");
-    const r1 = (await salvarCompra(c.id, estado(c, [ordem("ord_000001", [item("itm_000001")])]), "Cris"))!;
+    const r = (await salvarCompra(
+      c.id,
+      estado(c, undefined, { fornecedor: "FORNECEDOR TESTE", envio: "Air Cargo", cia: "Emirates", empresa: "MAINZFARMA", numeroOrdens: 3, frete: 150, freteReal: 0, consultor: "CONSULTOR TESTE" }),
+      "Cris",
+    ))!;
+    expect(r).toMatchObject({ fornecedor: "FORNECEDOR TESTE", envio: "Air Cargo", cia: "Emirates", empresa: "MAINZFARMA", numeroOrdens: 3, frete: 150, freteReal: 0, consultor: "CONSULTOR TESTE" });
+    expect(fake.linhas("compras")[0]).toMatchObject({ fornecedor: "FORNECEDOR TESTE", envio: "Air Cargo", cia: "Emirates", empresa: "MAINZFARMA", numero_ordens: 3, frete: 150, frete_real: 0, consultor: "CONSULTOR TESTE" });
+    const limpa = (await salvarCompra(c.id, estado(r, undefined, { frete: null }), "Cris"))!;
+    expect(limpa).toMatchObject({ frete: null, freteReal: 0 }); // null limpa; o que não veio não muda
+  });
+
+  it("sem `itens` não mexe nos itens", async () => {
+    const c = await criarCompra("Cris");
+    const r1 = (await salvarCompra(c.id, estado(c, [item("itm_000001")]), "Cris"))!;
     const r2 = (await salvarCompra(c.id, { atualizadoEm: r1.updatedAt, campos: { paciente: "X" } }, "Cris"))!;
-    expect(forma(r2)).toEqual([["ord_000001", ["itm_000001"]]]);
+    expect(ids(r2)).toEqual(["itm_000001"]);
   });
 
   it("compra que não existe: null", async () => {
@@ -346,7 +457,7 @@ describe("salvarCompra — campos", () => {
     const c = await criarCompra("Cris");
     let recebida: Compra | null = null;
     await expect(
-      salvarCompra(c.id, estado(c, [ordem("ord_000001", [])], { paciente: "NAO_GRAVA" }), "Cris", {
+      salvarCompra(c.id, estado(c, [item("itm_000001")], { paciente: "NAO_GRAVA" }), "Cris", {
         antesDeGravar: async (atual) => {
           recebida = atual;
           throw new ComprasRegraError("recusado pela validação", 422);
@@ -355,18 +466,25 @@ describe("salvarCompra — campos", () => {
     ).rejects.toMatchObject({ statusCode: 422 });
     expect((recebida as Compra | null)?.id).toBe(c.id);
     expect(fake.linhas("compras")[0]).toMatchObject({ paciente: "", updated_at: c.updatedAt });
-    expect(fake.linhas("compra_ordens")).toHaveLength(0);
+    expect(fake.linhas("compra_itens")).toHaveLength(0);
+  });
+
+  it("antesDeGravar pode DEVOLVER outro estado: é ele que é gravado", async () => {
+    const c = await criarCompra("Cris");
+    const r = (await salvarCompra(c.id, estado(c, undefined, { paciente: "DIGITADO" }), "Cris", { antesDeGravar: async () => estado(c, undefined, { paciente: "DO CADASTRO" }) }))!;
+    expect(r.paciente).toBe("DO CADASTRO");
   });
 });
 
 describe("salvarCompra — concorrência (dois operacionais na mesma compra)", () => {
-  it("versão antiga: 409 com a compra ATUAL na resposta, e nada é gravado", async () => {
+  it("versão antiga: 409 com a compra ATUAL na resposta (data.atual), e nada é gravado", async () => {
     const c = await criarCompra("Cris");
     const r1 = (await salvarCompra(c.id, estado(c, undefined, { paciente: "DA PESSOA A" }), "A"))!;
-    const e = await erroDe(salvarCompra(c.id, estado(c, undefined, { paciente: "DA PESSOA B" }), "B")); // B ainda vê a versão antiga
+    const e = await erroDe(salvarCompra(c.id, estado(c, [item("itm_000001")], { paciente: "DA PESSOA B" }), "B")); // B ainda vê a versão antiga
     expect(e).toMatchObject({ statusCode: 409, message: MENSAGEM_CONFLITO_VERSAO });
     expect((e.data as { atual: Compra }).atual).toMatchObject({ paciente: "DA PESSOA A", updatedAt: r1.updatedAt });
     expect(fake.linhas("compras")[0]!.paciente).toBe("DA PESSOA A");
+    expect(fake.linhas("compra_itens")).toHaveLength(0);
   });
 
   it("B recarrega e salva de novo com a versão nova: passa", async () => {
@@ -398,11 +516,11 @@ describe("salvarCompra — concorrência (dois operacionais na mesma compra)", (
         },
       });
     }) as unknown as typeof fake.from);
-    const e = await erroDe(salvarCompra(c.id, estado(c, [ordem("ord_000001", [item("itm_000001")])], { paciente: "MEU" }), "Eu"));
+    const e = await erroDe(salvarCompra(c.id, estado(c, [item("itm_000001")], { paciente: "MEU" }), "Eu"));
     expect(e.statusCode).toBe(409);
     expect((e.data as { atual: Compra }).atual).toMatchObject({ paciente: "DO RIVAL", updatedAt: "2026-11-19T15:00:05.000Z" });
     expect(fake.linhas("compras")[0]!.paciente).toBe("DO RIVAL");
-    expect(fake.linhas("compra_ordens")).toHaveLength(0); // as filhas nem foram tocadas
+    expect(fake.linhas("compra_itens")).toHaveLength(0); // os itens nem foram tocados
   });
 
   it("a versão compara o instante, não o texto (o '+00:00' do Postgres e o 'Z' são a mesma versão)", async () => {
@@ -413,182 +531,135 @@ describe("salvarCompra — concorrência (dois operacionais na mesma compra)", (
   });
 });
 
-// ── Salvar: ordens e itens (a sincronização) ─────────────────────────────────────────────────────────────────
+// ── Salvar: os itens (a sincronização) ───────────────────────────────────────────────────────────────────────
 
-describe("salvarCompra — ordens e itens", () => {
-  async function comTres(): Promise<Compra> {
+describe("salvarCompra — itens", () => {
+  async function comQuatro(): Promise<Compra> {
     const c = await criarCompra("Cris");
-    return (await salvarCompra(
-      c.id,
-      estado(c, [
-        ordem("ord_aaaaaa", [item("itm_a00001"), item("itm_a00002"), item("itm_a00003")], { fornecedor: "FORNECEDOR A", frete: 100 }),
-        ordem("ord_bbbbbb", [item("itm_b00001"), item("itm_b00002")], { fornecedor: "FORNECEDOR B" }),
-        ordem("ord_cccccc", [item("itm_c00001")], { fornecedor: "FORNECEDOR C", po: "PO26-11-0003" }),
-      ]),
-      "Cris",
-    ))!;
+    return (await salvarCompra(c.id, estado(c, [item("itm_a00001"), item("itm_a00002"), item("itm_a00003"), item("itm_a00004")]), "Cris"))!;
   }
 
-  it("ids novos vindos do cliente: grava ordens e itens com a posição = a ordem do array (1..N)", async () => {
-    const c = await comTres();
-    expect(forma(c)).toEqual([
-      ["ord_aaaaaa", ["itm_a00001", "itm_a00002", "itm_a00003"]],
-      ["ord_bbbbbb", ["itm_b00001", "itm_b00002"]],
-      ["ord_cccccc", ["itm_c00001"]],
-    ]);
-    expect(posicoes(c)).toEqual([[1, [1, 2, 3]], [2, [1, 2]], [3, [1]]]);
-    expect(c.ordens[0]).toMatchObject({ fornecedor: "FORNECEDOR A", frete: 100 });
-    expect(c.ordens[2]!.po).toBe("PO26-11-0003");
+  it("ids novos vindos do cliente: grava com a posição = a ordem do array (1..N)", async () => {
+    const c = await comQuatro();
+    expect(ids(c)).toEqual(["itm_a00001", "itm_a00002", "itm_a00003", "itm_a00004"]);
+    expect(posicoes(c)).toEqual([1, 2, 3, 4]);
+    expect(fake.linhas("compra_itens").every((i) => i.compra_id === c.id)).toBe(true);
+  });
+
+  it("a linha gravada do item: compra_id, brand, laboratorio... e nada de ordem_id nem apresentacao", async () => {
+    const c = await criarCompra("Cris");
+    await salvarCompra(c.id, estado(c, [item("itm_a00001", "KEYTRUDA 100mg - 2 vials per box", { brand: "referencia", laboratorio: "MSD", quantidade: "2", temperatura: "2°C a 8°C" })]), "Cris");
+    const linha = fake.linhas("compra_itens")[0]!;
+    expect(linha).toMatchObject({ id: "itm_a00001", compra_id: c.id, posicao: 1, medicamento: "KEYTRUDA 100mg - 2 vials per box", brand: "referencia", laboratorio: "MSD", quantidade: "2", temperatura: "2°C a 8°C" });
+    expect(Object.keys(linha)).not.toContain("ordem_id");
+    expect(Object.keys(linha)).not.toContain("apresentacao");
+    expect(Object.keys(linha)).not.toContain("referencia");
   });
 
   it("dinheiro: número com 2 casas vai e volta (0 é zero, null é vazio); quantidade é texto", async () => {
     const c = await criarCompra("Cris");
-    const r = (await salvarCompra(
-      c.id,
-      estado(c, [ordem("ord_aaaaaa", [item("itm_a00001", "TESTE MED", { quantidade: "12 ampolas", valorUnitario: 1234.5, valorReal: 0 }), item("itm_a00002", "TESTE MED 2")], { frete: 0, freteReal: 140.5 })]),
-      "Cris",
-    ))!;
-    expect(r.ordens[0]).toMatchObject({ frete: 0, freteReal: 140.5 });
-    expect(r.ordens[0]!.itens[0]).toMatchObject({ quantidade: "12 ampolas", valorUnitario: 1234.5, valorReal: 0 });
-    expect(r.ordens[0]!.itens[1]).toMatchObject({ valorUnitario: null, valorReal: null });
+    const r = (await salvarCompra(c.id, estado(c, [item("itm_a00001", "TESTE MED", { quantidade: "12 ampolas", valorUnitario: 1234.5, valorReal: 0 }), item("itm_a00002", "TESTE MED 2")]), "Cris"))!;
+    expect(r.itens[0]).toMatchObject({ quantidade: "12 ampolas", valorUnitario: 1234.5, valorReal: 0 });
+    expect(r.itens[1]).toMatchObject({ valorUnitario: null, valorReal: null });
   });
 
-  it("editar sem mudar a forma é o caminho rápido: dois comandos de escrita, nenhum delete", async () => {
-    const c = await comTres();
+  it("editar sem mudar a forma é o caminho rápido: duas escritas (compra e itens), nenhum delete, e as posições finais já na 1ª gravação", async () => {
+    const c = await comQuatro();
     fake.chamadas.length = 0;
-    const novas = c.ordens.map((o) => ordem(o.id, o.itens.map((i) => item(i.id, `${i.medicamento} EDITADO`)), { fornecedor: o.fornecedor }));
-    const r = (await salvarCompra(c.id, estado(c, novas), "Cris"))!;
-    expect(r.ordens[0]!.itens[0]!.medicamento).toMatch(/EDITADO$/);
+    const gravados = espiarUpsertsDeItens();
+    const r = (await salvarCompra(c.id, estado(c, c.itens.map((i) => item(i.id, `${i.medicamento} EDITADO`))), "Cris"))!;
+    expect(r.itens[0]!.medicamento).toMatch(/EDITADO$/);
     const escritas = fake.chamadas.filter((x) => x.op !== "select");
-    expect(escritas.map((x) => `${x.tabela}:${x.op}`)).toEqual(["compras:update", "compra_ordens:upsert", "compra_itens:upsert"]);
+    expect(escritas.map((x) => `${x.tabela}:${x.op}`)).toEqual(["compras:update", "compra_itens:upsert"]);
+    expect(gravados).toHaveLength(1);
+    expect(gravados[0]!.map((l) => l.posicao)).toEqual([1, 2, 3, 4]);
   });
 
-  it("REMOVER A ORDEM DO MEIO: as outras sobem de posição (1, 2), a removida e seus itens somem, nenhuma unicidade é violada", async () => {
-    const c = await comTres();
-    const r = (await salvarCompra(c.id, estado(c, [ordem("ord_aaaaaa", [item("itm_a00001"), item("itm_a00002"), item("itm_a00003")]), ordem("ord_cccccc", [item("itm_c00001")])]), "Cris"))!;
-    expect(forma(r)).toEqual([
-      ["ord_aaaaaa", ["itm_a00001", "itm_a00002", "itm_a00003"]],
-      ["ord_cccccc", ["itm_c00001"]],
-    ]);
-    expect(posicoes(r)).toEqual([[1, [1, 2, 3]], [2, [1]]]);
-    expect(fake.linhas("compra_ordens").map((o) => o.id).sort()).toEqual(["ord_aaaaaa", "ord_cccccc"]);
-    expect(fake.linhas("compra_itens").map((i) => i.id)).not.toContain("itm_b00001");
-    expect(fake.linhas("compra_itens")).toHaveLength(4);
+  it("REORDENAR: as posições passam por valores TEMPORÁRIOS acima de todas as existentes e só depois vão para as finais (nunca viola a unicidade)", async () => {
+    const c = await comQuatro();
+    const gravados = espiarUpsertsDeItens();
+    const r = (await salvarCompra(c.id, estado(c, [item("itm_a00004"), item("itm_a00003"), item("itm_a00002"), item("itm_a00001")]), "Cris"))!;
+    expect(ids(r)).toEqual(["itm_a00004", "itm_a00003", "itm_a00002", "itm_a00001"]);
+    expect(posicoes(r)).toEqual([1, 2, 3, 4]);
+    expect(gravados).toHaveLength(2);
+    expect(gravados[0]!.every((l) => l.posicao > 4)).toBe(true); // temporárias: acima da maior que existia
+    expect(new Set(gravados[0]!.map((l) => l.posicao)).size).toBe(4); // e todas diferentes
+    expect(gravados[1]!.map((l) => [l.id, l.posicao])).toEqual([["itm_a00004", 1], ["itm_a00003", 2], ["itm_a00002", 3], ["itm_a00001", 4]]);
   });
 
-  it("TROCAR A ORDEM DE DOIS ITENS (e de duas ordens): as posições trocam sem violar a unicidade", async () => {
-    const c = await comTres();
-    const r = (await salvarCompra(
-      c.id,
-      estado(c, [
-        ordem("ord_cccccc", [item("itm_c00001")]),
-        ordem("ord_aaaaaa", [item("itm_a00003"), item("itm_a00002"), item("itm_a00001")]),
-        ordem("ord_bbbbbb", [item("itm_b00002"), item("itm_b00001")]),
-      ]),
-      "Cris",
-    ))!;
-    expect(forma(r)).toEqual([
-      ["ord_cccccc", ["itm_c00001"]],
-      ["ord_aaaaaa", ["itm_a00003", "itm_a00002", "itm_a00001"]],
-      ["ord_bbbbbb", ["itm_b00002", "itm_b00001"]],
-    ]);
-    expect(posicoes(r)).toEqual([[1, [1]], [2, [1, 2, 3]], [3, [1, 2]]]);
+  it("REMOVER O ITEM DO MEIO: os outros sobem de posição (1, 2, 3), o removido some, nenhuma unicidade é violada", async () => {
+    const c = await comQuatro();
+    const r = (await salvarCompra(c.id, estado(c, [item("itm_a00001"), item("itm_a00003"), item("itm_a00004")]), "Cris"))!;
+    expect(ids(r)).toEqual(["itm_a00001", "itm_a00003", "itm_a00004"]);
+    expect(posicoes(r)).toEqual([1, 2, 3]);
+    expect(fake.linhas("compra_itens").map((i) => i.id)).not.toContain("itm_a00002");
+    expect(fake.linhas("compra_itens")).toHaveLength(3);
   });
 
-  it("remover o item do meio, e inserir um item novo no meio, reposicionam sem violar", async () => {
-    const c = await comTres();
-    const semMeio = (await salvarCompra(c.id, estado(c, [ordem("ord_aaaaaa", [item("itm_a00001"), item("itm_a00003")]), ordem("ord_bbbbbb", c.ordens[1]!.itens.map((i) => item(i.id))), ordem("ord_cccccc", [item("itm_c00001")])]), "Cris"))!;
-    expect(forma(semMeio)[0]).toEqual(["ord_aaaaaa", ["itm_a00001", "itm_a00003"]]);
-    expect(posicoes(semMeio)[0]).toEqual([1, [1, 2]]);
-
-    const comNovo = (await salvarCompra(semMeio.id, estado(semMeio, [ordem("ord_aaaaaa", [item("itm_a00001"), item("itm_novo001"), item("itm_a00003")]), ordem("ord_bbbbbb", semMeio.ordens[1]!.itens.map((i) => item(i.id))), ordem("ord_cccccc", [item("itm_c00001")])]), "Cris"))!;
-    expect(forma(comNovo)[0]).toEqual(["ord_aaaaaa", ["itm_a00001", "itm_novo001", "itm_a00003"]]);
-    expect(posicoes(comNovo)[0]).toEqual([1, [1, 2, 3]]);
+  it("os itens que NÃO vierem em `itens` são APAGADOS (estado completo), e só os da compra: a de outro número não é tocada", async () => {
+    const c = await comQuatro();
+    const outra = await criarCompra("Cris");
+    await salvarCompra(outra.id, estado(outra, [item("itm_da_outra1")]), "Cris");
+    const r = (await salvarCompra(c.id, estado(c, [item("itm_a00002")]), "Cris"))!;
+    expect(ids(r)).toEqual(["itm_a00002"]);
+    expect(posicoes(r)).toEqual([1]);
+    expect(fake.linhas("compra_itens").map((i) => i.id).sort()).toEqual(["itm_a00002", "itm_da_outra1"]);
   });
 
-  it("mover um item de uma ordem para outra, inclusive de uma ordem que está sendo REMOVIDA: o item sobrevive (a cascata não o leva)", async () => {
-    const c = await comTres();
-    // B é removida; seu item itm_b00001 vai para A, itm_b00002 vai para uma ordem nova.
-    const r = (await salvarCompra(
-      c.id,
-      estado(c, [
-        ordem("ord_aaaaaa", [item("itm_a00001"), item("itm_b00001", "MOVIDO"), item("itm_a00002"), item("itm_a00003")]),
-        ordem("ord_cccccc", [item("itm_c00001")]),
-        ordem("ord_novo001", [item("itm_b00002", "MOVIDO 2")]),
-      ]),
-      "Cris",
-    ))!;
-    expect(forma(r)).toEqual([
-      ["ord_aaaaaa", ["itm_a00001", "itm_b00001", "itm_a00002", "itm_a00003"]],
-      ["ord_cccccc", ["itm_c00001"]],
-      ["ord_novo001", ["itm_b00002"]],
-    ]);
-    expect(posicoes(r)).toEqual([[1, [1, 2, 3, 4]], [2, [1]], [3, [1]]]);
-    expect(r.ordens[0]!.itens[1]!.medicamento).toBe("MOVIDO");
-    expect(fake.linhas("compra_ordens").map((o) => o.id)).not.toContain("ord_bbbbbb");
+  it("inserir um item novo no meio reposiciona sem violar", async () => {
+    const c = await comQuatro();
+    const r = (await salvarCompra(c.id, estado(c, [item("itm_a00001"), item("itm_novo001"), item("itm_a00002"), item("itm_a00003"), item("itm_a00004")]), "Cris"))!;
+    expect(ids(r)).toEqual(["itm_a00001", "itm_novo001", "itm_a00002", "itm_a00003", "itm_a00004"]);
+    expect(posicoes(r)).toEqual([1, 2, 3, 4, 5]);
   });
 
-  it("remover todas as ordens (estado vazio) apaga todas as ordens e itens; `ordens: []` é válido", async () => {
-    const c = await comTres();
+  it("`itens: []` apaga todos os itens", async () => {
+    const c = await comQuatro();
     const r = (await salvarCompra(c.id, estado(c, []), "Cris"))!;
-    expect(r.ordens).toEqual([]);
-    expect(fake.linhas("compra_ordens")).toHaveLength(0);
+    expect(r.itens).toEqual([]);
     expect(fake.linhas("compra_itens")).toHaveLength(0);
   });
 
-  it("tudo junto numa gravação: ordem nova no começo, remover uma, trocar itens, editar campos", async () => {
-    const c = await comTres();
-    const r = (await salvarCompra(
-      c.id,
-      estado(
-        c,
-        [ordem("ord_novo001", [item("itm_nov0001")], { fornecedor: "NOVO" }), ordem("ord_cccccc", [item("itm_c00001")]), ordem("ord_aaaaaa", [item("itm_a00003"), item("itm_a00001")])],
-        { paciente: "DEPOIS" },
-      ),
-      "Cris",
-    ))!;
-    expect(forma(r)).toEqual([
-      ["ord_novo001", ["itm_nov0001"]],
-      ["ord_cccccc", ["itm_c00001"]],
-      ["ord_aaaaaa", ["itm_a00003", "itm_a00001"]],
-    ]);
-    expect(posicoes(r)).toEqual([[1, [1]], [2, [1]], [3, [1, 2]]]);
+  it("tudo junto numa gravação: item novo no começo, remover um, trocar a ordem dos outros, editar campos", async () => {
+    const c = await comQuatro();
+    const r = (await salvarCompra(c.id, estado(c, [item("itm_novo001"), item("itm_a00004"), item("itm_a00001")], { paciente: "DEPOIS" }), "Cris"))!;
+    expect(ids(r)).toEqual(["itm_novo001", "itm_a00004", "itm_a00001"]);
+    expect(posicoes(r)).toEqual([1, 2, 3]);
     expect(r.paciente).toBe("DEPOIS");
-    expect(fake.linhas("compra_itens").map((i) => i.id).sort()).toEqual(["itm_a00001", "itm_a00003", "itm_c00001", "itm_nov0001"]);
+    expect(fake.linhas("compra_itens").map((i) => i.id).sort()).toEqual(["itm_a00001", "itm_a00004", "itm_novo001"]);
+  });
+
+  it("os itens ligados ao Cadastro ou ao pré-cadastro guardam o vínculo", async () => {
+    const c = await criarCompra("Cris");
+    await salvarCompra(c.id, estado(c, [item("itm_a00001", "A", { medicamentoCadastroId: "med_1" }), item("itm_a00002", "B", { preCadastroId: "pre_1" })]), "Cris");
+    expect(fake.linhas("compra_itens").map((i) => [i.medicamento_cadastro_id, i.pre_cadastro_id])).toEqual([["med_1", null], [null, "pre_1"]]);
   });
 });
 
-describe("salvarCompra — sequestro de id (409)", () => {
+describe("salvarCompra — sequestro de id de item (409)", () => {
   async function duasCompras(): Promise<{ a: Compra; b: Compra }> {
     const a = await criarCompra("Cris");
     const b = await criarCompra("Cris");
-    const a2 = (await salvarCompra(a.id, estado(a, [ordem("ord_da_a001", [item("itm_da_a001", "ITEM DA A")])], { paciente: "COMPRA A" }), "Cris"))!;
-    const b2 = (await salvarCompra(b.id, estado(b, [ordem("ord_da_b001", [item("itm_da_b001", "ITEM DA B")], { fornecedor: "FORNECEDOR DA B" })], { paciente: "COMPRA B" }), "Cris"))!;
+    const a2 = (await salvarCompra(a.id, estado(a, [item("itm_da_a001", "ITEM DA A")], { paciente: "COMPRA A" }), "Cris"))!;
+    const b2 = (await salvarCompra(b.id, estado(b, [item("itm_da_b001", "ITEM DA B")], { paciente: "COMPRA B" }), "Cris"))!;
     return { a: a2, b: b2 };
   }
 
-  it("usar o id de ORDEM de outra compra: 409 e nada é gravado (nem na compra, nem na alheia)", async () => {
+  it("usar o id de ITEM de outra compra: 409 e nada é gravado (nem na compra, nem na alheia)", async () => {
     const { a, b } = await duasCompras();
-    const antes = JSON.stringify([fake.linhas("compras"), fake.linhas("compra_ordens"), fake.linhas("compra_itens")]);
-    const e = await erroDe(salvarCompra(a.id, estado(a, [ordem("ord_da_b001", [], { fornecedor: "SEQUESTRADA" })], { paciente: "NAO_GRAVA" }), "Cris"));
+    const antes = JSON.stringify([fake.linhas("compras"), fake.linhas("compra_itens")]);
+    const e = await erroDe(salvarCompra(a.id, estado(a, [item("itm_da_b001", "SEQUESTRADO")], { paciente: "NAO_GRAVA" }), "Cris"));
     expect(e).toMatchObject({ statusCode: 409, message: MENSAGEM_ID_DE_OUTRA_COMPRA });
-    expect(JSON.stringify([fake.linhas("compras"), fake.linhas("compra_ordens"), fake.linhas("compra_itens")])).toBe(antes);
-    expect((await obterCompra(b.id))!.ordens[0]).toMatchObject({ fornecedor: "FORNECEDOR DA B" });
+    expect(JSON.stringify([fake.linhas("compras"), fake.linhas("compra_itens")])).toBe(antes);
+    expect((await obterCompra(b.id))!.itens[0]).toMatchObject({ id: "itm_da_b001", medicamento: "ITEM DA B" });
+    expect((await obterCompra(a.id))!.itens[0]!.medicamento).toBe("ITEM DA A");
   });
 
-  it("usar o id de ITEM de outra compra (dentro de uma ordem própria): 409 e a compra alheia fica intacta", async () => {
-    const { a, b } = await duasCompras();
-    const e = await erroDe(salvarCompra(a.id, estado(a, [ordem("ord_da_a001", [item("itm_da_b001", "SEQUESTRADO")])]), "Cris"));
-    expect(e).toMatchObject({ statusCode: 409, message: MENSAGEM_ID_DE_OUTRA_COMPRA });
-    expect((await obterCompra(b.id))!.ordens[0]!.itens[0]).toMatchObject({ id: "itm_da_b001", medicamento: "ITEM DA B" });
-    expect((await obterCompra(a.id))!.ordens[0]!.itens[0]!.medicamento).toBe("ITEM DA A");
-  });
-
-  it("os próprios ids (inclusive item movido para outra ordem DA MESMA compra) NÃO são sequestro", async () => {
+  it("os próprios ids (inclusive reordenados) NÃO são sequestro", async () => {
     const c = await criarCompra("Cris");
-    const r1 = (await salvarCompra(c.id, estado(c, [ordem("ord_aaaaaa", [item("itm_a00001")]), ordem("ord_bbbbbb", [item("itm_b00001")])]), "Cris"))!;
-    const r2 = (await salvarCompra(c.id, estado(r1, [ordem("ord_aaaaaa", [item("itm_a00001"), item("itm_b00001")]), ordem("ord_bbbbbb", [])]), "Cris"))!;
-    expect(forma(r2)).toEqual([["ord_aaaaaa", ["itm_a00001", "itm_b00001"]], ["ord_bbbbbb", []]]);
+    const r1 = (await salvarCompra(c.id, estado(c, [item("itm_a00001"), item("itm_b00001")]), "Cris"))!;
+    const r2 = (await salvarCompra(c.id, estado(r1, [item("itm_b00001"), item("itm_a00001")]), "Cris"))!;
+    expect(ids(r2)).toEqual(["itm_b00001", "itm_a00001"]);
   });
 });
 
@@ -603,14 +674,40 @@ describe("salvarCompra — erros do banco", () => {
         upsert: () => Promise.resolve({ data: null, error: { message: 'violates foreign key constraint "compra_itens_medicamento_cadastro_id_fkey"', code: "23503" } }),
       });
     }) as unknown as typeof fake.from);
-    const e = await erroDe(salvarCompra(c.id, estado(c, [ordem("ord_aaaaaa", [item("itm_a00001", "X", { medicamentoCadastroId: "med_inexistente" })])]), "Cris"));
+    const e = await erroDe(salvarCompra(c.id, estado(c, [item("itm_a00001", "X", { medicamentoCadastroId: "med_inexistente" })]), "Cris"));
     expect(e).toMatchObject({ statusCode: 422, message: MENSAGEM_REFERENCIA_INVALIDA });
+  });
+
+  it("check violado (23514) na compra, como empresa ou numero_ordens fora do permitido: 422", async () => {
+    const c = await criarCompra("Cris");
+    const from = fake.from.bind(fake);
+    vi.spyOn(fake, "from").mockImplementation(((tabela: string) => {
+      const consulta = from(tabela);
+      if (tabela !== "compras") return consulta;
+      return Object.assign(consulta, {
+        update: () => ({ eq: () => ({ eq: () => ({ select: () => Promise.resolve({ data: null, error: { message: 'violates check constraint "compras_numero_ordens_check"', code: "23514" } }) }) }) }),
+      });
+    }) as unknown as typeof fake.from);
+    const e = await erroDe(salvarCompra(c.id, estado(c, undefined, { numeroOrdens: 0 }), "Cris"));
+    expect(e).toMatchObject({ statusCode: 422, message: "Algum dado da compra é inválido." });
   });
 
   it("outro erro do banco sobe como erro comum (500), não como regra", async () => {
     const c = await criarCompra("Cris");
     fake.falhar("compras", "update", "falha injetada");
     await expect(salvarCompra(c.id, estado(c, undefined, { paciente: "X" }), "Cris")).rejects.not.toBeInstanceOf(ComprasRegraError);
+  });
+});
+
+describe("subirVersaoDaCompra — para quem muda a compra por fora do salvamento (a decisão dos pré-cadastros)", () => {
+  it("troca o updated_at (uma aba com a versão antiga leva 409) sem mexer em mais nada; compra que não existe não faz nada", async () => {
+    const c = await criarCompra("Cris");
+    await subirVersaoDaCompra(c.id);
+    const linha = fake.linhas("compras")[0]!;
+    expect(String(linha.updated_at) > c.updatedAt).toBe(true);
+    expect(linha).toMatchObject({ paciente: "", atualizado_por: "Cris" });
+    await expect(subirVersaoDaCompra("nao_existe")).resolves.toBeUndefined();
+    await erroDe(salvarCompra(c.id, estado(c, undefined, { paciente: "X" }), "Cris")); // a versão antiga leva 409
   });
 });
 
@@ -624,17 +721,37 @@ describe("duplicarCompra", () => {
       estado(
         c,
         [
-          ordem("ord_aaaaaa", [item("itm_a00001", "TESTE MED A", { quantidade: "12 ampolas", valorUnitario: 10.5, medicamentoCadastroId: null }), item("itm_a00002", "TESTE MED B")], { fornecedor: "FORNECEDOR A", envio: "Aéreo", cia: "CIA TESTE", po: "PO26-11-0001", frete: 150, freteReal: 140.5 }),
-          ordem("ord_bbbbbb", [item("itm_b00001", "TESTE MED C")], { fornecedor: "FORNECEDOR B" }),
+          item("itm_a00001", "TESTE MED A 500 mg", { quantidade: "12 ampolas", valorUnitario: 10.5, brand: "bioequivalente", laboratorio: "LAB", temperatura: "2°C a 8°C" }),
+          item("itm_a00002", "TESTE MED B", { medicamentoCadastroId: "med_1" }),
+          item("itm_a00003", "TESTE MED C", { preCadastroId: "pre_1" }),
         ],
-        { paciente: "PACIENTE TESTE", vendedor: "VENDEDOR TESTE", responsavel: "RESPONSAVEL TESTE", isencao: true, pendencias: ["Receita"], termoPosterior: true, termoObservacao: "obs", pagamentoAlvara: true, pagamentoMomento: "vamos_pagar", documentos: false },
+        {
+          fornecedor: "FORNECEDOR A",
+          envio: "Air Cargo",
+          cia: "Emirates",
+          empresa: "MAINZFARMA",
+          numeroOrdens: 2,
+          frete: 150,
+          freteReal: 140.5,
+          paciente: "PACIENTE TESTE",
+          consultor: "CONSULTOR TESTE",
+          responsavel: "RESPONSAVEL TESTE",
+          isencao: true,
+          recorrente: true,
+          pendencias: ["Receita"],
+          termoPosterior: true,
+          termoObservacao: "obs",
+          pagamentoAlvara: true,
+          pagamentoMomento: "vamos_pagar",
+          documentos: false,
+        },
       ),
       "Cris",
     ))!;
     return (await obterCompra(salva.id))!;
   }
 
-  it("cria uma NOVA compra no próximo número do mês ATUAL de Brasília, com os mesmos dados", async () => {
+  it("cria uma NOVA compra no próximo número do mês ATUAL de Brasília, com os mesmos dados da compra", async () => {
     const o = await original();
     vi.setSystemTime(new Date("2026-12-10T15:00:00.000Z"));
     const copia = (await duplicarCompra(o.id, "Bruno"))!;
@@ -642,10 +759,18 @@ describe("duplicarCompra", () => {
     expect([copia.anoMes, copia.sequencia]).toEqual(["2026-12", 1]); // mês atual, não o da original
     expect(copia).toMatchObject({
       cancelada: false,
+      fornecedor: "FORNECEDOR A",
+      envio: "Air Cargo",
+      cia: "Emirates",
+      empresa: "MAINZFARMA",
+      numeroOrdens: 2,
+      frete: 150,
+      freteReal: 140.5,
       paciente: "PACIENTE TESTE",
-      vendedor: "VENDEDOR TESTE",
+      consultor: "CONSULTOR TESTE",
       responsavel: "RESPONSAVEL TESTE",
       isencao: true,
+      recorrente: true,
       pendencias: ["Receita"],
       termoPosterior: true,
       termoObservacao: "obs",
@@ -658,27 +783,27 @@ describe("duplicarCompra", () => {
     });
   });
 
-  it("copia as ordens e os itens com IDS NOVOS e as mesmas posições e valores", async () => {
+  it("copia os itens com IDS NOVOS, as mesmas posições, valores e vínculos (sem created_at/updated_at da original)", async () => {
     const o = await original();
     const copia = (await duplicarCompra(o.id, "Bruno"))!;
-    expect(copia.ordens).toHaveLength(2);
-    expect(posicoes(copia)).toEqual([[1, [1, 2]], [2, [1]]]);
-    const idsOriginais = new Set([...o.ordens.map((x) => x.id), ...o.ordens.flatMap((x) => x.itens.map((i) => i.id))]);
-    for (const id of [...copia.ordens.map((x) => x.id), ...copia.ordens.flatMap((x) => x.itens.map((i) => i.id))]) expect(idsOriginais.has(id), id).toBe(false);
-    expect(copia.ordens[0]).toMatchObject({ fornecedor: "FORNECEDOR A", envio: "Aéreo", cia: "CIA TESTE", frete: 150, freteReal: 140.5 });
-    expect(copia.ordens[0]!.itens[0]).toMatchObject({ medicamento: "TESTE MED A", quantidade: "12 ampolas", valorUnitario: 10.5 });
-    expect(copia.ordens[1]!.itens[0]!.medicamento).toBe("TESTE MED C");
+    expect(copia.itens).toHaveLength(3);
+    expect(posicoes(copia)).toEqual([1, 2, 3]);
+    const idsOriginais = new Set(ids(o));
+    for (const id of ids(copia)) expect(idsOriginais.has(id), id).toBe(false);
+    expect(copia.itens[0]).toMatchObject({ medicamento: "TESTE MED A 500 mg", quantidade: "12 ampolas", valorUnitario: 10.5, brand: "bioequivalente", laboratorio: "LAB", temperatura: "2°C a 8°C" });
+    expect(copia.itens[1]).toMatchObject({ medicamentoCadastroId: "med_1" });
+    expect(copia.itens[2]).toMatchObject({ preCadastroId: "pre_1" });
+    expect(fake.linhas("compra_itens").filter((i) => i.compra_id === o.id)).toHaveLength(3); // a original não perdeu nada
   });
 
-  it("LIMPA po e cancelada (a original, inclusive cancelada, não muda)", async () => {
+  it("a original, inclusive cancelada, não muda; a cópia nasce ativa", async () => {
     const o = await original();
     await cancelarCompra(o.id, "Cris");
     const copia = (await duplicarCompra(o.id, "Bruno"))!;
     expect(copia.cancelada).toBe(false);
-    for (const ordem of copia.ordens) expect(ordem).toMatchObject({ po: "" });
     const original2 = (await obterCompra(o.id))!;
     expect(original2.cancelada).toBe(true);
-    expect(original2.ordens[0]).toMatchObject({ po: "PO26-11-0001" });
+    expect(ids(original2)).toEqual(["itm_a00001", "itm_a00002", "itm_a00003"]);
   });
 
   it("duplicar duas vezes dá dois números seguidos; compra que não existe é null", async () => {
@@ -689,50 +814,22 @@ describe("duplicarCompra", () => {
     expect(await duplicarCompra("nao_existe", "Bruno")).toBeNull();
   });
 
-  it("compra sem ordens também duplica", async () => {
+  it("compra sem itens também duplica", async () => {
     const c = await criarCompra("Cris");
     const copia = (await duplicarCompra(c.id, "Bruno"))!;
-    expect(copia.ordens).toEqual([]);
+    expect(copia.itens).toEqual([]);
     expect(copia.sequencia).toBe(2);
   });
 
-  it("se copiar as ordens falhar, a cópia é CANCELADA (compra não se apaga) e o erro sobe", async () => {
+  it("se copiar os itens FALHAR, a cópia é CANCELADA (compra não se apaga) e o erro sobe; a original fica intacta", async () => {
     const o = await original();
-    fake.falhar("compra_ordens", "insert", "falha injetada");
-    await expect(duplicarCompra(o.id, "Bruno")).rejects.toThrow(/copiar as ordens/);
+    fake.falhar("compra_itens", "insert", "falha injetada");
+    await expect(duplicarCompra(o.id, "Bruno")).rejects.toThrow(/copiar os itens/);
     const rascunho = fake.linhas("compras").find((r) => r.id !== o.id)!;
-    expect(rascunho.cancelada).toBe(true);
-    expect(fake.chamadas.filter((x) => x.tabela === "compras" && x.op === "delete")).toEqual([]);
+    expect(rascunho).toMatchObject({ cancelada: true, atualizado_por: "Bruno" });
+    expect(fake.linhas("compras")).toHaveLength(2); // nada foi apagado
+    expect(fake.linhas("compra_itens").every((i) => i.compra_id === o.id)).toBe(true);
     expect((await obterCompra(o.id))!.cancelada).toBe(false);
-  });
-});
-
-// ── recorrente ────────────────────────────────────────────────────────────────────────────────────────────────
-
-describe("recorrente: nasce false, salvarCompra grava, duplicarCompra copia, obterCompra devolve", () => {
-  it("rascunho novo: recorrente = false; coluna recorrente na linha do banco", async () => {
-    const c = await criarCompra("Cris");
-    expect(c.recorrente).toBe(false);
-    expect(fake.linhas("compras")[0]).toMatchObject({ recorrente: false });
-  });
-
-  it("salvar com recorrente true grava (e GET devolve); ausente no corpo não mexe; false desliga", async () => {
-    const c = await criarCompra("Cris");
-    const r1 = (await salvarCompra(c.id, estado(c, undefined, { recorrente: true }), "Bruno"))!;
-    expect(r1.recorrente).toBe(true);
-    expect((await obterCompra(c.id))!.recorrente).toBe(true);
-    expect(fake.linhas("compras")[0]).toMatchObject({ recorrente: true });
-    const r2 = (await salvarCompra(c.id, estado(r1, undefined, { paciente: "PACIENTE TESTE" }), "Bruno"))!;
-    expect(r2.recorrente).toBe(true); // ausente = não muda
-    const r3 = (await salvarCompra(c.id, estado(r2, undefined, { recorrente: false }), "Bruno"))!;
-    expect(r3.recorrente).toBe(false);
-  });
-
-  it("duplicar copia o valor (true continua true; false continua false)", async () => {
-    const c = await criarCompra("Cris");
-    const marcada = (await salvarCompra(c.id, estado(c, undefined, { recorrente: true }), "Cris"))!;
-    expect((await duplicarCompra(marcada.id, "Bruno"))!.recorrente).toBe(true);
-    const outra = await criarCompra("Cris");
-    expect((await duplicarCompra(outra.id, "Bruno"))!.recorrente).toBe(false);
+    expect(fake.chamadas.filter((x) => x.tabela === "compras" && x.op === "delete")).toEqual([]);
   });
 });
