@@ -1,5 +1,6 @@
 import { createApp, defineComponent, h, nextTick, ref, type Ref } from "vue";
 import type { Compra, MudancasCompra } from "../../../shared/types/compra";
+import CompraColunaDireita from "../../../app/components/compras/CompraColunaDireita.vue";
 import CompraFormulario from "../../../app/components/compras/CompraFormulario.vue";
 import { useCompraEditor, type CompraEditor } from "../../../app/composables/useCompraEditor";
 import type { AcoesCompra } from "../../../app/utils/comprasContexto";
@@ -27,7 +28,7 @@ export interface FormularioMontado {
   pedidoDeFoco: Ref<number>;
 }
 
-export function montarFormulario(inicial: Compra, extra: { opcoes?: Partial<OpcoesFormulario>; podeEditar?: boolean; acoes?: AcoesCompra } = {}): FormularioMontado {
+export function montarFormulario(inicial: Compra, extra: { opcoes?: Partial<OpcoesFormulario>; podeEditar?: boolean; acoes?: AcoesCompra; comResumo?: boolean } = {}): FormularioMontado {
   const somenteLeitura = ref(extra.podeEditar === false);
   const opcoes = ref<OpcoesFormulario>({ ...OPCOES_VAZIAS, ...(extra.opcoes ?? {}) });
   const pedidoDeFoco = ref(0);
@@ -43,8 +44,8 @@ export function montarFormulario(inicial: Compra, extra: { opcoes?: Partial<Opco
   document.body.appendChild(el);
   const app = createApp(
     defineComponent({
-      render: () =>
-        h(CompraFormulario, {
+      render: () => {
+        const formulario = h(CompraFormulario, {
           compra: editor.compra.value as Compra,
           estado: "ocioso",
           salvoEm: null,
@@ -56,7 +57,10 @@ export function montarFormulario(inicial: Compra, extra: { opcoes?: Partial<Opco
             mudancas.push(m);
             editor.alterar(m);
           },
-        }),
+        });
+        // Com `comResumo`, a coluna da direita fica ao lado, ligada à MESMA compra do editor (o resumo ao vivo).
+        return extra.comResumo ? h("div", [formulario, h(CompraColunaDireita, { compra: editor.compra.value as Compra, despachanteCadastro: null })]) : formulario;
+      },
     }),
   );
   app.mount(el);

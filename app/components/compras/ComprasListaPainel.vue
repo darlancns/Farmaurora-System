@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { StatusDaCompra } from "#shared/constants/compra";
-import type { CompraDaLista, TotaisPorStatus } from "#shared/types/compra";
+import type { CompraDaLista, TotaisDaLista } from "#shared/types/compra";
 import { BOTAO_PRIMARIO_CLASS } from "../../utils/comprasEstilos";
 import CadastroSwitch from "../configuracoes/CadastroSwitch.vue";
 import CompraCartao from "./CompraCartao.vue";
 import ComprasMesSeletor from "./ComprasMesSeletor.vue";
 
-// O painel esquerdo da página Compras: "compras do mês". Só desenha e avisa (eventos); o mês, o filtro, os totais e o "mostrar mais"
+// O painel esquerdo da página Compras: "compras do mês". Só desenha e avisa (eventos); o mês, "Mostrar canceladas", os totais {ativas, canceladas} e o "mostrar mais"
 // vêm de useComprasMes e a página decide o que fazer (inclusive esperar o salvamento pendente antes de trocar de compra ou de mês).
 //
 // Teclado: seta para baixo/cima move o foco entre os cartões; Enter (ou Espaço) no cartão focado abre a compra — cada cartão é um
@@ -16,11 +15,10 @@ const props = defineProps<{
   rotuloMes: string;
   totalDoMes: number;
   compras: CompraDaLista[];
-  totais: TotaisPorStatus;
+  totais: TotaisDaLista;
   /** Quantas compras casam com o filtro (o "M" de "N de M"). */
   total: number;
   temMais: boolean;
-  status: StatusDaCompra | null;
   mostrarCanceladas: boolean;
   selecionadaId: string | null;
   carregando: boolean;
@@ -33,7 +31,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   anterior: [];
   proximo: [];
-  status: [status: StatusDaCompra | null];
   mostrarCanceladas: [valor: boolean];
   selecionar: [id: string];
   nova: [];
@@ -42,26 +39,6 @@ const emit = defineEmits<{
 }>();
 
 const listaRef = ref<HTMLElement | null>(null);
-
-interface Chip {
-  id: string;
-  valor: StatusDaCompra | null;
-  /** O texto da lista inteira (nome acessível e dica). */
-  rotulo: string;
-  /** O texto CURTO que aparece no chip (cabem numa linha só na coluna de ~320px). */
-  curto: string;
-  contagem: number;
-}
-
-// Todas, Rascunhos e Prontas. "Todas" é tudo menos as canceladas.
-const chips = computed<Chip[]>(() => {
-  const lista: Chip[] = [
-    { id: "todas", valor: null, rotulo: "Todas", curto: "Todas", contagem: props.totalDoMes },
-    { id: "rascunho", valor: "rascunho", rotulo: "Rascunhos", curto: "Rasc.", contagem: props.totais.rascunho },
-    { id: "pronta", valor: "pronta", rotulo: "Prontas", curto: "Prontas", contagem: props.totais.pronta },
-  ];
-  return lista;
-});
 
 const vazio = computed(() => !props.carregando && !props.erro && props.compras.length === 0);
 
@@ -82,24 +59,6 @@ function moverFoco(event: KeyboardEvent): void {
 
     <button v-if="podeEditar" id="btn-nova-compra" type="button" :class="BOTAO_PRIMARIO_CLASS" @click="emit('nova')">+ Nova compra</button>
 
-    <!-- Os chips ficam numa LINHA só: textos curtos e pouco padding; se com "Parciais" não couber, rola na horizontal dentro da linha (discreto). -->
-    <div id="compras-filtros" class="flex flex-nowrap items-center gap-1 overflow-x-auto pb-1 [scrollbar-width:thin]" role="group" aria-label="Filtrar por estado">
-      <button
-        v-for="chip in chips"
-        :id="`compras-chip-${chip.id}`"
-        :key="chip.id"
-        type="button"
-        :aria-pressed="status === chip.valor"
-        :aria-label="`${chip.rotulo} (${chip.contagem})`"
-        :title="`${chip.rotulo} (${chip.contagem})`"
-        class="min-h-11 shrink-0 rounded-md border px-1.5 py-1 text-[11.5px] font-semibold whitespace-nowrap transition-colors lg:min-h-0 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-dark"
-        :class="status === chip.valor ? 'border-transparent bg-accent-dark text-white' : 'border-hairline bg-paper text-ink-soft hover:border-accent-dark hover:text-accent-dark'"
-        @click="emit('status', chip.valor)"
-      >
-        {{ chip.curto }} ({{ chip.contagem }})
-      </button>
-    </div>
-
     <label class="flex items-center gap-1 text-[12px] text-ink-soft">
       <CadastroSwitch
         id="compras-mostrar-canceladas"
@@ -107,7 +66,7 @@ function moverFoco(event: KeyboardEvent): void {
         label="Mostrar canceladas"
         @alternar="(valor: boolean) => emit('mostrarCanceladas', valor)"
       />
-      <span>Mostrar canceladas</span>
+      <span>Mostrar canceladas ({{ totais.canceladas }})</span>
     </label>
 
     <p v-if="erro" id="compras-lista-erro" role="alert" class="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-[12.5px] text-danger">

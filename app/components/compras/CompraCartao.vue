@@ -2,12 +2,11 @@
 import { computed } from "vue";
 import type { CompraDaLista } from "#shared/types/compra";
 import { rotuloCurtoDaCompra } from "#shared/utils/compraMes";
-import { textoPendencias } from "../../utils/comprasEstilos";
-import CompraStatusChip from "./CompraStatusChip.vue";
+import CompraSeloCancelada from "./CompraSeloCancelada.vue";
 
-// O cartão de uma compra na lista do mês: "Compra 13" + selo do estado + "N pendências", o paciente (negrito) e os medicamentos
-// em UMA linha cortada com reticências. É um botão de verdade (Enter e Espaço abrem; as setas movem o foco entre os cartões, em
-// ComprasListaPainel.vue). O selecionado leva a borda primária e o fundo #e3eef6 (farm-blue-soft).
+// O cartão de uma compra na lista do mês: "Compra 13" + selo "Cancelada" (só quando é), o paciente (negrito), os medicamentos em UMA linha
+// cortada com reticências e "N ordens". Sem pendências nem chips de status. É um botão de verdade (Enter e Espaço abrem; as setas movem o
+// foco entre os cartões, em ComprasListaPainel.vue). O selecionado leva a borda primária e o fundo #e3eef6 (farm-blue-soft).
 const props = defineProps<{
   compra: CompraDaLista;
   selecionada: boolean;
@@ -16,8 +15,8 @@ const props = defineProps<{
 const emit = defineEmits<{ selecionar: [id: string] }>();
 
 const rotulo = computed(() => rotuloCurtoDaCompra(props.compra.sequencia));
-const pendencias = computed(() => textoPendencias(props.compra.pendencias));
 const medicamentos = computed(() => props.compra.medicamentos.join(", "));
+const ordens = computed(() => (props.compra.numeroOrdens === 1 ? "1 ordem" : `${props.compra.numeroOrdens} ordens`));
 </script>
 
 <template>
@@ -32,8 +31,8 @@ const medicamentos = computed(() => props.compra.medicamentos.join(", "));
   >
     <span class="flex items-center gap-2">
       <span class="text-[13px] font-semibold text-ink" :class="{ 'line-through': compra.cancelada }">{{ rotulo }}</span>
-      <CompraStatusChip :status="compra.status" />
-      <span v-if="pendencias" class="ml-auto text-[11.5px] font-semibold whitespace-nowrap text-danger">{{ pendencias }}</span>
+      <CompraSeloCancelada v-if="compra.cancelada" />
+      <span class="ml-auto text-[11.5px] whitespace-nowrap text-ink-soft">{{ ordens }}</span>
     </span>
     <span class="mt-1 block truncate text-[13px] font-bold text-ink" :class="{ 'font-normal text-ink-soft': !compra.paciente }">
       {{ compra.paciente || "Sem paciente" }}

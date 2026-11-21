@@ -1,15 +1,12 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp, defineComponent, h, nextTick } from "vue";
-import type { StatusDaCompra } from "../../shared/constants/compra";
-import type { CompraDaLista, TotaisPorStatus } from "../../shared/types/compra";
+import type { CompraDaLista, TotaisDaLista } from "../../shared/types/compra";
 import CompraCartao from "../../app/components/compras/CompraCartao.vue";
-import CompraStatusChip from "../../app/components/compras/CompraStatusChip.vue";
 import ComprasListaPainel from "../../app/components/compras/ComprasListaPainel.vue";
-import { CLASSE_STATUS_COMPRA, ROTULO_STATUS_COMPRA, textoPendencias } from "../../app/utils/comprasEstilos";
 
-// Componentes REAIS no happy-dom: o cartão, o selo de estado e o painel esquerdo (mês, chips com contagem, mostrar mais, vazio,
-// teclado). Dados fictícios (TESTE).
+// Componentes REAIS no happy-dom: o cartão e o painel esquerdo (mês, "Mostrar canceladas" com contagem, mostrar mais, vazio, teclado).
+// Sem chips de status nem pendências. Dados fictícios (TESTE).
 
 const montados: Array<{ unmount: () => void; el: HTMLElement }> = [];
 function montar(componente: ReturnType<typeof defineComponent>): HTMLElement {
@@ -40,33 +37,9 @@ const compra = (sequencia: number, extra: Partial<CompraDaLista> = {}): CompraDa
   cancelada: false,
   paciente: `PACIENTE TESTE ${sequencia}`,
   medicamentos: ["MED A", "MED B"],
-  totalOrdens: 1,
-  pendencias: 0,
-  status: "rascunho",
+  numeroOrdens: 1,
   atualizadoEm: "2026-11-19T12:00:00.000Z",
   ...extra,
-});
-
-describe("CompraStatusChip e estilos", () => {
-  it("o rótulo e a classe de cada estado", () => {
-    expect(ROTULO_STATUS_COMPRA).toEqual({ rascunho: "Rascunho", pronta: "Pronta", cancelada: "Cancelada" });
-    expect(CLASSE_STATUS_COMPRA.rascunho).toContain("text-ink-soft");
-    expect(CLASSE_STATUS_COMPRA.pronta).toContain("green");
-    expect(CLASSE_STATUS_COMPRA.cancelada).toContain("line-through"); // cinza riscada
-    expect(CLASSE_STATUS_COMPRA.rascunho).not.toContain("line-through");
-  });
-
-  it.each(["rascunho", "pronta", "cancelada"] as StatusDaCompra[])("o selo '%s' mostra o rótulo e o data-status", (status) => {
-    const el = montar(defineComponent({ render: () => h(CompraStatusChip, { status }) }));
-    expect(texto(el)).toBe(ROTULO_STATUS_COMPRA[status]);
-    expect(el.querySelector("span")!.getAttribute("data-status")).toBe(status);
-  });
-
-  it("'N pendências' (singular em 1; vazio em 0)", () => {
-    expect(textoPendencias(0)).toBe("");
-    expect(textoPendencias(1)).toBe("1 pendência");
-    expect(textoPendencias(8)).toBe("8 pendências");
-  });
 });
 
 describe("CompraCartao", () => {
@@ -76,23 +49,42 @@ describe("CompraCartao", () => {
     return ev;
   }
 
-  it("é um botão de verdade, com 'Compra 13' (2 dígitos), o selo, as pendências, o paciente e os medicamentos", () => {
-    cartao(compra(13, { status: "pronta", pendencias: 3, medicamentos: ["MEDICAMENTO UM", "MEDICAMENTO DOIS"] }));
+  it("é um botão de verdade, com 'Compra 13' (2 dígitos), o paciente, os medicamentos e 'N ordens'", () => {
+    cartao(compra(13, { numeroOrdens: 3, medicamentos: ["MEDICAMENTO UM", "MEDICAMENTO DOIS"] }));
     const botao = q<HTMLButtonElement>("#compra-cartao-cmp_13")!;
     expect(botao.tagName).toBe("BUTTON");
     expect(botao.type).toBe("button");
     expect(texto(botao)).toContain("Compra 13");
-    expect(texto(botao)).toContain("Pronta");
-    expect(texto(botao)).toContain("3 pendências");
+    expect(texto(botao)).toContain("3 ordens");
     expect(texto(botao)).toContain("PACIENTE TESTE 13");
     expect(texto(botao)).toContain("MEDICAMENTO UM, MEDICAMENTO DOIS");
   });
 
-  it("número com 2 dígitos: Compra 05; sem pendências não escreve nada; sem medicamentos some a linha", () => {
-    cartao(compra(5, { pendencias: 0, medicamentos: [] }));
+  it("singular: '1 ordem'", () => {
+    cartao(compra(2, { numeroOrdens: 1 }));
+    expect(texto(q("button"))).toContain("1 ordem");
+    expect(texto(q("button"))).not.toContain("1 ordens");
+  });
+
+  it("sem selo de status, sem chips e sem pendências (só a cancelada tem selo)", () => {
+    cartao(compra(5));
+    const t = texto(q("button"));
+    for (const proibido of ["Rascunho", "Pronta", "Encaminhada", "pendência", "pendências"]) expect(t).not.toContain(proibido);
+    expect(q("[data-status]")).toBeNull();
+    expect(q("[data-selo-cancelada]")).toBeNull();
+  });
+
+  it("cancelada: selo 'Cancelada' e o número riscado", () => {
+    cartao(compra(2, { cancelada: true }));
+    expect(texto(q("[data-selo-cancelada]"))).toBe("Cancelada");
+    expect(q("button span span")!.className).toContain("line-through");
+  });
+
+  it("sem medicamentos some a linha; sem paciente: 'Sem paciente'", () => {
+    cartao(compra(5, { medicamentos: [], paciente: "" }));
     expect(texto(q("button"))).toContain("Compra 05");
-    expect(texto(q("button"))).not.toContain("pendência");
-    expect(qa("span.truncate")).toHaveLength(1); // só o paciente
+    expect(texto(q("button"))).toContain("Sem paciente");
+    expect(qa("span.truncate")).toHaveLength(1);
   });
 
   it("o paciente em negrito e a lista de medicamentos em UMA linha cortada com reticências (truncate)", () => {
@@ -103,12 +95,7 @@ describe("CompraCartao", () => {
     expect(spans[1]!.getAttribute("title")).toBe("MED A, MED B");
   });
 
-  it("sem paciente: 'Sem paciente'", () => {
-    cartao(compra(1, { paciente: "" }));
-    expect(texto(q("button"))).toContain("Sem paciente");
-  });
-
-  it("selecionado: borda primária, fundo #e3eef6 (farm-blue-soft) e aria-current; os outros não", () => {
+  it("selecionado: borda primária, fundo farm-blue-soft e aria-current; os outros não", () => {
     cartao(compra(1), true);
     const b = q<HTMLButtonElement>("button")!;
     expect(b.className).toContain("border-accent-dark");
@@ -117,7 +104,6 @@ describe("CompraCartao", () => {
     document.body.innerHTML = "";
     cartao(compra(1), false);
     expect(q("button")!.getAttribute("aria-current")).toBeNull();
-    expect(q("button")!.className).not.toContain("bg-farm-blue-soft");
   });
 
   it("clicar avisa o id", () => {
@@ -125,23 +111,15 @@ describe("CompraCartao", () => {
     q<HTMLButtonElement>("button")!.click();
     expect(ev).toEqual(["cmp_7"]);
   });
-
-  it("cancelada: o número vai riscado", () => {
-    cartao(compra(2, { status: "cancelada", cancelada: true }));
-    expect(q("button span span")!.className).toContain("line-through");
-  });
 });
 
-// ── O painel ──────────────────────────────────────────────────────────────────────────────────────────────────
-
-const TOTAIS: TotaisPorStatus = { rascunho: 3, pronta: 4, cancelada: 2 };
+const TOTAIS: TotaisDaLista = { ativas: 7, canceladas: 2 };
 
 interface PropsPainel {
   compras?: CompraDaLista[];
-  totais?: TotaisPorStatus;
+  totais?: TotaisDaLista;
   total?: number;
   temMais?: boolean;
-  status?: StatusDaCompra | null;
   mostrarCanceladas?: boolean;
   selecionadaId?: string | null;
   carregando?: boolean;
@@ -158,12 +136,11 @@ function painel(p: PropsPainel = {}) {
       render: () =>
         h(ComprasListaPainel, {
           rotuloMes: "Novembro/2026",
-          totalDoMes: p.totalDoMes ?? 13,
+          totalDoMes: p.totalDoMes ?? 7,
           compras,
           totais: p.totais ?? TOTAIS,
           total: p.total ?? compras.length,
           temMais: p.temMais ?? false,
-          status: p.status ?? null,
           mostrarCanceladas: p.mostrarCanceladas ?? false,
           selecionadaId: p.selecionadaId ?? null,
           carregando: p.carregando ?? false,
@@ -171,7 +148,6 @@ function painel(p: PropsPainel = {}) {
           podeEditar: p.podeEditar ?? true,
           onAnterior: () => ev.push(["anterior"]),
           onProximo: () => ev.push(["proximo"]),
-          onStatus: (s: StatusDaCompra | null) => ev.push(["status", s]),
           onMostrarCanceladas: (v: boolean) => ev.push(["canceladas", v]),
           onSelecionar: (id: string) => ev.push(["selecionar", id]),
           onNova: () => ev.push(["nova"]),
@@ -183,8 +159,8 @@ function painel(p: PropsPainel = {}) {
   return ev;
 }
 
-describe("ComprasListaPainel: o mês", () => {
-  it("o mês por extenso e 'N compras'; as setas avisam", () => {
+describe("ComprasListaPainel: o mês e os totais", () => {
+  it("o mês por extenso e 'N compras' (as ativas); as setas avisam", () => {
     const ev = painel({ totalDoMes: 13 });
     expect(texto(q("#compras-mes-rotulo"))).toBe("Novembro/2026");
     expect(texto(q("#compras-mes-total"))).toBe("13 compras");
@@ -201,44 +177,22 @@ describe("ComprasListaPainel: o mês", () => {
   });
 });
 
-describe("ComprasListaPainel: chips com contagem", () => {
-  it("Todas (soma sem canceladas), Rascunhos e Prontas", () => {
-    painel({ totalDoMes: 7 });
-    // Texto CURTO no chip (cabem numa linha só na coluna de ~320px); o nome inteiro vai no aria-label e na dica.
-    expect(qa("#compras-filtros button").map((b) => texto(b))).toEqual(["Todas (7)", "Rasc. (3)", "Prontas (4)"]);
-    expect(qa("#compras-filtros button").map((b) => b.getAttribute("aria-label"))).toEqual(["Todas (7)", "Rascunhos (3)", "Prontas (4)"]);
-    expect(qa("#compras-filtros button")).toHaveLength(3);
+describe("ComprasListaPainel: sem chips de status; 'Mostrar canceladas'", () => {
+  it("NÃO há chips de status (nem Todas, Rascunhos, Prontas) nem a barra de filtros", () => {
+    painel();
+    expect(q("#compras-filtros")).toBeNull();
+    expect(qa("[id^=compras-chip-]")).toHaveLength(0);
+    const t = texto(q("#compras-lista"));
+    for (const proibido of ["Rascunhos", "Prontas", "Todas (", "Rasc."]) expect(t).not.toContain(proibido);
   });
 
-  it("os chips ficam numa LINHA só: sem quebra (flex-nowrap) e com rolagem horizontal discreta se não couber; cada chip não encolhe", () => {
-    painel({ totalDoMes: 7 });
-    const linha = q("#compras-filtros")!;
-    expect(linha.className).toContain("flex-nowrap");
-    expect(linha.className).toContain("overflow-x-auto");
-    expect(linha.className).not.toContain("flex-wrap");
-    for (const chip of qa("#compras-filtros button")) {
-      expect(chip.className).toContain("shrink-0");
-      expect(chip.className).toContain("whitespace-nowrap");
-      expect(chip.className).toContain("px-1.5"); // pouco padding horizontal
-    }
-  });
-
-  it("o chip ativo leva aria-pressed e o estilo primário; clicar avisa o estado (Todas = null)", () => {
-    const ev = painel({ status: "pronta" });
-    expect(q("#compras-chip-pronta")!.getAttribute("aria-pressed")).toBe("true");
-    expect(q("#compras-chip-pronta")!.className).toContain("bg-accent-dark");
-    expect(q("#compras-chip-todas")!.getAttribute("aria-pressed")).toBe("false");
-    q<HTMLButtonElement>("#compras-chip-rascunho")!.click();
-    q<HTMLButtonElement>("#compras-chip-todas")!.click();
-    expect(ev).toEqual([["status", "rascunho"], ["status", null]]);
-  });
-
-  it("o interruptor 'Mostrar canceladas' é um switch acessível e avisa o novo valor", () => {
-    const ev = painel({ mostrarCanceladas: false });
+  it("o interruptor 'Mostrar canceladas' é um switch acessível, mostra a contagem de canceladas e avisa o novo valor", () => {
+    const ev = painel({ mostrarCanceladas: false, totais: { ativas: 5, canceladas: 4 } });
     const sw = q<HTMLButtonElement>("#compras-mostrar-canceladas")!;
     expect(sw.getAttribute("role")).toBe("switch");
     expect(sw.getAttribute("aria-checked")).toBe("false");
     expect(sw.getAttribute("aria-label")).toBe("Mostrar canceladas");
+    expect(texto(q("#compras-lista label"))).toBe("Mostrar canceladas (4)");
     sw.click();
     expect(ev).toEqual([["canceladas", true]]);
   });
@@ -256,6 +210,11 @@ describe("ComprasListaPainel: cartões e seleção", () => {
     expect(qa("[data-compra-cartao]").map((c) => c.getAttribute("aria-current"))).toEqual([null, "true", null]);
     q<HTMLButtonElement>("#compra-cartao-cmp_1")!.click();
     expect(ev).toEqual([["selecionar", "cmp_1"]]);
+  });
+
+  it("cancelada na lista (com o interruptor ligado) mostra o selo", () => {
+    painel({ compras: [compra(2, { cancelada: true }), compra(1)], mostrarCanceladas: true });
+    expect(qa("[data-selo-cancelada]")).toHaveLength(1);
   });
 
   it("seta para baixo e para cima movem o foco entre os cartões (e param nas pontas)", async () => {
@@ -290,11 +249,6 @@ describe("ComprasListaPainel: cartões e seleção", () => {
     document.activeElement!.dispatchEvent(outra);
     expect(outra.defaultPrevented).toBe(false);
   });
-
-  it("Enter num cartão focado abre: o botão recebe o clique do navegador (cada cartão é um <button>)", () => {
-    painel();
-    expect(qa("[data-compra-cartao]").every((c) => c.tagName === "BUTTON")).toBe(true);
-  });
 });
 
 describe("ComprasListaPainel: mostrar mais", () => {
@@ -312,16 +266,15 @@ describe("ComprasListaPainel: mostrar mais", () => {
 });
 
 describe("ComprasListaPainel: vazio, carregando, erro e permissão", () => {
-  it("vazio: só o texto 'Nenhuma compra neste mês.' (o '+ Nova compra' do topo da coluna basta; nada de botão dentro do aviso)", () => {
+  it("vazio: só o texto 'Nenhuma compra neste mês.' (o '+ Nova compra' do topo basta)", () => {
     painel({ compras: [], total: 0, totalDoMes: 0, podeEditar: true });
     expect(texto(q("#compras-lista-vazia"))).toBe("Nenhuma compra neste mês.");
     expect(q("#compras-lista-vazia button")).toBeNull();
-    expect(q("#btn-nova-compra-vazio")).toBeNull();
     expect(q("#compras-cartoes")).toBeNull();
-    expect(q("#btn-nova-compra")).not.toBeNull(); // o do topo continua
+    expect(q("#btn-nova-compra")).not.toBeNull();
   });
 
-  it("vazio para quem só lê: a mensagem, sem botão de criar (nem o do topo)", () => {
+  it("vazio para quem só lê: a mensagem, sem botão de criar", () => {
     painel({ compras: [], total: 0, podeEditar: false });
     expect(texto(q("#compras-lista-vazia"))).toBe("Nenhuma compra neste mês.");
     expect(q("#btn-nova-compra")).toBeNull();
@@ -337,10 +290,9 @@ describe("ComprasListaPainel: vazio, carregando, erro e permissão", () => {
     expect(q("#btn-nova-compra")).toBeNull();
   });
 
-  it("carregando sem nada: 'Carregando…' (um só caractere de reticências) e nada de 'Nenhuma compra'", () => {
+  it("carregando sem nada: 'Carregando…' e nada de 'Nenhuma compra'", () => {
     painel({ compras: [], carregando: true });
     expect(texto(q("#compras-lista-carregando"))).toBe("Carregando…");
-    expect(texto(q("#compras-lista-carregando"))).not.toContain("...");
     expect(q("#compras-lista-vazia")).toBeNull();
   });
 

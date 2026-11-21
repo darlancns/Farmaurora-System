@@ -3,13 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp, defineComponent, h, nextTick, ref } from "vue";
 import { useState } from "#app";
 import type { Compra } from "../../shared/types/compra";
-import { checklistCompra } from "../../shared/utils/compraChecklist";
-import { compraParaResumoEntrada, montarResumoCompra } from "../../shared/utils/compraResumo";
-import CompraChecklistPainel from "../../app/components/compras/CompraChecklistPainel.vue";
+import { compraParaResumoEntrada, montarResumo, resumoParaTexto } from "../../shared/utils/compraResumo";
 import CompraColunaDireita from "../../app/components/compras/CompraColunaDireita.vue";
+import { compraComUmMedicamento, compraDeTeste, digitar, montarFormulario, q, qa, texto, type FormularioMontado } from "./helpers/montarFormulario";
 
-// A coluna da direita com componentes REAIS no happy-dom: checklist agrupado, resumo IGUAL à função pura (despachante do Cadastro
-// sem PIX), botão Copiar com a string exata e toast. (O useCompraOpcoes tem o próprio spec: useCompraOpcoes.spec.ts.)
+// A coluna da direita: SÓ o resumo. Botões "Copiar resumo" (copia o texto do modo "copia") e "Encaminhar para a DIR" (visível e
+// DESABILITADO); o resumo ao vivo no modo "modelo", linha a linha, com o vazio como traço. Nada de checklist, pendências nem "Dicas".
 // Dados fictícios (TESTE).
 
 const montados: Array<{ unmount: () => void; el: HTMLElement }> = [];
@@ -21,10 +20,13 @@ function montar(componente: ReturnType<typeof defineComponent>): HTMLElement {
   montados.push({ unmount: () => app.unmount(), el });
   return el;
 }
+let formulario: FormularioMontado | null = null;
 beforeEach(() => {
   useState<string | null>("toast-message").value = null;
 });
 afterEach(() => {
+  formulario?.desmontar();
+  formulario = null;
   while (montados.length) {
     const m = montados.pop()!;
     m.unmount();
@@ -36,208 +38,162 @@ afterEach(() => {
   delete document.execCommand;
 });
 
-const texto = (el: Element | null) => (el?.textContent ?? "").replace(/\s+/g, " ").trim();
-const q = <T extends Element>(sel: string) => document.querySelector<T>(sel);
-const qa = <T extends Element>(sel: string) => [...document.querySelectorAll<T>(sel)];
 const toast = () => useState<string | null>("toast-message").value;
+const DESPACHANTE = { nome: "Despachante Teste", telefone: "11 90000-0000", email: "d@teste.invalid", contatoNome: "Contato D" };
 
-const compraCompleta = (extra: Partial<Compra> = {}): Compra => ({
-  id: "cmp_13",
-  anoMes: "2026-11",
-  sequencia: 13,
-  cancelada: false,
-  paciente: "PACIENTE TESTE",
-  processoNumero: "0000000-00.0000.0.00.0000/SP",
-  medico: "Dr. Teste",
-  localAplicacao: "Clínica Teste",
-  entrega: "Entrega Teste",
-  contatos: "Contato Teste",
-  termoObservacao: "",
-  despachante: "Despachante Teste",
-  isencaoPara: "",
-  observacoes: "",
-  vendedor: "Dani",
-  responsavel: "Cris",
-  compraParticular: false,
-  localDeclarado: false,
-  termoPosterior: false,
-  courierSimples: false,
-  isencao: false,
-  recorrente: false,
-  pagamentoAlvara: null,
-  pagamentoMomento: "vamos_pagar",
-  documentos: true,
-  pendencias: [],
-  criadoPor: "Cris",
-  atualizadoPor: "Cris",
-  createdAt: "2026-11-19T12:00:00.000Z",
-  updatedAt: "2026-11-19T12:00:00.000Z",
-  ordens: [
-    {
-      id: "ord_1",
-      posicao: 1,
-      fornecedor: "Fornecedor Teste",
-      envio: "Air Cargo",
-      cia: "Cia Teste",
-      po: "PO26-11-0001",
-      frete: null,
-      freteReal: null,
-      itens: [{ id: "itm_1", posicao: 1, medicamento: "MED TESTE", medicamentoCadastroId: "med_1", preCadastroId: null, apresentacao: "10 mg", referencia: "", laboratorio: "", quantidade: "2 caixas", temperatura: "2°C a 8°C", valorUnitario: 5, valorReal: null }],
-    },
-  ],
-  ...extra,
-});
-
-const DESPACHANTE = { nome: "Despachante Teste", telefone: "11 90000-0000", email: "d@teste.com", contatoNome: "Contato D" };
-
-function coluna(c: Compra, despachanteCadastro: typeof DESPACHANTE | null = null) {
+function coluna(c: Compra, despachanteCadastro: typeof DESPACHANTE | null = null): void {
   montar(defineComponent({ render: () => h(CompraColunaDireita, { compra: c, despachanteCadastro }) }));
 }
 
-// ── Checklist ──────────────────────────────────────────────────────────────────────────────────────────────
+const linhaDoResumo = (id: string) => q<HTMLElement>(`[data-resumo-linha="${id}"]`);
 
-describe("checklist (painel)", () => {
-  function painel(itens: Parameters<typeof checklistCompra>[0], pronta?: boolean) {
-    const r = checklistCompra(itens);
-    montar(defineComponent({ render: () => h(CompraChecklistPainel, { itens: r.itens, pronta: pronta ?? r.pronta }) }));
-    return r;
-  }
-
-  it("erros primeiro (✕), depois avisos (!), e os ok recolhidos num contador", () => {
-    const r = painel(compraCompleta({ paciente: "", localAplicacao: "", ordens: [{ ...compraCompleta().ordens[0]!, po: "" }] }));
-    expect(texto(q("#compra-checklist-titulo"))).toBe("Antes de encaminhar");
-    const erros = qa("#compra-checklist-erros li");
-    expect(erros.map((li) => li.getAttribute("data-item"))).toEqual(["paciente", "ordem-1-po"]);
-    expect(erros[0]!.textContent).toContain("✕");
-    expect(erros[0]!.querySelector("span")!.className).toContain("text-danger");
-    const avisos = qa("#compra-checklist-avisos li");
-    expect(avisos.map((li) => li.getAttribute("data-item"))).toEqual(["local-aplicacao"]);
-    expect(avisos[0]!.textContent).toContain("!");
-    // Ordem de tela: erros, avisos, contador de ok.
-    const html = q("#compra-checklist")!.innerHTML;
-    expect(html.indexOf("compra-checklist-erros")).toBeLessThan(html.indexOf("compra-checklist-avisos"));
-    expect(html.indexOf("compra-checklist-avisos")).toBeLessThan(html.indexOf("compra-checklist-ok-toggle"));
-    const oks = r.itens.filter((i) => i.nivel === "ok").length;
-    expect(texto(q("#compra-checklist-ok-toggle"))).toBe(`${oks} itens ok`);
+describe("botões do topo", () => {
+  it("'Copiar resumo' e 'Encaminhar para a DIR' lado a lado, nesta ordem, antes do resumo", () => {
+    coluna(compraDeTeste());
+    const barra = q("#compra-barra-acoes")!;
+    expect([...barra.querySelectorAll("button")].map((b) => texto(b))).toEqual(["Copiar resumo", "Encaminhar para a DIR"]);
+    expect(barra.className).toContain("flex");
+    expect(barra.className).not.toContain("flex-col"); // lado a lado
+    expect(barra.compareDocumentPosition(q("#compra-resumo")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("os itens ok ficam recolhidos e abrem no clique (aria-expanded)", async () => {
-    painel(compraCompleta());
-    const toggle = q<HTMLButtonElement>("#compra-checklist-ok-toggle")!;
-    expect(q("#compra-checklist-oks")).toBeNull();
-    expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    toggle.click();
-    await nextTick();
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    expect(qa("#compra-checklist-oks li").length).toBeGreaterThan(5);
-    toggle.click();
-    await nextTick();
-    expect(q("#compra-checklist-oks")).toBeNull();
+  it("'Encaminhar para a DIR': VISÍVEL e DESABILITADO, com o title 'Em breve: depende da migração da DIR'", () => {
+    coluna(compraDeTeste());
+    const b = q<HTMLButtonElement>("#btn-encaminhar-dir")!;
+    expect(b.disabled).toBe(true);
+    expect(texto(b)).toBe("Encaminhar para a DIR");
+    expect(b.getAttribute("title")).toBe("Em breve: depende da migração da DIR");
+    expect(b.className).not.toContain("bg-accent-dark");
   });
 
-  it("cada erro de ordem mostra 'Ordem N'; erro da compra não", () => {
-    painel(compraCompleta({ medico: "", ordens: [{ ...compraCompleta().ordens[0]!, posicao: 2, fornecedor: "" }] }));
-    const medico = q('[data-item="medico"]')!;
-    const fornecedor = q('[data-item="ordem-2-fornecedor"]')!;
-    expect(texto(medico)).not.toContain("Ordem 2");
-    expect(texto(fornecedor)).toContain("Fornecedor da ordem 2 não preenchido");
-    expect(texto(fornecedor)).toContain("Ordem 2");
-  });
-
-  it("pronta: a mensagem 'Nada pendente'; com erro ela não aparece", () => {
-    painel(compraCompleta());
-    expect(q("#compra-checklist-pronta")).not.toBeNull();
-    expect(q("#compra-checklist-erros")).toBeNull();
-    document.body.innerHTML = "";
-    painel(compraCompleta({ paciente: "" }));
-    expect(q("#compra-checklist-pronta")).toBeNull();
-  });
-});
-
-// ── A coluna ────────────────────────────────────────────────────────────────────────────────────────────────
-
-describe("coluna direita", () => {
-  it("o resumo na tela é IGUAL à string da função pura (com o despachante do Cadastro), em <pre> mono", () => {
-    const c = compraCompleta();
-    coluna(c, DESPACHANTE);
-    const esperado = montarResumoCompra(compraParaResumoEntrada(c, DESPACHANTE));
-    const pre = q<HTMLPreElement>("#compra-resumo-texto")!;
-    expect(pre.tagName).toBe("PRE");
-    expect(pre.textContent).toBe(esperado);
-    expect(pre.className).toContain("font-mono");
-    expect(pre.className).toContain("whitespace-pre-wrap");
-    expect(pre.className).toContain("select-text");
-    expect(pre.textContent).toContain("Phone: 11 90000-0000");
-    expect(pre.textContent).toContain("Email: d@teste.com");
-    expect(pre.textContent).toContain("Contact: Contato D");
-  });
-
-  it("título e nota do resumo", () => {
-    coluna(compraCompleta());
-    expect(texto(q("#compra-resumo-titulo"))).toBe("Resumo (atualiza enquanto você digita)");
-    expect(texto(q("#compra-resumo"))).toContain("Linhas vazias somem");
-  });
-
-  it("sem o despachante no Cadastro, o resumo sai só com o nome (sem telefone nem e-mail)", () => {
-    const c = compraCompleta();
-    coluna(c, null);
-    const pre = q("#compra-resumo-texto")!.textContent!;
-    expect(pre).toBe(montarResumoCompra(compraParaResumoEntrada(c, null)));
-    expect(pre).not.toContain("Phone:");
-  });
-
-  it("nada de PIX no resumo nem na tela, mesmo que o objeto do despachante traga a chave", () => {
-    const comPix = { ...DESPACHANTE, chavePix: "CHAVE-PIX-SECRETA-TESTE", chave_pix: "CHAVE-PIX-SECRETA-TESTE" };
-    coluna(compraCompleta(), comPix);
-    expect(document.body.textContent).not.toContain("CHAVE-PIX-SECRETA-TESTE");
-    expect(document.body.innerHTML.toLowerCase()).not.toMatch(/chave_?pix/);
-  });
-
-  it("'Copiar resumo' (primário) copia EXATAMENTE a string do resumo e avisa 'Resumo copiado'", async () => {
-    const c = compraCompleta({ paciente: "PACIENTE <TESTE> & 'aspas'" });
+  it("'Copiar resumo' (primário) copia EXATAMENTE o texto do modo 'copia' e avisa 'Resumo copiado'", async () => {
+    const c = compraDeTeste({ paciente: "PACIENTE <TESTE> & 'aspas'", localAplicacao: "" });
     const writeText = vi.fn(async () => undefined);
     vi.stubGlobal("navigator", { clipboard: { writeText } });
     coluna(c, DESPACHANTE);
-    const esperado = montarResumoCompra(compraParaResumoEntrada(c, DESPACHANTE));
+    const esperado = resumoParaTexto(montarResumo(compraParaResumoEntrada(c, DESPACHANTE), "copia"));
     const botao = q<HTMLButtonElement>("#btn-copiar-resumo")!;
-    expect(texto(botao)).toBe("Copiar resumo");
-    expect(botao.className).toContain("bg-accent-dark"); // primário
+    expect(botao.className).toContain("bg-accent-dark");
     botao.click();
     await vi.waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
     expect(writeText.mock.calls[0]![0]).toBe(esperado);
-    expect(writeText.mock.calls[0]![0]).toBe(q("#compra-resumo-texto")!.textContent);
+    // É o texto da CÓPIA (com 'pendente ⏳' e os contatos do despachante), não o do modelo da tela.
+    expect(esperado).toContain("Local de aplicação: pendente ⏳");
+    expect(esperado).toContain("Phone: 11 90000-0000");
     await vi.waitFor(() => expect(toast()).toBe("Resumo copiado"));
   });
 
   it("falha ao copiar: toast de erro", async () => {
-    vi.stubGlobal("navigator", { clipboard: { writeText: vi.fn(async () => { throw new Error("negado"); }) } });
-    coluna(compraCompleta());
+    vi.stubGlobal("navigator", {
+      clipboard: {
+        writeText: vi.fn(async () => {
+          throw new Error("negado");
+        }),
+      },
+    });
+    coluna(compraDeTeste());
     q<HTMLButtonElement>("#btn-copiar-resumo")!.click();
     await vi.waitFor(() => expect(toast()).toMatch(/^Não foi possível copiar o resumo/));
   });
 
-  it("o resumo e o checklist acompanham a compra AO VIVO (a prop muda, a tela muda, sem salvar)", async () => {
-    const compra = ref(compraCompleta({ paciente: "" }));
+  it("o 'Copiar resumo' não depende de permissão: está sempre habilitado (a coluna nem recebe a permissão)", () => {
+    coluna(compraDeTeste());
+    expect(q<HTMLButtonElement>("#btn-copiar-resumo")!.disabled).toBe(false);
+  });
+});
+
+describe("o resumo (modelo) linha a linha", () => {
+  it("todos os rótulos do modelo aparecem, na ordem, como linhas (data-resumo-linha = id da linha)", () => {
+    const c = compraDeTeste();
+    coluna(c, DESPACHANTE);
+    const ids = montarResumo(compraParaResumoEntrada(c, DESPACHANTE), "modelo").flatMap((b) => b.linhas.map((l) => l.id));
+    expect(qa("[data-resumo-linha]").map((e) => e.getAttribute("data-resumo-linha"))).toEqual(ids);
+    expect(texto(linhaDoResumo("titulo"))).toBe("Compra 03 - Novembro/2026");
+    expect(texto(linhaDoResumo("laboratorio"))).toBe("Laboratório: Lab Teste");
+    expect(texto(linhaDoResumo("envio"))).toBe("Envio: Air Cargo (Emirates)");
+    expect(texto(linhaDoResumo("cnpj"))).toBe("CNPJ: Farmaurora");
+    expect(texto(linhaDoResumo("broker_telefone"))).toBe("Phone: 11 90000-0000");
+  });
+
+  it("valor VAZIO = traço tracejado discreto (com rótulo); a compra vazia mostra todos os rótulos", () => {
+    coluna(compraComUmMedicamento());
+    const lab = linhaDoResumo("laboratorio")!;
+    expect(lab.getAttribute("data-vazio")).toBe("true");
+    expect(texto(lab)).toBe("Laboratório:");
+    const traco = lab.querySelector("[data-resumo-vazio]")!;
+    expect(traco.className).toContain("border-dashed");
+    // sem 'pendente ⏳' nem 'n/a' inventados no modelo
+    expect(texto(q("#compra-resumo-texto"))).not.toContain("pendente");
+    expect(texto(q("#compra-resumo-texto"))).not.toContain("n/a");
+    expect(qa("[data-resumo-linha][data-vazio]").length).toBeGreaterThan(20);
+  });
+
+  it("a linha do Paciente sai em destaque (negrito, como na cópia) e o título é um cabeçalho", () => {
+    coluna(compraDeTeste({ paciente: "PACIENTE TESTE DA SILVA" }));
+    const valor = linhaDoResumo("paciente")!.querySelectorAll("span")[1]!;
+    expect(texto(valor)).toBe("Paciente Teste da Silva");
+    expect(valor.className).toContain("font-semibold");
+    expect(linhaDoResumo("titulo")!.tagName).toBe("H4");
+  });
+
+  it("agrupa em blocos (um por bloco do resumo), como o texto copiado", () => {
+    coluna(compraDeTeste());
+    const blocos = qa("[data-resumo-bloco]").map((b) => b.getAttribute("data-resumo-bloco"));
+    expect(blocos[0]).toBe("titulo");
+    expect(blocos).toContain("consultor_responsavel");
+    expect(blocos.at(-1)).toBe("contatos");
+  });
+
+  it("nada de PIX no resumo nem na tela, mesmo que o objeto do despachante traga a chave", () => {
+    const comPix = { ...DESPACHANTE, chavePix: "CHAVE-PIX-SECRETA-TESTE", chave_pix: "CHAVE-PIX-SECRETA-TESTE" };
+    coluna(compraDeTeste(), comPix);
+    expect(document.body.textContent).not.toContain("CHAVE-PIX-SECRETA-TESTE");
+    expect(document.body.innerHTML.toLowerCase()).not.toMatch(/chave_?pix/);
+  });
+
+  it("nada de checklist, 'antes de encaminhar', pendências nem 'Dicas' na coluna", () => {
+    coluna(compraDeTeste());
+    const t = document.body.textContent ?? "";
+    expect(t).not.toMatch(/antes de encaminhar/i);
+    expect(t).not.toMatch(/Dicas/);
+    expect(t).not.toMatch(/itens ok/i);
+    expect(q("#compra-checklist")).toBeNull();
+    expect(q('[data-item]')).toBeNull();
+    expect(t).not.toMatch(/vendedor/i);
+  });
+
+  it("acompanha a compra AO VIVO (a prop muda, a tela muda, sem salvar)", async () => {
+    const compra = ref(compraComUmMedicamento());
     montar(defineComponent({ render: () => h(CompraColunaDireita, { compra: compra.value, despachanteCadastro: null }) }));
-    expect(q('[data-item="paciente"]')).not.toBeNull();
-    expect(q("#compra-resumo-texto")!.textContent).not.toContain("PACIENTE NOVO");
+    expect(linhaDoResumo("paciente")!.getAttribute("data-vazio")).toBe("true");
     compra.value = { ...compra.value, paciente: "PACIENTE NOVO" };
     await nextTick();
-    expect(q('[data-item="paciente"]')).toBeNull(); // saiu dos erros
-    expect(q("#compra-resumo-texto")!.textContent).toContain("Paciente: *Paciente Novo*");
+    expect(linhaDoResumo("paciente")!.getAttribute("data-vazio")).toBeNull();
+    expect(texto(linhaDoResumo("paciente"))).toBe("Paciente: Paciente Novo");
+  });
+});
+
+describe("o resumo preenche os vazios enquanto se digita no formulário (ligado ao editor)", () => {
+  it("digitar paciente, laboratório e local no formulário atualiza o resumo da direita", async () => {
+    formulario = montarFormulario(compraComUmMedicamento(), { comResumo: true });
+    expect(linhaDoResumo("paciente")!.getAttribute("data-vazio")).toBe("true");
+    expect(linhaDoResumo("laboratorio")!.getAttribute("data-vazio")).toBe("true");
+    await digitar("#compra-paciente", "paciente teste");
+    await digitar("#compra-local", "Hospital Teste");
+    const id = formulario.compra().itens[0]!.id;
+    await digitar(`#compra-item-${id}-laboratorio`, "Lab Teste");
+    expect(texto(linhaDoResumo("paciente"))).toBe("Paciente: Paciente Teste");
+    expect(texto(linhaDoResumo("local_aplicacao"))).toBe("Local de aplicação: Hospital Teste");
+    expect(texto(linhaDoResumo("laboratorio"))).toBe("Laboratório: Lab Teste");
+    expect(linhaDoResumo("paciente")!.getAttribute("data-vazio")).toBeNull();
   });
 
-  it("'Encaminhar para a DIR': secundário, sempre DESABILITADO, com a dica \"Em breve: depende da migração da DIR\"", () => {
-    coluna(compraCompleta());
-    const b = q<HTMLButtonElement>("#btn-encaminhar-dir")!;
-    expect(b.disabled).toBe(true);
-    expect(texto(b)).toBe("Encaminhar para a DIR");
-    expect(b.className).not.toContain("bg-accent-dark");
-    expect(b.getAttribute("title")).toBe("Em breve: depende da migração da DIR");
-  });
-
-  it("o 'Copiar resumo' não depende de permissão: está sempre habilitado (a coluna nem recebe a permissão)", () => {
-    coluna(compraCompleta());
-    expect(q<HTMLButtonElement>("#btn-copiar-resumo")!.disabled).toBe(false);
+  it("com 2 medicamentos o resumo mostra 'Medicamento 1' e 'Medicamento 2'", async () => {
+    formulario = montarFormulario(compraComUmMedicamento(), { comResumo: true });
+    q<HTMLButtonElement>("#compra-adicionar-medicamento")!.click();
+    await nextTick();
+    expect(linhaDoResumo("medicamento_1")).not.toBeNull();
+    expect(linhaDoResumo("medicamento_2")).not.toBeNull();
+    expect(linhaDoResumo("medicamento")).toBeNull();
   });
 });
