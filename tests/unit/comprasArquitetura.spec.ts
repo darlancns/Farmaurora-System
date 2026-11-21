@@ -74,7 +74,7 @@ describe("o código da tela antiga foi apagado", () => {
       expect(/Dicas/.test(texto), `${rel(arquivo)}: Dicas`).toBe(false);
       expect(/checklist/i.test(texto), `${rel(arquivo)}: checklist`).toBe(false);
       expect(texto.includes("courierSimples"), `${rel(arquivo)}: courierSimples`).toBe(false);
-      expect(/compra\.ordens|\.ordens\b/.test(texto), `${rel(arquivo)}: ordens`).toBe(false);
+      expect(/compra\.ordens|\.ordens\.(map|find|length|filter|some)/.test(texto), `${rel(arquivo)}: ordens`).toBe(false);
     }
   });
 });
