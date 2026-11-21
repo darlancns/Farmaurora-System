@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { nextTick } from "vue";
 import { COMPRA_MAX_ORDENS } from "../../shared/constants/compra";
 import { NUMERO_REMESSA_ERRO } from "../../shared/utils/numeroRemessa";
+import { compraParaResumoEntrada, montarResumoCompra } from "../../shared/utils/compraResumo";
 import { clicar, compraComUmMedicamento, digitar, escolherNoSelect, esperar, montarFormulario, q, qa, texto, type FormularioMontado } from "./helpers/montarFormulario";
 
 // Ordens (o stepper do Follow-Up, 1 a 10), Envio + Cia aérea (a cia limpa ao trocar o modal), Courier Simples, Fornecedor e CNPJ (a empresa).
@@ -140,11 +141,18 @@ describe("Envio e Cia aérea (as opções do Follow-Up)", () => {
     expect(ultima(montado)).toMatchObject({ envio: "", cia: "" });
   });
 
-  it("Courier Simples: aparece a nota (o resumo diz 'Despachante: N/A'); nos outros envios, não", async () => {
-    montado = montarFormulario(compraComUmMedicamento({ envio: "Courier Simples" }));
-    expect(texto(q("#compra-envio-courier-simples"))).toContain("Despachante: N/A");
-    await escolherNoSelect("#compra-envio", "Air Cargo");
+  it("Courier Simples: a linha Envio NÃO tem nota nem texto 'não tem despachante' (nada abaixo dos selects); o resumo segue com 'Despachante: N/A' e a linha Despachante com 'Dispensado'", async () => {
+    montado = montarFormulario(compraComUmMedicamento({ envio: "Courier Simples" }), { comResumo: true });
+    const linhaEnvio = q<HTMLElement>('[data-linha="envio"]')!;
+    expect(texto(linhaEnvio)).not.toMatch(/n[ãa]o tem despachante/i);
+    expect(texto(linhaEnvio)).not.toContain("N/A");
+    expect(linhaEnvio.querySelector("p")).toBeNull(); // nenhum parágrafo de nota
     expect(q("#compra-envio-courier-simples")).toBeNull();
+    // O comportamento não mudou:
+    expect(texto(q("#compra-despachante-dispensado"))).toContain("Dispensado");
+    expect(montarResumoCompra(compraParaResumoEntrada(montado.compra(), null))).toContain("Despachante: N/A");
+    await escolherNoSelect("#compra-envio", "Air Cargo");
+    expect(q('[data-linha="envio"]')!.querySelector("p")).toBeNull();
   });
 
   it("sócio: envio e cia desabilitados", () => {

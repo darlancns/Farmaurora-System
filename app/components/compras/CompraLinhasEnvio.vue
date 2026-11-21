@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { MODAL_COURIER_SIMPLES } from "#shared/constants/processos";
 import type { EmpresaProcesso, ModalEnvio } from "#shared/types/processo";
 import type { Compra, MudancasCompra } from "#shared/types/compra";
 import { chaveCadastro } from "#shared/utils/cadastroNome";
@@ -15,7 +14,7 @@ import { ROTULOS_DO_FORMULARIO } from "../../utils/comprasRotulos";
 
 // As linhas 11 a 13 do formulário (a ordem do resumo): Envio (+ Cia aérea ao lado), Fornecedor e CNPJ (a empresa). Envio e Cia usam as MESMAS
 // opções do Follow-Up (MODAL_ENVIO_OPTIONS, montarCiaAereaOptions); a Cia é OPCIONAL e depende do modal: ao trocar o envio, a cia que não vale
-// para o novo modal é limpa (ciaAposTrocaDeEnvio). Courier Simples: continua valendo a regra do resumo ("Despachante: N/A").
+// para o novo modal é limpa (ciaAposTrocaDeEnvio). Courier Simples não tem nota aqui: a regra do resumo ("Despachante: N/A") e a linha Despachante ("Dispensado") vivem em outros lugares.
 const props = defineProps<{ compra: Compra; desabilitado: boolean; opcoes: OpcoesFormulario }>();
 const emit = defineEmits<{ alterar: [mudancas: MudancasCompra] }>();
 
@@ -35,7 +34,6 @@ const fornecedorOptions = computed<AppSelectOption<string>[]>(() => {
   return lista;
 });
 
-const ehCourierSimples = computed(() => props.compra.envio === MODAL_COURIER_SIMPLES);
 </script>
 
 <template>
@@ -50,7 +48,6 @@ const ehCourierSimples = computed(() => props.compra.envio === MODAL_COURIER_SIM
         <AppSelect id="compra-cia" :model-value="compra.cia" :options="ciaOptions" :disabled="desabilitado || semModal" @update:model-value="(cia: string) => emit('alterar', { cia })" />
       </div>
     </div>
-    <p v-if="ehCourierSimples" id="compra-envio-courier-simples" class="mt-1.5 text-[12px] text-ink-soft">Courier Simples não tem despachante (o resumo diz “Despachante: N/A”).</p>
   </CompraCampo>
 
   <CompraCampo id-linha="fornecedor" :rotulo="ROTULOS_DO_FORMULARIO.fornecedor" para="compra-fornecedor">
