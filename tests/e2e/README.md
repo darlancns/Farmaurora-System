@@ -7,7 +7,7 @@
 ### Onde rodar (importante)
 
 - **Só no Supabase LOCAL** (`supabase start`). O `playwright.config.ts` carrega `.env.e2e` (nunca o `.env`, que aponta para PRODUÇÃO) e a guarda em `tests/e2e/_guards/` aborta se a URL não for loopback (localhost, 127.0.0.1 ou [::1]).
-- O banco local precisa ter as migrations aplicadas, incluindo `supabase/migrations/20261119190000_compras.sql` (depois de `20261119160000_cadastro_temperaturas_medicamentos.sql`).
+- O banco local precisa ter as migrations aplicadas, incluindo `supabase/migrations/20261119190000_compras.sql` (depois de `20261119160000_cadastro_temperaturas_medicamentos.sql`) e as duas que a seguem, `20261120120000_renomear_consultor_compras.sql` e `20261121130000_compras_uma_por_fornecedor.sql` (esta troca o desenho para uma compra por fornecedor: **o app de Compras desta branch ainda não conhece esse schema**, então o e2e de Compras só volta a valer depois das etapas seguintes).
 - Os testes de `compras-pagina.spec.ts` **criam compras de verdade** no banco local (paciente "TESTE E2E <hora>") e o contador do mês avança a cada "+ Nova compra". Não apagam nada (o app não apaga compras). Para limpar, recrie o banco local.
 
 ### Contas
