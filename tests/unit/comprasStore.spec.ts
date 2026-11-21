@@ -833,3 +833,33 @@ describe("duplicarCompra", () => {
     expect(fake.chamadas.filter((x) => x.tabela === "compras" && x.op === "delete")).toEqual([]);
   });
 });
+
+// ── recorrente ────────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("recorrente: nasce false, salvarCompra grava, duplicarCompra copia, obterCompra devolve", () => {
+  it("rascunho novo: recorrente = false; coluna recorrente na linha do banco", async () => {
+    const c = await criarCompra("Cris");
+    expect(c.recorrente).toBe(false);
+    expect(fake.linhas("compras")[0]).toMatchObject({ recorrente: false });
+  });
+
+  it("salvar com recorrente true grava (e GET devolve); ausente no corpo não mexe; false desliga", async () => {
+    const c = await criarCompra("Cris");
+    const r1 = (await salvarCompra(c.id, estado(c, undefined, { recorrente: true }), "Bruno"))!;
+    expect(r1.recorrente).toBe(true);
+    expect((await obterCompra(c.id))!.recorrente).toBe(true);
+    expect(fake.linhas("compras")[0]).toMatchObject({ recorrente: true });
+    const r2 = (await salvarCompra(c.id, estado(r1, undefined, { paciente: "PACIENTE TESTE" }), "Bruno"))!;
+    expect(r2.recorrente).toBe(true); // ausente = não muda
+    const r3 = (await salvarCompra(c.id, estado(r2, undefined, { recorrente: false }), "Bruno"))!;
+    expect(r3.recorrente).toBe(false);
+  });
+
+  it("duplicar copia o valor (true continua true; false continua false)", async () => {
+    const c = await criarCompra("Cris");
+    const marcada = (await salvarCompra(c.id, estado(c, undefined, { recorrente: true }), "Cris"))!;
+    expect((await duplicarCompra(marcada.id, "Bruno"))!.recorrente).toBe(true);
+    const outra = await criarCompra("Cris");
+    expect((await duplicarCompra(outra.id, "Bruno"))!.recorrente).toBe(false);
+  });
+});
