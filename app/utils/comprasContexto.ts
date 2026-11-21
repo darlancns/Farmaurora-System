@@ -17,7 +17,7 @@ export interface AcoesCompra {
   buscarMedicamentos: (q: string, sinal: AbortSignal) => Promise<OpcaoBusca[]>;
   /** POST /api/compras/temperaturas { nome }. Erro de rede ou do servidor SOBE (a linha mostra "tentar de novo"). */
   registrarTemperatura: (nome: string) => Promise<ResultadoTemperatura>;
-  /** POST /api/compras/pre-cadastro-medicamentos { nome, temperatura, compraId }, com a compra aberta. */
+  /** POST /api/compras/pre-cadastro-medicamentos { nome, temperatura, compraId }, com a compra aberta. SÓ por pedido explícito (botão): o nome sai em MAIÚSCULAS e a temperatura é obrigatória. */
   pedirPreCadastro: (nome: string, temperatura: string) => Promise<ResultadoPreCadastro>;
   /** Aviso curto (toast). */
   avisar: (mensagem: string) => void;

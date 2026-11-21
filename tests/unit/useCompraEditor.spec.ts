@@ -3,6 +3,7 @@ import type { Compra, CompraSalvarDTO } from "../../shared/types/compra";
 import { validarCompraSalvar } from "../../shared/utils/compraValidacao";
 import { corpoParaSalvar } from "../../shared/utils/compraPayload";
 import { ApiError } from "../../app/utils/apiFetch";
+import { compraVaziaDeTeste, itemDeTeste } from "./helpers/compraFixtures";
 import { DEBOUNCE_SALVAR_MS, RECUO_TENTATIVAS_MS, useCompraEditor, type ApiCompra } from "../../app/composables/useCompraEditor";
 
 // useCompraEditor: autosave com debounce, nunca dois PATCH juntos, flush, 409 com as duas saídas, retry e somente leitura. Timers falsos
@@ -15,40 +16,8 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-const compraBase = (extra: Partial<Compra> = {}): Compra => ({
-  id: "cmp_1",
-  anoMes: "2026-11",
-  sequencia: 1,
-  cancelada: false,
-  paciente: "",
-  processoNumero: "",
-  medico: "",
-  localAplicacao: "",
-  entrega: "",
-  contatos: "",
-  termoObservacao: "",
-  despachante: "",
-  isencaoPara: "",
-  observacoes: "",
-  vendedor: "",
-  responsavel: "Cris",
-  compraParticular: false,
-  localDeclarado: false,
-  termoPosterior: false,
-  courierSimples: false,
-  isencao: false,
-  recorrente: false,
-  pagamentoAlvara: null,
-  pagamentoMomento: null,
-  documentos: null,
-  pendencias: [],
-  criadoPor: "Cris",
-  atualizadoPor: "Cris",
-  createdAt: "2026-11-19T12:00:00.000Z",
-  updatedAt: "2026-11-19T12:00:00.000Z",
-  ordens: [],
-  ...extra,
-});
+const compraBase = (extra: Partial<Compra> = {}): Compra =>
+  compraVaziaDeTeste({ id: "cmp_1", sequencia: 1, responsavel: "Cris", updatedAt: "2026-11-19T12:00:00.000Z", ...extra });
 
 /** Um servidor de mentira: cada PATCH muda a versão; dá para segurar a resposta, falhar e consultar o que chegou. */
 function servidor(inicial: Compra = compraBase()) {
@@ -70,7 +39,8 @@ function servidor(inicial: Compra = compraBase()) {
       if (falha !== undefined) throw falha;
       if (corpo.atualizadoEm !== atual.updatedAt) throw new ApiError("Esta compra foi alterada por outra pessoa. Recarregue para ver a versão atual.", 409);
       n += 1;
-      atual = { ...atual, ...(corpo as unknown as Partial<Compra>), id, ordens: atual.ordens, updatedAt: `2026-11-19T13:00:0${n}.000Z`, atualizadoPor: "Cris" };
+      const itens = corpo.itens === undefined ? atual.itens : corpo.itens.map((it, k) => itemDeTeste(k + 1, { ...it }));
+      atual = { ...atual, ...(corpo as unknown as Partial<Compra>), id, itens, updatedAt: `2026-11-19T13:00:0${n}.000Z`, atualizadoPor: "Cris" };
       return atual;
     } finally {
       simultaneos -= 1;
@@ -166,18 +136,48 @@ describe("debounce de 800 ms e o estado completo", () => {
     await avancar(800);
     const corpo = s.salvamentos[0]!.corpo;
     expect(corpo).toMatchObject({ atualizadoEm: "2026-11-19T12:00:00.000Z", paciente: "PACIENTE TESTE", medico: "Dr. Teste", responsavel: "Cris", pendencias: ["Receita"], recorrente: false, compraParticular: false });
-    expect(Object.keys(corpo)).toEqual(expect.arrayContaining(["atualizadoEm", "paciente", "processoNumero", "medico", "vendedor", "responsavel", "compraParticular", "recorrente", "ordens"]));
+    expect(Object.keys(corpo)).toEqual(
+      expect.arrayContaining(["atualizadoEm", "fornecedor", "envio", "cia", "empresa", "numeroOrdens", "frete", "freteReal", "paciente", "processoNumero", "medico", "consultor", "responsavel", "compraParticular", "recorrente", "itens"]),
+    );
+    // Nada do modelo antigo nem de só leitura vai no corpo.
+    expect(Object.keys(corpo)).not.toEqual(expect.arrayContaining(["vendedor"]));
+    for (const velha of ["vendedor", "ordens", "courierSimples", "isencaoPara", "localDeclarado", "status", "cancelada"]) expect(corpo).not.toHaveProperty(velha);
   });
 
-  it("o corpo é aceito pela validação do servidor (ida e volta), com ordens e itens", () => {
+  it("os ITENS vão completos e na ordem da tela: todos os campos de cada medicamento, sem posição, sem o nome do Cadastro (só leitura)", async () => {
+    const itens = [
+      itemDeTeste(1, { medicamento: "DIPIRONA TESTE 500 mg", medicamentoCadastroId: "med_1", medicamentoCadastroNome: "DIPIRONA TESTE", laboratorio: "Lab A", brand: "bioequivalente", quantidade: "10 caixas", temperatura: "Ambiente", valorUnitario: 5, valorReal: 4.5 }),
+      itemDeTeste(2, { medicamento: "FORA DO CADASTRO TESTE", preCadastroId: "pre_1", preCadastroStatus: "pendente", laboratorio: "Lab B", brand: "referencia" }),
+    ];
+    const s = servidor(compraBase({ itens }));
+    const e = await abrir(s);
+    e.alterar({ paciente: "PACIENTE TESTE" });
+    await avancar(800);
+    const enviados = s.salvamentos[0]!.corpo.itens!;
+    expect(enviados).toHaveLength(2);
+    expect(enviados[0]).toEqual({ id: "itm_teste_0001", medicamento: "DIPIRONA TESTE 500 mg", medicamentoCadastroId: "med_1", preCadastroId: null, laboratorio: "Lab A", brand: "bioequivalente", quantidade: "10 caixas", temperatura: "Ambiente", valorUnitario: 5, valorReal: 4.5 });
+    expect(enviados[1]).toMatchObject({ id: "itm_teste_0002", medicamento: "FORA DO CADASTRO TESTE", preCadastroId: "pre_1", medicamentoCadastroId: null, brand: "referencia" });
+    for (const item of enviados) {
+      expect(item).not.toHaveProperty("medicamentoCadastroNome");
+      expect(item).not.toHaveProperty("preCadastroStatus");
+      expect(item).not.toHaveProperty("posicao");
+    }
+  });
+
+  it("o corpo é aceito pela validação do servidor (ida e volta), com itens e os campos de só leitura fora", () => {
     const compra = compraBase({
       paciente: "PACIENTE TESTE",
-      ordens: [{ id: "ord_000001", posicao: 1, fornecedor: "Fornecedor Teste", envio: "Air Cargo", cia: "", po: "PO26-11-0001", frete: 10, freteReal: null, itens: [{ id: "itm_000001", posicao: 1, medicamento: "MED TESTE", medicamentoCadastroId: "med_1", preCadastroId: null, apresentacao: "10 mg", referencia: "", laboratorio: "", quantidade: "2", temperatura: "2°C a 8°C", valorUnitario: 5, valorReal: null }] }],
+      fornecedor: "Fornecedor Teste",
+      envio: "Air Cargo",
+      cia: "Emirates",
+      numeroOrdens: 3,
+      consultor: "Consultor Teste",
+      itens: [itemDeTeste(1, { medicamento: "MED TESTE 10 mg", medicamentoCadastroId: "med_1", medicamentoCadastroNome: "MED TESTE", laboratorio: "Lab", brand: "referencia", quantidade: "2", temperatura: "2°C a 8°C", valorUnitario: 5 })],
     });
-    const r = validarCompraSalvar(corpoParaSalvar(compra, compra.updatedAt));
-    expect(r.ok, r.ok ? "" : r.erro).toBe(true);
     const corpo = corpoParaSalvar(compra, compra.updatedAt);
-    expect(JSON.stringify(corpo)).not.toMatch(/posicao/); // a posição é a ordem do array
+    const r = validarCompraSalvar(corpo);
+    expect(r.ok, r.ok ? "" : r.erro).toBe(true);
+    expect(JSON.stringify(corpo)).not.toMatch(/posicao|medicamentoCadastroNome/); // a posição é a ordem do array; o nome é só leitura
   });
 
   it("depois do sucesso, o PATCH seguinte leva a versão devolvida pelo servidor", async () => {
@@ -310,7 +310,14 @@ describe("flush: descarrega o pendente antes de trocar de compra, de mês ou sai
   });
 });
 
-describe("409: alguém salvou antes", () => {
+describe("409: alguém salvou antes (o único conflito é o de versão)", () => {
+  it("o editor não expõe trava de PO/ordem nem estado de 'bloqueado': só as duas saídas do conflito de versão", () => {
+    const e = editor(servidor());
+    expect(Object.keys(e).sort()).toEqual(
+      ["alterar", "carregar", "carregarVersaoSalva", "compra", "definir", "esperandoClique", "estado", "flush", "manterMinhas", "mensagemErro", "salvoEm", "somenteLeituraAgora", "temPendencia", "tentarDeNovo"].sort(),
+    );
+  });
+
   it("para o autosave (nem as mudanças seguintes salvam) e fica em 'conflito'; o local não some", async () => {
     const s = servidor();
     const e = await abrir(s);
@@ -435,12 +442,12 @@ describe("erro de rede ou 5xx: tenta sozinho com recuo, 3 vezes, e depois espera
   it("recusa do servidor (422): não repete sozinho, mostra a mensagem dele e espera o clique", async () => {
     const s = servidor();
     const e = await abrir(s);
-    s.falharProximas(new ApiError("Vendedor inválido: escolha um consultor ativo do Cadastro.", 422));
-    e.alterar({ vendedor: "Ninguém" });
+    s.falharProximas(new ApiError("Consultor inválido: escolha um consultor ativo do Cadastro.", 422));
+    e.alterar({ consultor: "Ninguém" });
     await avancar(800);
     expect(e.estado.value).toBe("erro");
     expect(e.esperandoClique.value).toBe(true);
-    expect(e.mensagemErro.value).toBe("Vendedor inválido: escolha um consultor ativo do Cadastro.");
+    expect(e.mensagemErro.value).toBe("Consultor inválido: escolha um consultor ativo do Cadastro.");
     await avancar(60_000);
     expect(s.salvar).toHaveBeenCalledTimes(1);
   });
@@ -555,38 +562,47 @@ describe("temPendencia (é o que o aviso de sair da página olha)", () => {
   });
 });
 
-describe("Courier Simples da compra é DERIVADO das ordens e sincronizado a cada mudança delas", () => {
-  const ordem = (id: string, envio: string): Compra["ordens"][number] => ({
-    id,
-    posicao: 1,
-    fornecedor: "",
-    envio,
-    cia: "",
-    po: "",
-    frete: null,
-    freteReal: null,
-    itens: [],
-  });
-
-  it("todas Courier Simples liga; uma que não é desliga; sem ordens desliga; vai no PATCH", async () => {
-    const s = servidor(compraBase({ ordens: [] }));
+describe("a cia depende do envio: ao trocar o envio, a cia que não vale para o novo modal some", () => {
+  it("Air Cargo + Emirates → Courier Formal: a cia é limpa (Emirates não é de courier) e o PATCH leva cia vazia", async () => {
+    const s = servidor(compraBase({ envio: "Air Cargo", cia: "Emirates" }));
     const e = await abrir(s);
-    e.alterar({ ordens: [ordem("ord_000001", "Courier Simples")] });
-    expect(e.compra.value!.courierSimples).toBe(true);
-    e.alterar({ ordens: [ordem("ord_000001", "Courier Simples"), ordem("ord_000002", "Air Cargo")] });
-    expect(e.compra.value!.courierSimples).toBe(false);
-    e.alterar({ ordens: [ordem("ord_000001", "Courier Simples"), ordem("ord_000002", "Courier Simples")] });
-    expect(e.compra.value!.courierSimples).toBe(true);
+    e.alterar({ envio: "Courier Formal" });
+    expect(e.compra.value).toMatchObject({ envio: "Courier Formal", cia: "" });
     await avancar(800);
-    expect(s.salvamentos.at(-1)!.corpo.courierSimples).toBe(true);
-    e.alterar({ ordens: [] });
-    expect(e.compra.value!.courierSimples).toBe(false);
+    expect(s.salvamentos.at(-1)!.corpo).toMatchObject({ envio: "Courier Formal", cia: "" });
   });
 
-  it("mudar só um campo da compra (sem ordens) não mexe no courier_simples", async () => {
-    const s = servidor(compraBase({ courierSimples: true, ordens: [ordem("ord_000001", "Courier Simples")] }));
+  it("uma cia que vale para o novo modal fica (DHL serve ao Courier Formal e ao Courier Simples)", async () => {
+    const s = servidor(compraBase({ envio: "Courier Formal", cia: "DHL" }));
     const e = await abrir(s);
-    e.alterar({ paciente: "PACIENTE TESTE" });
-    expect(e.compra.value!.courierSimples).toBe(true);
+    e.alterar({ envio: "Courier Simples" });
+    expect(e.compra.value).toMatchObject({ envio: "Courier Simples", cia: "DHL" });
+  });
+
+  it("envio vazio: nenhuma cia vale; e mudar só a cia (sem mexer no envio) não limpa nada", async () => {
+    const s = servidor(compraBase({ envio: "Air Cargo", cia: "Emirates" }));
+    const e = await abrir(s);
+    e.alterar({ cia: "Qatar" });
+    expect(e.compra.value!.cia).toBe("Qatar");
+    e.alterar({ envio: "" });
+    expect(e.compra.value!.cia).toBe("");
+  });
+
+  it("envio e cia mudando JUNTOS: vale o par (cia nova do modal novo é mantida)", async () => {
+    const s = servidor(compraBase({ envio: "Air Cargo", cia: "Emirates" }));
+    const e = await abrir(s);
+    e.alterar({ envio: "Courier Formal", cia: "FedEx" });
+    expect(e.compra.value).toMatchObject({ envio: "Courier Formal", cia: "FedEx" });
+    e.alterar({ envio: "Air Cargo", cia: "FedEx" });
+    expect(e.compra.value).toMatchObject({ envio: "Air Cargo", cia: "" });
+  });
+
+  it("Courier Simples é só o envio: a compra não tem campo `courierSimples` e ele não vai no PATCH", async () => {
+    const s = servidor(compraBase());
+    const e = await abrir(s);
+    e.alterar({ envio: "Courier Simples" });
+    await avancar(800);
+    expect(e.compra.value).not.toHaveProperty("courierSimples");
+    expect(s.salvamentos.at(-1)!.corpo).not.toHaveProperty("courierSimples");
   });
 });

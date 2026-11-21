@@ -1,14 +1,14 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
 import { useState } from "#app";
 import type { DespachanteCadastroResumo, OpcoesCompra } from "#shared/types/compra";
-import { OPCOES_VAZIAS, type OpcoesFormulario } from "../utils/comprasBlocos";
+import { opcoesParaFormulario, type OpcoesFormulario } from "../utils/comprasOpcoes";
 import { chaveCadastro } from "#shared/utils/cadastroNome";
 import { apiFetch } from "../utils/apiFetch";
 
-// As opções do formulário (GET /api/compras/opcoes): consultores, despachantes, fornecedores, cias aéreas, transportadoras,
-// temperaturas e a 1ª página dos medicamentos (que são paginados e entram na etapa 6b). Lidas UMA vez por sessão da página e
-// guardadas em memória; a falha vira a faixa "Não foi possível carregar as opções. Tentar de novo". Nenhum campo é chave PIX (o
-// servidor nem devolve).
+// As opções do formulário (GET /api/compras/opcoes): consultores, despachantes, fornecedores, temperaturas e a 1ª página dos
+// medicamentos (que são paginados). Lidas UMA vez por sessão da página e guardadas em memória; a falha vira a faixa "Não foi possível
+// carregar as opções. Tentar de novo". Nenhum campo é chave PIX (o servidor nem devolve). A cia aérea NÃO vem daqui: depende do envio
+// (modal) e vem das constantes do Follow-Up (`ciasDoEnvio` em app/utils/comprasOpcoes.ts).
 
 export interface ApiOpcoesCompra {
   obter: () => Promise<OpcoesCompra>;
@@ -22,7 +22,7 @@ export interface CompraOpcoes {
   opcoes: Ref<OpcoesCompra | null>;
   carregando: Ref<boolean>;
   erro: Ref<string | null>;
-  /** Os consultores ativos (para o Vendedor); vazio enquanto não carrega. */
+  /** Os consultores ativos (para o Consultor); vazio enquanto não carrega. */
   consultores: ComputedRef<Array<{ nome: string }>>;
   despachantes: ComputedRef<OpcoesCompra["despachantes"]>;
   /** Tudo o que os blocos do formulário leem dos Cadastros (vazio enquanto não carrega). */
@@ -68,17 +68,7 @@ export function useCompraOpcoes(config: { api?: ApiOpcoesCompra; chave?: string 
     erro,
     consultores: computed(() => opcoes.value?.consultores ?? []),
     despachantes: computed(() => opcoes.value?.despachantes ?? []),
-    paraFormulario: computed<OpcoesFormulario>(() =>
-      opcoes.value
-        ? {
-            consultores: opcoes.value.consultores,
-            despachantes: opcoes.value.despachantes,
-            fornecedores: opcoes.value.fornecedores,
-            ciasAereas: opcoes.value.ciasAereas,
-            temperaturas: opcoes.value.temperaturas,
-          }
-        : OPCOES_VAZIAS,
-    ),
+    paraFormulario: computed<OpcoesFormulario>(() => opcoesParaFormulario(opcoes.value)),
     carregar,
     despachantePeloNome,
   };

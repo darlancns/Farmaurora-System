@@ -1,32 +1,29 @@
 import { describe, expect, it, vi } from "vitest";
-import type { StatusDaCompra } from "../../shared/constants/compra";
-import type { Compra, CompraDaLista, ListaCompras, TotaisPorStatus } from "../../shared/types/compra";
+import type { CompraDaLista, ListaCompras, TotaisDaLista } from "../../shared/types/compra";
 import { itemDaLista } from "../../shared/utils/compraLista";
 import { montarCompraDaLista } from "../../server/utils/compraMappers";
 import { montarUrlLista, useComprasMes, type ApiListaCompras, type ParametrosLista } from "../../app/composables/useComprasMes";
+import { compraVaziaDeTeste, itemDeTeste } from "./helpers/compraFixtures";
 
-// useComprasMes: mês de Brasília, filtro, totais, "mostrar mais" e a atualização do cartão logo depois de salvar. API simulada
-// (sem rede). Dados fictícios (TESTE).
+// useComprasMes: mês de Brasília, filtro "Mostrar canceladas", totais {ativas, canceladas}, "mostrar mais" e a atualização do cartão
+// logo depois de salvar. API simulada (sem rede). Dados fictícios (TESTE).
 
-const item = (sequencia: number, status: StatusDaCompra = "rascunho", extra: Partial<CompraDaLista> = {}): CompraDaLista => ({
+const item = (sequencia: number, cancelada = false, extra: Partial<CompraDaLista> = {}): CompraDaLista => ({
   id: `cmp_${sequencia}`,
   anoMes: "2026-11",
   sequencia,
-  cancelada: status === "cancelada",
+  cancelada,
   paciente: `PACIENTE TESTE ${sequencia}`,
   medicamentos: [],
-  totalOrdens: 0,
-  pendencias: 7,
-  status,
+  numeroOrdens: 1,
   atualizadoEm: "2026-11-19T12:00:00.000Z",
   ...extra,
 });
 
-const totaisDe = (itens: CompraDaLista[]): TotaisPorStatus => {
-  const t: TotaisPorStatus = { rascunho: 0, pronta: 0, cancelada: 0 };
-  for (const i of itens) t[i.status] += 1;
-  return t;
-};
+const totaisDe = (itens: CompraDaLista[]): TotaisDaLista => ({
+  ativas: itens.filter((i) => !i.cancelada).length,
+  canceladas: itens.filter((i) => i.cancelada).length,
+});
 
 /** Um servidor de mentira com as compras do mês e a MESMA regra de filtro e página do de verdade. */
 function servidor(porMes: Record<string, CompraDaLista[]>, tamanhoPagina = 50) {
@@ -35,12 +32,11 @@ function servidor(porMes: Record<string, CompraDaLista[]>, tamanhoPagina = 50) {
     listar: async (p) => {
       chamadas.push(p);
       const todas = [...(porMes[p.anoMes] ?? [])].sort((a, b) => b.sequencia - a.sequencia);
-      const casam = todas.filter((c) => (p.status !== null ? c.status === p.status : p.incluirCanceladas || c.status !== "cancelada"));
+      const casam = todas.filter((c) => p.incluirCanceladas || !c.cancelada);
       const de = (p.pagina - 1) * tamanhoPagina;
       const r: ListaCompras = {
         anoMes: p.anoMes,
         compras: casam.slice(de, de + tamanhoPagina),
-        status: p.status,
         pagina: p.pagina,
         limite: tamanhoPagina,
         temMais: casam.length > de + tamanhoPagina,
@@ -52,6 +48,8 @@ function servidor(porMes: Record<string, CompraDaLista[]>, tamanhoPagina = 50) {
   };
   return { api, chamadas };
 }
+
+const vazia = (): ListaCompras => ({ anoMes: "2026-11", compras: [], pagina: 1, limite: 50, temMais: false, total: 0, totais: { ativas: 0, canceladas: 0 } });
 
 const SEMPRE_NOVEMBRO = () => new Date("2026-11-19T15:00:00Z");
 
@@ -78,19 +76,28 @@ describe("mês inicial: o corrente de BRASÍLIA", () => {
 });
 
 describe("carregar, totais e 'N compras'", () => {
-  it("lê o mês e guarda lista, totais e total; 'N compras' soma tudo menos as canceladas", async () => {
-    const compras = [item(1), item(2, "pronta"), item(3), item(4, "pronta"), item(5, "cancelada"), item(6, "cancelada")];
+  it("lê o mês e guarda lista, totais {ativas, canceladas} e total; 'N compras' são só as ativas", async () => {
+    const compras = [item(1), item(2), item(3), item(4), item(5, true), item(6, true)];
     const m = useComprasMes({ mes: "2026-11", api: servidor({ "2026-11": compras }).api });
     await m.carregar();
     expect(m.compras.value.map((c) => c.sequencia)).toEqual([4, 3, 2, 1]); // sem as canceladas
-    expect(m.totais.value).toEqual({ rascunho: 2, pronta: 2, cancelada: 2 });
+    expect(m.totais.value).toEqual({ ativas: 4, canceladas: 2 });
     expect(m.totalDoMes.value).toBe(4);
     expect(m.carregando.value).toBe(false);
     expect(m.erro.value).toBeNull();
   });
 
+  it("não há filtro por status: nem o estado nem o pedido ao servidor o conhecem", async () => {
+    const s = servidor({ "2026-11": [item(1)] });
+    const m = useComprasMes({ mes: "2026-11", api: s.api });
+    await m.carregar();
+    expect("status" in m).toBe(false);
+    expect("definirStatus" in m).toBe(false);
+    expect(Object.keys(s.chamadas[0]!).sort()).toEqual(["anoMes", "incluirCanceladas", "pagina"]);
+  });
+
   it("falha na leitura: erro com a mensagem, sem derrubar o que já estava", async () => {
-    const api: ApiListaCompras = { listar: vi.fn().mockRejectedValueOnce(new Error("Sem conexão.")).mockResolvedValue({ anoMes: "2026-11", compras: [], status: null, pagina: 1, limite: 50, temMais: false, total: 0, totais: totaisDe([]) }) };
+    const api: ApiListaCompras = { listar: vi.fn().mockRejectedValueOnce(new Error("Sem conexão.")).mockResolvedValue(vazia()) };
     const m = useComprasMes({ mes: "2026-11", api });
     await m.carregar();
     expect(m.erro.value).toBe("Sem conexão.");
@@ -103,12 +110,12 @@ describe("carregar, totais e 'N compras'", () => {
     const lenta = new Promise<ListaCompras>((r) => {
       soltar = r;
     });
-    const rapida = servidor({ "2026-10": [item(1, "pronta", { anoMes: "2026-10" })] }).api;
+    const rapida = servidor({ "2026-10": [item(1, false, { anoMes: "2026-10" })] }).api;
     const api: ApiListaCompras = { listar: (p) => (p.anoMes === "2026-11" ? lenta : rapida.listar(p)) };
     const m = useComprasMes({ mes: "2026-11", api });
     const primeira = m.carregar();
     await m.irParaMes("2026-10"); // a segunda leitura termina antes
-    soltar({ anoMes: "2026-11", compras: [item(9)], status: null, pagina: 1, limite: 50, temMais: false, total: 1, totais: totaisDe([item(9)]) });
+    soltar({ ...vazia(), compras: [item(9)], total: 1, totais: totaisDe([item(9)]) });
     await primeira;
     expect(m.mes.value).toBe("2026-10");
     expect(m.compras.value.map((c) => c.sequencia)).toEqual([1]);
@@ -117,11 +124,11 @@ describe("carregar, totais e 'N compras'", () => {
 
 describe("mês anterior e próximo", () => {
   it("troca o mês, relê e vira o ano nos dois sentidos", async () => {
-    const s = servidor({ "2026-12": [item(1, "pronta", { anoMes: "2026-12" })], "2027-01": [item(1, "rascunho", { anoMes: "2027-01" })] });
+    const s = servidor({ "2026-12": [item(1, false, { anoMes: "2026-12" })], "2027-01": [item(1, false, { anoMes: "2027-01" })] });
     const m = useComprasMes({ mes: "2026-12", api: s.api });
     await m.mesSeguinte();
     expect([m.mes.value, m.rotuloMes.value]).toEqual(["2027-01", "Janeiro/2027"]);
-    expect(m.compras.value[0]!.status).toBe("rascunho");
+    expect(m.compras.value[0]!.anoMes).toBe("2027-01");
     await m.mesAnterior();
     await m.mesAnterior();
     expect(m.mes.value).toBe("2026-11");
@@ -138,36 +145,33 @@ describe("mês anterior e próximo", () => {
   });
 });
 
-describe("filtro por estado e canceladas", () => {
-  const compras = [item(1), item(2, "pronta"), item(3, "pronta"), item(4), item(5, "cancelada")];
+describe("'Mostrar canceladas'", () => {
+  const compras = [item(1), item(2), item(3), item(4), item(5, true)];
 
-  it("definirStatus relê com o filtro e mantém os totais do mês inteiro", async () => {
-    const s = servidor({ "2026-11": compras });
-    const m = useComprasMes({ mes: "2026-11", api: s.api });
+  it("sem o interruptor, só as ativas; os totais são do mês inteiro", async () => {
+    const m = useComprasMes({ mes: "2026-11", api: servidor({ "2026-11": compras }).api });
     await m.carregar();
-    await m.definirStatus("pronta");
-    expect(s.chamadas.at(-1)).toMatchObject({ status: "pronta", pagina: 1 });
-    expect(m.compras.value.map((c) => c.sequencia)).toEqual([3, 2]);
-    expect(m.total.value).toBe(2);
-    expect(m.totais.value).toEqual({ rascunho: 2, pronta: 2, cancelada: 1 });
-    await m.definirStatus(null);
-    expect(m.compras.value).toHaveLength(4);
+    expect(m.compras.value.map((c) => c.sequencia)).toEqual([4, 3, 2, 1]);
+    expect(m.total.value).toBe(4);
+    expect(m.totais.value).toEqual({ ativas: 4, canceladas: 1 });
   });
 
-  it("repetir o mesmo filtro não relê", async () => {
-    const s = servidor({ "2026-11": compras });
-    const m = useComprasMes({ mes: "2026-11", status: "pronta", api: s.api });
-    await m.definirStatus("pronta");
-    await m.definirMostrarCanceladas(false);
-    expect(s.chamadas).toEqual([]);
-  });
-
-  it("'Mostrar canceladas' pede incluir_canceladas e traz as canceladas junto", async () => {
+  it("ligar pede incluir_canceladas, volta à página 1 e traz as canceladas junto", async () => {
     const s = servidor({ "2026-11": compras });
     const m = useComprasMes({ mes: "2026-11", api: s.api });
     await m.definirMostrarCanceladas(true);
-    expect(s.chamadas.at(-1)).toMatchObject({ incluirCanceladas: true });
+    expect(s.chamadas.at(-1)).toMatchObject({ incluirCanceladas: true, pagina: 1 });
     expect(m.compras.value.map((c) => c.sequencia)).toEqual([5, 4, 3, 2, 1]);
+    expect(m.total.value).toBe(5);
+    await m.definirMostrarCanceladas(false);
+    expect(m.compras.value).toHaveLength(4);
+  });
+
+  it("repetir o mesmo valor não relê", async () => {
+    const s = servidor({ "2026-11": compras });
+    const m = useComprasMes({ mes: "2026-11", mostrarCanceladas: true, api: s.api });
+    await m.definirMostrarCanceladas(true);
+    expect(s.chamadas).toEqual([]);
   });
 });
 
@@ -198,12 +202,12 @@ describe("mostrar mais (50 em 50)", () => {
     expect(s.chamadas.map((c) => c.pagina)).toEqual([1, 2]);
   });
 
-  it("trocar de filtro volta para a página 1", async () => {
+  it("trocar o 'Mostrar canceladas' volta para a página 1", async () => {
     const s = servidor({ "2026-11": cento }, 50);
     const m = useComprasMes({ mes: "2026-11", api: s.api });
     await m.carregar();
     await m.mostrarMais();
-    await m.definirStatus("rascunho");
+    await m.definirMostrarCanceladas(true);
     expect(s.chamadas.at(-1)!.pagina).toBe(1);
     expect(m.compras.value).toHaveLength(50);
   });
@@ -211,42 +215,7 @@ describe("mostrar mais (50 em 50)", () => {
 
 // ── A atualização depois de salvar ───────────────────────────────────────────────────────────────────────────
 
-function compraCompleta(extra: Partial<Compra> = {}): Compra {
-  return {
-    id: "cmp_2",
-    anoMes: "2026-11",
-    sequencia: 2,
-    cancelada: false,
-    paciente: "PACIENTE TESTE 2",
-    processoNumero: "",
-    medico: "",
-    localAplicacao: "",
-    entrega: "",
-    contatos: "",
-    termoObservacao: "",
-    despachante: "",
-    isencaoPara: "",
-    observacoes: "",
-    vendedor: "",
-    responsavel: "",
-    compraParticular: false,
-    localDeclarado: false,
-    termoPosterior: false,
-    courierSimples: false,
-    isencao: false,
-    recorrente: false,
-    pagamentoAlvara: null,
-    pagamentoMomento: null,
-    documentos: null,
-    pendencias: [],
-    criadoPor: "Cris",
-    atualizadoPor: "Cris",
-    createdAt: "2026-11-19T12:00:00.000Z",
-    updatedAt: "2026-11-19T13:00:00.000Z",
-    ordens: [],
-    ...extra,
-  };
-}
+const compraCompleta = compraVaziaDeTeste;
 
 describe("aplicarCompra: o cartão e os totais refletem o que acabou de ser salvo", () => {
   async function aberto(compras: CompraDaLista[]) {
@@ -255,36 +224,34 @@ describe("aplicarCompra: o cartão e os totais refletem o que acabou de ser salv
     return m;
   }
 
-  it("atualiza o paciente, os medicamentos, as pendências e a versão do cartão", async () => {
+  it("atualiza o paciente, os medicamentos, o número de ordens e a versão do cartão", async () => {
     const m = await aberto([item(1), item(2)]);
     m.aplicarCompra(
-      compraCompleta({
-        paciente: "NOVO PACIENTE TESTE",
-        ordens: [{ id: "o1", posicao: 1, fornecedor: "F", envio: "Air Cargo", cia: "", po: "", frete: null, freteReal: null, itens: [{ id: "i1", posicao: 1, medicamento: "MED TESTE", medicamentoCadastroId: "m1", preCadastroId: null, apresentacao: "", referencia: "", laboratorio: "", quantidade: "", temperatura: "", valorUnitario: null, valorReal: null }] }],
-      }),
+      compraCompleta({ id: "cmp_2", sequencia: 2, paciente: "NOVO PACIENTE TESTE", numeroOrdens: 3, itens: [itemDeTeste(1, { medicamento: "MED TESTE" }), itemDeTeste(2, { medicamento: "OUTRO MED TESTE" })] }),
     );
     const c = m.compras.value.find((x) => x.id === "cmp_2")!;
-    expect(c).toMatchObject({ paciente: "NOVO PACIENTE TESTE", medicamentos: ["MED TESTE"], totalOrdens: 1, atualizadoEm: "2026-11-19T13:00:00.000Z" });
-    expect(c.pendencias).toBeGreaterThan(0);
+    expect(c).toMatchObject({ paciente: "NOVO PACIENTE TESTE", medicamentos: ["MED TESTE", "OUTRO MED TESTE"], numeroOrdens: 3, atualizadoEm: "2026-11-19T13:00:00.000Z" });
     expect(m.compras.value.map((x) => x.sequencia)).toEqual([2, 1]); // continua no mesmo lugar
   });
 
   it("o cartão de uma compra é EXATAMENTE o que o servidor monta (mesma regra para as duas pontas)", () => {
-    const compra = compraCompleta({ paciente: "X", medico: "Dr", vendedor: "V", responsavel: "R", compraParticular: true, pagamentoMomento: "apos_awb" });
+    const compra = compraCompleta({ id: "cmp_2", sequencia: 2, paciente: "X", numeroOrdens: 4, itens: [itemDeTeste(2, { medicamento: "B TESTE" }), itemDeTeste(1, { medicamento: "A TESTE" })] });
     const doCliente = itemDaLista({ ...compra, atualizadoEm: compra.updatedAt });
     const doServidor = montarCompraDaLista(
-      { id: compra.id, ano_mes: compra.anoMes, sequencia: compra.sequencia, cancelada: false, paciente: "X", processo_numero: "", compra_particular: true, medico: "Dr", vendedor: "V", responsavel: "R", despachante: "", pagamento_momento: "apos_awb", local_aplicacao: "", entrega: "", documentos: null, updated_at: "2026-11-19T13:00:00+00:00" },
-      [],
-      [],
+      { id: compra.id, ano_mes: compra.anoMes, sequencia: compra.sequencia, cancelada: false, paciente: "X", numero_ordens: 4, updated_at: "2026-11-19T13:00:00+00:00" },
+      [
+        { id: "i2", compra_id: compra.id, posicao: 2, medicamento: "B TESTE" },
+        { id: "i1", compra_id: compra.id, posicao: 1, medicamento: "A TESTE" },
+      ],
     );
     expect(doCliente).toEqual(doServidor);
   });
 
-  it("a mudança de estado move os totais (de rascunho para cancelada)", async () => {
-    const m = await aberto([item(1), item(2), item(3, "pronta")]);
-    expect(m.totais.value).toMatchObject({ rascunho: 2, cancelada: 0 });
-    m.aplicarCompra(compraCompleta({ cancelada: true }));
-    expect(m.totais.value).toMatchObject({ rascunho: 1, cancelada: 1, pronta: 1 });
+  it("cancelar move os totais de ativas para canceladas", async () => {
+    const m = await aberto([item(1), item(2), item(3)]);
+    expect(m.totais.value).toEqual({ ativas: 3, canceladas: 0 });
+    m.aplicarCompra(compraCompleta({ id: "cmp_2", sequencia: 2, cancelada: true }));
+    expect(m.totais.value).toEqual({ ativas: 2, canceladas: 1 });
     expect(m.totalDoMes.value).toBe(2);
     // Sem 'mostrar canceladas', o cartão sai da lista.
     expect(m.compras.value.map((c) => c.sequencia)).toEqual([3, 1]);
@@ -294,35 +261,19 @@ describe("aplicarCompra: o cartão e os totais refletem o que acabou de ser salv
   it("com 'mostrar canceladas' ligado o cartão fica, como cancelada", async () => {
     const m = useComprasMes({ mes: "2026-11", mostrarCanceladas: true, api: servidor({ "2026-11": [item(1), item(2)] }).api });
     await m.carregar();
-    m.aplicarCompra(compraCompleta({ cancelada: true }));
-    expect(m.compras.value.find((c) => c.id === "cmp_2")).toMatchObject({ status: "cancelada", cancelada: true });
+    m.aplicarCompra(compraCompleta({ id: "cmp_2", sequencia: 2, cancelada: true }));
+    expect(m.compras.value.find((c) => c.id === "cmp_2")).toMatchObject({ cancelada: true });
     expect(m.compras.value).toHaveLength(2);
-  });
-
-  it("filtro ativo: o cartão que muda de estado e deixa de casar sai da lista, e o total do filtro cai", async () => {
-    const m = useComprasMes({ mes: "2026-11", status: "rascunho", api: servidor({ "2026-11": [item(1), item(2)] }).api });
-    await m.carregar();
     expect(m.total.value).toBe(2);
-    m.aplicarCompra(compraCompleta({ cancelada: true }));
-    expect(m.compras.value.map((c) => c.sequencia)).toEqual([1]);
-    expect(m.total.value).toBe(1);
   });
 
-  it("compra NOVA entra no topo (sequencia maior), soma nos totais e no total", async () => {
+  it("compra NOVA entra no topo (sequencia maior), soma nas ativas e no total", async () => {
     const m = await aberto([item(1), item(2)]);
-    m.aplicarCompra(compraCompleta({ id: "cmp_3", sequencia: 3, paciente: "" }), { nova: true });
+    m.aplicarCompra(compraCompleta({ id: "cmp_3", sequencia: 3 }), { nova: true });
     expect(m.compras.value.map((c) => c.sequencia)).toEqual([3, 2, 1]);
-    expect(m.totais.value.rascunho).toBe(3);
+    expect(m.totais.value).toEqual({ ativas: 3, canceladas: 0 });
     expect(m.total.value).toBe(3);
     expect(m.totalDoMes.value).toBe(3);
-  });
-
-  it("compra nova com filtro que não casa: soma só nos totais (os chips), não entra na lista", async () => {
-    const m = useComprasMes({ mes: "2026-11", status: "pronta", api: servidor({ "2026-11": [item(1, "pronta")] }).api });
-    await m.carregar();
-    m.aplicarCompra(compraCompleta({ id: "cmp_9", sequencia: 9 }), { nova: true });
-    expect(m.compras.value.map((c) => c.sequencia)).toEqual([1]);
-    expect(m.totais.value.rascunho).toBe(1);
   });
 
   it("compra de OUTRO mês não mexe em nada", async () => {
@@ -339,7 +290,7 @@ describe("aplicarCompra: o cartão e os totais refletem o que acabou de ser salv
     m.aplicarCompra(nova);
     m.aplicarCompra({ ...nova, paciente: "OUTRO NOME" });
     expect(m.compras.value.filter((c) => c.id === "cmp_3")).toHaveLength(1);
-    expect(m.totais.value.rascunho).toBe(2);
+    expect(m.totais.value.ativas).toBe(2);
     expect(m.compras.value[0]!.paciente).toBe("OUTRO NOME");
   });
 
@@ -353,10 +304,10 @@ describe("aplicarCompra: o cartão e os totais refletem o que acabou de ser salv
 });
 
 describe("montarUrlLista", () => {
-  it("mês, e só o que foi pedido: status, incluir_canceladas e página (a partir da 2ª)", () => {
-    expect(montarUrlLista({ anoMes: "2026-11", status: null, incluirCanceladas: false, pagina: 1 })).toBe("/api/compras?ano_mes=2026-11");
-    expect(montarUrlLista({ anoMes: "2026-11", status: "pronta", incluirCanceladas: true, pagina: 3 })).toBe(
-      "/api/compras?ano_mes=2026-11&status=pronta&incluir_canceladas=1&pagina=3",
-    );
+  it("mês, e só o que foi pedido: incluir_canceladas e página (a partir da 2ª); nunca status", () => {
+    expect(montarUrlLista({ anoMes: "2026-11", incluirCanceladas: false, pagina: 1 })).toBe("/api/compras?ano_mes=2026-11");
+    expect(montarUrlLista({ anoMes: "2026-11", incluirCanceladas: true, pagina: 3 })).toBe("/api/compras?ano_mes=2026-11&incluir_canceladas=1&pagina=3");
+    // Mesmo que alguém passe `status` por engano (JS puro), a URL não o leva.
+    expect(montarUrlLista({ anoMes: "2026-11", incluirCanceladas: false, pagina: 1, status: "pronta" } as unknown as ParametrosLista)).not.toContain("status");
   });
 });

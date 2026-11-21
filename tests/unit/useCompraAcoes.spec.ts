@@ -10,8 +10,6 @@ import type { CompraOpcoes } from "../../app/composables/useCompraOpcoes";
 const OPCOES: OpcoesCompra = {
   fornecedores: [],
   despachantes: [],
-  ciasAereas: [],
-  transportadoras: [],
   consultores: [],
   temperaturas: [{ nome: "2°C a 8°C" }, { nome: "Ambiente" }],
   medicamentos: { itens: [], pagina: 1, limite: 20, temMais: false, q: "" },
@@ -109,6 +107,22 @@ describe("pedirPreCadastro", () => {
     const m = montar(resposta(201, { criado: true, preCadastro: { id: "pre_1" } }), null);
     await m.acoes.pedirPreCadastro("TESTE", "Ambiente");
     expect(JSON.parse(String(chamada(m.fetchFalso).init.body))).toEqual({ nome: "TESTE", temperatura: "Ambiente" });
+  });
+
+  it("o nome vai LIMPO e em MAIÚSCULAS (o campo 'nome para o cadastro' é editável em qualquer caixa)", async () => {
+    const m = montar(resposta(201, { criado: true, preCadastro: { id: "pre_1" } }));
+    await m.acoes.pedirPreCadastro("  teste   med  novo ", " Ambiente ");
+    expect(JSON.parse(String(chamada(m.fetchFalso).init.body))).toEqual({ nome: "TESTE MED NOVO", temperatura: "Ambiente", compraId: "cmp_1" });
+  });
+
+  it("sem temperatura, nome vazio ou nome com mais de 120 caracteres: NEM SAI para a rede (400 local)", async () => {
+    const m = montar(resposta(201, { criado: true, preCadastro: { id: "pre_1" } }));
+    await expect(m.acoes.pedirPreCadastro("TESTE", "")).rejects.toMatchObject({ status: 400, message: "Escolha a temperatura antes de pedir o cadastro." });
+    await expect(m.acoes.pedirPreCadastro("   ", "Ambiente")).rejects.toMatchObject({ status: 400 });
+    await expect(m.acoes.pedirPreCadastro("A".repeat(121), "Ambiente")).rejects.toMatchObject({ status: 400 });
+    expect(m.fetchFalso).not.toHaveBeenCalled();
+    await m.acoes.pedirPreCadastro("A".repeat(120), "Ambiente"); // 120 passa
+    expect(m.fetchFalso).toHaveBeenCalledTimes(1);
   });
 
   it("409: devolve o medicamento do CADASTRO (id, nome e temperatura; mais nada)", async () => {

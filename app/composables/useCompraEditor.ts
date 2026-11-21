@@ -1,6 +1,6 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
 import type { Compra, CompraSalvarDTO, MudancasCompra } from "#shared/types/compra";
-import { courierSimplesDasOrdens } from "#shared/utils/compraForm";
+import { ciaAposTrocaDeEnvio } from "#shared/utils/compraForm";
 import { corpoParaSalvar } from "#shared/utils/compraPayload";
 import { ApiError, apiFetch } from "../utils/apiFetch";
 
@@ -11,7 +11,8 @@ import { ApiError, apiFetch } from "../utils/apiFetch";
 //  - NUNCA dois PATCH ao mesmo tempo: mudou durante um salvamento? marca "sujo" e salva de novo logo depois do que está em curso.
 //  - `flush()` descarrega o que está pendente ANTES de trocar de compra/mês ou sair da página; false = não salvou (quem chama não troca).
 //  - 409 (outra pessoa salvou antes): para o autosave e espera a escolha — `carregarVersaoSalva()` (descarta as mudanças locais) ou
-//    `manterMinhas()` (reenvia o estado local com a versão atual). Nada some sem a pessoa escolher.
+//    `manterMinhas()` (reenvia o estado local com a versão atual). Nada some sem a pessoa escolher. A compra é UMA por fornecedor, sem
+//    ordens nem trava de PO: o único conflito é o de versão (o 409 de `atualizadoEm`).
 //  - Erro de rede ou 5xx: o estado local fica; tenta de novo sozinho com recuo (3 tentativas); depois espera `tentarDeNovo()`. Erro 4xx
 //    (dado recusado) não repete sozinho: espera o clique, com a mensagem do servidor.
 //  - Somente leitura (sem permissão de escrita, ou compra cancelada): nenhum campo muda, nenhum timer, nenhuma chamada.
@@ -214,8 +215,8 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
   function alterar(mudancas: MudancasCompra): void {
     if (!compra.value || !podeSalvar()) return;
     const nova = { ...compra.value, ...mudancas };
-    // Courier Simples da compra NÃO é campo editável: é sempre derivado dos envios das ordens e sincronizado a cada mudança delas.
-    if (mudancas.ordens) nova.courierSimples = courierSimplesDasOrdens(nova.ordens);
+    // A cia depende do modal: trocou o Envio e a cia atual não vale para o novo modal, ela some (a pessoa escolhe de novo).
+    if (mudancas.envio !== undefined) nova.cia = ciaAposTrocaDeEnvio(nova.envio, nova.cia);
     compra.value = nova;
     versao.value += 1;
     tentativasAutomaticas = 0;

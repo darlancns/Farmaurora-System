@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { nextTick } from "vue";
-import type { StatusDaCompra } from "../../shared/constants/compra";
-import type { Compra, CompraSalvarDTO, ListaCompras, TotaisPorStatus } from "../../shared/types/compra";
+import type { Compra, CompraSalvarDTO, ListaCompras, TotaisDaLista } from "../../shared/types/compra";
 import { itemDaLista } from "../../shared/utils/compraLista";
 import { ApiError } from "../../app/utils/apiFetch";
 import { MENSAGEM_NAO_SALVOU, useComprasPagina } from "../../app/composables/useComprasPagina";
+import { compraVaziaDeTeste, itemDeTeste } from "./helpers/compraFixtures";
 
 // A orquestração da página Compras com a API simulada: trocar de compra e de mês com o salvamento descarregado ANTES (e sem trocar em
 // silêncio se falhar), URL, nova/duplicar/cancelar, somente leitura. Dados fictícios (TESTE).
@@ -16,40 +16,15 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-const compraBase = (sequencia: number, extra: Partial<Compra> = {}): Compra => ({
-  id: `cmp_${sequencia}`,
-  anoMes: "2026-11",
-  sequencia,
-  cancelada: false,
-  paciente: `PACIENTE TESTE ${sequencia}`,
-  processoNumero: "",
-  medico: "",
-  localAplicacao: "",
-  entrega: "",
-  contatos: "",
-  termoObservacao: "",
-  despachante: "",
-  isencaoPara: "",
-  observacoes: "",
-  vendedor: "",
-  responsavel: "Cris",
-  compraParticular: false,
-  localDeclarado: false,
-  termoPosterior: false,
-  courierSimples: false,
-  isencao: false,
-  recorrente: false,
-  pagamentoAlvara: null,
-  pagamentoMomento: null,
-  documentos: null,
-  pendencias: [],
-  criadoPor: "Cris",
-  atualizadoPor: "Cris",
-  createdAt: "2026-11-19T12:00:00.000Z",
-  updatedAt: `2026-11-19T12:00:0${sequencia % 10}.000Z`,
-  ordens: [],
-  ...extra,
-});
+const compraBase = (sequencia: number, extra: Partial<Compra> = {}): Compra =>
+  compraVaziaDeTeste({
+    id: `cmp_${sequencia}`,
+    sequencia,
+    paciente: `PACIENTE TESTE ${sequencia}`,
+    responsavel: "Cris",
+    updatedAt: `2026-11-19T12:00:0${sequencia % 10}.000Z`,
+    ...extra,
+  });
 
 /** O servidor de mentira inteiro: lista, compra, salvamento e ações; guarda a ordem das chamadas. */
 function mundo(inicial: Compra[], agora = "2026-11-19T15:00:00Z") {
@@ -60,13 +35,12 @@ function mundo(inicial: Compra[], agora = "2026-11-19T15:00:00Z") {
   const mesCorrente = () => agora.slice(0, 7).replace(/-(\d\d)$/, "-$1");
 
   const apiLista = {
-    listar: vi.fn(async (p: { anoMes: string; status: StatusDaCompra | null; incluirCanceladas: boolean; pagina: number }): Promise<ListaCompras> => {
+    listar: vi.fn(async (p: { anoMes: string; incluirCanceladas: boolean; pagina: number }): Promise<ListaCompras> => {
       chamadas.push(`lista:${p.anoMes}`);
       const itens = [...banco.values()].filter((c) => c.anoMes === p.anoMes).map((c) => itemDaLista({ ...c, atualizadoEm: c.updatedAt })).sort((a, b) => b.sequencia - a.sequencia);
-      const totais: TotaisPorStatus = { rascunho: 0, pronta: 0, cancelada: 0 };
-      for (const i of itens) totais[i.status] += 1;
-      const casam = itens.filter((i) => (p.status !== null ? i.status === p.status : p.incluirCanceladas || i.status !== "cancelada"));
-      return { anoMes: p.anoMes, compras: casam.slice(0, 50), status: p.status, pagina: p.pagina, limite: 50, temMais: casam.length > 50, total: casam.length, totais };
+      const totais: TotaisDaLista = { ativas: itens.filter((i) => !i.cancelada).length, canceladas: itens.filter((i) => i.cancelada).length };
+      const casam = itens.filter((i) => p.incluirCanceladas || !i.cancelada);
+      return { anoMes: p.anoMes, compras: casam.slice(0, 50), pagina: p.pagina, limite: 50, temMais: casam.length > 50, total: casam.length, totais };
     }),
   };
   const apiCompra = {
@@ -80,7 +54,8 @@ function mundo(inicial: Compra[], agora = "2026-11-19T15:00:00Z") {
       chamadas.push(`salvar:${id}:${corpo.paciente ?? ""}`);
       if (falhaSalvar) throw falhaSalvar;
       const atual = banco.get(id)!;
-      const novo = { ...atual, ...(corpo as unknown as Partial<Compra>), id, ordens: atual.ordens, updatedAt: new Date(Date.parse(atual.updatedAt) + 1000).toISOString() };
+      const itens = corpo.itens === undefined ? atual.itens : corpo.itens.map((it, k) => itemDeTeste(k + 1, { ...it }));
+      const novo = { ...atual, ...(corpo as unknown as Partial<Compra>), id, itens, updatedAt: new Date(Date.parse(atual.updatedAt) + 1000).toISOString() };
       banco.set(id, novo);
       return novo;
     }),
@@ -124,19 +99,17 @@ function mundo(inicial: Compra[], agora = "2026-11-19T15:00:00Z") {
 function pagina(m: ReturnType<typeof mundo>, extra: { query?: Record<string, unknown>; podeEditar?: boolean; agora?: string } = {}) {
   const avisos: string[] = [];
   const urls: Array<Record<string, string>> = [];
-  const foco = vi.fn();
   const p = useComprasPagina({
     query: extra.query ?? {},
     podeEditar: () => extra.podeEditar ?? true,
     avisar: (msg) => avisos.push(msg),
     gravarUrl: (q) => urls.push(q),
-    focarFornecedor: foco,
     apiLista: m.apiLista,
     apiCompra: m.apiCompra,
     apiAcoes: m.apiAcoes,
     agora: () => new Date(extra.agora ?? "2026-11-19T15:00:00Z"),
   });
-  return { p, avisos, urls, foco };
+  return { p, avisos, urls };
 }
 
 const soltar = (ms = 0) => vi.advanceTimersByTimeAsync(ms);
@@ -152,13 +125,23 @@ describe("abrir a página", () => {
     expect(urls.at(-1)).toEqual({ mes: "2026-11", aba: "lista" });
   });
 
-  it("?mes= e ?status= abrem no mesmo lugar", async () => {
-    const m = mundo([compraBase(1, { anoMes: "2026-10" })]);
-    const { p } = pagina(m, { query: { mes: "2026-10", status: "rascunho" } });
+  it("?mes= e ?canceladas=1 abrem no mesmo lugar", async () => {
+    const m = mundo([compraBase(1, { anoMes: "2026-10" }), compraBase(2, { anoMes: "2026-10", cancelada: true })]);
+    const { p } = pagina(m, { query: { mes: "2026-10", canceladas: "1" } });
     await p.iniciar();
     expect(p.lista.mes.value).toBe("2026-10");
-    expect(p.lista.status.value).toBe("rascunho");
-    expect(p.lista.compras.value.map((c) => c.id)).toEqual(["cmp_1"]);
+    expect(p.lista.mostrarCanceladas.value).toBe(true);
+    expect(p.lista.compras.value.map((c) => c.id)).toEqual(["cmp_2", "cmp_1"]);
+  });
+
+  it("um link ANTIGO com ?status= é ignorado: a lista vem sem filtro de status e a URL é regravada sem ele", async () => {
+    const m = mundo([compraBase(1), compraBase(2)]);
+    const { p, urls } = pagina(m, { query: { mes: "2026-11", id: "cmp_1", status: "pronta" } });
+    await p.iniciar();
+    expect(p.lista.compras.value.map((c) => c.id)).toEqual(["cmp_2", "cmp_1"]); // nada foi filtrado por status
+    expect(m.apiLista.listar).toHaveBeenCalledWith({ anoMes: "2026-11", incluirCanceladas: false, pagina: 1 });
+    expect(urls.at(-1)).toEqual({ mes: "2026-11", id: "cmp_1", aba: "formulario" });
+    expect(urls.every((u) => !("status" in u))).toBe(true);
   });
 
   it("?id= abre a compra no formulário e na lista", async () => {
@@ -294,17 +277,18 @@ describe("trocar de mês", () => {
     expect(p.selecionadaId.value).toBe("cmp_1");
   });
 
-  it("filtro e 'mostrar canceladas' entram na URL e não fecham a compra aberta", async () => {
+  it("'mostrar canceladas' entra na URL e não fecha a compra aberta; não existe filtro por status", async () => {
     const m = mundo([compraBase(1)]);
     const { p, urls } = pagina(m, { query: { id: "cmp_1" } });
     await p.iniciar();
-    await p.definirStatus("pronta");
-    await nextTick();
-    expect(urls.at(-1)).toEqual({ mes: "2026-11", id: "cmp_1", status: "pronta", aba: "formulario" });
+    expect("definirStatus" in p).toBe(false);
     await p.definirMostrarCanceladas(true);
     await nextTick();
-    expect(urls.at(-1)).toEqual({ mes: "2026-11", id: "cmp_1", status: "pronta", canceladas: "1", aba: "formulario" });
+    expect(urls.at(-1)).toEqual({ mes: "2026-11", id: "cmp_1", canceladas: "1", aba: "formulario" });
     expect(p.selecionadaId.value).toBe("cmp_1");
+    await p.definirMostrarCanceladas(false);
+    await nextTick();
+    expect(urls.at(-1)).toEqual({ mes: "2026-11", id: "cmp_1", aba: "formulario" });
   });
 });
 
@@ -313,24 +297,35 @@ function erro500(): ApiError {
 }
 
 describe("+ Nova compra", () => {
-  it("cria, mostra no topo da lista, abre no formulário com UMA ordem vazia (UM item vazio) e leva o foco ao Fornecedor da Ordem 1", async () => {
+  it("cria, mostra no topo da lista, abre no formulário com o 1º medicamento (vazio) e pede o foco no campo Medicamento do Med. 1", async () => {
     const m = mundo([compraBase(1)]);
-    const { p, foco, urls } = pagina(m);
+    const { p, urls } = pagina(m);
     await p.iniciar();
+    expect(p.pedidoDeFocoMedicamento.value).toBe(0);
     await p.criarNova();
     expect(p.editor.compra.value!.sequencia).toBe(2);
     expect(p.selecionadaId.value).toBe("cmp_2");
     expect(p.lista.compras.value.map((c) => c.sequencia)).toEqual([2, 1]);
-    expect(p.lista.totais.value.rascunho).toBe(2);
-    const ordens = p.editor.compra.value!.ordens;
-    expect(ordens).toHaveLength(1);
-    expect(ordens[0]).toMatchObject({ posicao: 1, fornecedor: "", envio: "", po: "" });
-    expect(ordens[0]!.itens).toHaveLength(1);
-    expect(ordens[0]!.itens[0]).toMatchObject({ posicao: 1, medicamento: "", quantidade: "" });
-    expect(foco).toHaveBeenCalledTimes(1);
-    expect(foco).toHaveBeenCalledWith(ordens[0]!.id);
-    expect(p.editor.estado.value).toBe("pendente"); // o autosave grava a ordem vazia
+    expect(p.lista.totais.value.ativas).toBe(2);
+    const itens = p.editor.compra.value!.itens;
+    expect(itens).toHaveLength(1);
+    expect(itens[0]).toMatchObject({ posicao: 1, medicamento: "", medicamentoCadastroId: null, laboratorio: "", brand: "", quantidade: "", temperatura: "", valorUnitario: null, valorReal: null });
+    expect(p.pedidoDeFocoMedicamento.value).toBe(1);
+    expect(p.editor.estado.value).toBe("pendente"); // o autosave grava o 1º medicamento
     expect(urls.at(-1)).toMatchObject({ id: "cmp_2" });
+  });
+
+  it("o servidor já devolveu itens? Não cria outro; o pedido de foco sobe a cada compra nova", async () => {
+    const m = mundo([]);
+    m.apiAcoes.criar.mockResolvedValueOnce(compraBase(1, { itens: [itemDeTeste(1, { medicamento: "" })] }));
+    const { p } = pagina(m);
+    await p.iniciar();
+    await p.criarNova();
+    expect(p.editor.compra.value!.itens).toHaveLength(1);
+    expect(p.editor.estado.value).toBe("ocioso"); // nada mudou: nada a salvar
+    expect(p.pedidoDeFocoMedicamento.value).toBe(1);
+    await p.criarNova();
+    expect(p.pedidoDeFocoMedicamento.value).toBe(2);
   });
 
   it("descarrega o pendente da compra aberta antes de criar", async () => {
@@ -345,14 +340,14 @@ describe("+ Nova compra", () => {
 
   it("se o pendente não salvou, NÃO cria (e avisa)", async () => {
     const m = mundo([compraBase(1)]);
-    const { p, avisos, foco } = pagina(m, { query: { id: "cmp_1" } });
+    const { p, avisos } = pagina(m, { query: { id: "cmp_1" } });
     await p.iniciar();
     p.editor.alterar({ paciente: "PENDENTE" });
     m.falharSalvamentos(new TypeError("Failed to fetch"));
     await p.criarNova();
     expect(m.apiAcoes.criar).not.toHaveBeenCalled();
     expect(avisos).toEqual([MENSAGEM_NAO_SALVOU]);
-    expect(foco).not.toHaveBeenCalled();
+    expect(p.pedidoDeFocoMedicamento.value).toBe(0);
   });
 
   it("falha na criação: avisa com a mensagem do servidor e nada abre", async () => {
@@ -415,7 +410,7 @@ describe("Duplicar e Cancelar", () => {
     expect(p.editor.compra.value!.cancelada).toBe(true);
     expect(p.editor.somenteLeituraAgora.value).toBe(true);
     expect(p.lista.compras.value.map((c) => c.sequencia)).toEqual([1]); // saiu da lista (sem 'mostrar canceladas')
-    expect(p.lista.totais.value).toMatchObject({ rascunho: 1, cancelada: 1 });
+    expect(p.lista.totais.value).toEqual({ ativas: 1, canceladas: 1 });
     expect(avisos.at(-1)).toBe("Compra cancelada");
     p.editor.alterar({ paciente: "NAO PODE" });
     await soltar(5000);

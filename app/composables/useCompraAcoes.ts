@@ -1,4 +1,5 @@
 import type { MedicamentoDoCadastro, PaginaMedicamentos, RespostaPreCadastro, RespostaTemperatura } from "#shared/types/compra";
+import { montarPedidoPreCadastro } from "#shared/utils/compraMedicamento";
 import type { CompraOpcoes } from "./useCompraOpcoes";
 import { ApiError } from "../utils/apiFetch";
 import { readApiError } from "../utils/errorMessages";
@@ -8,6 +9,10 @@ import type { AcoesCompra, ResultadoPreCadastro, ResultadoTemperatura } from "..
 // As ações do formulário que falam com o servidor: busca de medicamentos, pré-cadastro e temperatura nova. Usa fetch direto (e não
 // apiFetch) porque o 409 do pré-cadastro traz o medicamento do Cadastro no corpo (`data.medicamento`) e o 409 da temperatura
 // (inativa) precisa ser distinguido de um erro qualquer.
+//
+// O pré-cadastro só sai por um pedido EXPLÍCITO da tela (botão "Pedir cadastro"): escolher a temperatura não dispara nada. Quem pede
+// passa o "nome para o cadastro" (editável) e a temperatura; aqui o nome vira MAIÚSCULAS (montarPedidoPreCadastro) e o contrato do POST
+// segue o mesmo: { nome, temperatura, compraId? }.
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 export const LIMITE_BUSCA_MEDICAMENTOS = 20;
@@ -48,7 +53,9 @@ export function useCompraAcoes(config: OpcoesAcoes): AcoesCompra {
   }
 
   async function pedirPreCadastro(nome: string, temperatura: string): Promise<ResultadoPreCadastro> {
-    const corpo: { nome: string; temperatura: string; compraId?: string } = { nome, temperatura };
+    const pedido = montarPedidoPreCadastro(nome, temperatura);
+    if (!pedido.ok) throw new ApiError(pedido.erro, 400); // nome vazio/longo ou sem temperatura: nem sai para a rede
+    const corpo: { nome: string; temperatura: string; compraId?: string } = { nome: pedido.pedido.nome, temperatura: pedido.pedido.temperatura };
     const compraId = config.compraId();
     if (compraId) corpo.compraId = compraId;
     const res = await rede()("/api/compras/pre-cadastro-medicamentos", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(corpo) });

@@ -2,15 +2,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp, defineComponent, h, nextTick, ref } from "vue";
 import { useState } from "#app";
-import type { Compra, OpcoesCompra } from "../../shared/types/compra";
+import type { Compra } from "../../shared/types/compra";
 import { checklistCompra } from "../../shared/utils/compraChecklist";
 import { compraParaResumoEntrada, montarResumoCompra } from "../../shared/utils/compraResumo";
 import CompraChecklistPainel from "../../app/components/compras/CompraChecklistPainel.vue";
 import CompraColunaDireita from "../../app/components/compras/CompraColunaDireita.vue";
-import { useCompraOpcoes } from "../../app/composables/useCompraOpcoes";
 
 // A coluna da direita com componentes REAIS no happy-dom: checklist agrupado, resumo IGUAL à função pura (despachante do Cadastro
-// sem PIX), botão Copiar com a string exata e toast. E o useCompraOpcoes (uma vez por sessão, falha com "Tentar de novo").
+// sem PIX), botão Copiar com a string exata e toast. (O useCompraOpcoes tem o próprio spec: useCompraOpcoes.spec.ts.)
 // Dados fictícios (TESTE).
 
 const montados: Array<{ unmount: () => void; el: HTMLElement }> = [];
@@ -240,73 +239,5 @@ describe("coluna direita", () => {
   it("o 'Copiar resumo' não depende de permissão: está sempre habilitado (a coluna nem recebe a permissão)", () => {
     coluna(compraCompleta());
     expect(q<HTMLButtonElement>("#btn-copiar-resumo")!.disabled).toBe(false);
-  });
-});
-
-// ── useCompraOpcoes ──────────────────────────────────────────────────────────────────────────────────────────
-
-const OPCOES: OpcoesCompra = {
-  fornecedores: [{ nome: "Fornecedor Teste", pais: "Alemanha", prazoAlertaDias: 30, semAlerta: false }],
-  despachantes: [{ nome: "Despachante Teste", contatoNome: "Contato D", telefone: "11 90000-0000", email: "d@teste.com" }],
-  ciasAereas: [{ nome: "Cia Teste" }],
-  transportadoras: [{ nome: "Transportadora Teste" }],
-  consultores: [{ nome: "Dani" }, { nome: "Flávia" }],
-  temperaturas: [{ nome: "2°C a 8°C" }],
-  medicamentos: { itens: [], pagina: 1, limite: 50, temMais: false, q: "" },
-};
-
-let chaveN = 0;
-const novaChave = () => `compras-opcoes-teste-${++chaveN}`;
-
-describe("useCompraOpcoes", () => {
-  it("lê UMA vez por sessão: chamadas seguidas de carregar() não repetem", async () => {
-    const obter = vi.fn(async () => OPCOES);
-    const o = useCompraOpcoes({ api: { obter }, chave: novaChave() });
-    await o.carregar();
-    await o.carregar();
-    await Promise.all([o.carregar(), o.carregar()]);
-    expect(obter).toHaveBeenCalledTimes(1);
-    expect(o.consultores.value.map((c) => c.nome)).toEqual(["Dani", "Flávia"]);
-    expect(o.despachantes.value).toHaveLength(1);
-    expect(o.erro.value).toBeNull();
-  });
-
-  it("outra instância na mesma sessão reaproveita o que já foi lido", async () => {
-    const chave = novaChave();
-    const obter = vi.fn(async () => OPCOES);
-    await useCompraOpcoes({ api: { obter }, chave }).carregar();
-    const outra = useCompraOpcoes({ api: { obter }, chave });
-    await outra.carregar();
-    expect(obter).toHaveBeenCalledTimes(1);
-    expect(outra.consultores.value).toHaveLength(2);
-  });
-
-  it("falha: guarda a mensagem; 'Tentar de novo' (forçar) relê e limpa o erro", async () => {
-    const obter = vi.fn().mockRejectedValueOnce(new Error("Sem conexão.")).mockResolvedValue(OPCOES);
-    const o = useCompraOpcoes({ api: { obter }, chave: novaChave() });
-    await o.carregar();
-    expect(o.erro.value).toBe("Sem conexão.");
-    expect(o.opcoes.value).toBeNull();
-    expect(o.consultores.value).toEqual([]);
-    await o.carregar(true);
-    expect(o.erro.value).toBeNull();
-    expect(o.consultores.value).toHaveLength(2);
-    expect(obter).toHaveBeenCalledTimes(2);
-  });
-
-  it("despachantePeloNome: acha pela chave (sem acento nem caixa) e copia SÓ nome, telefone, e-mail e contato", async () => {
-    const comPix = { ...OPCOES, despachantes: [{ ...OPCOES.despachantes[0]!, chavePix: "SECRETA", chave_pix: "SECRETA" } as unknown as OpcoesCompra["despachantes"][number]] };
-    const o = useCompraOpcoes({ api: { obter: async () => comPix }, chave: novaChave() });
-    await o.carregar();
-    expect(o.despachantePeloNome("  DESPACHANTE   teste ")).toEqual({ nome: "Despachante Teste", telefone: "11 90000-0000", email: "d@teste.com", contatoNome: "Contato D" });
-    expect(JSON.stringify(o.despachantePeloNome("Despachante Teste"))).not.toContain("SECRETA");
-    expect(o.despachantePeloNome("Outro")).toBeNull();
-    expect(o.despachantePeloNome("")).toBeNull();
-  });
-
-  it("antes de carregar não há despachante nem consultor", () => {
-    const o = useCompraOpcoes({ api: { obter: async () => OPCOES }, chave: novaChave() });
-    expect(o.despachantePeloNome("Despachante Teste")).toBeNull();
-    expect(o.consultores.value).toEqual([]);
   });
 });

@@ -1,7 +1,6 @@
 import { nextTick, ref, watch, type Ref } from "vue";
-import type { StatusDaCompra } from "#shared/constants/compra";
 import type { Compra } from "#shared/types/compra";
-import { ordemVazia } from "#shared/utils/compraForm";
+import { itemVazio } from "#shared/utils/compraForm";
 import { tituloDaCompra } from "#shared/utils/compraMes";
 import { ApiError, apiFetch } from "../utils/apiFetch";
 import { abaInicial, type AbaCompras } from "../utils/comprasAbas";
@@ -14,7 +13,7 @@ import { useComprasMes, type ApiListaCompras, type ComprasMes } from "./useCompr
 // A página (app/pages/compras.vue) só desenha. Aqui moram as regras de trocar de lugar:
 //  - ANTES de trocar de compra, de mês, criar, duplicar ou cancelar, o salvamento pendente é descarregado (flush); se falhar, a
 //    pessoa é avisada e NADA troca em silêncio;
-//  - mês e compra abertos vão na URL (?mes, ?id, ?status, ?canceladas); id de uma compra de outro mês abre no mês dela;
+//  - mês e compra abertos vão na URL (?mes, ?id, ?canceladas; um ?status antigo é ignorado); id de uma compra de outro mês abre no mês dela;
 //  - depois de cada salvamento a lista é atualizada com o que o servidor devolveu (sem reler o mês).
 
 export interface ApiAcoesCompra {
@@ -42,8 +41,6 @@ export interface OpcoesComprasPagina {
   avisar: (mensagem: string) => void;
   /** Grava a nova query na URL. */
   gravarUrl: (query: Record<string, string>) => void;
-  /** Leva o foco ao Fornecedor da Ordem 1 (depois de "+ Nova compra"); recebe o id da ordem. */
-  focarFornecedor?: (ordemId: string) => void;
   apiLista?: ApiListaCompras;
   apiCompra?: ApiCompra;
   apiAcoes?: ApiAcoesCompra;
@@ -59,6 +56,11 @@ export interface ComprasPagina {
   irParaAba: (aba: AbaCompras) => void;
   /** Uma ação (nova, duplicar, cancelar, trocar) está em andamento: os botões ficam parados. */
   ocupado: Ref<boolean>;
+  /**
+   * Pedido de foco no campo Medicamento do Med. 1: sobe um número a cada "+ Nova compra" (a tela observa e foca o campo; 0 = nunca
+   * pediu). Em ref (e não em callback) para a tela reagir também quando a compra só aparece depois.
+   */
+  pedidoDeFocoMedicamento: Ref<number>;
   /** O diálogo de "Cancelar compra" está aberto. */
   confirmandoCancelar: Ref<boolean>;
   tituloParaDialogo: () => string;
@@ -68,7 +70,6 @@ export interface ComprasPagina {
   selecionar: (id: string) => Promise<void>;
   mesAnterior: () => Promise<void>;
   mesSeguinte: () => Promise<void>;
-  definirStatus: (status: StatusDaCompra | null) => Promise<void>;
   definirMostrarCanceladas: (valor: boolean) => Promise<void>;
   criarNova: () => Promise<void>;
   duplicar: () => Promise<void>;
@@ -80,12 +81,13 @@ export interface ComprasPagina {
 
 export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
   const inicial = lerQueryCompras(opcoes.query);
-  const lista = useComprasMes({ mes: inicial.mes ?? undefined, status: inicial.status, mostrarCanceladas: inicial.canceladas, api: opcoes.apiLista, agora: opcoes.agora });
+  const lista = useComprasMes({ mes: inicial.mes ?? undefined, mostrarCanceladas: inicial.canceladas, api: opcoes.apiLista, agora: opcoes.agora });
   const acoes = opcoes.apiAcoes ?? apiAcoesPadrao;
   const selecionadaId = ref<string | null>(null);
   const aba = ref<AbaCompras>(abaInicial(inicial.aba, inicial.id !== null));
   const ocupado = ref(false);
   const confirmandoCancelar = ref(false);
+  const pedidoDeFocoMedicamento = ref(0);
 
   const editor = useCompraEditor({
     api: opcoes.apiCompra,
@@ -95,8 +97,8 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
   });
 
   // A URL acompanha o mês, a compra aberta e o filtro.
-  watch([lista.mes, selecionadaId, lista.status, lista.mostrarCanceladas, aba], () => {
-    opcoes.gravarUrl(montarQueryCompras({ mes: lista.mes.value, id: selecionadaId.value, status: lista.status.value, canceladas: lista.mostrarCanceladas.value, aba: aba.value }));
+  watch([lista.mes, selecionadaId, lista.mostrarCanceladas, aba], () => {
+    opcoes.gravarUrl(montarQueryCompras({ mes: lista.mes.value, id: selecionadaId.value, canceladas: lista.mostrarCanceladas.value, aba: aba.value }));
   });
 
   /** Descarrega o salvamento pendente; se não deu, avisa e devolve false (quem chama não troca nada). */
@@ -141,7 +143,7 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
     }
     await lista.carregar();
     // Grava na URL o ponto de partida (o mês sempre), mesmo que nada tenha mudado desde que a página abriu.
-    opcoes.gravarUrl(montarQueryCompras({ mes: lista.mes.value, id: selecionadaId.value, status: lista.status.value, canceladas: lista.mostrarCanceladas.value, aba: aba.value }));
+    opcoes.gravarUrl(montarQueryCompras({ mes: lista.mes.value, id: selecionadaId.value, canceladas: lista.mostrarCanceladas.value, aba: aba.value }));
   }
 
   async function selecionar(id: string): Promise<void> {
@@ -165,10 +167,6 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
   const mesAnterior = (): Promise<void> => trocarMes(() => lista.mesAnterior());
   const mesSeguinte = (): Promise<void> => trocarMes(() => lista.mesSeguinte());
 
-  async function definirStatus(status: StatusDaCompra | null): Promise<void> {
-    await lista.definirStatus(status);
-  }
-
   async function definirMostrarCanceladas(valor: boolean): Promise<void> {
     await lista.definirMostrarCanceladas(valor);
   }
@@ -188,11 +186,11 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
       if (!(await descarregar())) return;
       const nova = await acoes.criar();
       await mostrarNova(nova);
-      // A compra nasce com UMA ordem vazia contendo UM item vazio (o servidor aceita rascunho parcial): o autosave a grava.
-      if (nova.ordens.length === 0) editor.alterar({ ordens: [ordemVazia(1)] });
+      // A compra nasce com o 1º medicamento (vazio): o servidor aceita rascunho parcial e o autosave o grava. O foco vai para o campo
+      // Medicamento do Med. 1 (a tela observa `pedidoDeFocoMedicamento`).
+      if (nova.itens.length === 0) editor.alterar({ itens: [itemVazio(1)] });
       await nextTick();
-      const primeira = editor.compra.value?.ordens[0];
-      if (primeira) opcoes.focarFornecedor?.(primeira.id);
+      pedidoDeFocoMedicamento.value += 1;
     }, "Não foi possível criar a compra.");
   }
 
@@ -248,6 +246,7 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
     irParaAba,
     ocupado,
     confirmandoCancelar,
+    pedidoDeFocoMedicamento,
     tituloParaDialogo: () => (editor.compra.value ? tituloDaCompra(editor.compra.value.anoMes, editor.compra.value.sequencia) : ""),
     mensagemCancelar: () => {
       const c = editor.compra.value;
@@ -257,7 +256,6 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
     selecionar,
     mesAnterior,
     mesSeguinte,
-    definirStatus,
     definirMostrarCanceladas,
     criarNova,
     duplicar,
