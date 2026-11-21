@@ -1,14 +1,15 @@
-import type { Compra, CompraDaLista, ItemCompra, OrdemCompra, StatusPreCadastro } from "../../shared/types/compra";
-import type { CompraParaChecklist } from "../../shared/utils/compraChecklist";
-import { itemDaLista } from "../../shared/utils/compraLista";
+import { BRANDS_MEDICAMENTO, EMPRESAS_PROCESSO } from "../../shared/constants/processos";
+import type { Compra, CompraDaLista, ItemCompra, ItemCompraEstado, StatusPreCadastro } from "../../shared/types/compra";
 import type { MomentoPagamentoResumo } from "../../shared/types/compraResumo";
+import type { BrandMedicamento, EmpresaProcesso } from "../../shared/types/processo";
+import { itemDaLista } from "../../shared/utils/compraLista";
 
-// Mapeadores PUROS linha (Supabase: compras, compra_ordens, compra_itens) ↔ modelo — sem Supabase nem rede, testáveis isoladamente
+// Mapeadores PUROS linha (Supabase: compras e compra_itens) ↔ modelo — sem Supabase nem rede, testáveis isoladamente
 // (tests/unit/compraMappers.spec.ts). Convenção da DIR e dos Cadastros: no modelo, texto vazio é "" (nunca undefined); no banco os
 // textos de compras também são '' (not null default ''); dinheiro é numeric(14,2) e NULL quando vazio.
 //
 // NUMERIC CHEGA COMO TEXTO: o PostgREST devolve numeric como string ("1234.50", "0.00"). A conversão para número (e null) está
-// num lugar só — `numeroDoNumeric` — e é a única que as linhas de ordens e itens usam.
+// num lugar só — `numeroDoNumeric` — e é a única que a compra e os itens usam.
 
 // ── Dinheiro: numeric(14,2) ↔ número ─────────────────────────────────────────────────────────────────────────────
 
@@ -32,11 +33,19 @@ export function numericParaBanco(valor: number | null | undefined): number | nul
 
 // ── Linhas ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
+/** As 34 colunas de `compras`. */
 export interface CompraRow {
   id: string;
   ano_mes: string;
   sequencia: number;
   cancelada: boolean;
+  fornecedor: string | null;
+  envio: string | null;
+  cia: string | null;
+  frete: string | number | null;
+  frete_real: string | number | null;
+  empresa: string | null;
+  numero_ordens: number | string | null;
   paciente: string | null;
   processo_numero: string | null;
   medico: string | null;
@@ -45,14 +54,11 @@ export interface CompraRow {
   contatos: string | null;
   termo_observacao: string | null;
   despachante: string | null;
-  isencao_para: string | null;
   observacoes: string | null;
-  vendedor: string | null;
+  consultor: string | null;
   responsavel: string | null;
   compra_particular: boolean;
-  local_declarado: boolean;
   termo_posterior: boolean;
-  courier_simples: boolean;
   isencao: boolean;
   recorrente: boolean;
   pagamento_alvara: boolean | null;
@@ -65,27 +71,15 @@ export interface CompraRow {
   updated_at: string;
 }
 
-export interface OrdemRow {
-  id: string;
-  compra_id: string;
-  posicao: number;
-  fornecedor: string | null;
-  envio: string | null;
-  cia: string | null;
-  po: string | null;
-  frete: string | number | null;
-  frete_real: string | number | null;
-}
-
+/** As colunas de `compra_itens` (as de auditoria, created_at e updated_at, o servidor não lê). */
 export interface ItemRow {
   id: string;
-  ordem_id: string;
+  compra_id: string;
   posicao: number;
   medicamento: string | null;
   medicamento_cadastro_id: string | null;
   pre_cadastro_id: string | null;
-  apresentacao: string | null;
-  referencia: string | null;
+  brand: string | null;
   laboratorio: string | null;
   quantidade: string | null;
   temperatura: string | null;
@@ -102,10 +96,25 @@ export function instanteIso(valor: string): string {
 const texto = (v: string | null | undefined): string => v ?? "";
 
 const MOMENTOS: readonly MomentoPagamentoResumo[] = ["vamos_pagar", "apos_awb"];
-const momentoDe = (v: string | null): MomentoPagamentoResumo | null => (MOMENTOS as readonly string[]).includes(v ?? "") ? (v as MomentoPagamentoResumo) : null;
+const momentoDe = (v: string | null): MomentoPagamentoResumo | null => ((MOMENTOS as readonly string[]).includes(v ?? "") ? (v as MomentoPagamentoResumo) : null);
+
+/** O brand do item: um valor de BRANDS_MEDICAMENTO; qualquer outra coisa (o banco não tem check) vira "". */
+const brandDe = (v: string | null): BrandMedicamento | "" => ((BRANDS_MEDICAMENTO as readonly string[]).includes(v ?? "") ? (v as BrandMedicamento) : "");
+
+/** A empresa da compra: EMPRESAS_PROCESSO (o banco tem check); fora disso, a primeira (FARMAURORA, o padrão da coluna). */
+const empresaDe = (v: string | null): EmpresaProcesso => ((EMPRESAS_PROCESSO as readonly string[]).includes(v ?? "") ? (v as EmpresaProcesso) : EMPRESAS_PROCESSO[0]!);
+
+/** "Ordens": um inteiro >= 1 (a coluna tem check); lixo vira 1. */
+function numeroOrdensDe(v: number | string | null): number {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isInteger(n) && n >= 1 ? n : 1;
+}
 
 /** O estado de cada pré-cadastro (id → status) das compras lidas: só entra quem tem item apontando para ele. */
 export type StatusDosPreCadastros = ReadonlyMap<string, StatusPreCadastro>;
+
+/** O nome no Cadastro de cada medicamento ligado (id → nome): só entra quem tem item apontando para ele (e que ainda existe no Cadastro). */
+export type NomesDosMedicamentosDoCadastro = ReadonlyMap<string, string>;
 
 /**
  * O pré-cadastro que o item MOSTRA: só quando ele ainda não virou um item do Cadastro. A aprovação liga o item ao medicamento
@@ -116,20 +125,22 @@ export function preCadastroDoItem(row: Pick<ItemRow, "medicamento_cadastro_id" |
   return (row.medicamento_cadastro_id ?? "") !== "" ? null : (row.pre_cadastro_id ?? null);
 }
 
-export function montarItem(row: ItemRow, statusPre?: StatusDosPreCadastros): ItemCompra {
+export function montarItem(row: ItemRow, statusPre?: StatusDosPreCadastros, nomesDoCadastro?: NomesDosMedicamentosDoCadastro): ItemCompra {
   const preCadastroId = preCadastroDoItem(row);
   const status = preCadastroId === null ? undefined : statusPre?.get(preCadastroId);
+  const cadastroId = row.medicamento_cadastro_id ?? null;
   return {
     id: row.id,
     posicao: row.posicao,
     medicamento: texto(row.medicamento),
-    medicamentoCadastroId: row.medicamento_cadastro_id ?? null,
+    medicamentoCadastroId: cadastroId,
+    // Só com o vínculo, e só se o medicamento ainda está no Cadastro (id que não existe mais: null).
+    medicamentoCadastroNome: cadastroId === null ? null : (nomesDoCadastro?.get(cadastroId) ?? null),
     preCadastroId,
     // Só o item com pré-cadastro leva o estado (os demais ficam como sempre foram).
     ...(status === undefined ? {} : { preCadastroStatus: status }),
-    apresentacao: texto(row.apresentacao),
-    referencia: texto(row.referencia),
     laboratorio: texto(row.laboratorio),
+    brand: brandDe(row.brand),
     quantidade: texto(row.quantidade),
     temperatura: texto(row.temperatura),
     valorUnitario: numeroDoNumeric(row.valor_unitario),
@@ -137,196 +148,81 @@ export function montarItem(row: ItemRow, statusPre?: StatusDosPreCadastros): Ite
   };
 }
 
-export function montarOrdem(row: OrdemRow, itens: readonly ItemRow[], statusPre?: StatusDosPreCadastros): OrdemCompra {
-  return {
-    id: row.id,
-    posicao: row.posicao,
-    fornecedor: texto(row.fornecedor),
-    envio: texto(row.envio),
-    cia: texto(row.cia),
-    po: texto(row.po),
-    frete: numeroDoNumeric(row.frete),
-    freteReal: numeroDoNumeric(row.frete_real),
-    itens: [...itens].sort((a, b) => a.posicao - b.posicao).map((i) => montarItem(i, statusPre)),
-  };
-}
-
-/** Os campos da compra, sem as ordens. */
-export function montarCompraSemOrdens(row: CompraRow): Omit<Compra, "ordens"> {
+/** A compra inteira: os campos e os itens por posição. */
+export function montarCompra(row: CompraRow, itens: readonly ItemRow[], statusPre?: StatusDosPreCadastros, nomesDoCadastro?: NomesDosMedicamentosDoCadastro): Compra {
   return {
     id: row.id,
     anoMes: row.ano_mes,
     sequencia: row.sequencia,
     cancelada: row.cancelada === true,
+    fornecedor: texto(row.fornecedor),
+    envio: texto(row.envio),
+    cia: texto(row.cia),
+    empresa: empresaDe(row.empresa),
+    numeroOrdens: numeroOrdensDe(row.numero_ordens),
+    frete: numeroDoNumeric(row.frete),
+    freteReal: numeroDoNumeric(row.frete_real),
     paciente: texto(row.paciente),
     processoNumero: texto(row.processo_numero),
+    compraParticular: row.compra_particular === true,
+    recorrente: row.recorrente === true,
     medico: texto(row.medico),
     localAplicacao: texto(row.local_aplicacao),
     entrega: texto(row.entrega),
     contatos: texto(row.contatos),
-    termoObservacao: texto(row.termo_observacao),
     despachante: texto(row.despachante),
-    isencaoPara: texto(row.isencao_para),
-    observacoes: texto(row.observacoes),
-    vendedor: texto(row.vendedor),
-    responsavel: texto(row.responsavel),
-    compraParticular: row.compra_particular === true,
-    localDeclarado: row.local_declarado === true,
-    termoPosterior: row.termo_posterior === true,
-    courierSimples: row.courier_simples === true,
-    isencao: row.isencao === true,
-    recorrente: row.recorrente === true,
     pagamentoAlvara: row.pagamento_alvara ?? null,
     pagamentoMomento: momentoDe(row.pagamento_momento),
+    termoPosterior: row.termo_posterior === true,
+    termoObservacao: texto(row.termo_observacao),
+    isencao: row.isencao === true,
     documentos: row.documentos ?? null,
     pendencias: [...(row.pendencias ?? [])],
+    observacoes: texto(row.observacoes),
+    consultor: texto(row.consultor),
+    responsavel: texto(row.responsavel),
     criadoPor: texto(row.criado_por),
     atualizadoPor: texto(row.atualizado_por),
     createdAt: instanteIso(row.created_at),
     updatedAt: instanteIso(row.updated_at),
-  };
-}
-
-/** A compra inteira: as ordens por posição, cada uma com seus itens por posição. */
-export function montarCompra(row: CompraRow, ordens: readonly OrdemRow[], itens: readonly ItemRow[], statusPre?: StatusDosPreCadastros): Compra {
-  const itensDaOrdem = new Map<string, ItemRow[]>();
-  for (const i of itens) itensDaOrdem.set(i.ordem_id, [...(itensDaOrdem.get(i.ordem_id) ?? []), i]);
-  return {
-    ...montarCompraSemOrdens(row),
-    ordens: [...ordens].sort((a, b) => a.posicao - b.posicao).map((o) => montarOrdem(o, itensDaOrdem.get(o.id) ?? [], statusPre)),
+    itens: [...itens].sort((a, b) => a.posicao - b.posicao).map((i) => montarItem(i, statusPre, nomesDoCadastro)),
   };
 }
 
 // ── A lista do mês ───────────────────────────────────────────────────────────────────────────────────────────────
-// A lista lê só as colunas de que a linha e a checagem precisam (nada de contatos, valores, frete nem observações).
+// A lista lê só as colunas de que a linha precisa (nada de contatos, valores, frete nem observações).
 
-export const COLUNAS_LISTA_COMPRA =
-  "id, ano_mes, sequencia, cancelada, paciente, processo_numero, compra_particular, medico, vendedor, responsavel, despachante, pagamento_momento, local_aplicacao, entrega, documentos, updated_at";
-export const COLUNAS_LISTA_ORDEM = "id, compra_id, posicao, fornecedor, envio, po";
-export const COLUNAS_LISTA_ITEM = "id, ordem_id, posicao, medicamento, medicamento_cadastro_id, pre_cadastro_id, apresentacao, quantidade, temperatura";
+export const COLUNAS_LISTA_COMPRA = "id, ano_mes, sequencia, cancelada, paciente, numero_ordens, updated_at";
+export const COLUNAS_LISTA_ITEM = "id, compra_id, posicao, medicamento";
 
-export type CompraListaRow = Pick<
-  CompraRow,
-  | "id"
-  | "ano_mes"
-  | "sequencia"
-  | "cancelada"
-  | "paciente"
-  | "processo_numero"
-  | "compra_particular"
-  | "medico"
-  | "vendedor"
-  | "responsavel"
-  | "despachante"
-  | "pagamento_momento"
-  | "local_aplicacao"
-  | "entrega"
-  | "documentos"
-  | "updated_at"
->;
-export type OrdemListaRow = Pick<OrdemRow, "id" | "compra_id" | "posicao" | "fornecedor" | "envio" | "po">;
-export type ItemListaRow = Pick<
-  ItemRow,
-  "id" | "ordem_id" | "posicao" | "medicamento" | "medicamento_cadastro_id" | "pre_cadastro_id" | "apresentacao" | "quantidade" | "temperatura"
->;
-
-/** O que a checagem lê de uma compra da lista (a mesma conversão linha → modelo de `montarCompra`, só das colunas lidas). */
-export function montarCompraParaChecklist(row: CompraListaRow, ordens: readonly OrdemListaRow[], itens: readonly ItemListaRow[]): CompraParaChecklist {
-  const itensDaOrdem = new Map<string, ItemListaRow[]>();
-  for (const i of itens) itensDaOrdem.set(i.ordem_id, [...(itensDaOrdem.get(i.ordem_id) ?? []), i]);
-  return {
-    cancelada: row.cancelada === true,
-    paciente: texto(row.paciente),
-    processoNumero: texto(row.processo_numero),
-    compraParticular: row.compra_particular === true,
-    medico: texto(row.medico),
-    vendedor: texto(row.vendedor),
-    responsavel: texto(row.responsavel),
-    despachante: texto(row.despachante),
-    pagamentoMomento: momentoDe(row.pagamento_momento),
-    localAplicacao: texto(row.local_aplicacao),
-    entrega: texto(row.entrega),
-    documentos: row.documentos ?? null,
-    ordens: [...ordens]
-      .sort((a, b) => a.posicao - b.posicao)
-      .map((o) => ({
-        posicao: o.posicao,
-        fornecedor: texto(o.fornecedor),
-        envio: texto(o.envio),
-        po: texto(o.po),
-        itens: [...(itensDaOrdem.get(o.id) ?? [])]
-          .sort((a, b) => a.posicao - b.posicao)
-          .map((i) => ({
-            posicao: i.posicao,
-            medicamento: texto(i.medicamento),
-            medicamentoCadastroId: i.medicamento_cadastro_id ?? null,
-            preCadastroId: preCadastroDoItem(i),
-            apresentacao: texto(i.apresentacao),
-            quantidade: texto(i.quantidade),
-            temperatura: texto(i.temperatura),
-          })),
-      })),
-  };
-}
+export type CompraListaRow = Pick<CompraRow, "id" | "ano_mes" | "sequencia" | "cancelada" | "paciente" | "numero_ordens" | "updated_at">;
+export type ItemListaRow = Pick<ItemRow, "id" | "compra_id" | "posicao" | "medicamento">;
 
 /** Um item da lista do mês: só o necessário para a linha do painel (ver CompraDaLista; a regra é a mesma do cliente: itemDaLista). */
-export function montarCompraDaLista(row: CompraListaRow, ordens: readonly OrdemListaRow[], itens: readonly ItemListaRow[]): CompraDaLista {
+export function montarCompraDaLista(row: CompraListaRow, itens: readonly ItemListaRow[]): CompraDaLista {
   return itemDaLista({
-    ...montarCompraParaChecklist(row, ordens, itens),
     id: row.id,
     anoMes: row.ano_mes,
     sequencia: row.sequencia,
+    cancelada: row.cancelada === true,
+    paciente: texto(row.paciente),
+    numeroOrdens: numeroOrdensDe(row.numero_ordens),
+    itens: itens.map((i) => ({ posicao: i.posicao, medicamento: texto(i.medicamento) })),
     atualizadoEm: instanteIso(row.updated_at),
   });
 }
 
 // ── Modelo → linha (escrita) ─────────────────────────────────────────────────────────────────────────────────────
 
-/** Linha de uma ordem para gravar. */
-export function linhaDeOrdem(
-  compraId: string,
-  posicao: number,
-  o: { id: string; fornecedor: string; envio: string; cia: string; po: string; frete: number | null; freteReal: number | null },
-): Omit<OrdemRow, never> {
-  return {
-    id: o.id,
-    compra_id: compraId,
-    posicao,
-    fornecedor: o.fornecedor,
-    envio: o.envio,
-    cia: o.cia,
-    po: o.po,
-    frete: numericParaBanco(o.frete),
-    frete_real: numericParaBanco(o.freteReal),
-  };
-}
-
-export function linhaDeItem(
-  ordemId: string,
-  posicao: number,
-  i: {
-    id: string;
-    medicamento: string;
-    medicamentoCadastroId: string | null;
-    preCadastroId: string | null;
-    apresentacao: string;
-    referencia: string;
-    laboratorio: string;
-    quantidade: string;
-    temperatura: string;
-    valorUnitario: number | null;
-    valorReal: number | null;
-  },
-): ItemRow {
+export function linhaDeItem(compraId: string, posicao: number, i: ItemCompraEstado): ItemRow {
   return {
     id: i.id,
-    ordem_id: ordemId,
+    compra_id: compraId,
     posicao,
     medicamento: i.medicamento,
     medicamento_cadastro_id: i.medicamentoCadastroId,
     pre_cadastro_id: i.preCadastroId,
-    apresentacao: i.apresentacao,
-    referencia: i.referencia,
+    brand: i.brand,
     laboratorio: i.laboratorio,
     quantidade: i.quantidade,
     temperatura: i.temperatura,

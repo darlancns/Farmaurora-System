@@ -1,27 +1,33 @@
 import { describe, expect, it } from "vitest";
 import {
+  COLUNAS_LISTA_COMPRA,
+  COLUNAS_LISTA_ITEM,
   instanteIso,
   linhaDeItem,
-  linhaDeOrdem,
   montarCompra,
   montarCompraDaLista,
   montarItem,
-  montarOrdem,
   numeroDoNumeric,
   numericParaBanco,
   type CompraRow,
   type ItemRow,
-  type OrdemRow,
 } from "../../server/utils/compraMappers";
 
-// Mapeadores linha ↔ modelo da Compra. Dados fictícios (TESTE). O ponto mais delicado: o Postgres devolve numeric(14,2) como TEXTO
-// ("1234.50", "0.00"); a conversão para número (e null) está em UM lugar, `numeroDoNumeric`.
+// Mapeadores linha ↔ modelo da Compra (uma compra por fornecedor: compras + compra_itens). Dados fictícios (TESTE). O ponto mais delicado:
+// o Postgres devolve numeric(14,2) como TEXTO ("1234.50", "0.00"); a conversão para número (e null) está em UM lugar, `numeroDoNumeric`.
 
 const compraRow = (extra: Partial<CompraRow> = {}): CompraRow => ({
   id: "cmp_1",
   ano_mes: "2026-11",
   sequencia: 7,
   cancelada: false,
+  fornecedor: "FORNECEDOR TESTE",
+  envio: "Courier Simples",
+  cia: "DHL",
+  frete: "150.00",
+  frete_real: null,
+  empresa: "MAINZFARMA",
+  numero_ordens: 3,
   paciente: "PACIENTE TESTE",
   processo_numero: "0000000-00.0000.0.00.0000/SP",
   medico: "Dr. Teste",
@@ -30,14 +36,11 @@ const compraRow = (extra: Partial<CompraRow> = {}): CompraRow => ({
   contatos: "Contato Teste",
   termo_observacao: "",
   despachante: "DESPACHANTE TESTE",
-  isencao_para: "",
   observacoes: "Obs de teste",
-  vendedor: "VENDEDOR TESTE",
+  consultor: "CONSULTOR TESTE",
   responsavel: "RESPONSAVEL TESTE",
   compra_particular: false,
-  local_declarado: true,
   termo_posterior: true,
-  courier_simples: false,
   isencao: true,
   recorrente: true,
   pagamento_alvara: true,
@@ -51,28 +54,14 @@ const compraRow = (extra: Partial<CompraRow> = {}): CompraRow => ({
   ...extra,
 });
 
-const ordemRow = (extra: Partial<OrdemRow> = {}): OrdemRow => ({
-  id: "ord_1",
-  compra_id: "cmp_1",
-  posicao: 1,
-  fornecedor: "FORNECEDOR TESTE",
-  envio: "Courier Simples",
-  cia: "CIA TESTE",
-  po: "PO26-11-0001",
-  frete: "150.00",
-  frete_real: null,
-  ...extra,
-});
-
 const itemRow = (extra: Partial<ItemRow> = {}): ItemRow => ({
   id: "itm_1",
-  ordem_id: "ord_1",
+  compra_id: "cmp_1",
   posicao: 1,
-  medicamento: "TESTE MED A",
+  medicamento: "TESTE MED A 500 mg - 2 vials per box",
   medicamento_cadastro_id: "med_1",
   pre_cadastro_id: null,
-  apresentacao: "500 mg",
-  referencia: "REF A",
+  brand: "bioequivalente",
   laboratorio: "LAB A",
   quantidade: "12 ampolas",
   temperatura: "2°C a 8°C",
@@ -141,17 +130,17 @@ describe("instanteIso", () => {
   });
 });
 
-describe("itens e ordens", () => {
-  it("o item converte os numeric de texto e mantém os ids de cadastro", () => {
+describe("o item", () => {
+  it("converte os numeric de texto, mantém os ids de cadastro e traz brand, sem apresentação nem referência", () => {
     expect(montarItem(itemRow())).toEqual({
       id: "itm_1",
       posicao: 1,
-      medicamento: "TESTE MED A",
+      medicamento: "TESTE MED A 500 mg - 2 vials per box",
       medicamentoCadastroId: "med_1",
+      medicamentoCadastroNome: null,
       preCadastroId: null,
-      apresentacao: "500 mg",
-      referencia: "REF A",
       laboratorio: "LAB A",
+      brand: "bioequivalente",
       quantidade: "12 ampolas",
       temperatura: "2°C a 8°C",
       valorUnitario: 1234.5,
@@ -160,34 +149,51 @@ describe("itens e ordens", () => {
   });
 
   it("valores vazios do banco viram null, textos null viram ''", () => {
-    const i = montarItem(itemRow({ valor_unitario: null, valor_real: null, apresentacao: null, quantidade: null, medicamento_cadastro_id: null, pre_cadastro_id: "pre_1" }));
-    expect(i).toMatchObject({ valorUnitario: null, valorReal: null, apresentacao: "", quantidade: "", medicamentoCadastroId: null, preCadastroId: "pre_1" });
+    const i = montarItem(itemRow({ valor_unitario: null, valor_real: null, brand: null, laboratorio: null, quantidade: null, medicamento_cadastro_id: null, pre_cadastro_id: "pre_1" }));
+    expect(i).toMatchObject({ valorUnitario: null, valorReal: null, brand: "", laboratorio: "", quantidade: "", medicamentoCadastroId: null, preCadastroId: "pre_1" });
   });
 
-  it("a ordem converte frete e frete real, e os itens saem por posição", () => {
-    const o = montarOrdem(ordemRow({ frete: "150.00", frete_real: "140.50" }), [itemRow({ id: "b", posicao: 2 }), itemRow({ id: "a", posicao: 1 })]);
-    expect(o).toMatchObject({ id: "ord_1", frete: 150, freteReal: 140.5 });
-    expect(o.itens.map((i) => i.id)).toEqual(["a", "b"]);
+  it("brand: 'bioequivalente' e 'referencia' passam; qualquer outra coisa (o banco não tem check) vira ''", () => {
+    expect(montarItem(itemRow({ brand: "referencia" })).brand).toBe("referencia");
+    for (const lixo of ["xpto", "Referência", "REFERENCIA", " "]) expect(montarItem(itemRow({ brand: lixo })).brand, lixo).toBe("");
   });
 
-  it("frete '0.00' é zero e frete null é null", () => {
-    expect(montarOrdem(ordemRow({ frete: "0.00" }), []).frete).toBe(0);
-    expect(montarOrdem(ordemRow({ frete: null }), []).frete).toBeNull();
+  it("medicamentoCadastroNome: o nome do Cadastro quando o item está ligado e o medicamento existe; senão null", () => {
+    const nomes = new Map([["med_1", "TESTE MED A"]]);
+    expect(montarItem(itemRow(), undefined, nomes).medicamentoCadastroNome).toBe("TESTE MED A"); // ligado
+    expect(montarItem(itemRow({ medicamento_cadastro_id: null }), undefined, nomes).medicamentoCadastroNome).toBeNull(); // não ligado
+    expect(montarItem(itemRow({ medicamento_cadastro_id: "med_sumiu" }), undefined, nomes).medicamentoCadastroNome).toBeNull(); // Cadastro sem esse id
+    expect(montarItem(itemRow()).medicamentoCadastroNome).toBeNull(); // quem não leu o Cadastro (a lista)
+  });
+
+  it("pré-cadastro: o item mostra o id só enquanto não virou item do Cadastro; o estado entra só com o pré-cadastro", () => {
+    const status = new Map([["pre_1", "rejeitado" as const]]);
+    expect(montarItem(itemRow({ medicamento_cadastro_id: null, pre_cadastro_id: "pre_1" }), status)).toMatchObject({ preCadastroId: "pre_1", preCadastroStatus: "rejeitado" });
+    const ligado = montarItem(itemRow({ medicamento_cadastro_id: "med_1", pre_cadastro_id: "pre_1" }), status);
+    expect(ligado.preCadastroId).toBeNull();
+    expect(ligado).not.toHaveProperty("preCadastroStatus");
+    expect(montarItem(itemRow({ medicamento_cadastro_id: null, pre_cadastro_id: null }), status)).not.toHaveProperty("preCadastroStatus");
   });
 });
 
 describe("a compra", () => {
-  it("monta os campos (booleanos, NULL de 'ainda não decidiu', pendências) e normaliza as datas", () => {
-    const c = montarCompra(compraRow(), [], []);
+  it("monta os campos (booleanos, NULL de 'ainda não decidiu', pendências, consultor) e normaliza as datas", () => {
+    const c = montarCompra(compraRow(), []);
     expect(c).toMatchObject({
       id: "cmp_1",
       anoMes: "2026-11",
       sequencia: 7,
       cancelada: false,
+      fornecedor: "FORNECEDOR TESTE",
+      envio: "Courier Simples",
+      cia: "DHL",
+      empresa: "MAINZFARMA",
+      numeroOrdens: 3,
+      frete: 150,
+      freteReal: null,
+      consultor: "CONSULTOR TESTE",
       compraParticular: false,
-      localDeclarado: true,
       termoPosterior: true,
-      courierSimples: false,
       isencao: true,
       recorrente: true,
       pagamentoAlvara: true,
@@ -198,92 +204,118 @@ describe("a compra", () => {
       atualizadoPor: "Bruno",
       createdAt: "2026-11-19T12:00:00.000Z",
       updatedAt: "2026-11-19T12:30:15.250Z",
-      ordens: [],
+      itens: [],
     });
   });
 
+  it("o contrato: exatamente as chaves combinadas e nenhuma das que saíram", () => {
+    const chaves = Object.keys(montarCompra(compraRow(), [])).sort();
+    expect(chaves).toEqual(
+      [
+        "id", "anoMes", "sequencia", "cancelada", "fornecedor", "envio", "cia", "empresa", "numeroOrdens", "frete", "freteReal", "paciente",
+        "processoNumero", "compraParticular", "recorrente", "medico", "localAplicacao", "entrega", "contatos", "despachante",
+        "pagamentoAlvara", "pagamentoMomento", "termoPosterior", "termoObservacao", "isencao", "documentos", "pendencias", "observacoes",
+        "consultor", "responsavel", "criadoPor", "atualizadoPor", "createdAt", "updatedAt", "itens",
+      ].sort(),
+    );
+  });
+
   it("textos null viram '', pendencias null vira [], criado_por null vira ''", () => {
-    const c = montarCompra(compraRow({ paciente: null, observacoes: null, pendencias: null, criado_por: null, atualizado_por: null }), [], []);
-    expect(c).toMatchObject({ paciente: "", observacoes: "", pendencias: [], criadoPor: "", atualizadoPor: "" });
+    const c = montarCompra(compraRow({ paciente: null, observacoes: null, fornecedor: null, envio: null, cia: null, consultor: null, pendencias: null, criado_por: null, atualizado_por: null }), []);
+    expect(c).toMatchObject({ paciente: "", observacoes: "", fornecedor: "", envio: "", cia: "", consultor: "", pendencias: [], criadoPor: "", atualizadoPor: "" });
+  });
+
+  it("frete '0.00' é zero e null é null; numeric de texto vira número", () => {
+    expect(montarCompra(compraRow({ frete: "0.00", frete_real: "140.50" }), [])).toMatchObject({ frete: 0, freteReal: 140.5 });
+    expect(montarCompra(compraRow({ frete: null }), []).frete).toBeNull();
+  });
+
+  it("empresa fora de FARMAURORA/MAINZFARMA vira FARMAURORA; numero_ordens inválido vira 1; texto numérico passa", () => {
+    expect(montarCompra(compraRow({ empresa: "OUTRA" }), []).empresa).toBe("FARMAURORA");
+    expect(montarCompra(compraRow({ empresa: null }), []).empresa).toBe("FARMAURORA");
+    for (const lixo of [0, -2, 1.5, null, "x"]) expect(montarCompra(compraRow({ numero_ordens: lixo as never }), []).numeroOrdens, String(lixo)).toBe(1);
+    expect(montarCompra(compraRow({ numero_ordens: "4" }), []).numeroOrdens).toBe(4);
   });
 
   it("pagamento_momento fora de 'vamos_pagar' e 'apos_awb' vira null; alvará e documentos null ficam null", () => {
-    expect(montarCompra(compraRow({ pagamento_momento: "outro" }), [], []).pagamentoMomento).toBeNull();
-    expect(montarCompra(compraRow({ pagamento_momento: "apos_awb" }), [], []).pagamentoMomento).toBe("apos_awb");
-    expect(montarCompra(compraRow({ pagamento_momento: null, pagamento_alvara: null }), [], [])).toMatchObject({ pagamentoMomento: null, pagamentoAlvara: null });
+    expect(montarCompra(compraRow({ pagamento_momento: "outro" }), []).pagamentoMomento).toBeNull();
+    expect(montarCompra(compraRow({ pagamento_momento: "apos_awb" }), []).pagamentoMomento).toBe("apos_awb");
+    expect(montarCompra(compraRow({ pagamento_momento: null, pagamento_alvara: null }), [])).toMatchObject({ pagamentoMomento: null, pagamentoAlvara: null });
   });
 
-  it("ordens e itens saem ordenados por posição e cada item vai para a SUA ordem", () => {
+  it("os itens saem ordenados por posição e levam o nome do Cadastro e o estado do pré-cadastro", () => {
     const c = montarCompra(
       compraRow(),
-      [ordemRow({ id: "o2", posicao: 2 }), ordemRow({ id: "o1", posicao: 1 })],
-      [
-        itemRow({ id: "i3", ordem_id: "o2", posicao: 1 }),
-        itemRow({ id: "i2", ordem_id: "o1", posicao: 2 }),
-        itemRow({ id: "i1", ordem_id: "o1", posicao: 1 }),
-      ],
+      [itemRow({ id: "i3", posicao: 3, medicamento_cadastro_id: null, pre_cadastro_id: "pre_1" }), itemRow({ id: "i2", posicao: 2 }), itemRow({ id: "i1", posicao: 1, medicamento_cadastro_id: null })],
+      new Map([["pre_1", "pendente" as const]]),
+      new Map([["med_1", "TESTE MED A"]]),
     );
-    expect(c.ordens.map((o) => o.id)).toEqual(["o1", "o2"]);
-    expect(c.ordens[0]!.itens.map((i) => i.id)).toEqual(["i1", "i2"]);
-    expect(c.ordens[1]!.itens.map((i) => i.id)).toEqual(["i3"]);
+    expect(c.itens.map((i) => i.id)).toEqual(["i1", "i2", "i3"]);
+    expect(c.itens.map((i) => i.medicamentoCadastroNome)).toEqual([null, "TESTE MED A", null]);
+    expect(c.itens[2]).toMatchObject({ preCadastroId: "pre_1", preCadastroStatus: "pendente" });
   });
 
   it("não altera as linhas recebidas", () => {
-    const ordens = [ordemRow({ id: "o2", posicao: 2 }), ordemRow({ id: "o1", posicao: 1 })];
-    const copia = JSON.parse(JSON.stringify(ordens));
-    montarCompra(compraRow(), ordens, []);
-    expect(ordens).toEqual(copia);
+    const itens = [itemRow({ id: "i2", posicao: 2 }), itemRow({ id: "i1", posicao: 1 })];
+    const copia = JSON.parse(JSON.stringify(itens));
+    montarCompra(compraRow(), itens);
+    expect(itens).toEqual(copia);
+  });
+});
+
+describe("a lista do mês", () => {
+  it("lê só as colunas da linha: nada de valores, contatos, frete nem observações", () => {
+    expect(COLUNAS_LISTA_COMPRA).toBe("id, ano_mes, sequencia, cancelada, paciente, numero_ordens, updated_at");
+    expect(COLUNAS_LISTA_ITEM).toBe("id, compra_id, posicao, medicamento");
   });
 
-  it("item da lista: só o necessário, com o total de ordens", () => {
-    const l = montarCompraDaLista(
-      compraRow(),
-      [ordemRow({ id: "o1" }), ordemRow({ id: "o2", posicao: 2 })],
-      [],
-    );
-    expect(l).toMatchObject({ id: "cmp_1", anoMes: "2026-11", sequencia: 7, totalOrdens: 2, atualizadoEm: "2026-11-19T12:30:15.250Z" });
-    expect(Object.keys(l).sort()).toEqual(
-      ["anoMes", "atualizadoEm", "cancelada", "id", "medicamentos", "paciente", "pendencias", "sequencia", "status", "totalOrdens"].sort(),
-    );
-    expect(montarCompraDaLista(compraRow(), [], [])).toMatchObject({ totalOrdens: 0 });
+  it("item da lista: só o necessário, com o número de ordens (o digitado) e sem status nem pendências", () => {
+    const l = montarCompraDaLista(compraRow(), []);
+    expect(l).toEqual({ id: "cmp_1", anoMes: "2026-11", sequencia: 7, cancelada: false, paciente: "PACIENTE TESTE", medicamentos: [], numeroOrdens: 3, atualizadoEm: "2026-11-19T12:30:15.250Z" });
+    expect(montarCompraDaLista(compraRow({ cancelada: true }), []).cancelada).toBe(true);
   });
 
-  it("os nomes dos medicamentos: únicos, na ordem das ordens e dos itens (por posição), sem vazios", () => {
-    const l = montarCompraDaLista(
-      compraRow(),
-      [ordemRow({ id: "o2", posicao: 2 }), ordemRow({ id: "o1", posicao: 1 })],
-      [
-        itemRow({ id: "a", ordem_id: "o2", posicao: 1, medicamento: "SEGUNDA ORDEM" }),
-        itemRow({ id: "b", ordem_id: "o1", posicao: 2, medicamento: " REPETIDO " }),
-        itemRow({ id: "c", ordem_id: "o1", posicao: 1, medicamento: "PRIMEIRO" }),
-        itemRow({ id: "d", ordem_id: "o2", posicao: 2, medicamento: "REPETIDO" }),
-        itemRow({ id: "e", ordem_id: "o2", posicao: 3, medicamento: "  " }),
-      ],
-    );
-    expect(l.medicamentos).toEqual(["PRIMEIRO", "REPETIDO", "SEGUNDA ORDEM"]);
+  it("os nomes dos medicamentos: únicos, por posição, sem vazios", () => {
+    const l = montarCompraDaLista(compraRow(), [
+      { id: "b", compra_id: "cmp_1", posicao: 2, medicamento: " REPETIDO " },
+      { id: "c", compra_id: "cmp_1", posicao: 1, medicamento: "PRIMEIRO" },
+      { id: "d", compra_id: "cmp_1", posicao: 3, medicamento: "REPETIDO" },
+      { id: "e", compra_id: "cmp_1", posicao: 4, medicamento: "  " },
+      { id: "f", compra_id: "cmp_1", posicao: 5, medicamento: null },
+    ]);
+    expect(l.medicamentos).toEqual(["PRIMEIRO", "REPETIDO"]);
   });
 });
 
 describe("modelo → linha", () => {
-  it("a linha de uma ordem arredonda o frete", () => {
-    const linha = linhaDeOrdem("cmp_1", 2, { id: "ord_9", fornecedor: "F", envio: "E", cia: "C", po: "", frete: 10.1, freteReal: null });
-    expect(linha).toEqual({ id: "ord_9", compra_id: "cmp_1", posicao: 2, fornecedor: "F", envio: "E", cia: "C", po: "", frete: 10.1, frete_real: null });
-  });
-
-  it("a linha de um item leva a posição, a ordem e os valores (null quando vazios)", () => {
-    const linha = linhaDeItem("ord_1", 3, {
+  it("a linha de um item leva a compra, a posição, o brand e os valores (null quando vazios), sem ordem_id nem apresentação", () => {
+    const linha = linhaDeItem("cmp_1", 3, {
       id: "itm_9",
       medicamento: "TESTE MED A",
       medicamentoCadastroId: null,
       preCadastroId: "pre_1",
-      apresentacao: "",
-      referencia: "",
       laboratorio: "",
+      brand: "referencia",
       quantidade: "5 caixas",
       temperatura: "",
       valorUnitario: 0,
       valorReal: null,
     });
-    expect(linha).toMatchObject({ id: "itm_9", ordem_id: "ord_1", posicao: 3, pre_cadastro_id: "pre_1", medicamento_cadastro_id: null, valor_unitario: 0, valor_real: null });
+    expect(linha).toEqual({
+      id: "itm_9",
+      compra_id: "cmp_1",
+      posicao: 3,
+      medicamento: "TESTE MED A",
+      medicamento_cadastro_id: null,
+      pre_cadastro_id: "pre_1",
+      brand: "referencia",
+      laboratorio: "",
+      quantidade: "5 caixas",
+      temperatura: "",
+      valor_unitario: 0,
+      valor_real: null,
+    });
+    expect(Object.keys(linha)).not.toContain("ordem_id");
+    expect(Object.keys(linha)).not.toContain("apresentacao");
   });
 });
