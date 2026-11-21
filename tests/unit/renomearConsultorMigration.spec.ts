@@ -87,7 +87,7 @@ describe("a emulação usada nos testes segue as regras do SQL", () => {
     fake.tabelas["follow_up"] = [{ id: "1", consultor: "Antigo Teste" }, { id: "2", consultor: "Outro Teste" }];
     fake.tabelas["prestacao_pacientes"] = [{ id: "1", consultor: "Antigo Teste" }, { id: "2", consultor: null }];
     fake.tabelas["dir"] = [{ id: "1", vendedor: "Antigo Teste" }];
-    fake.tabelas["compras"] = [{ id: "1", vendedor: "Antigo Teste" }, { id: "2", vendedor: "Outro Teste" }];
+    fake.tabelas["compras"] = [{ id: "1", consultor: "Antigo Teste" }, { id: "2", consultor: "Outro Teste" }];
     return fake;
   };
   const args = (id: string, nome: string) => ({ p_id: id, p_nome_novo: nome, p_nome_chave: chaveCadastro(nome), p_por: "Teste" });
@@ -96,7 +96,7 @@ describe("a emulação usada nos testes segue as regras do SQL", () => {
     const fake = novoFake();
     expect(renomearConsultorSql(args("a", "Novo Teste"), fake).data).toEqual({ nomeAntigo: "Antigo Teste", followUp: 1, prestacao: 1, dir: 1, compras: 1 });
     expect(fake.tabelas["follow_up"]!.map((r) => r.consultor)).toEqual(["Novo Teste", "Outro Teste"]);
-    expect(fake.tabelas["compras"]!.map((r) => r.vendedor)).toEqual(["Novo Teste", "Outro Teste"]);
+    expect(fake.tabelas["compras"]!.map((r) => r.consultor)).toEqual(["Novo Teste", "Outro Teste"]);
     expect(fake.tabelas["prestacao_pacientes"]!.map((r) => r.consultor)).toEqual(["Novo Teste", null]);
     expect(renomearConsultorSql(args("a", "Novo Teste"), fake).data).toEqual({ nomeAntigo: "Novo Teste", followUp: 0, prestacao: 0, dir: 0, compras: 0 });
     expect(renomearConsultorSql(args("a", "outro teste"), fake).error?.code).toBe("23505");
@@ -163,6 +163,6 @@ describe("migration renomear_consultor_compras (o espelho da função com compra
   it("o app lê a chave compras do retorno (RenomeacaoNoBanco) e conta as compras no impacto", () => {
     const store = readFileSync(join(process.cwd(), "server", "utils", "cadastrosStore.ts"), "utf-8");
     expect(store).toContain("compras: n(r.compras)");
-    expect(store).toContain('contar("compras", "vendedor")');
+    expect(store).toContain('contar("compras", "consultor")');
   });
 });

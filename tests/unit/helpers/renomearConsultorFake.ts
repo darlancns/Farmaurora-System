@@ -1,10 +1,10 @@
 import type { FakeSupabase, FuncaoRpc } from "./fakeSupabase";
 
 // Emulação em JS da função SQL `public.renomear_consultor` (supabase/migrations/20261118231000_renomear_consultor.sql e
-// 20261120120000_renomear_consultor_compras.sql) sobre as
+// 20261120120000_renomear_consultor_compras.sql e 20261121130000_compras_uma_por_fornecedor.sql) sobre as
 // tabelas do FakeSupabase: mesmas regras (nome inválido, consultor inexistente → P0002, chave de OUTRO consultor → 23505, nome
 // igual → zeros) e mesma propagação (cadastro_consultores, follow_up.consultor, prestacao_pacientes.consultor, dir.vendedor,
-// compras.vendedor, só onde o valor é IGUAL ao nome antigo). tests/unit/renomearConsultorMigration.spec.ts confere que o SQL de verdade tem as mesmas peças.
+// compras.consultor, só onde o valor é IGUAL ao nome antigo). tests/unit/renomearConsultorMigration.spec.ts confere que o SQL de verdade tem as mesmas peças.
 
 export const renomearConsultorSql: FuncaoRpc = (args, db) => {
   const id = String(args.p_id);
@@ -37,7 +37,7 @@ export const renomearConsultorSql: FuncaoRpc = (args, db) => {
       followUp: trocar("follow_up", "consultor"),
       prestacao: trocar("prestacao_pacientes", "consultor"),
       dir: trocar("dir", "vendedor"),
-      compras: trocar("compras", "vendedor"),
+      compras: trocar("compras", "consultor"),
     },
   };
 };

@@ -107,10 +107,10 @@ function semear(): void {
     { id: "d4", vendedor: "Braulio (3RB)" },
   ];
   fake.tabelas["compras"] = [
-    { id: "k1", vendedor: NOME_ANTIGO },
-    { id: "k2", vendedor: NOME_ANTIGO },
-    { id: "k3", vendedor: "Outro Teste" },
-    { id: "k4", vendedor: "" },
+    { id: "k1", consultor: NOME_ANTIGO },
+    { id: "k2", consultor: NOME_ANTIGO },
+    { id: "k3", consultor: "Outro Teste" },
+    { id: "k4", consultor: "" },
   ];
   h.contas.clear();
   h.contas.set("c1", { email: "c1@x.com", app_metadata: { role: "consultor", consultorNome: NOME_ANTIGO, nome: "Conta Um" } });
@@ -151,7 +151,7 @@ describe("PATCH renomear consultor — só administrador", () => {
     expect(valores("follow_up", "consultor")).toEqual(["Novo Teste", "Novo Teste", "Outro Teste"]);
     expect(valores("prestacao_pacientes", "consultor")).toEqual(["Novo Teste", null]);
     expect(valores("dir", "vendedor")).toEqual(["Novo Teste", "Novo Teste", "Novo Teste", "Braulio (3RB)"]);
-    expect(valores("compras", "vendedor")).toEqual(["Novo Teste", "Novo Teste", "Outro Teste", ""]);
+    expect(valores("compras", "consultor")).toEqual(["Novo Teste", "Novo Teste", "Outro Teste", ""]);
     // Contas: só as que tinham o nome antigo; o resto do app_metadata é preservado (merge).
     expect(consultorDe("c1")).toBe("Novo Teste");
     expect(consultorDe("c2")).toBe("Novo Teste");

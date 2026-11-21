@@ -290,9 +290,9 @@ function mensagemDuplicadoNoRenomear(outroAtivo: boolean): string {
 }
 
 // ── Consultores: renomear (a ÚNICA lista cujo nome pode mudar) ───────────────────────────────────────────────
-// O nome do consultor é gravado como TEXTO em follow_up.consultor, prestacao_pacientes.consultor, dir.vendedor e compras.vendedor (e nas contas, em
+// O nome do consultor é gravado como TEXTO em follow_up.consultor, prestacao_pacientes.consultor, dir.vendedor e compras.consultor (e nas contas, em
 // app_metadata.consultorNome). Renomear precisa mudar tudo junto: a função SQL `renomear_consultor` (supabase/migrations/
-// 20261118231000_renomear_consultor.sql e 20261120120000_renomear_consultor_compras.sql) faz, NUMA transação, o cadastro e as quatro
+// 20261118231000_renomear_consultor.sql, 20261120120000_renomear_consultor_compras.sql e 20261121130000_compras_uma_por_fornecedor.sql) faz, NUMA transação, o cadastro e as quatro
 // tabelas, e devolve as contagens. As contas de
 // login são atualizadas depois, pelo handler (server/utils/consultorContas.ts), porque o Auth não entra na transação do banco.
 
@@ -402,7 +402,7 @@ export async function contarImpactoConsultor(
     contar("follow_up", "consultor"),
     contar("prestacao_pacientes", "consultor"),
     contar("dir", "vendedor"),
-    contar("compras", "vendedor"),
+    contar("compras", "consultor"),
   ]);
   return { nome: consultor.nome, processos, pacientes, dir, compras };
 }
