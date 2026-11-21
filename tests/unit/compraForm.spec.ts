@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CIAS_AEREAS_POR_MODAL, MODAIS_ENVIO } from "../../shared/constants/processos";
 import { COMPRA_ID_RE, PENDENCIAS_PADRAO } from "../../shared/constants/compra";
-import { ciaAposTrocaDeEnvio, itemTemConteudo, itemVazio, novoIdCompra, pendenciasDoFormulario, pendenciasParaFormulario, renumerarItens } from "../../shared/utils/compraForm";
+import { adicionarItem, atualizarItem, ciaAposTrocaDeEnvio, itemTemConteudo, itemVazio, novoIdCompra, pendenciasDoFormulario, pendenciasParaFormulario, removerItem, renumerarItens } from "../../shared/utils/compraForm";
 
 // Peças puras do formulário da Compra (uma compra por fornecedor: só há medicamentos). Dados fictícios (TESTE).
 
@@ -128,5 +128,32 @@ describe("ciaAposTrocaDeEnvio: a cia some quando não vale para o novo modal", (
         for (const cia of CIAS_AEREAS_POR_MODAL[outro]) expect(ciaAposTrocaDeEnvio(modal, cia)).toBe(CIAS_AEREAS_POR_MODAL[modal].includes(cia) ? cia : "");
       }
     }
+  });
+});
+
+describe("lista de medicamentos: atualizar, adicionar e remover", () => {
+  const dois = () => [{ ...itemVazio(1), id: "itm_a", medicamento: "A" }, { ...itemVazio(2), id: "itm_b", medicamento: "B" }];
+
+  it("atualizarItem troca só o medicamento do id, sem mexer nos outros nem no recebido", () => {
+    const itens = dois();
+    const novos = atualizarItem(itens, "itm_b", { medicamento: "B2", laboratorio: "Lab" });
+    expect(novos.map((i) => i.medicamento)).toEqual(["A", "B2"]);
+    expect(novos[1]!.laboratorio).toBe("Lab");
+    expect(itens[1]!.medicamento).toBe("B");
+    expect(atualizarItem(itens, "nao_existe", { medicamento: "X" })).toEqual(itens);
+  });
+
+  it("adicionarItem põe um medicamento vazio no fim, com a posição certa, até o teto", () => {
+    const novos = adicionarItem(dois(), 30);
+    expect(novos).toHaveLength(3);
+    expect(novos[2]).toMatchObject({ posicao: 3, medicamento: "", medicamentoCadastroId: null, brand: "" });
+    const cheio = Array.from({ length: 30 }, (_, i) => ({ ...itemVazio(i + 1), id: `itm_${i}0000` }));
+    expect(adicionarItem(cheio, 30)).toHaveLength(30);
+  });
+
+  it("removerItem tira pelo id, renumera e NUNCA deixa a compra sem nenhum", () => {
+    const novos = removerItem(dois(), "itm_a");
+    expect(novos.map((i) => [i.id, i.posicao])).toEqual([["itm_b", 1]]);
+    expect(removerItem(novos, "itm_b")).toHaveLength(1);
   });
 });

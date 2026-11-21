@@ -37,6 +37,25 @@ export function renumerarItens(itens: readonly ItemCompra[]): ItemCompra[] {
   return itens.map((it, i) => ({ ...it, posicao: i + 1 }));
 }
 
+// ── Medicamentos da compra (a lista de itens que o formulário edita) ────────────────────────────────────────────
+
+/** Troca os campos de UM medicamento (pelo id), sem mexer nos outros nem no recebido. Id que não existe: nada muda. */
+export function atualizarItem(itens: readonly ItemCompra[], id: string, mudancas: Partial<ItemCompra>): ItemCompra[] {
+  return itens.map((i) => (i.id === id ? { ...i, ...mudancas } : i));
+}
+
+/** Acrescenta um medicamento vazio no fim (até `max`; passou, devolve a lista como está). As posições seguem a ordem. */
+export function adicionarItem(itens: readonly ItemCompra[], max: number): ItemCompra[] {
+  if (itens.length >= max) return renumerarItens(itens);
+  return renumerarItens([...itens, itemVazio(itens.length + 1)]);
+}
+
+/** Tira um medicamento (pelo id); nunca deixa a compra sem nenhum (com 1 só, a lista fica como está). */
+export function removerItem(itens: readonly ItemCompra[], id: string): ItemCompra[] {
+  if (itens.length <= 1) return renumerarItens(itens);
+  return renumerarItens(itens.filter((i) => i.id !== id));
+}
+
 // ── Pendências: chips + texto livre ↔ pendencias[] ───────────────────────────────────────────────────────────
 
 /** Separador do texto livre quando as entradas fora da lista padrão são mostradas juntas no campo "Outras pendências". */

@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, provide } from "vue";
+import { computed, nextTick, provide, watch } from "vue";
 import type { Compra, MudancasCompra } from "#shared/types/compra";
 import type { EstadoSalvamento } from "../../composables/useCompraEditor";
 import { ACOES_COMPRA_KEY, ACOES_VAZIAS, type AcoesCompra } from "../../utils/comprasContexto";
 import type { OpcoesFormulario } from "../../utils/comprasOpcoes";
 import CompraFaixaConflito from "./CompraFaixaConflito.vue";
 import CompraFormCabecalho from "./CompraFormCabecalho.vue";
+import CompraLinhasMedicamento from "./CompraLinhasMedicamento.vue";
+import CompraLinhasValores from "./CompraLinhasValores.vue";
 
 // A coluna central: o cabeçalho, a faixa de conflito e UM ÚNICO BLOCO de campos (sem fieldsets nem títulos de seção): uma linha
 // (CompraCampo) por tópico, NA ORDEM EXATA do resumo (as linhas de montarResumo("modelo"), sem o título). A ordem do DOM é a do Tab
@@ -41,6 +43,19 @@ const emit = defineEmits<{
 }>();
 
 const desabilitado = computed(() => !props.podeEditar || props.compra.cancelada);
+
+// "+ Nova compra": o foco vai para o campo Medicamento do Med. 1 (depois de a compra e o medicamento vazio estarem no DOM).
+watch(
+  () => props.pedidoDeFocoMedicamento,
+  async () => {
+    await nextTick();
+    const primeiro = props.compra.itens[0];
+    if (primeiro) document.getElementById(`compra-item-${primeiro.id}-medicamento`)?.focus();
+  },
+  { flush: "post" },
+);
+
+const alterar = (m: MudancasCompra): void => emit("alterar", m);
 </script>
 
 <template>
@@ -63,6 +78,9 @@ const desabilitado = computed(() => !props.podeEditar || props.compra.cancelada)
 
     <CompraFaixaConflito v-if="estado === 'conflito'" :ocupado="ocupado" @carregar="emit('carregarVersaoSalva')" @manter="emit('manterMinhas')" />
 
-    <div id="compra-campos" :aria-disabled="desabilitado ? 'true' : undefined" class="rounded-lg border border-hairline bg-paper-raised px-4 lg:px-5" />
+    <div id="compra-campos" :aria-disabled="desabilitado ? 'true' : undefined" class="rounded-lg border border-hairline bg-paper-raised px-4 lg:px-5">
+      <CompraLinhasMedicamento :compra="compra" :desabilitado="desabilitado" @alterar="alterar" />
+      <CompraLinhasValores :compra="compra" :desabilitado="desabilitado" :opcoes="opcoes" @alterar="alterar" />
+    </div>
   </section>
 </template>
