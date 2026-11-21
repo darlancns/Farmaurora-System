@@ -1,19 +1,15 @@
 <script setup lang="ts">
 import { computed, provide } from "vue";
 import type { Compra, MudancasCompra } from "#shared/types/compra";
-import { contarPendencias, statusDaCompra } from "#shared/utils/compraChecklist";
 import type { EstadoSalvamento } from "../../composables/useCompraEditor";
-import type { OpcoesFormulario } from "../../utils/comprasBlocos";
 import { ACOES_COMPRA_KEY, ACOES_VAZIAS, type AcoesCompra } from "../../utils/comprasContexto";
-import { FIELDSET_CLASS, LEGEND_CLASS } from "../../utils/processoFormClasses";
-import { BLOCOS, GRUPOS } from "./blocosRegistro";
+import type { OpcoesFormulario } from "../../utils/comprasOpcoes";
 import CompraFaixaConflito from "./CompraFaixaConflito.vue";
 import CompraFormCabecalho from "./CompraFormCabecalho.vue";
 
-// A coluna central: cabeçalho, as faixas (conflito e cancelada) e os BLOCOS do formulário, na ordem de BLOCOS_DA_COMPRA (a do resumo).
-//
-// Cada bloco é um componente com `data-bloco="<id>"` no elemento raiz (registro em blocosRegistro.ts). Blocos consecutivos pequenos
-// dividem o mesmo fieldset (GRUPOS), sem mudar a ordem dos campos: a ordem do DOM é a do Tab (nenhum tabindex positivo).
+// A coluna central: o cabeçalho, a faixa de conflito e UM ÚNICO BLOCO de campos (sem fieldsets nem títulos de seção): uma linha
+// (CompraCampo) por tópico, NA ORDEM EXATA do resumo (as linhas de montarResumo("modelo"), sem o título). A ordem do DOM é a do Tab
+// (nenhum tabindex positivo). O teste de arquitetura (comprasBlocosOrdem.spec.ts) confere `data-linha` contra o resumo.
 const props = defineProps<{
   compra: Compra;
   estado: EstadoSalvamento;
@@ -27,9 +23,11 @@ const props = defineProps<{
   /** O que as linhas pedem ao servidor (busca de medicamento, pré-cadastro, temperatura nova). Sem ele, não buscam nem registram. */
   acoes?: AcoesCompra;
   ocupado?: boolean;
+  /** Sobe a cada "+ Nova compra": leva o foco ao campo Medicamento do Med. 1. */
+  pedidoDeFocoMedicamento?: number;
 }>();
 
-// As linhas (três níveis abaixo) recebem as ações por provide/inject, sem repassar a prop de bloco em bloco.
+// As linhas recebem as ações por provide/inject, sem repassar a prop linha a linha.
 provide(ACOES_COMPRA_KEY, props.acoes ?? ACOES_VAZIAS);
 
 const emit = defineEmits<{
@@ -42,14 +40,7 @@ const emit = defineEmits<{
   voltar: [];
 }>();
 
-// Só os grupos que têm algum bloco com componente (e, neles, só os blocos com componente).
-const grupos = computed(() =>
-  GRUPOS.map((g) => ({ ...g, blocos: g.blocos.filter((id) => BLOCOS[id] !== undefined) })).filter((g) => g.blocos.length > 0),
-);
 const desabilitado = computed(() => !props.podeEditar || props.compra.cancelada);
-// O estado e as pendências do cabeçalho acompanham o que está na tela (a mesma checagem do painel da direita), sem esperar o salvamento.
-const status = computed(() => statusDaCompra(props.compra));
-const pendencias = computed(() => contarPendencias(props.compra));
 </script>
 
 <template>
@@ -57,8 +48,6 @@ const pendencias = computed(() => contarPendencias(props.compra));
     <CompraFormCabecalho
       :ano-mes="compra.anoMes"
       :sequencia="compra.sequencia"
-      :status="status"
-      :pendencias="pendencias"
       :cancelada="compra.cancelada"
       :pode-editar="podeEditar"
       :estado="estado"
@@ -74,22 +63,6 @@ const pendencias = computed(() => contarPendencias(props.compra));
 
     <CompraFaixaConflito v-if="estado === 'conflito'" :ocupado="ocupado" @carregar="emit('carregarVersaoSalva')" @manter="emit('manterMinhas')" />
 
-    <p v-if="compra.cancelada" id="compra-faixa-cancelada" role="status" class="rounded-lg border border-hairline bg-paper px-4 py-2.5 text-[13px] font-semibold text-ink-soft">
-      Compra cancelada
-    </p>
-
-    <fieldset
-      v-for="grupo in grupos"
-      :id="`compra-grupo-${grupo.id}`"
-      :key="grupo.id"
-      :class="FIELDSET_CLASS"
-      :disabled="desabilitado"
-      :aria-disabled="desabilitado ? 'true' : undefined"
-    >
-      <legend :class="LEGEND_CLASS">{{ grupo.legenda }}</legend>
-      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <component :is="BLOCOS[id]" v-for="id in grupo.blocos" :key="id" :compra="compra" :desabilitado="desabilitado" :opcoes="opcoes" @alterar="(m: MudancasCompra) => emit('alterar', m)" />
-      </div>
-    </fieldset>
+    <div id="compra-campos" :aria-disabled="desabilitado ? 'true' : undefined" class="rounded-lg border border-hairline bg-paper-raised px-4 lg:px-5" />
   </section>
 </template>

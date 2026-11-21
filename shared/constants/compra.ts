@@ -22,6 +22,9 @@ export const COMPRA_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{5,63}$/;
 /** Id de um item do Cadastro ou do pré-cadastro (medicamento_cadastro_id, pre_cadastro_id). */
 export const COMPRA_REFERENCIA_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$/;
 
+/** O aviso do medicamento cujo pré-cadastro o administrador REJEITOU: a linha do medicamento mostra este texto; aviso, não erro. */
+export const TEXTO_PRE_CADASTRO_REJEITADO = "Pré-cadastro rejeitado: escolha outro medicamento do Cadastro ou mantenha o texto livre";
+
 /** Mês da lista de compras: AAAA-MM. */
 export const COMPRA_ANO_MES_RE = /^[0-9]{4}-(0[1-9]|1[0-2])$/;
 
