@@ -24,14 +24,19 @@ export interface MedicamentoEscolhido {
 export const estaVinculado = (item: Pick<ItemCompra, "medicamentoCadastroId">): boolean => item.medicamentoCadastroId !== null;
 
 /**
- * O vínculo CONTINUA enquanto o texto COMEÇA com o nome do Cadastro (comparação sem acento nem caixa, espaços repetidos colapsados:
- * `chaveCadastro`). Sem o nome do Cadastro (null ou vazio) não há com o que comparar: não continua.
+ * O vínculo CONTINUA enquanto o texto COMEÇA com o nome do Cadastro (comparação sem acento nem caixa nem espaços repetidos:
+ * `chaveCadastro`) e o nome termina numa FRONTEIRA DE PALAVRA: o texto acaba ali, ou o próximo caractere não é letra nem dígito
+ * ("DIPIRONA 500 mg" e "DIPIRONA-500" continuam; "DIPIRONAX" e "DIPIRONA2" não). Sem o nome do Cadastro (null ou vazio) não há com
+ * o que comparar: não continua.
  */
 export function vinculoContinua(texto: string, nomeNoCadastro: string | null): boolean {
   if (nomeNoCadastro === null) return false;
   const chaveCadastroNome = chaveCadastro(nomeNoCadastro);
   if (chaveCadastroNome === "") return false;
-  return chaveCadastro(texto).startsWith(chaveCadastroNome);
+  const chaveTexto = chaveCadastro(texto);
+  if (!chaveTexto.startsWith(chaveCadastroNome)) return false;
+  const proximo = chaveTexto.charAt(chaveCadastroNome.length);
+  return proximo === "" || !/[\p{L}\p{N}]/u.test(proximo);
 }
 
 /** Escolher uma sugestão do Cadastro: o texto vira o nome do Cadastro; liga o item; a temperatura do Cadastro entra (se tiver). */

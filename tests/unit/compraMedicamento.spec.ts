@@ -41,6 +41,20 @@ describe("vinculoContinua: enquanto o texto COMEÇA com o nome do Cadastro (por 
     expect(vinculoContinua("", "DIPIRONA TESTE")).toBe(false);
   });
 
+  it("LIMITE DE PALAVRA: depois do nome o texto acaba, ou o próximo caractere não é letra nem dígito", () => {
+    expect(vinculoContinua("DIPIRONA TESTE", "DIPIRONA TESTE")).toBe(true);
+    expect(vinculoContinua("DIPIRONA TESTE 500", "DIPIRONA TESTE")).toBe(true);
+    expect(vinculoContinua("DIPIRONA TESTE-500", "DIPIRONA TESTE")).toBe(true);
+    expect(vinculoContinua("DIPIRONA TESTE, 500 mg", "DIPIRONA TESTE")).toBe(true);
+    expect(vinculoContinua("DIPIRONA TESTE (500 mg)", "DIPIRONA TESTE")).toBe(true);
+    // colado em letra ou dígito: é outra palavra
+    expect(vinculoContinua("DIPIRONA TESTEX", "DIPIRONA TESTE")).toBe(false);
+    expect(vinculoContinua("DIPIRONA TESTE2", "DIPIRONA TESTE")).toBe(false);
+    expect(vinculoContinua("DIPIRONA TESTEÇ", "DIPIRONA TESTE")).toBe(false);
+    expect(vinculoContinua("DIPIRONAX", "DIPIRONA")).toBe(false);
+    expect(vinculoContinua("dipironax 500", "DIPIRONA")).toBe(false);
+  });
+
   it("sem o nome do Cadastro (null ou vazio) não há com o que comparar", () => {
     expect(vinculoContinua("DIPIRONA TESTE", null)).toBe(false);
     expect(vinculoContinua("DIPIRONA TESTE", "")).toBe(false);
@@ -93,6 +107,10 @@ describe("digitarMedicamento: o texto mudou", () => {
 
   it("ligado mas sem o nome do Cadastro (dado inconsistente): qualquer mudança desfaz", () => {
     expect(digitarMedicamento(ligado({ medicamentoCadastroNome: null }), "DIPIRONA TESTE X")).toMatchObject({ medicamentoCadastroId: null, temperatura: "" });
+  });
+
+  it("ligado e o texto vira outra palavra colada no nome (DIPIRONA TESTEX): o vínculo some", () => {
+    expect(digitarMedicamento(ligado(), "DIPIRONA TESTEX")).toMatchObject({ medicamentoCadastroId: null, temperatura: "" });
   });
 
   it("fora do Cadastro, sem pedido: só o texto muda e a temperatura (escolhida pela pessoa) fica", () => {
