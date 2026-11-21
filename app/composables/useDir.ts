@@ -7,18 +7,6 @@ import type { Dir, DirPatchDTO, NewDirDTO } from "#shared/types/dir";
 let fetchPromise: Promise<void> | null = null;
 let lastFetchedAt = 0;
 const RECENT_FETCH_WINDOW_MS = 5000;
-// Cada leitura leva um número: depois de `invalidarDir` só a mais nova grava no estado (uma leitura que já estava voando, e é anterior a
-// uma criação feita por outra tela, não pode devolver a lista velha por cima).
-let leitura = 0;
-
-/**
- * Esquece o cache de 5 s: a PRÓXIMA `fetchDir` lê de novo, mesmo que a última leitura seja recente ou ainda esteja em curso. Quem cria linhas
- * na DIR por fora da página (o Encaminhar da Compra) chama isto, para a linha aparecer ao abrir /dir.
- */
-export function invalidarCacheDir(): void {
-  lastFetchedAt = 0;
-  fetchPromise = null;
-}
 
 export function useDir() {
   const registros = useState<Dir[]>("dir", () => []);
@@ -31,24 +19,18 @@ export function useDir() {
 
     loading.value = true;
     error.value = null;
-    const minha = ++leitura;
-    const promessa: Promise<void> = (async () => {
+    fetchPromise = (async () => {
       try {
-        const lidas = await apiFetch<Dir[]>("/api/dir", undefined, "Falha ao carregar a DIR.");
-        if (minha !== leitura) return;
-        registros.value = lidas;
+        registros.value = await apiFetch<Dir[]>("/api/dir", undefined, "Falha ao carregar a DIR.");
         lastFetchedAt = Date.now();
       } catch (e) {
-        if (minha === leitura) error.value = e instanceof Error ? e.message : "Erro desconhecido.";
+        error.value = e instanceof Error ? e.message : "Erro desconhecido.";
       } finally {
-        if (minha === leitura) {
-          loading.value = false;
-          fetchPromise = null;
-        }
+        loading.value = false;
+        fetchPromise = null;
       }
     })();
-    fetchPromise = promessa;
-    return promessa;
+    return fetchPromise;
   }
 
   async function addDir(input: NewDirDTO): Promise<Dir> {
@@ -86,5 +68,5 @@ export function useDir() {
     registros.value = registros.value.filter((d) => d.id !== id);
   }
 
-  return { registros, loading, error, fetchDir, invalidarDir: invalidarCacheDir, addDir, patchDir, removeDir };
+  return { registros, loading, error, fetchDir, addDir, patchDir, removeDir };
 }
