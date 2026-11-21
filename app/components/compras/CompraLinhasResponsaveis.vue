@@ -6,6 +6,7 @@ import type { OpcoesFormulario } from "../../utils/comprasOpcoes";
 import { INPUT_CLASS, SELECT_CAMPO_CLASS } from "../../utils/processoFormClasses";
 import AppSelect from "../AppSelect.vue";
 import CompraCampo from "./CompraCampo.vue";
+import { ROTULOS_DO_FORMULARIO } from "../../utils/comprasRotulos";
 
 // As linhas 23 e 24 do formulário (a ordem do resumo): Consultor (consultores ativos do Cadastro; um valor antigo continua aparecendo) e
 // Responsável (texto; vem preenchido do servidor com quem criou a compra).
@@ -21,13 +22,13 @@ const consultorOptions = computed(() =>
 </script>
 
 <template>
-  <CompraCampo id-linha="consultor" rotulo="Consultor" para="compra-consultor">
+  <CompraCampo id-linha="consultor" :rotulo="ROTULOS_DO_FORMULARIO.consultor" para="compra-consultor">
     <div :class="[SELECT_CAMPO_CLASS]">
       <AppSelect id="compra-consultor" :model-value="compra.consultor" :options="consultorOptions" :disabled="desabilitado" @update:model-value="(v: string) => emit('alterar', { consultor: v })" />
     </div>
   </CompraCampo>
 
-  <CompraCampo id-linha="responsavel" rotulo="Responsável" para="compra-responsavel">
+  <CompraCampo id-linha="responsavel" :rotulo="ROTULOS_DO_FORMULARIO.responsavel" para="compra-responsavel">
     <input
       id="compra-responsavel"
       type="text"

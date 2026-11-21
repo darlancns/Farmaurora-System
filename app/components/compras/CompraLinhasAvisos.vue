@@ -8,6 +8,7 @@ import { CHECKBOX_CLASS } from "../../utils/comprasEstilos";
 import { INPUT_CLASS, LABEL_CLASS } from "../../utils/processoFormClasses";
 import SegmentedControl from "../SegmentedControl.vue";
 import CompraCampo from "./CompraCampo.vue";
+import { ROTULOS_DO_FORMULARIO } from "../../utils/comprasRotulos";
 
 // As linhas 18 a 22 do formulário (a ordem do resumo): Obs., Pedir isenção de imposto (caixinha, sem "para quem"), Verificação de documento e
 // validação de assinatura (Pendente | Verificado; sem valor = null), Pendente (chips + "Outras pendências") e Recorrente (caixinha).
@@ -47,7 +48,7 @@ function aoDigitarLivre(event: Event): void {
 </script>
 
 <template>
-  <CompraCampo id-linha="observacoes" rotulo="Obs." para="compra-observacoes">
+  <CompraCampo id-linha="observacoes" :rotulo="ROTULOS_DO_FORMULARIO.observacoes" para="compra-observacoes">
     <textarea
       id="compra-observacoes"
       rows="2"
@@ -59,16 +60,16 @@ function aoDigitarLivre(event: Event): void {
     />
   </CompraCampo>
 
-  <CompraCampo id-linha="isencao" rotulo="Pedir isenção de imposto" para="compra-isencao">
+  <CompraCampo id-linha="isencao" :rotulo="ROTULOS_DO_FORMULARIO.isencao" para="compra-isencao">
     <div class="flex min-h-11 items-center lg:min-h-0 lg:pt-2">
       <input id="compra-isencao" type="checkbox" :class="CHECKBOX_CLASS" :checked="compra.isencao" :disabled="desabilitado" @change="emit('alterar', { isencao: ($event.target as HTMLInputElement).checked })" />
     </div>
   </CompraCampo>
 
-  <CompraCampo id-linha="documentos" rotulo="Verificação de documento e validação de assinatura">
+  <CompraCampo id-linha="documentos" :rotulo="ROTULOS_DO_FORMULARIO.documentos">
     <SegmentedControl
       id="compra-documentos"
-      label="Verificação de documento e validação de assinatura"
+      :label="ROTULOS_DO_FORMULARIO.documentos"
       :model-value="documentos"
       :options="OPCOES_DOCUMENTOS"
       :disabled="desabilitado"
@@ -76,7 +77,7 @@ function aoDigitarLivre(event: Event): void {
     />
   </CompraCampo>
 
-  <CompraCampo id-linha="pendencias" rotulo="Pendente">
+  <CompraCampo id-linha="pendencias" :rotulo="ROTULOS_DO_FORMULARIO.pendencias">
     <div class="flex flex-wrap gap-1.5">
       <button
         v-for="(rotulo, i) in PENDENCIAS_PADRAO"
@@ -98,7 +99,7 @@ function aoDigitarLivre(event: Event): void {
     </div>
   </CompraCampo>
 
-  <CompraCampo id-linha="recorrente" rotulo="Recorrente" para="compra-recorrente">
+  <CompraCampo id-linha="recorrente" :rotulo="ROTULOS_DO_FORMULARIO.recorrente" para="compra-recorrente">
     <div class="flex min-h-11 items-center lg:min-h-0 lg:pt-2">
       <input id="compra-recorrente" type="checkbox" :class="CHECKBOX_CLASS" :checked="compra.recorrente" :disabled="desabilitado" @change="emit('alterar', { recorrente: ($event.target as HTMLInputElement).checked })" />
     </div>

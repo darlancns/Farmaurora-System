@@ -129,9 +129,9 @@ describe("Paciente, Obs., isenção, verificação, pendente e recorrente", () =
     expect(texto(q("#compra-campos"))).not.toMatch(/para \(opcional\)/i);
   });
 
-  it("Verificação de documento e validação de assinatura: Pendente | Verificado; sem valor = null", async () => {
+  it("Documento e assinatura: Pendente | Verificado; sem valor = null", async () => {
     montado = montarFormulario(compraComUmMedicamento());
-    expect(texto(q('[data-linha="documentos"] > span'))).toBe("Verificação de documento e validação de assinatura");
+    expect(texto(q('[data-linha="documentos"] > span'))).toBe("Documento e assinatura");
     const radios = () => qa<HTMLElement>("#compra-documentos [role=radio]");
     expect(radios().map((r) => r.getAttribute("aria-checked"))).toEqual(["false", "false"]);
     radios().find((r) => texto(r) === "Verificado")!.click();

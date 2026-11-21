@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { BLOCOS_DA_COMPRA } from "../../shared/constants/compraResumo";
 import { compraParaResumoEntrada, montarResumo } from "../../shared/utils/compraResumo";
-import { compraComUmMedicamento, itemDeTeste, montarFormulario, qa, texto, type FormularioMontado } from "./helpers/montarFormulario";
+import { compraComUmMedicamento, itemDeTeste, montarFormulario, q, qa, texto, type FormularioMontado } from "./helpers/montarFormulario";
 
 // TESTE DE ARQUITETURA: a ordem das linhas do formulário é a ordem das linhas do resumo no modo "modelo" (montarResumo). Se alguém mexer
 // numa das duas, este teste quebra. Também confere o Tab (a ordem do DOM), que cada linha tem rótulo e que todo controle tem nome acessível.
@@ -104,12 +104,12 @@ describe("a ordem das linhas do formulário é a ordem das linhas do resumo (mod
       "Despachante",
       "Obs.",
       "Pedir isenção de imposto",
-      "Verificação de documento e validação de assinatura",
+      "Documento e assinatura",
       "Pendente",
       "Recorrente",
       "Consultor",
       "Responsável",
-      "Número do processo",
+      "Nº do processo",
       "Médico",
       "Local de aplicação",
       "Entrega (Doctor/AJC)",
@@ -166,5 +166,33 @@ describe("Tab e acessibilidade do formulário único", () => {
     expect(html).not.toMatch(/vendedor/i);
     expect(html).not.toMatch(/antes de encaminhar/i);
     expect(html).not.toMatch(/Dicas/);
+  });
+});
+
+describe("rótulos do FORMULÁRIO x rótulos do RESUMO (separados)", () => {
+  it("o formulário diz 'Documento e assinatura' e 'Nº do processo', vindos de ROTULOS_DO_FORMULARIO (um por linha, as 29)", async () => {
+    const { ROTULOS_DO_FORMULARIO } = await import("../../app/utils/comprasRotulos");
+    expect(ROTULOS_DO_FORMULARIO.documentos).toBe("Documento e assinatura");
+    expect(ROTULOS_DO_FORMULARIO.processo).toBe("Nº do processo");
+    expect(Object.keys(ROTULOS_DO_FORMULARIO)).toEqual(ESPERADA);
+  });
+
+  it("o resumo (modelo e cópia) NÃO muda: segue 'Verificação de documento e validação de assinatura' e 'Número do processo'", () => {
+    const entrada = compraParaResumoEntrada(compraComUmMedicamento({ documentos: true, processoNumero: "123" }), null);
+    const linhas = montarResumo(entrada, "modelo").flatMap((b) => b.linhas);
+    expect(linhas.find((l) => l.id === "documentos")!.rotulo).toBe("Verificação de documento e validação de assinatura ✅");
+    expect(linhas.find((l) => l.id === "processo")!.rotulo).toBe("Número do processo");
+    const copia = montarResumo(entrada, "copia").flatMap((b) => b.linhas);
+    expect(copia.find((l) => l.id === "processo")).toMatchObject({ rotulo: "Número do processo", valor: "123" });
+    expect(JSON.stringify(linhas)).not.toContain("Nº do processo");
+    expect(JSON.stringify(linhas)).not.toContain("Documento e assinatura");
+  });
+
+  it("o texto do formulário e o do resumo coexistem na tela, cada um com o seu", () => {
+    montado = montarFormulario(compraComUmMedicamento(), { comResumo: true });
+    expect(texto(q('[data-linha="processo"] label'))).toBe("Nº do processo");
+    expect(texto(q('[data-resumo-linha="processo"]'))).toBe("Número do processo:");
+    expect(texto(q('[data-linha="documentos"] > span'))).toBe("Documento e assinatura");
+    expect(texto(q('[data-resumo-linha="documentos"]'))).toContain("Verificação de documento e validação de assinatura");
   });
 });

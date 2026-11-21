@@ -4,6 +4,7 @@ import type { Compra, MudancasCompra } from "#shared/types/compra";
 import { CHECKBOX_CLASS } from "../../utils/comprasEstilos";
 import { INPUT_CLASS, INPUT_MONO_CLASS } from "../../utils/processoFormClasses";
 import CompraCampo from "./CompraCampo.vue";
+import { ROTULOS_DO_FORMULARIO } from "../../utils/comprasRotulos";
 
 // As linhas 25 a 29 do formulário (a ordem do resumo): Número do processo (+ "Compra particular"), Médico, Local de aplicação, Entrega (Doctor/AJC)
 // (+ "Mesmo local") e Contatos. Todos texto livre.
@@ -49,7 +50,7 @@ function aoMarcarParticular(event: Event): void {
 </script>
 
 <template>
-  <CompraCampo id-linha="processo" rotulo="Número do processo" para="compra-processo">
+  <CompraCampo id-linha="processo" :rotulo="ROTULOS_DO_FORMULARIO.processo" para="compra-processo">
     <input
       id="compra-processo"
       type="text"
@@ -67,7 +68,7 @@ function aoMarcarParticular(event: Event): void {
     </label>
   </CompraCampo>
 
-  <CompraCampo id-linha="medico" rotulo="Médico" para="compra-medico">
+  <CompraCampo id-linha="medico" :rotulo="ROTULOS_DO_FORMULARIO.medico" para="compra-medico">
     <input
       id="compra-medico"
       type="text"
@@ -80,11 +81,11 @@ function aoMarcarParticular(event: Event): void {
     />
   </CompraCampo>
 
-  <CompraCampo id-linha="local_aplicacao" rotulo="Local de aplicação" para="compra-local">
+  <CompraCampo id-linha="local_aplicacao" :rotulo="ROTULOS_DO_FORMULARIO.local_aplicacao" para="compra-local">
     <input id="compra-local" type="text" maxlength="300" :class="INPUT_CLASS" :value="compra.localAplicacao" :disabled="desabilitado" autocomplete="off" @input="aoDigitarLocal" />
   </CompraCampo>
 
-  <CompraCampo id-linha="entrega" rotulo="Entrega (Doctor/AJC)" para="compra-entrega">
+  <CompraCampo id-linha="entrega" :rotulo="ROTULOS_DO_FORMULARIO.entrega" para="compra-entrega">
     <input
       id="compra-entrega"
       type="text"
@@ -101,7 +102,7 @@ function aoMarcarParticular(event: Event): void {
     </label>
   </CompraCampo>
 
-  <CompraCampo id-linha="contatos" rotulo="Contatos" para="compra-contatos">
+  <CompraCampo id-linha="contatos" :rotulo="ROTULOS_DO_FORMULARIO.contatos" para="compra-contatos">
     <textarea
       id="compra-contatos"
       rows="2"

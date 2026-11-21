@@ -10,6 +10,7 @@ import { INPUT_CLASS, SELECT_CAMPO_CLASS } from "../../utils/processoFormClasses
 import AppSelect from "../AppSelect.vue";
 import CompraMedicamentoInput from "./CompraMedicamentoInput.vue";
 import CompraPorMedicamento from "./CompraPorMedicamento.vue";
+import { ROTULOS_DO_FORMULARIO } from "../../utils/comprasRotulos";
 
 // As linhas 1 a 4 do formulário (a ordem do resumo): Medicamento, Laboratório, Brand e Quantidade. Cada uma é POR MEDICAMENTO: com um só,
 // um controle; com dois ou mais, um por medicamento, rotulados "Med. 1", "Med. 2". O "+" (adicionar medicamento, com aria-label e title) fica à direita do input do ÚLTIMO medicamento; os demais têm o "✕".
@@ -31,7 +32,7 @@ const noLimite = (): boolean => props.compra.itens.length >= COMPRA_MAX_ITENS;
 </script>
 
 <template>
-  <CompraPorMedicamento id-linha="medicamento" rotulo="Medicamento" campo="medicamento" :itens="compra.itens">
+  <CompraPorMedicamento id-linha="medicamento" :rotulo="ROTULOS_DO_FORMULARIO.medicamento" campo="medicamento" :itens="compra.itens">
     <template #default="{ item, indice, idControle, nomeAcessivel, total }">
       <CompraMedicamentoInput
         :item="item"
@@ -49,7 +50,7 @@ const noLimite = (): boolean => props.compra.itens.length >= COMPRA_MAX_ITENS;
     </template>
   </CompraPorMedicamento>
 
-  <CompraPorMedicamento id-linha="laboratorio" rotulo="Laboratório" campo="laboratorio" :itens="compra.itens">
+  <CompraPorMedicamento id-linha="laboratorio" :rotulo="ROTULOS_DO_FORMULARIO.laboratorio" campo="laboratorio" :itens="compra.itens">
     <template #default="{ item, idControle, nomeAcessivel }">
       <input
         :id="idControle"
@@ -65,7 +66,7 @@ const noLimite = (): boolean => props.compra.itens.length >= COMPRA_MAX_ITENS;
     </template>
   </CompraPorMedicamento>
 
-  <CompraPorMedicamento id-linha="brand" rotulo="Brand" campo="brand" :itens="compra.itens">
+  <CompraPorMedicamento id-linha="brand" :rotulo="ROTULOS_DO_FORMULARIO.brand" campo="brand" :itens="compra.itens">
     <template #default="{ item, idControle, nomeAcessivel }">
       <div :class="[SELECT_CAMPO_CLASS]">
         <AppSelect
@@ -80,7 +81,7 @@ const noLimite = (): boolean => props.compra.itens.length >= COMPRA_MAX_ITENS;
     </template>
   </CompraPorMedicamento>
 
-  <CompraPorMedicamento id-linha="quantidade" rotulo="Quantidade" campo="quantidade" :itens="compra.itens">
+  <CompraPorMedicamento id-linha="quantidade" :rotulo="ROTULOS_DO_FORMULARIO.quantidade" campo="quantidade" :itens="compra.itens">
     <template #default="{ item, idControle, nomeAcessivel }">
       <input
         :id="idControle"

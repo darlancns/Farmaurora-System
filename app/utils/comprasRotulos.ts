@@ -1,0 +1,37 @@
+// Os RÓTULOS DO FORMULÁRIO da Compra (a coluna da esquerda de cada linha). São independentes dos rótulos do RESUMO e do texto copiado
+// (shared/constants/compraResumo.ts, TEXTOS_RESUMO): o resumo segue o texto padrão do WhatsApp ("Número do processo", "Verificação de documento e
+// validação de assinatura"...) e aqui os rótulos são curtos para caber na coluna estreita. A chave é o id da linha (o mesmo de montarResumo("modelo")).
+
+export const ROTULOS_DO_FORMULARIO = {
+  medicamento: "Medicamento",
+  laboratorio: "Laboratório",
+  brand: "Brand",
+  quantidade: "Quantidade",
+  ordens: "Ordens",
+  valor_unitario: "Valor unitário",
+  valor_real: "Valor real",
+  frete: "Frete",
+  frete_real: "Valor real do frete",
+  temperatura: "Temperatura",
+  envio: "Envio",
+  fornecedor: "Fornecedor",
+  cnpj: "CNPJ",
+  pagamento: "Pagamento",
+  termo_posterior: "Termo de pagamento posterior",
+  paciente: "Paciente",
+  despachante: "Despachante",
+  observacoes: "Obs.",
+  isencao: "Pedir isenção de imposto",
+  documentos: "Documento e assinatura",
+  pendencias: "Pendente",
+  recorrente: "Recorrente",
+  consultor: "Consultor",
+  responsavel: "Responsável",
+  processo: "Nº do processo",
+  medico: "Médico",
+  local_aplicacao: "Local de aplicação",
+  entrega: "Entrega (Doctor/AJC)",
+  contatos: "Contatos",
+} as const;
+
+export type LinhaDoFormulario = keyof typeof ROTULOS_DO_FORMULARIO;

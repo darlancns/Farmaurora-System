@@ -7,6 +7,7 @@ import { CHECKBOX_CLASS } from "../../utils/comprasEstilos";
 import { INPUT_CLASS, LABEL_CLASS } from "../../utils/processoFormClasses";
 import SegmentedControl from "../SegmentedControl.vue";
 import CompraCampo from "./CompraCampo.vue";
+import { ROTULOS_DO_FORMULARIO } from "../../utils/comprasRotulos";
 
 // As linhas 14 e 15 do formulário (a ordem do resumo): Pagamento (Alvará na conta + Quando pagar: "Vamos pagar" | "Após o envio da AWB"; sem
 // valor inicial) e Termo de pagamento posterior ("Sim" | "n/a"; com "Sim" aparece a Observação do termo).
@@ -28,7 +29,7 @@ const termo = computed(() => (props.compra.termoPosterior ? "sim" : "na"));
 </script>
 
 <template>
-  <CompraCampo id-linha="pagamento" rotulo="Pagamento">
+  <CompraCampo id-linha="pagamento" :rotulo="ROTULOS_DO_FORMULARIO.pagamento">
     <div class="flex flex-col gap-3">
       <label class="flex min-h-11 items-center gap-2 text-[14px] text-ink lg:min-h-0 lg:text-[13px]" for="compra-alvara">
         <input
@@ -55,10 +56,10 @@ const termo = computed(() => (props.compra.termoPosterior ? "sim" : "na"));
     </div>
   </CompraCampo>
 
-  <CompraCampo id-linha="termo_posterior" rotulo="Termo de pagamento posterior">
+  <CompraCampo id-linha="termo_posterior" :rotulo="ROTULOS_DO_FORMULARIO.termo_posterior">
     <SegmentedControl
       id="compra-termo-posterior"
-      label="Termo de pagamento posterior"
+      :label="ROTULOS_DO_FORMULARIO.termo_posterior"
       :model-value="termo"
       :options="OPCOES_TERMO"
       :disabled="desabilitado"

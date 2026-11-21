@@ -8,6 +8,7 @@ import type { OpcoesFormulario } from "../../utils/comprasOpcoes";
 import { INPUT_CLASS, SELECT_CAMPO_CLASS } from "../../utils/processoFormClasses";
 import AppSelect from "../AppSelect.vue";
 import CompraCampo from "./CompraCampo.vue";
+import { ROTULOS_DO_FORMULARIO } from "../../utils/comprasRotulos";
 
 // As linhas 16 e 17 do formulário (a ordem do resumo): Paciente (texto livre; o plugin "primeira-maiúscula" cuida da 1ª letra) e Despachante
 // (despachantes ativos do Cadastro). Courier Simples (o ENVIO) não tem despachante: a linha continua no lugar, mas em vez do select aparece a
@@ -43,7 +44,7 @@ const apoio = computed<string | null>(() => {
 </script>
 
 <template>
-  <CompraCampo id-linha="paciente" rotulo="Paciente" para="compra-paciente">
+  <CompraCampo id-linha="paciente" :rotulo="ROTULOS_DO_FORMULARIO.paciente" para="compra-paciente">
     <input
       id="compra-paciente"
       type="text"
@@ -56,7 +57,7 @@ const apoio = computed<string | null>(() => {
     />
   </CompraCampo>
 
-  <CompraCampo id-linha="despachante" rotulo="Despachante" :para="dispensado ? undefined : 'compra-despachante'" :apoio="dispensado ? null : apoio">
+  <CompraCampo id-linha="despachante" :rotulo="ROTULOS_DO_FORMULARIO.despachante" :para="dispensado ? undefined : 'compra-despachante'" :apoio="dispensado ? null : apoio">
     <p v-if="dispensado" id="compra-despachante-dispensado" class="pt-2 text-[13px] text-ink-soft">Dispensado: Courier Simples não tem despachante</p>
     <div v-else :class="[SELECT_CAMPO_CLASS]">
       <AppSelect id="compra-despachante" :model-value="compra.despachante" :options="options" :disabled="desabilitado" @update:model-value="(v: string) => emit('alterar', { despachante: v })" />

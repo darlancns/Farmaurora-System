@@ -6,6 +6,7 @@ import CampoDinheiro from "./CampoDinheiro.vue";
 import CompraCampo from "./CompraCampo.vue";
 import CompraPorMedicamento from "./CompraPorMedicamento.vue";
 import CompraTemperaturaItem from "./CompraTemperaturaItem.vue";
+import { ROTULOS_DO_FORMULARIO } from "../../utils/comprasRotulos";
 
 // As linhas 6 a 10 do formulário (a ordem do resumo): Valor unitário, Valor real (POR MEDICAMENTO, em US$), Frete e Valor real do frete
 // (da compra, em US$) e a Temperatura (POR MEDICAMENTO: chips do Cadastro + "Outro…").
@@ -16,7 +17,7 @@ const atualizar = (id: string, mudancas: Partial<Compra["itens"][number]>): void
 </script>
 
 <template>
-  <CompraPorMedicamento id-linha="valor_unitario" rotulo="Valor unitário" campo="valor-unitario" :itens="compra.itens">
+  <CompraPorMedicamento id-linha="valor_unitario" :rotulo="ROTULOS_DO_FORMULARIO.valor_unitario" campo="valor-unitario" :itens="compra.itens">
     <template #default="{ item, idControle, nomeAcessivel }">
       <div>
         <CampoDinheiro :id="idControle" :aria-label="nomeAcessivel" :model-value="item.valorUnitario" :disabled="desabilitado" @update:model-value="(v: number | null) => atualizar(item.id, { valorUnitario: v })" />
@@ -24,7 +25,7 @@ const atualizar = (id: string, mudancas: Partial<Compra["itens"][number]>): void
     </template>
   </CompraPorMedicamento>
 
-  <CompraPorMedicamento id-linha="valor_real" rotulo="Valor real" campo="valor-real" :itens="compra.itens">
+  <CompraPorMedicamento id-linha="valor_real" :rotulo="ROTULOS_DO_FORMULARIO.valor_real" campo="valor-real" :itens="compra.itens">
     <template #default="{ item, idControle, nomeAcessivel }">
       <div>
         <CampoDinheiro :id="idControle" :aria-label="nomeAcessivel" :model-value="item.valorReal" :disabled="desabilitado" @update:model-value="(v: number | null) => atualizar(item.id, { valorReal: v })" />
@@ -32,19 +33,19 @@ const atualizar = (id: string, mudancas: Partial<Compra["itens"][number]>): void
     </template>
   </CompraPorMedicamento>
 
-  <CompraCampo id-linha="frete" rotulo="Frete" para="compra-frete">
+  <CompraCampo id-linha="frete" :rotulo="ROTULOS_DO_FORMULARIO.frete" para="compra-frete">
     <div>
       <CampoDinheiro id="compra-frete" :model-value="compra.frete" :disabled="desabilitado" @update:model-value="(v: number | null) => emit('alterar', { frete: v })" />
     </div>
   </CompraCampo>
 
-  <CompraCampo id-linha="frete_real" rotulo="Valor real do frete" para="compra-frete-real">
+  <CompraCampo id-linha="frete_real" :rotulo="ROTULOS_DO_FORMULARIO.frete_real" para="compra-frete-real">
     <div>
       <CampoDinheiro id="compra-frete-real" :model-value="compra.freteReal" :disabled="desabilitado" @update:model-value="(v: number | null) => emit('alterar', { freteReal: v })" />
     </div>
   </CompraCampo>
 
-  <CompraPorMedicamento id-linha="temperatura" rotulo="Temperatura" campo="temperatura" :itens="compra.itens">
+  <CompraPorMedicamento id-linha="temperatura" :rotulo="ROTULOS_DO_FORMULARIO.temperatura" campo="temperatura" :itens="compra.itens">
     <template #default="{ item, idControle, nomeAcessivel }">
       <CompraTemperaturaItem :item="item" :temperaturas="opcoes.temperaturas" :id-controle="idControle" :nome-acessivel="nomeAcessivel" :desabilitado="desabilitado" @atualizar="(m) => atualizar(item.id, m)" />
     </template>

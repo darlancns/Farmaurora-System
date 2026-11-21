@@ -6,6 +6,7 @@ import { NUMERO_REMESSA_ERRO } from "#shared/utils/numeroRemessa";
 import { INPUT_CLASS } from "../../utils/processoFormClasses";
 import ProcessoRemessaStepper from "../processos/ProcessoRemessaStepper.vue";
 import CompraCampo from "./CompraCampo.vue";
+import { ROTULOS_DO_FORMULARIO } from "../../utils/comprasRotulos";
 
 // A linha "Ordens" (a 5ª, logo depois da Quantidade): o MESMO stepper do Nº Ordem do Follow-Up (ProcessoRemessaStepper, sem alterá-lo). A compra
 // guarda um NÚMERO de 1 a COMPRA_MAX_ORDENS; o stepper trabalha com o TEXTO do campo, então aqui o número vira texto e o texto vira número.
@@ -65,7 +66,7 @@ function aoSair(): void {
 </script>
 
 <template>
-  <CompraCampo id-linha="ordens" rotulo="Ordens" :para="ID" :erro="erro">
+  <CompraCampo id-linha="ordens" :rotulo="ROTULOS_DO_FORMULARIO.ordens" :para="ID" :erro="erro">
     <div class="max-w-[9rem]" @focusout="aoSair">
       <!-- Só leitura: o stepper não tem a propriedade `disabled` (e não se mexe nele, ele é do Follow-Up): mostra-se o número num campo desabilitado. -->
       <input v-if="desabilitado" :id="ID" type="text" :value="texto" disabled data-sem-maiuscula :class="INPUT_CLASS" />
