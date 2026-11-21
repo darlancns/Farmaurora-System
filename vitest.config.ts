@@ -17,5 +17,9 @@ export default defineConfig({
     // tem sua própria assinatura de test()/expect() e não deve ser varrido
     // por aqui.
     include: ["tests/unit/**/*.spec.ts"],
+    // Com a suíte inteira em paralelo, o PRIMEIRO teste de um arquivo de componente paga a compilação dos .vue (a fila de workers pesa) e
+    // passava dos 5 s padrão em máquinas carregadas (timeouts soltos em specs sem relação entre si). 20 s dá folga sem esconder teste lento de verdade.
+    testTimeout: 20_000,
+    hookTimeout: 20_000,
   },
 });
