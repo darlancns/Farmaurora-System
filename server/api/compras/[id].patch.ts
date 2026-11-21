@@ -9,8 +9,9 @@ import { responderErroDeCompra, salvarCompra } from "../../utils/comprasStore";
 
 // O SALVAMENTO AUTOMÁTICO da compra (só quem ESCREVE em Compras). O corpo é o estado (ver shared/utils/compraValidacao.ts): validado aqui,
 // no servidor; `atualizadoEm` é a versão que o cliente viu. 400 corpo inválido; 404 não existe; 409 versão antiga (a resposta traz a
-// compra atual em `data.atual`), compra cancelada ou id de outra compra; 422 vendedor, despachante, fornecedor, cia ou envio que não
-// são do Cadastro (ativos) ou medicamento do Cadastro/pré-cadastro que não existe. Rascunho parcial é válido.
+// compra atual em `data.atual`), compra cancelada ou id de item de outra compra; 422 consultor, despachante ou fornecedor que não
+// são do Cadastro (ativos), envio fora de MODAIS_ENVIO, cia que não vale para o envio, empresa ou brand inválidos, ou medicamento do
+// Cadastro/pré-cadastro que não existe. Rascunho parcial é válido.
 export default defineEventHandler(async (event): Promise<Compra> => {
   const user: AuthUser | null | undefined = event.context.user;
   exigirEscritaCompras(user);
@@ -22,7 +23,7 @@ export default defineEventHandler(async (event): Promise<Compra> => {
   if (!dados.ok) throw createError({ statusCode: 400, statusMessage: dados.erro });
 
   try {
-    // Vendedor, despachante, fornecedor e cia são conferidos com a compra como está no banco (e valem os valores que ela já tinha).
+    // Consultor, despachante, fornecedor, envio, cia, empresa e brand são conferidos com a compra como está no banco (e valem os valores que ela já tinha).
     const compra = await salvarCompra(id, dados.valor, nomeParaAuditoria(user), {
       antesDeGravar: (atual) => validarEstadoContraCadastros(dados.valor, atual),
     });

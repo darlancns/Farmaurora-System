@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Compra } from "../../shared/types/compra";
 import type { AuthUser } from "../../shared/types/auth";
 import { MODAIS_ENVIO } from "../../shared/constants/processos";
+import { NUMERO_REMESSA_ERRO } from "../../shared/utils/numeroRemessa";
 import { autorizarApi, permissoesTudoNenhum, type NivelPermissao, type Permissoes } from "../../shared/utils/permissoesPagina";
 import type { Role } from "../../shared/utils/rbac";
 import { FakeSupabase } from "./helpers/fakeSupabase";
@@ -115,7 +116,7 @@ function chamar<T = unknown>(rota: Rota | Handler, user: AuthUser | null | undef
 }
 
 function semear(): void {
-  for (const t of ["compras", "compra_ordens", "compra_itens", "cadastro_despachantes", "cadastro_fornecedores", "cadastro_cias_aereas"]) fake.tabelas[t] = [];
+  for (const t of ["compras", "compra_itens", "cadastro_despachantes", "cadastro_fornecedores", "cadastro_medicamentos", "pre_cadastro_medicamentos"]) fake.tabelas[t] = [];
   semearConsultores(fake);
   const cadastro = (id: string, nome: string, ativo = true) => ({
     id,
@@ -129,7 +130,6 @@ function semear(): void {
   });
   fake.tabelas.cadastro_despachantes = [cadastro("d1", "Despachante Teste"), cadastro("d2", "Despachante Velho", false)];
   fake.tabelas.cadastro_fornecedores = [cadastro("f1", "Fornecedor Teste"), cadastro("f2", "Fornecedor Velho", false)];
-  fake.tabelas.cadastro_cias_aereas = [cadastro("c1", "Cia Teste")];
 }
 
 beforeEach(() => {
@@ -240,22 +240,39 @@ async function criarCompraDireta(): Promise<Compra> {
   return c;
 }
 
+/** As chaves do contrato da compra (GET, POST, PATCH, duplicar e cancelar devolvem exatamente isto). */
+const CHAVES_DA_COMPRA = [
+  "id", "anoMes", "sequencia", "cancelada", "fornecedor", "envio", "cia", "empresa", "numeroOrdens", "frete", "freteReal", "paciente",
+  "processoNumero", "compraParticular", "recorrente", "medico", "localAplicacao", "entrega", "contatos", "despachante", "pagamentoAlvara",
+  "pagamentoMomento", "termoPosterior", "termoObservacao", "isencao", "documentos", "pendencias", "observacoes", "consultor", "responsavel",
+  "criadoPor", "atualizadoPor", "createdAt", "updatedAt", "itens",
+];
+const CHAVES_DO_ITEM = [
+  "id", "posicao", "medicamento", "medicamentoCadastroId", "medicamentoCadastroNome", "preCadastroId", "laboratorio", "brand", "quantidade",
+  "temperatura", "valorUnitario", "valorReal",
+];
+
 describe("POST /api/compras", () => {
-  it("201, rascunho vazio, responsável e criado_por = nome do usuário logado, número 1 do mês", async () => {
+  it("201, rascunho vazio, responsável e criado_por = nome do usuário logado, empresa FARMAURORA, 1 ordem, sem itens, número 1 do mês", async () => {
     const c = await chamar<Compra>(criarPost, usuario("operacional"));
     expect(h.status).toBe(201);
-    expect(c).toMatchObject({ sequencia: 1, cancelada: false, paciente: "", responsavel: "Pessoa operacional", criadoPor: "Pessoa operacional", ordens: [] });
+    expect(c).toMatchObject({ sequencia: 1, cancelada: false, paciente: "", responsavel: "Pessoa operacional", criadoPor: "Pessoa operacional", empresa: "FARMAURORA", numeroOrdens: 1, itens: [] });
     expect((await chamar<Compra>(criarPost, adm)).sequencia).toBe(2);
+  });
+
+  it("a resposta tem exatamente as chaves do contrato (e nenhuma das que saíram)", async () => {
+    const c = await criarCompraDireta();
+    expect(Object.keys(c).sort()).toEqual([...CHAVES_DA_COMPRA].sort());
   });
 });
 
 describe("GET /api/compras (lista)", () => {
-  it("sem ?ano_mes usa o mês atual de Brasília; devolve { anoMes, compras } sem as ordens", async () => {
+  it("sem ?ano_mes usa o mês atual de Brasília; cada compra vem só com o necessário: id, anoMes, sequencia, cancelada, paciente, medicamentos, numeroOrdens, atualizadoEm", async () => {
     const c = await criarCompraDireta();
-    const r = await chamar<{ anoMes: string; compras: Array<{ id: string }> }>(listaGet, adm);
+    const r = await chamar<{ anoMes: string; compras: Array<Record<string, unknown>> }>(listaGet, adm);
     expect(r.anoMes).toBe(c.anoMes);
     expect(r.compras.map((x) => x.id)).toEqual([c.id]);
-    expect(r.compras[0]).not.toHaveProperty("ordens");
+    expect(Object.keys(r.compras[0]!).sort()).toEqual(["anoMes", "atualizadoEm", "cancelada", "id", "medicamentos", "numeroOrdens", "paciente", "sequencia"]);
   });
 
   it("?ano_mes inválido → 400; mês sem compras → lista vazia (com os totais zerados); o sócio lê", async () => {
@@ -267,32 +284,50 @@ describe("GET /api/compras (lista)", () => {
       compras: [],
       temMais: false,
       total: 0,
-      totais: { rascunho: 0, pronta: 0, cancelada: 0 },
+      totais: { ativas: 0, canceladas: 0 },
     });
   });
 
-  it("?status= e ?pagina= são validados (400) e repassados; a resposta traz totais, total, pagina e limite", async () => {
+  it("a resposta traz pagina, limite, temMais, total e os totais { ativas, canceladas } (sem status nem pendências)", async () => {
     const c = await criarCompraDireta();
-    h.query = { ano_mes: c.anoMes, status: "rascunho" };
-    const r = await chamar<{ compras: Array<{ id: string; status: string; pendencias: number }>; status: string; pagina: number; limite: number; temMais: boolean; total: number; totais: Record<string, number> }>(listaGet, adm);
-    expect(r).toMatchObject({ status: "rascunho", pagina: 1, limite: 50, temMais: false, total: 1, totais: { rascunho: 1, pronta: 0, cancelada: 0 } });
-    expect(r.compras[0]).toMatchObject({ id: c.id, status: "rascunho" });
-    h.query = { ano_mes: c.anoMes, status: "pronta" };
-    expect((await chamar<{ compras: unknown[] }>(listaGet, adm)).compras).toEqual([]);
-    for (const ruim of [{ status: "todas" }, { status: "PRONTA" }, { pagina: "0" }, { pagina: "x" }]) {
+    h.query = { ano_mes: c.anoMes };
+    const r = await chamar<Record<string, unknown>>(listaGet, adm);
+    expect(Object.keys(r).sort()).toEqual(["anoMes", "compras", "limite", "pagina", "temMais", "total", "totais"].sort());
+    expect(r).toMatchObject({ pagina: 1, limite: 50, temMais: false, total: 1, totais: { ativas: 1, canceladas: 0 } });
+  });
+
+  it("?status= (que saiu) é IGNORADO como qualquer parâmetro desconhecido: mesma resposta, sem 400", async () => {
+    const c = await criarCompraDireta();
+    h.query = { ano_mes: c.anoMes };
+    const sem = await chamar(listaGet, adm);
+    for (const status of ["rascunho", "pronta", "parcial", "encaminhada", "cancelada", "lixo"]) {
+      h.query = { ano_mes: c.anoMes, status };
+      expect(await chamar(listaGet, adm), status).toEqual(sem);
+    }
+  });
+
+  it("?pagina= inválida → 400", async () => {
+    const c = await criarCompraDireta();
+    for (const ruim of [{ pagina: "0" }, { pagina: "x" }, { pagina: "-1" }]) {
       h.query = { ano_mes: c.anoMes, ...ruim };
       expect((await erroDe(chamar(listaGet, adm))).status, JSON.stringify(ruim)).toBe(400);
     }
   });
 
-  it("canceladas só aparecem com ?incluir_canceladas=1", async () => {
+  it("canceladas só aparecem com ?incluir_canceladas=1, e os totais contam as duas", async () => {
     const c = await criarCompraDireta();
+    await criarCompraDireta();
     h.params = { id: c.id };
     await chamar(cancelarPost, adm);
     h.query = { ano_mes: c.anoMes };
-    expect((await chamar<{ compras: unknown[] }>(listaGet, adm)).compras).toHaveLength(0);
+    const sem = await chamar<{ compras: unknown[]; total: number; totais: unknown }>(listaGet, adm);
+    expect(sem.compras).toHaveLength(1);
+    expect(sem.total).toBe(1);
+    expect(sem.totais).toEqual({ ativas: 1, canceladas: 1 });
     h.query = { ano_mes: c.anoMes, incluir_canceladas: "1" };
-    expect((await chamar<{ compras: unknown[] }>(listaGet, adm)).compras).toHaveLength(1);
+    const com = await chamar<{ compras: unknown[]; total: number }>(listaGet, adm);
+    expect(com.compras).toHaveLength(2);
+    expect(com.total).toBe(2);
   });
 });
 
@@ -308,6 +343,16 @@ describe("GET /api/compras/:id", () => {
       expect((await erroDe(chamar(detalheGet, adm))).status, ruim).toBe(400);
     }
   });
+
+  it("o item traz as chaves do contrato, inclusive medicamentoCadastroNome (do Cadastro, 1 consulta extra)", async () => {
+    const c = await criarCompraDireta();
+    fake.semear("cadastro_medicamentos", [{ id: "med_1", nome: "KEYTRUDA 100MG", temperatura: "2°C a 8°C", ativo: true }]);
+    fake.semear("compra_itens", [{ id: "itm_teste_01", compra_id: c.id, posicao: 1, medicamento: "KEYTRUDA 100MG - 2 vials per box", medicamento_cadastro_id: "med_1", brand: "referencia" }]);
+    h.params = { id: c.id };
+    const lida = await chamar<Compra>(detalheGet, adm);
+    expect(Object.keys(lida.itens[0]!).sort()).toEqual([...CHAVES_DO_ITEM].sort());
+    expect(lida.itens[0]).toMatchObject({ medicamentoCadastroId: "med_1", medicamentoCadastroNome: "KEYTRUDA 100MG", brand: "referencia" });
+  });
 });
 
 describe("PATCH /api/compras/:id (autosave)", () => {
@@ -316,6 +361,7 @@ describe("PATCH /api/compras/:id (autosave)", () => {
     h.body = { atualizadoEm: c.updatedAt, ...corpo };
     return chamar<Compra>(salvarPatch, user);
   }
+  const itemDe = (id: string, extra: Record<string, unknown> = {}): Record<string, unknown> => ({ id, medicamento: "MEDICAMENTO TESTE", ...extra });
 
   it("rascunho parcial é salvo; a versão avança; atualizado_por é quem salvou; os outros campos ficam", async () => {
     const c = await criarCompraDireta();
@@ -324,11 +370,14 @@ describe("PATCH /api/compras/:id (autosave)", () => {
     expect(s.updatedAt > c.updatedAt).toBe(true);
   });
 
-  it("corpo inválido → 400 e nada muda", async () => {
+  it("corpo inválido → 400 e nada muda (inclusive as chaves que saíram do modelo e as só de leitura)", async () => {
     const c = await criarCompraDireta();
-    for (const corpo of [{ campoNovo: 1 }, { paciente: 5 }, { ordens: "x" }, { cancelada: true }, { sequencia: 99 }]) {
-      expect((await erroDe(salvar(c, corpo))).status, JSON.stringify(corpo)).toBe(400);
-    }
+    const ruins = [
+      { campoNovo: 1 }, { paciente: 5 }, { itens: "x" }, { cancelada: true }, { sequencia: 99 },
+      { vendedor: "X" }, { ordens: [] }, { courierSimples: true }, { localDeclarado: true }, { isencaoPara: "X" }, { po: "PO26-11-0001" },
+      { itens: [itemDe("itm_teste_01", { medicamentoCadastroNome: "X" })] }, { itens: [itemDe("itm_teste_01", { apresentacao: "10 mg" })] },
+    ];
+    for (const corpo of ruins) expect((await erroDe(salvar(c, corpo))).status, JSON.stringify(corpo)).toBe(400);
     h.params = { id: c.id };
     h.body = {};
     expect((await erroDe(chamar(salvarPatch, adm))).status).toBe(400); // sem atualizadoEm
@@ -356,40 +405,62 @@ describe("PATCH /api/compras/:id (autosave)", () => {
     expect((await erroDe(salvar(cancelada, { paciente: "X" }))).status).toBe(409);
   });
 
-  it("ordem com itens: grava, e `ordens: []` apaga", async () => {
+  it("item de OUTRA compra: 409 e nada muda", async () => {
+    const a = await criarCompraDireta();
+    const b = await criarCompraDireta();
+    await salvar(b, { itens: [itemDe("itm_da_b01")] });
+    const e = await erroDe(salvar(a, { paciente: "NAO_GRAVA", itens: [itemDe("itm_da_b01")] }));
+    expect(e.status).toBe(409);
+    h.params = { id: a.id };
+    expect(await chamar<Compra>(detalheGet, adm)).toMatchObject({ paciente: "", itens: [] });
+  });
+
+  it("os campos da compra única (fornecedor, envio, cia, empresa, numeroOrdens, frete, freteReal, consultor) e os itens: grava, e `itens: []` apaga", async () => {
     const c = await criarCompraDireta();
-    const comOrdem = await salvar(c, {
-      ordens: [
-        {
-          id: "ord_teste_01",
-          po: "po26-11-0001",
-          frete: 10,
-          itens: [{ id: "itm_teste_01", medicamento: "MEDICAMENTO TESTE", quantidade: "2 caixas", valorUnitario: 5 }],
-        },
-      ],
+    const s = await salvar(c, {
+      fornecedor: "fornecedor teste",
+      envio: MODAIS_ENVIO[0],
+      cia: "emirates",
+      empresa: "MAINZFARMA",
+      numeroOrdens: 2,
+      frete: 10,
+      freteReal: 9.5,
+      consultor: "mateus morais",
+      itens: [itemDe("itm_teste_01", { quantidade: "2 caixas", valorUnitario: 5, laboratorio: "LAB", brand: "bioequivalente" })],
     });
-    expect(comOrdem.ordens).toHaveLength(1);
-    expect(comOrdem.ordens[0]).toMatchObject({ id: "ord_teste_01", po: "PO26-11-0001", frete: 10 });
-    expect(comOrdem.ordens[0]!.itens[0]).toMatchObject({ medicamento: "MEDICAMENTO TESTE", valorUnitario: 5 });
-    const vazia = await salvar(comOrdem, { ordens: [] });
-    expect(vazia.ordens).toEqual([]);
+    expect(s).toMatchObject({ fornecedor: "Fornecedor Teste", envio: "Air Cargo", cia: "Emirates", empresa: "MAINZFARMA", numeroOrdens: 2, frete: 10, freteReal: 9.5, consultor: "Mateus Morais" });
+    expect(s.itens).toHaveLength(1);
+    expect(s.itens[0]).toMatchObject({ id: "itm_teste_01", posicao: 1, medicamento: "MEDICAMENTO TESTE", valorUnitario: 5, laboratorio: "LAB", brand: "bioequivalente", medicamentoCadastroNome: null });
+    const vazia = await salvar(s, { itens: [] });
+    expect(vazia.itens).toEqual([]);
   });
 
-  it("limites: 11 ordens e 31 itens → 400", async () => {
+  it("os itens que não vierem são apagados (estado completo) e a posição é a ordem do array", async () => {
     const c = await criarCompraDireta();
-    const ordens = Array.from({ length: 11 }, (_, i) => ({ id: `ord_teste_${String(i).padStart(2, "0")}`, itens: [] }));
-    expect((await erroDe(salvar(c, { ordens }))).status).toBe(400);
-    const itens = Array.from({ length: 31 }, (_, i) => ({ id: `itm_teste_${String(i).padStart(2, "0")}` }));
-    expect((await erroDe(salvar(c, { ordens: [{ id: "ord_teste_01", itens }] }))).status).toBe(400);
+    const tres = await salvar(c, { itens: [itemDe("itm_teste_01"), itemDe("itm_teste_02"), itemDe("itm_teste_03")] });
+    const reordenado = await salvar(tres, { itens: [itemDe("itm_teste_03"), itemDe("itm_teste_01")] });
+    expect(reordenado.itens.map((i) => [i.id, i.posicao])).toEqual([["itm_teste_03", 1], ["itm_teste_01", 2]]);
+    expect(fake.tabelas.compra_itens!.map((i) => i.id).sort()).toEqual(["itm_teste_01", "itm_teste_03"]);
   });
 
-  describe("validação contra o Cadastro (422)", () => {
-    it("vendedor: consultor ativo é aceito (grava o nome do Cadastro); desconhecido e inativo → 422", async () => {
+  it("limites: numeroOrdens só de 1 a 10 e 31 itens → 400 (a mensagem do Nº Ordem)", async () => {
+    const c = await criarCompraDireta();
+    expect((await salvar(c, { numeroOrdens: 10 })).numeroOrdens).toBe(10);
+    const atual = await chamar<Compra>(detalheGet, adm);
+    for (const ruim of [11, 0, -1, 1.5, "2", null]) {
+      expect(await erroDe(salvar(atual, { numeroOrdens: ruim })), String(ruim)).toMatchObject({ status: 400, msg: NUMERO_REMESSA_ERRO });
+    }
+    const itens = Array.from({ length: 31 }, (_, i) => ({ id: `itm_teste_${String(i).padStart(2, "0")}` }));
+    expect((await erroDe(salvar(atual, { itens }))).status).toBe(400);
+  });
+
+  describe("validação contra o Cadastro e as constantes (422)", () => {
+    it("consultor: ativo é aceito (grava o nome do Cadastro); desconhecido e inativo → 422 'Consultor inválido'", async () => {
       const c = await criarCompraDireta();
-      expect((await salvar(c, { vendedor: "  mateus   MORAIS " })).vendedor).toBe("Mateus Morais");
+      expect((await salvar(c, { consultor: "  mateus   MORAIS " })).consultor).toBe("Mateus Morais");
       const atual = await chamar<Compra>(detalheGet, adm);
       for (const ruim of ["Fulano Qualquer", "Junior"]) {
-        expect(await erroDe(salvar(atual, { vendedor: ruim })), ruim).toMatchObject({ status: 422, msg: "Vendedor inválido: escolha um consultor ativo do Cadastro." });
+        expect(await erroDe(salvar(atual, { consultor: ruim })), ruim).toMatchObject({ status: 422, msg: "Consultor inválido: escolha um consultor ativo do Cadastro." });
       }
     });
 
@@ -402,37 +473,87 @@ describe("PATCH /api/compras/:id (autosave)", () => {
       }
     });
 
-    it("ordem: fornecedor e cia ativos aceitos; inativo/desconhecido → 422 dizendo o número da ordem; envio só os modais fixos", async () => {
+    it("fornecedor (da compra): ativo aceito; inativo ou desconhecido → 422", async () => {
       const c = await criarCompraDireta();
-      const ok = await salvar(c, { ordens: [{ id: "ord_teste_01", fornecedor: "fornecedor teste", cia: "CIA TESTE", envio: MODAIS_ENVIO[0], itens: [] }] });
-      expect(ok.ordens[0]).toMatchObject({ fornecedor: "Fornecedor Teste", cia: "Cia Teste", envio: MODAIS_ENVIO[0] });
-      const base = { id: "ord_teste_01", itens: [] };
-      expect(await erroDe(salvar(ok, { ordens: [{ ...base, fornecedor: "Fornecedor Velho" }] }))).toMatchObject({ status: 422, msg: expect.stringContaining("Ordem 1: fornecedor inválido") });
-      expect((await erroDe(salvar(ok, { ordens: [{ ...base, cia: "Cia Inexistente" }] }))).msg).toContain("Ordem 1: cia aérea inválida");
-      expect((await erroDe(salvar(ok, { ordens: [{ ...base, envio: "Pombo-correio" }] }))).msg).toContain("Ordem 1: envio inválido");
-      expect((await erroDe(salvar(ok, { ordens: [{ ...base, itens: [], fornecedor: "Fornecedor Teste" }, { id: "ord_teste_02", itens: [], cia: "Nada" }] }))).msg).toContain("Ordem 2:");
+      expect((await salvar(c, { fornecedor: "FORNECEDOR TESTE" })).fornecedor).toBe("Fornecedor Teste");
+      const atual = await chamar<Compra>(detalheGet, adm);
+      for (const ruim of ["Fornecedor Velho", "Outro Fornecedor"]) {
+        expect(await erroDe(salvar(atual, { fornecedor: ruim })), ruim).toMatchObject({ status: 422, msg: "Fornecedor inválido: escolha um fornecedor ativo do Cadastro." });
+      }
     });
 
-    it("tolerância a dado antigo: o valor igual ao que a compra já tem passa mesmo se o item foi desativado", async () => {
+    it("envio: só os modais fixos (MODAIS_ENVIO); qualquer outro → 422", async () => {
+      let atual = await criarCompraDireta();
+      for (const bom of MODAIS_ENVIO) atual = await salvar(atual, { envio: bom });
+      expect(atual.envio).toBe(MODAIS_ENVIO[MODAIS_ENVIO.length - 1]);
+      expect(await erroDe(salvar(atual, { envio: "Pombo-correio" }))).toMatchObject({ status: 422, msg: expect.stringContaining("Envio inválido") });
+    });
+
+    it("cia: vem da constante POR MODAL (não do Cadastro de cias aéreas): vale a do modal; a de outro modal, a de ninguém e a sem envio → 422", async () => {
       const c = await criarCompraDireta();
-      const com = await salvar(c, { despachante: "Despachante Teste" });
-      const linha = fake.tabelas.cadastro_despachantes!.find((l) => l.nome === "Despachante Teste")!;
-      linha.ativo = false; // desativado no Cadastro depois
-      expect((await salvar(com, { despachante: "Despachante Teste", paciente: "SEGUE SALVANDO" })).paciente).toBe("SEGUE SALVANDO");
-      const atual = await chamar<Compra>(detalheGet, adm);
-      expect((await erroDe(salvar(atual, { despachante: "Despachante Velho" }))).status).toBe(422); // trocar por outro inativo não
+      fake.chamadas.length = 0;
+      const ok = await salvar(c, { envio: "Air Cargo", cia: "Emirates" });
+      expect(ok).toMatchObject({ envio: "Air Cargo", cia: "Emirates" });
+      expect(fake.chamadas.filter((x) => x.tabela === "cadastro_cias_aereas")).toEqual([]); // o Cadastro de cias aéreas não é mais lido
+      const courier = await salvar(ok, { envio: "Courier Formal", cia: "DHL" });
+      expect(courier).toMatchObject({ envio: "Courier Formal", cia: "DHL" });
+      const vazia = await salvar(courier, { cia: "" });
+      expect(vazia.cia).toBe("");
+      for (const [envio, cia] of [["Air Cargo", "DHL"], ["Courier Simples", "Emirates"], ["Air Cargo", "Cia Teste"], ["", "Emirates"]] as const) {
+        expect(await erroDe(salvar(vazia, { envio, cia })), `${envio} + ${cia}`).toMatchObject({ status: 422, msg: "Cia aérea inválida: escolha uma cia que vale para o envio (e escolha o envio primeiro)." });
+      }
+    });
+
+    it("trocar só o envio quando a cia que a compra já tem deixa de valer para o novo modal → 422; trocar para um em que vale passa", async () => {
+      const c = await criarCompraDireta();
+      const air = await salvar(c, { envio: "Air Cargo", cia: "Emirates" });
+      expect((await erroDe(salvar(air, { envio: "Courier Formal" }))).status).toBe(422); // Emirates não faz Courier Formal
+      expect((await salvar(air, { envio: "Air Cargo", paciente: "MESMO PAR" })).paciente).toBe("MESMO PAR");
+    });
+
+    it("empresa: FARMAURORA e MAINZFARMA aceitas; qualquer outra → 422", async () => {
+      const c = await criarCompraDireta();
+      const m = await salvar(c, { empresa: "MAINZFARMA" });
+      expect(m.empresa).toBe("MAINZFARMA");
+      for (const ruim of ["OUTRA", "farmaurora", ""]) {
+        expect(await erroDe(salvar(m, { empresa: ruim })), ruim).toMatchObject({ status: 422, msg: "Empresa inválida: escolha FARMAURORA ou MAINZFARMA." });
+      }
+    });
+
+    it("brand de cada medicamento: '' e os valores de BRANDS_MEDICAMENTO aceitos; qualquer outro → 422 dizendo o número do medicamento", async () => {
+      const c = await criarCompraDireta();
+      const ok = await salvar(c, { itens: [itemDe("itm_teste_01", { brand: "" }), itemDe("itm_teste_02", { brand: "referencia" }), itemDe("itm_teste_03", { brand: "bioequivalente" })] });
+      expect(ok.itens.map((i) => i.brand)).toEqual(["", "referencia", "bioequivalente"]);
+      expect(await erroDe(salvar(ok, { itens: [itemDe("itm_teste_01"), itemDe("itm_teste_02", { brand: "xpto" })] }))).toMatchObject({ status: 422, msg: "Medicamento 2: brand inválido: escolha bioequivalente ou referencia." });
+      expect((await erroDe(salvar(ok, { itens: [itemDe("itm_teste_01", { brand: "Referência" })] }))).status).toBe(422);
+    });
+
+    it("tolerância a dado antigo: o valor igual ao que a compra já tem passa mesmo se o item foi desativado; brand antigo vira vazio na leitura", async () => {
+      const c = await criarCompraDireta();
+      const com = await salvar(c, { despachante: "Despachante Teste", fornecedor: "Fornecedor Teste", consultor: "Mateus Morais", itens: [itemDe("itm_teste_01")] });
+      fake.tabelas.cadastro_despachantes!.find((l) => l.nome === "Despachante Teste")!.ativo = false;
+      fake.tabelas.cadastro_fornecedores!.find((l) => l.nome === "Fornecedor Teste")!.ativo = false;
+      fake.tabelas.cadastro_consultores!.find((l) => l.nome === "Mateus Morais")!.ativo = false;
+      const segue = await salvar(com, { despachante: "Despachante Teste", fornecedor: "Fornecedor Teste", consultor: "Mateus Morais", paciente: "SEGUE SALVANDO" });
+      expect(segue).toMatchObject({ paciente: "SEGUE SALVANDO", despachante: "Despachante Teste", fornecedor: "Fornecedor Teste", consultor: "Mateus Morais" });
+      expect((await erroDe(salvar(segue, { despachante: "Despachante Velho" }))).status).toBe(422); // trocar por outro inativo não
+      // Brand antigo que não vale (o banco não tem check): a leitura o devolve como "" e o salvamento segue normal.
+      fake.tabelas.compra_itens![0]!.brand = "legado";
+      const lida = await chamar<Compra>(detalheGet, adm);
+      expect(lida.itens[0]!.brand).toBe("");
+      expect((await salvar(lida, { itens: [itemDe("itm_teste_01", { brand: lida.itens[0]!.brand })] })).itens[0]!.brand).toBe("");
     });
 
     it("campo vazio nunca é validado (rascunho parcial); medicamento e temperatura livres passam", async () => {
       const c = await criarCompraDireta();
-      const s = await salvar(c, { vendedor: "", despachante: "", ordens: [{ id: "ord_teste_01", itens: [{ id: "itm_teste_01", medicamento: "Medicamento fora do Cadastro", temperatura: "Temperatura nova" }] }] });
-      expect(s.ordens[0]!.itens[0]).toMatchObject({ medicamento: "Medicamento fora do Cadastro", temperatura: "Temperatura nova" });
+      const s = await salvar(c, { consultor: "", despachante: "", fornecedor: "", envio: "", cia: "", itens: [itemDe("itm_teste_01", { medicamento: "Medicamento fora do Cadastro", temperatura: "Temperatura nova" })] });
+      expect(s.itens[0]).toMatchObject({ medicamento: "Medicamento fora do Cadastro", temperatura: "Temperatura nova" });
     });
 
     it("um 422 não grava nada (nem a versão avança)", async () => {
       const c = await criarCompraDireta();
-      await erroDe(salvar(c, { paciente: "NÃO DEVE GRAVAR", vendedor: "Ninguém" }));
-      expect(await chamar<Compra>(detalheGet, adm)).toMatchObject({ paciente: "", updatedAt: c.updatedAt });
+      await erroDe(salvar(c, { paciente: "NÃO DEVE GRAVAR", consultor: "Ninguém", itens: [itemDe("itm_teste_01")] }));
+      expect(await chamar<Compra>(detalheGet, adm)).toMatchObject({ paciente: "", updatedAt: c.updatedAt, itens: [] });
     });
   });
 });
@@ -455,19 +576,19 @@ describe("recorrente pelas rotas", () => {
 });
 
 describe("POST /api/compras/:id/duplicar", () => {
-  it("201, nova compra com o próximo número, mesmos dados e ordens com ids novos; 404 se a original não existe", async () => {
+  it("201, nova compra com o próximo número, mesmos dados e medicamentos com ids novos; 404 se a original não existe", async () => {
     const c = await criarCompraDireta();
     h.params = { id: c.id };
-    h.body = { atualizadoEm: c.updatedAt, paciente: "PACIENTE TESTE", ordens: [{ id: "ord_teste_01", po: "PO26-11-0001", itens: [{ id: "itm_teste_01", medicamento: "MED TESTE" }] }] };
+    h.body = { atualizadoEm: c.updatedAt, paciente: "PACIENTE TESTE", fornecedor: "Fornecedor Teste", envio: "Air Cargo", numeroOrdens: 3, itens: [{ id: "itm_teste_01", medicamento: "MED TESTE", brand: "referencia" }] };
     await chamar(salvarPatch, adm);
     h.status = 0;
     const copia = await chamar<Compra>(duplicarPost, usuario("operacional"));
     expect(h.status).toBe(201);
-    expect(copia).toMatchObject({ sequencia: 2, paciente: "PACIENTE TESTE", cancelada: false, criadoPor: "Pessoa operacional" });
+    expect(copia).toMatchObject({ sequencia: 2, paciente: "PACIENTE TESTE", fornecedor: "Fornecedor Teste", envio: "Air Cargo", numeroOrdens: 3, cancelada: false, criadoPor: "Pessoa operacional" });
     expect(copia.id).not.toBe(c.id);
-    expect(copia.ordens[0]!.id).not.toBe("ord_teste_01");
-    expect(copia.ordens[0]).toMatchObject({ po: "" });
-    expect(copia.ordens[0]!.itens[0]).toMatchObject({ medicamento: "MED TESTE" });
+    expect(copia.itens[0]!.id).not.toBe("itm_teste_01");
+    expect(copia.itens[0]).toMatchObject({ medicamento: "MED TESTE", brand: "referencia" });
+    expect(Object.keys(copia).sort()).toEqual([...CHAVES_DA_COMPRA].sort());
 
     h.params = { id: "cmp_nao_existe" };
     expect((await erroDe(chamar(duplicarPost, adm))).status).toBe(404);
@@ -475,11 +596,12 @@ describe("POST /api/compras/:id/duplicar", () => {
 });
 
 describe("POST /api/compras/:id/cancelar", () => {
-  it("cancela (não apaga), é idempotente e 404 se não existe", async () => {
+  it("cancela (não apaga), é idempotente, devolve a compra do contrato e 404 se não existe", async () => {
     const c = await criarCompraDireta();
     h.params = { id: c.id };
     const a = await chamar<Compra>(cancelarPost, adm);
     expect(a.cancelada).toBe(true);
+    expect(Object.keys(a).sort()).toEqual([...CHAVES_DA_COMPRA].sort());
     const b = await chamar<Compra>(cancelarPost, adm);
     expect(b.cancelada).toBe(true);
     expect(fake.tabelas.compras).toHaveLength(1); // a linha continua lá
@@ -492,7 +614,7 @@ describe("nenhuma rota de Compras devolve chave PIX", () => {
   it("a resposta de qualquer rota, mesmo com despachante e PIX no Cadastro, não contém a chave nem o campo (o fake devolve a linha inteira, então o filtro está no código)", async () => {
     const c = await criarCompraDireta();
     h.params = { id: c.id };
-    h.body = { atualizadoEm: c.updatedAt, despachante: "Despachante Teste", ordens: [{ id: "ord_teste_01", fornecedor: "Fornecedor Teste", itens: [] }] };
+    h.body = { atualizadoEm: c.updatedAt, despachante: "Despachante Teste", fornecedor: "Fornecedor Teste", itens: [] };
     const salvo = await chamar<Compra>(salvarPatch, adm);
     h.query = { ano_mes: c.anoMes };
     const respostas = [salvo, await chamar(listaGet, adm), await chamar(detalheGet, adm), await chamar(duplicarPost, adm), await chamar(cancelarPost, adm)];

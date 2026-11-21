@@ -5,7 +5,7 @@ import { idDaCompraValido } from "../../../shared/utils/compraValidacao";
 import { exigirLeituraCompras } from "../../utils/comprasAcesso";
 import { obterCompra } from "../../utils/comprasStore";
 
-// A compra com as ordens e os itens por posição. Quem LÊ Compras (o sócio inclusive, com os valores). 404 se não existe.
+// A compra com os medicamentos (itens) por posição. Quem LÊ Compras (o sócio inclusive, com os valores). 404 se não existe.
 export default defineEventHandler(async (event): Promise<Compra> => {
   const user: AuthUser | null | undefined = event.context.user;
   exigirLeituraCompras(user);
