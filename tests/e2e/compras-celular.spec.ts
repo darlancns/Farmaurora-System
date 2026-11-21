@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 
-// A página Compras no CELULAR (375x667) e em tela larga (1280x800 e 2130x1200): abas, barra fixa do Resumo, cabeçalho com menu "…", cartão
-// de medicamento empilhado, lista de sugestões sem corte, checklist clicável e o parâmetro ?aba= (que o desktop ignora).
+// A página Compras no CELULAR (375x667) e em tela larga (1280x800 e 2130x1200): abas, barra fixa do Resumo, cabeçalho com menu "…", formulário
+// único (rótulo acima do controle, Med. 1/Med. 2 empilhados), lista de sugestões sem corte e o parâmetro ?aba= (que o desktop ignora).
 //
 // ESCRITO, NÃO EXECUTADO. A e2e só roda no Supabase LOCAL (a guarda em tests/e2e/_guards aborta fora de loopback): estes testes CRIAM
 // compras de verdade (paciente "TESTE E2E ...") e o contador do mês avança a cada "+ Nova compra". Nunca rode contra produção.
@@ -27,7 +27,7 @@ async function login(page: Page, email: string, password: string): Promise<void>
 
 const unico = (): string => `TESTE E2E ${Date.now()}`;
 const CELULAR = { width: 375, height: 667 };
-const primeiroFornecedor = (page: Page) => page.locator("[id^='ordem-'][id$='-fornecedor']").first();
+const primeiroMedicamento = (page: Page) => page.locator("[id^='compra-item-'][id$='-medicamento']").first();
 
 async function abrir(page: Page, viewport: { width: number; height: number }, query = ""): Promise<void> {
   await page.setViewportSize(viewport);
@@ -38,7 +38,7 @@ async function abrir(page: Page, viewport: { width: number; height: number }, qu
 /** Cria uma compra pelo botão (qualquer largura) e digita o paciente. No celular a criação já leva ao Formulário. */
 async function criarCompra(page: Page, paciente: string): Promise<void> {
   await page.locator("#btn-nova-compra").click();
-  await expect(primeiroFornecedor(page)).toBeFocused();
+  await expect(primeiroMedicamento(page)).toBeFocused();
   await page.locator("#compra-paciente").fill(paciente);
   await expect(page.locator("#compra-salvamento")).toContainText("Salvo automaticamente às");
 }
@@ -122,43 +122,35 @@ test.describe("Compras (celular, 375x667) — um painel por vez", () => {
     await expect(page.locator("#compra-titulo")).toBeVisible();
   });
 
-  test("campos de 16px e 44px; Frete e Frete real lado a lado; cartão de medicamento empilhado com ✕ de 44px", async ({ page }) => {
+  test("campos de 16px e 44px; o rótulo fica ACIMA do controle; com 2 medicamentos os controles ficam empilhados (Med. 1 acima do Med. 2) com ✕ de 44px", async ({ page }) => {
     await abrir(page, CELULAR);
     await criarCompra(page, unico());
     const medida = async (sel: string) => page.locator(sel).first().evaluate((el) => ({ fonte: getComputedStyle(el).fontSize, altura: el.getBoundingClientRect().height }));
     const paciente = await medida("#compra-paciente");
     expect(paciente.fonte).toBe("16px");
     expect(paciente.altura).toBeGreaterThanOrEqual(44);
-    const po = await medida("[id^='ordem-'][id$='-po']");
-    expect(po.fonte).toBe("16px");
-    const frete = (await page.locator("[id^='ordem-'][id$='-frete']").first().boundingBox())!;
-    const freteReal = (await page.locator("[id^='ordem-'][id$='-frete-real']").first().boundingBox())!;
-    expect(Math.abs(frete.y - freteReal.y)).toBeLessThan(4); // na mesma linha
-    // Um 2º medicamento (com ✕) vira cartão: Medicamento em cima; Qtd e Temperatura lado a lado; depois os valores; Apresentação por último.
+    const frete = await medida("#compra-frete");
+    expect(frete.fonte).toBe("16px");
+    // O rótulo da linha está acima do controle (não à esquerda).
+    const rotulo = (await page.locator("#compra-linha-paciente-rotulo").boundingBox())!;
+    const controle = (await page.locator("#compra-paciente").boundingBox())!;
+    expect(rotulo.y + rotulo.height).toBeLessThanOrEqual(controle.y + 1);
+    // Um 2º medicamento (com ✕) empilha os controles por medicamento.
     await page.getByRole("button", { name: "+ Adicionar medicamento" }).click();
-    const linha = page.locator("[data-item-linha]").nth(1);
-    const caixa = async (nome: string) => (await linha.locator(`[id$='-${nome}']`).first().boundingBox())!;
-    const med = await caixa("medicamento");
-    const qtd = await caixa("quantidade");
-    const temp = await caixa("temperatura");
-    const unit = await caixa("valor-unitario");
-    const real = await caixa("valor-real");
-    const apres = await caixa("apresentacao");
-    expect(med.y).toBeLessThan(qtd.y);
-    expect(Math.abs(qtd.y - temp.y)).toBeLessThan(6);
-    expect(qtd.y).toBeLessThan(unit.y);
-    expect(Math.abs(unit.y - real.y)).toBeLessThan(6);
-    expect(unit.y).toBeLessThan(apres.y);
-    const x = (await linha.getByRole("button", { name: "Remover medicamento" }).boundingBox())!;
+    const labs = page.locator("[id^='compra-item-'][id$='-laboratorio']");
+    await expect(labs).toHaveCount(2);
+    const lab1 = (await labs.nth(0).boundingBox())!;
+    const lab2 = (await labs.nth(1).boundingBox())!;
+    expect(lab1.y).toBeLessThan(lab2.y);
+    const x = (await page.getByRole("button", { name: "Remover Med. 2" }).boundingBox())!;
     expect(x.width).toBeGreaterThanOrEqual(44);
     expect(x.height).toBeGreaterThanOrEqual(44);
-    await expect(linha.locator("details")).not.toHaveAttribute("open", "");
   });
 
   test("a lista de sugestões do medicamento abre sem ser cortada pelo teclado nem pela barra de baixo", async ({ page }) => {
     await abrir(page, CELULAR);
     await criarCompra(page, unico());
-    const campo = page.locator("[id^='item-'][id$='-medicamento']").first();
+    const campo = primeiroMedicamento(page);
     await campo.fill("a");
     const lista = page.locator("[role=listbox]").first();
     await expect(lista).toBeVisible();
@@ -169,17 +161,15 @@ test.describe("Compras (celular, 375x667) — um painel por vez", () => {
     expect(caixa.height).toBeLessThanOrEqual(224);
   });
 
-  test("clicar num erro do checklist, na aba Resumo, TROCA para o Formulário e leva o foco ao campo", async ({ page }) => {
+  test("a aba Resumo mostra o resumo ao vivo (modelo) com os vazios tracejados; digitar no Formulário e voltar mostra o que foi digitado", async ({ page }) => {
     await abrir(page, CELULAR);
-    await page.locator("#btn-nova-compra").click(); // paciente fica vazio de propósito
-    await expect(primeiroFornecedor(page)).toBeFocused();
+    await page.locator("#btn-nova-compra").click();
+    await expect(primeiroMedicamento(page)).toBeFocused();
+    await page.locator("#compra-paciente").fill("TESTE E2E celular resumo");
     await page.getByRole("radio", { name: "Resumo" }).click();
     await expect(page.locator("#compras-coluna-central")).toBeHidden();
-    await page.locator("[data-ir-campo='paciente']").click();
-    await expect(page.locator("#compras-coluna-central")).toBeVisible();
-    await expect(page.locator("#compra-paciente")).toBeFocused();
-    await expect(page.locator("[data-campo='paciente']")).toHaveAttribute("data-destaque", "");
-    await expect(page.locator("[data-campo='paciente']")).not.toHaveAttribute("data-destaque", "", { timeout: 4000 }); // some em ~1,5 s
+    await expect(page.locator("[data-resumo-linha='paciente']")).toContainText("Paciente: Teste E2e Celular Resumo");
+    await expect(page.locator("[data-resumo-linha='laboratorio']")).toHaveAttribute("data-vazio", "true");
   });
 });
 
@@ -199,14 +189,13 @@ for (const [nome, viewport] of [
       await abrir(page, viewport, "?aba=resumo");
       await expect(page.locator("#compras-abas")).toBeHidden();
       for (const id of ["#compras-coluna-esquerda", "#compras-coluna-central", "#compras-coluna-direita"]) await expect(page.locator(id)).toBeVisible();
-      await expect(page.locator("#compras-direita-vazia")).toHaveText("O checklist e o resumo aparecem aqui quando você abrir uma compra.");
+      await expect(page.locator("#compras-direita-vazia")).toHaveText("O resumo aparece aqui quando você abrir uma compra.");
     });
 
-    test("os chips de filtro ficam numa LINHA só na coluna da lista", async ({ page }) => {
+    test("a lista não tem chips de status: só 'Mostrar canceladas (N)'", async ({ page }) => {
       await abrir(page, viewport);
-      const topos = await page.locator("#compras-filtros button").evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)));
-      expect(topos.length).toBeGreaterThanOrEqual(4);
-      expect(new Set(topos).size).toBe(1);
+      await expect(page.locator("#compras-filtros")).toHaveCount(0);
+      await expect(page.locator("#compras-lista label")).toContainText(/Mostrar canceladas \(\d+\)/);
     });
 
     test("estado vazio: só o texto, sem botão dentro do aviso", async ({ page }) => {
@@ -216,59 +205,23 @@ for (const [nome, viewport] of [
       await expect(page.locator("#btn-nova-compra")).toBeVisible(); // o do topo da coluna
     });
 
-    test("clicar num erro do checklist rola a COLUNA do formulário (não a janela), foca o campo e destaca; sem trocar de aba", async ({ page }) => {
+    test("as três colunas juntas: o resumo da direita acompanha o formulário do meio sem trocar de aba", async ({ page }) => {
       await abrir(page, viewport);
-      await criarCompra(page, "TESTE E2E checklist");
-      await page.locator("#compra-medico").scrollIntoViewIfNeeded();
-      await page.locator("[data-ir-campo='medico']").click();
-      await expect(page.locator("#compra-medico")).toBeFocused();
-      await expect(page.locator("[data-campo='medico']")).toHaveAttribute("data-destaque", "");
+      await criarCompra(page, "TESTE E2E larga");
+      await page.locator("#compra-medico").fill("Dra. Teste");
+      await expect(page.locator("[data-resumo-linha='medico']")).toContainText("Dra. Teste");
       expect(await page.evaluate(() => window.scrollY)).toBe(0);
-      await expect(page).not.toHaveURL(/aba=/); // em tela larga o clique nunca troca de aba
-    });
-
-    test("cada tipo de item do checklist leva ao campo certo (compra recém-criada: paciente, médico, vendedor, responsável, processo, despachante, pagamento, local, entrega, documentos, fornecedor, envio, PO, medicamento, temperatura, quantidade)", async ({ page }) => {
-      await abrir(page, viewport);
-      await page.locator("#btn-nova-compra").click();
-      await expect(primeiroFornecedor(page)).toBeFocused();
-      const alvos = ["paciente", "medico", "vendedor", "responsavel", "processo", "despachante", "pagamento-momento", "local-aplicacao", "documentos"];
-      for (const campo of alvos) {
-        const botao = page.locator(`[data-ir-campo='${campo}']`).first();
-        if ((await botao.count()) === 0) continue; // o item não está pendente neste ambiente (ex.: responsável vem preenchido)
-        await botao.click();
-        const dentro = await page.evaluate((c) => {
-          const alvo = document.querySelector(`[data-campo='${c}']`);
-          return alvo !== null && (alvo === document.activeElement || alvo.contains(document.activeElement));
-        }, campo);
-        expect(dentro, campo).toBe(true);
-      }
-      for (const regra of ["fornecedor", "envio", "po"]) {
-        await page.locator(`[data-ir-campo='ordem-1-${regra}']`).first().click();
-        const dentro = await page.evaluate((r) => {
-          const alvo = document.querySelector(`[data-campo='ordem-1-${r}']`);
-          return alvo !== null && (alvo === document.activeElement || alvo.contains(document.activeElement));
-        }, regra);
-        expect(dentro, regra).toBe(true);
-      }
-      for (const regra of ["nome", "temperatura", "quantidade"]) {
-        await page.locator(`[data-ir-campo='ordem-1-med-1-${regra}']`).first().click();
-        const dentro = await page.evaluate((r) => {
-          const alvo = document.querySelector(`[data-campo='ordem-1-med-1-${r}']`);
-          return alvo !== null && (alvo === document.activeElement || alvo.contains(document.activeElement));
-        }, regra);
-        expect(dentro, regra).toBe(true);
-      }
+      await expect(page).not.toHaveURL(/aba=/); // em tela larga nunca há aba
     });
 
     test("depois de remover um medicamento o foco vai para o campo Medicamento da linha de antes", async ({ page }) => {
       await abrir(page, viewport);
       await criarCompra(page, unico());
       await page.getByRole("button", { name: "+ Adicionar medicamento" }).click();
-      const segundo = page.locator("[data-item-linha]").nth(1);
-      const idSegundo = await segundo.getAttribute("id");
-      expect(idSegundo).toMatch(/^item-/);
-      await segundo.getByRole("button", { name: "Remover medicamento" }).click();
-      await expect(page.locator("[data-item-linha]").first().locator("[id$='-medicamento']")).toBeFocused();
+      await expect(page.locator("[id^='compra-item-'][id$='-medicamento']")).toHaveCount(2);
+      await page.getByRole("button", { name: "Remover Med. 2" }).click();
+      await expect(page.locator("[id^='compra-item-'][id$='-medicamento']")).toHaveCount(1);
+      await expect(primeiroMedicamento(page)).toBeFocused();
     });
   });
 }

@@ -154,8 +154,8 @@ test.describe("Pendentes de aprovação — administrador", () => {
     expect(depois.updatedAt).not.toBe(compra.updatedAt);
 
     await page.goto(`/compras?mes=${compra.anoMes}&id=${compra.id}`, { waitUntil: "networkidle" });
-    await expect(page.locator(`#item-${itemId}-pre-cadastro-rejeitado`)).toHaveText("Pré-cadastro rejeitado: escolha outro medicamento do Cadastro ou mantenha o texto livre");
-    await expect(page.locator(`#item-${itemId}-medicamento`)).toHaveValue(nome);
+    await expect(page.locator(`#compra-item-${itemId}-pre-cadastro-rejeitado`)).toHaveText("Pré-cadastro rejeitado: escolha outro medicamento do Cadastro ou mantenha o texto livre");
+    await expect(page.locator(`#compra-item-${itemId}-medicamento`)).toHaveValue(nome);
   });
 
   test("nome que já existe no Cadastro: 'Já existe no Cadastro' e 'Vincular ao cadastro existente' (liga o item sem criar linha nova)", async ({ page }) => {
