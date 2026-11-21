@@ -5,6 +5,12 @@ import type { BlocoDoResumo } from "#shared/types/compraResumo";
 // valor vazio aparece como um traço tracejado discreto; a linha do Paciente (negrito no resumo) sai em destaque. Cada linha leva
 // data-resumo-linha com o id estável da LinhaDoResumo. O que se COPIA é outra coisa (o modo "copia": só as linhas com valor).
 defineProps<{ blocos: readonly BlocoDoResumo[] }>();
+
+// A fonte de emoji dá ao "❗" uma largura maior que o desenho: o ":" parecia ter um espaço antes ("❗ :"). O emoji vai num span próprio, com uma
+// margem negativa que cola o ":" nele. SÓ a renderização do painel: o texto da linha (e o texto copiado) não muda.
+const AVISO = "❗";
+const terminaEmAviso = (rotulo: string): boolean => rotulo.endsWith(AVISO);
+const textoDoRotulo = (rotulo: string): string => (terminaEmAviso(rotulo) ? rotulo.slice(0, -AVISO.length) : rotulo);
 </script>
 
 <template>
@@ -15,7 +21,11 @@ defineProps<{ blocos: readonly BlocoDoResumo[] }>();
         <template v-for="linha in bloco.linhas" :key="linha.id">
           <h4 v-if="linha.rotulo === ''" :data-resumo-linha="linha.id" class="font-display text-[15px] font-semibold text-ink">{{ linha.valor }}</h4>
           <p v-else :data-resumo-linha="linha.id" :data-vazio="linha.vazio ? 'true' : undefined" class="flex flex-wrap items-baseline gap-x-1.5">
-            <span :class="linha.vazio ? 'text-ink-soft' : 'font-medium text-ink-soft'">{{ linha.rotulo }}<template v-if="linha.vazio || linha.valor !== ''">:</template></span>
+            <span data-resumo-rotulo :class="['whitespace-nowrap', linha.vazio ? 'text-ink-soft' : 'font-medium text-ink-soft']"
+              >{{ textoDoRotulo(linha.rotulo)
+              }}<span v-if="terminaEmAviso(linha.rotulo)" data-emoji-aviso class="-mr-[0.3em] inline-block">❗</span
+              ><template v-if="linha.vazio || linha.valor !== ''">:</template></span
+            >
             {{ " " }}
             <span
               v-if="linha.vazio"

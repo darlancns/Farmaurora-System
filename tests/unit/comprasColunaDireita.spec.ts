@@ -197,3 +197,30 @@ describe("o resumo preenche os vazios enquanto se digita no formulário (ligado 
     expect(linhaDoResumo("medicamento")).toBeNull();
   });
 });
+
+describe("linha 'Pedir isenção imposto ❗:' no painel (sem espaço entre o emoji e os dois-pontos)", () => {
+  it("o texto da linha é 'Pedir isenção imposto ❗:' (sem espaço antes do ':') e o emoji vai num span com margem negativa que o cola ao ':'", () => {
+    coluna(compraDeTeste({ isencao: false }));
+    const rotulo = linhaDoResumo("isencao")!.querySelector<HTMLElement>("[data-resumo-rotulo]")!;
+    expect(rotulo.textContent).toBe("Pedir isenção imposto ❗:");
+    expect(rotulo.textContent).not.toMatch(/❗\s+:/);
+    const emoji = rotulo.querySelector<HTMLElement>("[data-emoji-aviso]")!;
+    expect(emoji.textContent).toBe("❗");
+    expect(emoji.className).toContain("-mr-[0.3em]");
+    expect(rotulo.className).toContain("whitespace-nowrap");
+  });
+
+  it("marcada (sem valor, marcador): o rótulo continua sem ':'; o TEXTO COPIADO não muda", () => {
+    const c = compraDeTeste({ isencao: true });
+    coluna(c);
+    expect(linhaDoResumo("isencao")!.querySelector("[data-resumo-rotulo]")!.textContent).toBe("Pedir isenção imposto ❗");
+    const copia = resumoParaTexto(montarResumo(compraParaResumoEntrada(c, null), "copia"));
+    expect(copia).toContain("\nPedir isenção imposto ❗\n");
+    expect(copia).not.toMatch(/❗ :|❗:/);
+  });
+
+  it("as outras linhas seguem com rótulo e ':' juntos", () => {
+    coluna(compraDeTeste());
+    expect(linhaDoResumo("laboratorio")!.querySelector("[data-resumo-rotulo]")!.textContent).toBe("Laboratório:");
+  });
+});
