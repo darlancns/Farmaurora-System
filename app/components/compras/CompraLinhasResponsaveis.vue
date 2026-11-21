@@ -22,7 +22,7 @@ const consultorOptions = computed(() =>
 
 <template>
   <CompraCampo id-linha="consultor" rotulo="Consultor" para="compra-consultor">
-    <div :class="[SELECT_CAMPO_CLASS, 'max-w-md']">
+    <div :class="[SELECT_CAMPO_CLASS]">
       <AppSelect id="compra-consultor" :model-value="compra.consultor" :options="consultorOptions" :disabled="desabilitado" @update:model-value="(v: string) => emit('alterar', { consultor: v })" />
     </div>
   </CompraCampo>
@@ -32,7 +32,7 @@ const consultorOptions = computed(() =>
       id="compra-responsavel"
       type="text"
       maxlength="300"
-      :class="[INPUT_CLASS, 'max-w-md']"
+      :class="[INPUT_CLASS]"
       :value="compra.responsavel"
       :disabled="desabilitado"
       autocomplete="off"

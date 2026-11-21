@@ -58,7 +58,7 @@ const apoio = computed<string | null>(() => {
 
   <CompraCampo id-linha="despachante" rotulo="Despachante" :para="dispensado ? undefined : 'compra-despachante'" :apoio="dispensado ? null : apoio">
     <p v-if="dispensado" id="compra-despachante-dispensado" class="pt-2 text-[13px] text-ink-soft">Dispensado: Courier Simples não tem despachante</p>
-    <div v-else :class="[SELECT_CAMPO_CLASS, 'max-w-md']">
+    <div v-else :class="[SELECT_CAMPO_CLASS]">
       <AppSelect id="compra-despachante" :model-value="compra.despachante" :options="options" :disabled="desabilitado" @update:model-value="(v: string) => emit('alterar', { despachante: v })" />
     </div>
   </CompraCampo>

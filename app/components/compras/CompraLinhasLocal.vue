@@ -54,7 +54,7 @@ function aoMarcarParticular(event: Event): void {
       id="compra-processo"
       type="text"
       maxlength="300"
-      :class="[INPUT_MONO_CLASS, 'max-w-md']"
+      :class="[INPUT_MONO_CLASS]"
       placeholder="0000000-00.0000.0.00.0000"
       :value="compra.compraParticular ? '' : compra.processoNumero"
       :disabled="desabilitado || compra.compraParticular"

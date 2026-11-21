@@ -16,30 +16,30 @@ const atualizar = (id: string, mudancas: Partial<Compra["itens"][number]>): void
 </script>
 
 <template>
-  <CompraPorMedicamento id-linha="valor_unitario" rotulo="Valor unitário (US$)" campo="valor-unitario" :itens="compra.itens">
+  <CompraPorMedicamento id-linha="valor_unitario" rotulo="Valor unitário" campo="valor-unitario" :itens="compra.itens">
     <template #default="{ item, idControle, nomeAcessivel }">
-      <div class="max-w-xs">
+      <div>
         <CampoDinheiro :id="idControle" :aria-label="nomeAcessivel" :model-value="item.valorUnitario" :disabled="desabilitado" @update:model-value="(v: number | null) => atualizar(item.id, { valorUnitario: v })" />
       </div>
     </template>
   </CompraPorMedicamento>
 
-  <CompraPorMedicamento id-linha="valor_real" rotulo="Valor real (US$)" campo="valor-real" :itens="compra.itens">
+  <CompraPorMedicamento id-linha="valor_real" rotulo="Valor real" campo="valor-real" :itens="compra.itens">
     <template #default="{ item, idControle, nomeAcessivel }">
-      <div class="max-w-xs">
+      <div>
         <CampoDinheiro :id="idControle" :aria-label="nomeAcessivel" :model-value="item.valorReal" :disabled="desabilitado" @update:model-value="(v: number | null) => atualizar(item.id, { valorReal: v })" />
       </div>
     </template>
   </CompraPorMedicamento>
 
-  <CompraCampo id-linha="frete" rotulo="Frete (US$)" para="compra-frete">
-    <div class="max-w-xs">
+  <CompraCampo id-linha="frete" rotulo="Frete" para="compra-frete">
+    <div>
       <CampoDinheiro id="compra-frete" :model-value="compra.frete" :disabled="desabilitado" @update:model-value="(v: number | null) => emit('alterar', { frete: v })" />
     </div>
   </CompraCampo>
 
-  <CompraCampo id-linha="frete_real" rotulo="Valor real do frete (US$)" para="compra-frete-real">
-    <div class="max-w-xs">
+  <CompraCampo id-linha="frete_real" rotulo="Valor real do frete" para="compra-frete-real">
+    <div>
       <CampoDinheiro id="compra-frete-real" :model-value="compra.freteReal" :disabled="desabilitado" @update:model-value="(v: number | null) => emit('alterar', { freteReal: v })" />
     </div>
   </CompraCampo>

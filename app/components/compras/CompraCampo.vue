@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
-// Uma LINHA do formulário único da Compra: rótulo à esquerda (largura fixa de ~210px em lg+) e o controle à direita (grade
+// Uma LINHA do formulário único da Compra: rótulo à esquerda (largura fixa de 140px em lg+) e o controle à direita (grade
 // [rótulo | controle]); abaixo de lg o rótulo fica ACIMA do controle. `idLinha` é o id da linha no resumo (montarResumo("modelo")):
 // vai em `data-linha`, e é por ele que a ordem do formulário é conferida contra a ordem do resumo.
 //
@@ -22,11 +22,12 @@ defineSlots<{ default(props: { rotuloId: string; erroId: string }): unknown }>()
 
 const rotuloId = computed(() => `compra-linha-${props.idLinha}-rotulo`);
 const erroId = computed(() => `compra-linha-${props.idLinha}-erro`);
-const CLASSE_ROTULO = "block pt-0.5 text-[14px] font-semibold text-ink lg:pt-2 lg:text-[13px]";
+// O rótulo quebra em 2 linhas quando preciso (nunca é cortado): break-words + leading-snug.
+const CLASSE_ROTULO = "block pt-0.5 text-[14px] leading-snug font-semibold break-words text-ink lg:pt-2 lg:text-[13px]";
 </script>
 
 <template>
-  <div :data-linha="idLinha" class="grid gap-x-4 gap-y-1 border-b border-hairline/70 py-3 last:border-b-0 lg:grid-cols-[210px_minmax(0,1fr)] lg:items-start">
+  <div :data-linha="idLinha" class="grid gap-x-3 gap-y-1 border-b border-hairline/70 py-3 last:border-b-0 lg:grid-cols-[140px_minmax(0,1fr)] lg:items-start">
     <label v-if="para" :id="rotuloId" :for="para" :class="CLASSE_ROTULO">{{ rotulo }}</label>
     <span v-else :id="rotuloId" :class="CLASSE_ROTULO">{{ rotulo }}</span>
     <div class="min-w-0" :role="para ? undefined : 'group'" :aria-labelledby="para ? undefined : rotuloId">

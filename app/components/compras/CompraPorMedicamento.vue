@@ -33,8 +33,9 @@ const idControle = (item: ItemCompra): string => `compra-item-${item.id}-${props
       <slot :item="itens[0]!" :indice="0" :id-controle="idControle(itens[0]!)" :nome-acessivel="undefined" :total="1" />
     </div>
     <div v-else class="flex flex-col gap-2.5">
-      <div v-for="(item, i) in itens" :key="item.id" role="group" :aria-label="`Med. ${i + 1}`" class="grid grid-cols-[3.25rem_minmax(0,1fr)] items-start gap-x-2">
-        <label :for="idControle(item)" class="pt-2 text-[12px] font-semibold text-ink-soft">Med. {{ i + 1 }}</label>
+      <div v-for="(item, i) in itens" :key="item.id" role="group" :aria-label="`Med. ${i + 1}`" class="grid grid-cols-[3rem_minmax(0,1fr)] items-start gap-x-1">
+        <!-- Etiqueta COMPACTA colada ao controle (3rem, texto pequeno): não cria uma coluna larga entre o rótulo da linha e o input. -->
+        <label :for="idControle(item)" data-etiqueta-med class="pt-2.5 text-[11px] leading-none font-semibold whitespace-nowrap text-ink-soft">Med. {{ i + 1 }}</label>
         <div class="min-w-0">
           <slot :item="item" :indice="i" :id-controle="idControle(item)" :nome-acessivel="`${rotulo}, Med. ${i + 1}`" :total="itens.length" />
         </div>

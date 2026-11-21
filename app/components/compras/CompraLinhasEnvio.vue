@@ -53,13 +53,13 @@ const ehCourierSimples = computed(() => props.compra.envio === MODAL_COURIER_SIM
   </CompraCampo>
 
   <CompraCampo id-linha="fornecedor" rotulo="Fornecedor" para="compra-fornecedor">
-    <div :class="[SELECT_CAMPO_CLASS, 'max-w-md']">
+    <div :class="[SELECT_CAMPO_CLASS]">
       <AppSelect id="compra-fornecedor" :model-value="compra.fornecedor" :options="fornecedorOptions" :disabled="desabilitado" @update:model-value="(v: string) => emit('alterar', { fornecedor: v })" />
     </div>
   </CompraCampo>
 
   <CompraCampo id-linha="cnpj" rotulo="CNPJ" para="compra-empresa">
-    <div :class="[SELECT_CAMPO_CLASS, 'max-w-xs']">
+    <div :class="[SELECT_CAMPO_CLASS]">
       <AppSelect id="compra-empresa" :model-value="compra.empresa" :options="EMPRESA_OPTIONS" :disabled="desabilitado" @update:model-value="(v: EmpresaProcesso) => emit('alterar', { empresa: v })" />
     </div>
   </CompraCampo>

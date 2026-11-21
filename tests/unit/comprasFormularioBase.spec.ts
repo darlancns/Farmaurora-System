@@ -4,7 +4,7 @@ import { createApp, defineComponent, h } from "vue";
 import CompraCampo from "../../app/components/compras/CompraCampo.vue";
 import CompraFormulario from "../../app/components/compras/CompraFormulario.vue";
 import { OPCOES_VAZIAS } from "../../app/utils/comprasOpcoes";
-import { compraComUmMedicamento, compraVaziaDeTeste, montarFormulario, q, qa, texto, type FormularioMontado } from "./helpers/montarFormulario";
+import { compraComUmMedicamento, compraVaziaDeTeste, itemDeTeste, montarFormulario, q, qa, texto, type FormularioMontado } from "./helpers/montarFormulario";
 
 // A linha base (CompraCampo), o cabeçalho (sem chips de status nem contador de pendências) e a casca do formulário único. Dados fictícios (TESTE).
 
@@ -54,10 +54,10 @@ describe("CompraCampo: a linha [rótulo | controle]", () => {
     expect(q("#compra-linha-despachante-erro")).toBeNull();
   });
 
-  it("a grade é [210px | controle] em lg+ e o rótulo fica ACIMA no celular (uma coluna)", () => {
+  it("a grade é [140px | controle] em lg+ e o rótulo fica ACIMA no celular (uma coluna)", () => {
     montarCampo({ idLinha: "frete", rotulo: "Frete", para: "x" }, '<input id="x" />');
     const classe = q<HTMLElement>('[data-linha="frete"]')!.className;
-    expect(classe).toContain("lg:grid-cols-[210px_minmax(0,1fr)]");
+    expect(classe).toContain("lg:grid-cols-[140px_minmax(0,1fr)]");
     expect(classe).not.toMatch(/(^|\s)grid-cols-/); // abaixo de lg: uma coluna
   });
 });
@@ -198,5 +198,44 @@ describe("faixa de conflito e estados do formulário", () => {
     expect(q("#compra-campos")!.getAttribute("aria-disabled")).toBe("true");
     expect(q("#btn-duplicar-compra")).toBeNull();
     expect(qa<HTMLInputElement>("#compra-campos input").every((i) => i.disabled)).toBe(true);
+  });
+});
+
+describe("larguras: coluna do rótulo estreita e controles ocupando TODA a largura", () => {
+  it("o rótulo pode quebrar em 2 linhas (break-words, sem truncate) e a coluna é de 140px", () => {
+    montado = montarFormulario(compraComUmMedicamento());
+    const rotulo = q<HTMLElement>('[data-linha="valor_real"] label')!;
+    expect(rotulo.className).toContain("break-words");
+    expect(rotulo.className).not.toContain("truncate");
+    expect(q('[data-linha="valor_real"]')!.className).toContain("lg:grid-cols-[140px_minmax(0,1fr)]");
+  });
+
+  it("nenhum controle das linhas (fora o stepper de Ordens) tem largura máxima: todos vão até o fim da coluna de controle", () => {
+    montado = montarFormulario(compraComUmMedicamento({ itens: [itemDeTeste(1), itemDeTeste(2)] }));
+    for (const linha of qa<HTMLElement>("#compra-campos [data-linha]")) {
+      if (linha.getAttribute("data-linha") === "ordens") continue;
+      expect(linha.innerHTML, linha.getAttribute("data-linha")!).not.toMatch(/(^|[\s"'])max-w-/); // (o `[&_ul]:max-w` da lista suspensa não conta)
+    }
+    expect(q('[data-linha="ordens"] [class*="max-w-"]')).not.toBeNull(); // o stepper pode ficar curto
+  });
+
+  it("a etiqueta 'Med. N' é compacta: texto pequeno, ~3rem, colada ao controle", () => {
+    montado = montarFormulario(compraComUmMedicamento({ itens: [itemDeTeste(1), itemDeTeste(2)] }));
+    const etiqueta = q<HTMLElement>('[data-linha="laboratorio"] [data-etiqueta-med]')!;
+    expect(etiqueta.className).toContain("text-[11px]");
+    expect(etiqueta.parentElement!.className).toContain("grid-cols-[3rem_minmax(0,1fr)]");
+    expect(etiqueta.parentElement!.className).toContain("gap-x-1");
+  });
+
+  it("dinheiro: o rótulo não leva '(US$)' e o campo mostra 'US$' como prefixo DENTRO do input (decorativo, fora do nome acessível)", () => {
+    montado = montarFormulario(compraComUmMedicamento());
+    for (const linha of ["valor_unitario", "valor_real", "frete", "frete_real"]) {
+      const el = q<HTMLElement>(`[data-linha="${linha}"]`)!;
+      expect(texto(el.querySelector("label"))).not.toContain("US$");
+      const prefixo = el.querySelector<HTMLElement>("[data-prefixo-moeda]")!;
+      expect(texto(prefixo)).toBe("US$");
+      expect(prefixo.getAttribute("aria-hidden")).toBe("true");
+      expect(prefixo.parentElement!.querySelector("input")!.getAttribute("style")).toContain("padding-left");
+    }
   });
 });

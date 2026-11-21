@@ -78,7 +78,7 @@ const noLimite = (): boolean => props.compra.itens.length >= COMPRA_MAX_ITENS;
 
   <CompraPorMedicamento id-linha="brand" rotulo="Brand" campo="brand" :itens="compra.itens">
     <template #default="{ item, idControle, nomeAcessivel }">
-      <div :class="[SELECT_CAMPO_CLASS, 'max-w-xs']">
+      <div :class="[SELECT_CAMPO_CLASS]">
         <AppSelect
           :id="idControle"
           :model-value="item.brand"
@@ -100,7 +100,7 @@ const noLimite = (): boolean => props.compra.itens.length >= COMPRA_MAX_ITENS;
         placeholder="ex.: 12 ampolas"
         autocomplete="off"
         :aria-label="nomeAcessivel"
-        :class="[INPUT_CLASS, 'max-w-xs']"
+        :class="[INPUT_CLASS]"
         :value="item.quantidade"
         :disabled="desabilitado"
         @input="atualizar(item.id, { quantidade: ($event.target as HTMLInputElement).value })"

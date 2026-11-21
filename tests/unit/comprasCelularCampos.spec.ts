@@ -96,10 +96,10 @@ describe("campos de 16px e 44px no celular (o padrão do app), voltando ao deskt
     }
   });
 
-  it("a linha do formulário é 1 coluna no celular (rótulo acima) e [210px | controle] só em lg+", () => {
+  it("a linha do formulário é 1 coluna no celular (rótulo acima) e [140px | controle] só em lg+", () => {
     montado = montarFormulario(compraComUmMedicamento());
     for (const linha of qa<HTMLElement>("#compra-campos [data-linha]")) {
-      expect(linha.className).toContain("lg:grid-cols-[210px_minmax(0,1fr)]");
+      expect(linha.className).toContain("lg:grid-cols-[140px_minmax(0,1fr)]");
       expect(linha.className).not.toMatch(/(^|\s)grid-cols-/);
     }
   });
