@@ -72,12 +72,12 @@ const ORDEM_DAS_LINHAS = [
   "contatos",
 ];
 
-/** Cria uma compra pela tela e digita o paciente; espera o 'Salvo automaticamente'. */
+/** Cria uma compra pela tela e digita o paciente; espera o salvamento (data-salvamento="salvo"; a tela não mostra texto de salvamento). */
 async function criarCompraComPaciente(page: Page, paciente: string): Promise<void> {
   await page.locator("#btn-nova-compra").click();
   await expect(primeiroMedicamento(page)).toBeFocused(); // a compra nasce com o 1º medicamento vazio e o foco vai ao Med. 1
   await page.locator("#compra-paciente").fill(paciente);
-  await expect(page.locator("#compra-salvamento")).toContainText("Salvo automaticamente às");
+  await expect(page.locator("#compra-formulario")).toHaveAttribute("data-salvamento", "salvo");
 }
 
 for (const [rotulo, conta] of [
@@ -134,7 +134,7 @@ for (const [rotulo, conta] of [
       await page.locator("#compra-paciente").fill(paciente);
       await expect(page.locator("[data-resumo-linha='paciente']")).not.toHaveAttribute("data-vazio", "true"); // ao vivo, sem esperar o salvamento
       await expect(page.locator("[data-resumo-linha='paciente']")).toContainText("Paciente:");
-      await expect(page.locator("#compra-salvamento")).toContainText("Salvo automaticamente às");
+      await expect(page.locator("#compra-formulario")).toHaveAttribute("data-salvamento", "salvo");
       // O cartão da lista acompanha (sem recarregar a página), com "N ordens" e sem chips de status.
       await expect(page.locator("[data-compra-cartao][aria-current='true']")).toContainText(paciente);
       await expect(page.locator("[data-compra-cartao][aria-current='true']")).toContainText("1 ordem");
@@ -155,7 +155,7 @@ for (const [rotulo, conta] of [
       const paciente = unico();
       await criarCompraComPaciente(page, paciente);
       await page.locator("#compra-medico").fill("Dr. Teste E2E");
-      await expect(page.locator("#compra-salvamento")).toContainText("Salvo automaticamente às");
+      await expect(page.locator("#compra-formulario")).toHaveAttribute("data-salvamento", "salvo");
       await expect(page).toHaveURL(/id=cmp_/);
       await page.reload({ waitUntil: "networkidle" });
       await expect(page.locator("#compra-paciente")).toHaveValue(paciente);
@@ -282,7 +282,7 @@ for (const [rotulo, conta] of [
       await expect(outra.locator("#compra-paciente")).toHaveValue(paciente);
 
       await page.locator("#compra-medico").fill("Medico da aba 1");
-      await expect(page.locator("#compra-salvamento")).toContainText("Salvo automaticamente às");
+      await expect(page.locator("#compra-formulario")).toHaveAttribute("data-salvamento", "salvo");
       await outra.locator("#compra-medico").fill("Medico da aba 2");
       await expect(outra.locator("#compra-faixa-conflito")).toContainText("Esta compra foi alterada por outra pessoa.");
       await expect(outra.locator("#btn-conflito-carregar")).toHaveText("Carregar a versão salva");
@@ -293,7 +293,7 @@ for (const [rotulo, conta] of [
       await expect(outra.locator("#compra-faixa-conflito")).toHaveCount(0);
 
       await page.locator("#compra-medico").fill("Medico da aba 1 de novo");
-      await expect(page.locator("#compra-salvamento")).toContainText("Salvo automaticamente às");
+      await expect(page.locator("#compra-formulario")).toHaveAttribute("data-salvamento", "salvo");
       await outra.locator("#compra-medico").fill("Medico da aba 2 vence");
       await expect(outra.locator("#compra-faixa-conflito")).toBeVisible();
       await outra.locator("#btn-conflito-manter").click();
@@ -355,7 +355,7 @@ test.describe("Compras (tela) — formulário único", () => {
     await labs.nth(0).fill("Lab 1");
     await labs.nth(1).fill("Lab 2");
     await labs.nth(2).fill("Lab 3");
-    await expect(page.locator("#compra-salvamento")).toContainText("Salvo automaticamente às");
+    await expect(page.locator("#compra-formulario")).toHaveAttribute("data-salvamento", "salvo");
     // Remove o do MEIO: os outros dois ficam com os seus valores e o foco vai ao Medicamento do de antes.
     await page.getByRole("button", { name: "Remover Med. 2" }).click();
     await expect(labs).toHaveCount(2);
@@ -366,7 +366,7 @@ test.describe("Compras (tela) — formulário único", () => {
     await page.getByRole("button", { name: "Remover Med. 2" }).click();
     // Sobrou um: sem ✕.
     await expect(page.getByRole("button", { name: /^Remover Med\./ })).toHaveCount(0);
-    await expect(page.locator("#compra-salvamento")).toContainText("Salvo automaticamente às");
+    await expect(page.locator("#compra-formulario")).toHaveAttribute("data-salvamento", "salvo");
     await page.reload({ waitUntil: "networkidle" });
     await expect(labs).toHaveCount(1);
     await expect(labs.nth(0)).toHaveValue("Lab 1");
@@ -444,7 +444,7 @@ test.describe("Compras (tela) — formulário único", () => {
     await expect(pedir).toBeEnabled();
     await pedir.click();
     await expect(page.locator("[id$='-pre-cadastro-pendente']").first()).toContainText("aguardando aprovação");
-    await expect(page.locator("#compra-salvamento")).toContainText("Salvo automaticamente às");
+    await expect(page.locator("#compra-formulario")).toHaveAttribute("data-salvamento", "salvo");
     await page.reload({ waitUntil: "networkidle" });
     await expect(primeiroMedicamento(page)).toHaveValue("teste med pre-cadastro");
     await expect(page.locator("[id$='-pre-cadastro-pendente']").first()).toBeVisible();
@@ -466,7 +466,7 @@ test.describe("Compras (tela) — formulário único", () => {
     await expect(page.locator("#compra-entrega")).toHaveValue("Clínica Teste");
     await expect(page.locator("#compra-entrega")).toBeDisabled();
     await expect(page.locator("[data-resumo-linha='pendencias']")).toContainText("Documentos assinados, Receita médica, Falta o laudo");
-    await expect(page.locator("#compra-salvamento")).toContainText("Salvo automaticamente às");
+    await expect(page.locator("#compra-formulario")).toHaveAttribute("data-salvamento", "salvo");
     await page.reload({ waitUntil: "networkidle" });
     await expect(page.getByRole("button", { name: "Receita médica" })).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator("#compra-pendencias-livre")).toHaveValue("Falta o laudo");

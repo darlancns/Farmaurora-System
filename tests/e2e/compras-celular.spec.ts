@@ -40,7 +40,7 @@ async function criarCompra(page: Page, paciente: string): Promise<void> {
   await page.locator("#btn-nova-compra").click();
   await expect(primeiroMedicamento(page)).toBeFocused();
   await page.locator("#compra-paciente").fill(paciente);
-  await expect(page.locator("#compra-salvamento")).toContainText("Salvo automaticamente às");
+  await expect(page.locator("#compra-formulario")).toHaveAttribute("data-salvamento", "salvo");
 }
 
 test.describe("Compras (celular, 375x667) — um painel por vez", () => {

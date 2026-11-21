@@ -110,7 +110,6 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", antesDeFecharAA
           v-if="editor.compra.value"
           :compra="editor.compra.value"
           :estado="editor.estado.value"
-          :salvo-em="editor.salvoEm.value"
           :mensagem-erro="editor.mensagemErro.value"
           :esperando-clique="editor.esperandoClique.value"
           :pode-editar="podeEditar"

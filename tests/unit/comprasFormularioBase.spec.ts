@@ -118,7 +118,6 @@ describe("faixa de conflito e estados do formulário", () => {
           h(CompraFormulario, {
             compra: compraComUmMedicamento(),
             estado,
-            salvoEm: null,
             podeEditar: true,
             opcoes: OPCOES_VAZIAS,
             onCarregarVersaoSalva: () => ev.push("carregar"),
@@ -137,7 +136,7 @@ describe("faixa de conflito e estados do formulário", () => {
     q<HTMLButtonElement>("#btn-conflito-carregar")!.click();
     q<HTMLButtonElement>("#btn-conflito-manter")!.click();
     expect(ev).toEqual(["carregar", "manter"]);
-    expect(texto(q("#compra-salvamento"))).toBe("Não salvo");
+    expect(texto(q("#compra-salvamento-regiao"))).toBe(""); // o conflito tem a faixa; nenhum texto de salvamento
   });
 
   it("sem conflito, a faixa não existe; e não há a faixa antiga 'Compra cancelada' (o selo do cabeçalho basta)", () => {
@@ -153,9 +152,37 @@ describe("faixa de conflito e estados do formulário", () => {
     expect(ev).toEqual(["tentar"]);
   });
 
-  it("'Salvo automaticamente às 16:22' com a hora de BRASÍLIA", () => {
-    formularioDireto("salvo", { salvoEm: new Date("2026-11-19T19:22:00Z") });
-    expect(texto(q("#compra-salvamento"))).toBe("Salvo automaticamente às 16:22");
+  it("NÃO existe 'Salvo automaticamente' no cabeçalho, em nenhum estado; o estado vai só para data-salvamento (sem texto)", () => {
+    for (const estado of ["ocioso", "pendente", "salvando", "salvo"]) {
+      document.body.innerHTML = "";
+      formularioDireto(estado);
+      expect(texto(q("#compra-cabecalho"))).not.toMatch(/Salvo|Salvando|automaticamente/i);
+      expect(q("#compra-salvamento")).toBeNull();
+      expect(q("#compra-formulario")!.getAttribute("data-salvamento")).toBe(estado);
+    }
+  });
+
+  it("o erro de salvamento aparece FORA do cabeçalho (abaixo dele): 'Tentando salvar de novo…' e, depois das tentativas, o alerta com 'Tentar de novo'", () => {
+    formularioDireto("erro", { esperandoClique: false });
+    expect(texto(q("#compra-salvamento"))).toBe("Tentando salvar de novo…");
+    expect(q("#compra-cabecalho")!.contains(q("#compra-salvamento"))).toBe(false);
+    expect(q("[role=alert]")).toBeNull();
+    document.body.innerHTML = "";
+    formularioDireto("erro", { esperandoClique: true });
+    const alerta = q<HTMLElement>("#compra-salvamento-alerta")!;
+    expect(alerta.getAttribute("role")).toBe("alert");
+    expect(q("#compra-cabecalho")!.contains(alerta)).toBe(false);
+    expect(q("#compra-cabecalho-bloco")!.contains(alerta)).toBe(true);
+  });
+
+  it("o título nunca quebra e Duplicar/Cancelar ficam na mesma linha (nowrap/truncate), em qualquer largura de desktop", () => {
+    formularioDireto("ocioso");
+    expect(q("#compra-titulo")!.className).toContain("whitespace-nowrap");
+    expect(q("#compra-titulo")!.className).toContain("truncate");
+    expect(q("#compra-cabecalho")!.className).toContain("lg:flex-nowrap");
+    expect(q("#btn-duplicar-compra")!.parentElement).toBe(q("#btn-cancelar-compra")!.parentElement);
+    expect(q("#btn-duplicar-compra")!.parentElement!.className).toContain("flex-nowrap");
+    expect(q("#btn-duplicar-compra")!.parentElement!.className).toContain("shrink-0");
   });
 
   it("Duplicar e Cancelar avisam (só para quem edita)", () => {

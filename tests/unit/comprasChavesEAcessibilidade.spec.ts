@@ -106,7 +106,6 @@ describe("salvamento: região aria-live e alerta só quando falha de vez", () =>
             cancelada: false,
             podeEditar: true,
             estado: p.estado,
-            salvoEm: new Date("2026-11-19T19:22:00Z"),
             esperandoClique: p.esperandoClique ?? false,
           }),
       }),
@@ -126,15 +125,12 @@ describe("salvamento: região aria-live e alerta só quando falha de vez", () =>
     expect(texto(regiao)).toBe("");
   });
 
-  it.each([
-    ["pendente", "Salvando…"],
-    ["salvando", "Salvando…"],
-    ["salvo", "Salvo automaticamente às 16:22"],
-    ["conflito", "Não salvo"],
-  ] as const)("estado %s: o texto '%s' está DENTRO da região aria-live, e sem role=alert", (estado, esperado) => {
+  it.each(["ocioso", "pendente", "salvando", "salvo", "conflito"] as const)("estado normal (%s): NADA aparece (nem texto de salvamento, nem alerta)", (estado) => {
     cabecalho({ estado });
-    expect(texto(q("#compra-salvamento-regiao #compra-salvamento"))).toBe(esperado);
+    expect(texto(q("#compra-salvamento-regiao"))).toBe("");
+    expect(q("#compra-salvamento")).toBeNull();
     expect(q("[role=alert]")).toBeNull();
+    expect(texto(q("#compra-cabecalho-bloco"))).not.toMatch(/Salvo|Salvando|autom/i);
   });
 
   it("erro com tentativas automáticas ainda em curso: 'Tentando salvar de novo…' (polite) e NENHUM role=alert", () => {
@@ -209,7 +205,7 @@ describe("botões só de ícone têm nome acessível em português", () => {
   it("o menu '…' do celular e o botão de voltar têm nome acessível", () => {
     const el = document.createElement("div");
     document.body.appendChild(el);
-    const app = createApp(defineComponent({ render: () => h(CompraFormCabecalho, { anoMes: "2026-11", sequencia: 1, cancelada: false, podeEditar: true, estado: "ocioso", salvoEm: null }) }));
+    const app = createApp(defineComponent({ render: () => h(CompraFormCabecalho, { anoMes: "2026-11", sequencia: 1, cancelada: false, podeEditar: true, estado: "ocioso" }) }));
     app.mount(el);
     extras.push(() => {
       app.unmount();

@@ -119,7 +119,6 @@ describe("cabeçalho do formulário no celular", () => {
             cancelada: extra.cancelada ?? false,
             podeEditar: extra.podeEditar ?? true,
             estado: "salvo",
-            salvoEm: new Date("2026-11-19T19:22:00Z"),
             onDuplicar: () => ev.push("duplicar"),
             onCancelar: () => ev.push("cancelar"),
             onVoltar: () => ev.push("voltar"),
@@ -140,13 +139,14 @@ describe("cabeçalho do formulário no celular", () => {
     expect(ev).toEqual(["voltar"]);
   });
 
-  it("duas linhas: título (e selo Cancelada, se for) em cima; salvamento e o menu '…' embaixo; sem contador de pendências nem chips", () => {
+  it("duas linhas: título (e selo Cancelada, se for) e o menu '…' (sem texto de salvamento); sem contador de pendências nem chips", () => {
     cabecalho();
     expect(texto(q("#compra-titulo"))).toBe("Compra 13 - Novembro/2026");
     expect(q("#compra-pendencias-celular")).toBeNull();
     expect(q("#compra-pendencias")).toBeNull();
     expect(q("[data-status]")).toBeNull();
-    expect(texto(q("#compra-salvamento"))).toBe("Salvo automaticamente às 16:22");
+    expect(q("#compra-salvamento")).toBeNull();
+    expect(texto(q("#compra-cabecalho"))).not.toMatch(/Salvo|autom/i);
     expect(q("#btn-menu-compra")).not.toBeNull();
   });
 

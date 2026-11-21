@@ -48,7 +48,6 @@ export function montarFormulario(inicial: Compra, extra: { opcoes?: Partial<Opco
         const formulario = h(CompraFormulario, {
           compra: editor.compra.value as Compra,
           estado: "ocioso",
-          salvoEm: null,
           podeEditar: !somenteLeitura.value,
           opcoes: opcoes.value,
           pedidoDeFocoMedicamento: pedidoDeFoco.value,

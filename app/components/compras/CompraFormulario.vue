@@ -22,7 +22,6 @@ import CompraLinhasValores from "./CompraLinhasValores.vue";
 const props = defineProps<{
   compra: Compra;
   estado: EstadoSalvamento;
-  salvoEm: Date | null;
   mensagemErro?: string | null;
   /** Acabaram as tentativas automáticas de salvar: só o clique salva de novo. */
   esperandoClique?: boolean;
@@ -66,14 +65,13 @@ const alterar = (m: MudancasCompra): void => emit("alterar", m);
 </script>
 
 <template>
-  <section id="compra-formulario" aria-label="Formulário da compra" class="flex flex-col gap-4">
+  <section id="compra-formulario" aria-label="Formulário da compra" :data-salvamento="estado" class="flex flex-col gap-4">
     <CompraFormCabecalho
       :ano-mes="compra.anoMes"
       :sequencia="compra.sequencia"
       :cancelada="compra.cancelada"
       :pode-editar="podeEditar"
       :estado="estado"
-      :salvo-em="salvoEm"
       :mensagem-erro="mensagemErro"
       :esperando-clique="esperandoClique"
       :ocupado="ocupado"
