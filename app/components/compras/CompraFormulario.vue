@@ -6,6 +6,8 @@ import { ACOES_COMPRA_KEY, ACOES_VAZIAS, type AcoesCompra } from "../../utils/co
 import type { OpcoesFormulario } from "../../utils/comprasOpcoes";
 import CompraFaixaConflito from "./CompraFaixaConflito.vue";
 import CompraFormCabecalho from "./CompraFormCabecalho.vue";
+import CompraLinhaOrdens from "./CompraLinhaOrdens.vue";
+import CompraLinhasEnvio from "./CompraLinhasEnvio.vue";
 import CompraLinhasMedicamento from "./CompraLinhasMedicamento.vue";
 import CompraLinhasValores from "./CompraLinhasValores.vue";
 
@@ -80,7 +82,9 @@ const alterar = (m: MudancasCompra): void => emit("alterar", m);
 
     <div id="compra-campos" :aria-disabled="desabilitado ? 'true' : undefined" class="rounded-lg border border-hairline bg-paper-raised px-4 lg:px-5">
       <CompraLinhasMedicamento :compra="compra" :desabilitado="desabilitado" @alterar="alterar" />
+      <CompraLinhaOrdens :compra="compra" :desabilitado="desabilitado" @alterar="alterar" />
       <CompraLinhasValores :compra="compra" :desabilitado="desabilitado" :opcoes="opcoes" @alterar="alterar" />
+      <CompraLinhasEnvio :compra="compra" :desabilitado="desabilitado" :opcoes="opcoes" @alterar="alterar" />
     </div>
   </section>
 </template>
