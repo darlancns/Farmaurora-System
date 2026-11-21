@@ -18,7 +18,7 @@ import CompraLinhasValores from "./CompraLinhasValores.vue";
 
 // A coluna central: o cabeçalho, a faixa de conflito e UM ÚNICO BLOCO de campos (sem fieldsets nem títulos de seção): uma linha
 // (CompraCampo) por tópico, NA ORDEM EXATA do resumo (as linhas de montarResumo("modelo"), sem o título). A ordem do DOM é a do Tab
-// (nenhum tabindex positivo). O teste de arquitetura (comprasBlocosOrdem.spec.ts) confere `data-linha` contra o resumo.
+// (nenhum tabindex positivo). O teste de arquitetura de ordem confere `data-linha` contra o resumo.
 const props = defineProps<{
   compra: Compra;
   estado: EstadoSalvamento;

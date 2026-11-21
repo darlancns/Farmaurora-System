@@ -368,3 +368,119 @@ describe("foco e somente leitura", () => {
     expect(q<HTMLInputElement>(med(ID1, "laboratorio"))!.disabled).toBe(true);
   });
 });
+
+describe("casos portados da tela antiga (Cadastro, temperatura e pré-cadastro)", () => {
+  const sugestao = { valor: "med_1", rotulo: "DIPIRONA TESTE", extra: { temperatura: "" } };
+
+  it("o texto do aviso de pré-cadastro rejeitado é o pedido, sem acento perdido", () => {
+    expect(TEXTO_PRE_CADASTRO_REJEITADO).toBe("Pré-cadastro rejeitado: escolha outro medicamento do Cadastro ou mantenha o texto livre");
+  });
+
+  it("busca no servidor com o texto digitado e mostra as sugestões", async () => {
+    const buscarMedicamentos = vi.fn(async (_q: string) => [sugestao, { valor: "med_2", rotulo: "DIPIRONA OUTRA", extra: { temperatura: "" } }]);
+    montado = montarFormulario(compraComUmMedicamento(), { acoes: acoesFalsas({ buscarMedicamentos }) });
+    await digitar(med(ID1, "medicamento"), "dipi");
+    await esperar(320);
+    expect(buscarMedicamentos).toHaveBeenCalledTimes(1);
+    expect(buscarMedicamentos.mock.calls[0]![0]).toBe("dipi");
+    expect(qa("[role=option]").map((o) => texto(o))).toEqual(["DIPIRONA TESTE", "DIPIRONA OUTRA"]);
+  });
+
+  it("Cadastro sem temperatura: mantém a temperatura que o medicamento já tinha; e a pessoa pode trocá-la depois", async () => {
+    montado = montarFormulario(compraComUmMedicamento({ itens: [itemDeTeste(1, { temperatura: "Ambiente" })] }), { opcoes: OPCOES, acoes: acoesFalsas({ buscarMedicamentos: async () => [sugestao] }) });
+    await digitar(med(ID1, "medicamento"), "dipi");
+    await esperar(320);
+    qa<HTMLElement>("[role=option]")[0]!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    await esperar(5);
+    expect(ultimoItens(montado)[0]).toMatchObject({ medicamentoCadastroId: "med_1", temperatura: "Ambiente" });
+    await escolherNoSelect(med(ID1, "temperatura"), "2°C a 8°C");
+    expect(ultimoItens(montado)[0]!.temperatura).toBe("2°C a 8°C");
+    expect(ultimoItens(montado)[0]!.medicamentoCadastroId).toBe("med_1"); // trocar a temperatura não desliga o vínculo
+  });
+
+  it("uma resposta de 'Pedir cadastro' que chega DEPOIS de a pessoa mudar o texto é descartada", async () => {
+    let responder: (v: { tipo: "pre-cadastro"; id: string }) => void = () => undefined;
+    const pedirPreCadastro = vi.fn(() => new Promise<{ tipo: "pre-cadastro"; id: string }>((r) => (responder = r)));
+    montado = montarFormulario(compraComUmMedicamento({ itens: [itemDeTeste(1, { medicamento: "Novo Med", temperatura: "Ambiente" })] }), { acoes: acoesFalsas({ pedirPreCadastro }) });
+    await clicar(`#compra-item-${ID1}-pedir-cadastro`);
+    await digitar(med(ID1, "medicamento"), "Outro Med Totalmente Diferente");
+    responder({ tipo: "pre-cadastro", id: "pre_tarde" });
+    await esperar(5);
+    expect(ultimoItens(montado)[0]).toMatchObject({ medicamento: "Outro Med Totalmente Diferente", preCadastroId: null });
+  });
+
+  it("'Tentar de novo' depois de uma falha de rede pede outra vez", async () => {
+    const pedirPreCadastro = vi
+      .fn<() => Promise<{ tipo: "pre-cadastro"; id: string }>>()
+      .mockRejectedValueOnce(new Error("Sem conexão."))
+      .mockResolvedValue({ tipo: "pre-cadastro", id: "pre_2" });
+    montado = montarFormulario(compraComUmMedicamento({ itens: [itemDeTeste(1, { medicamento: "Novo Med", temperatura: "Ambiente" })] }), { acoes: acoesFalsas({ pedirPreCadastro }) });
+    await clicar(`#compra-item-${ID1}-pedir-cadastro`);
+    await esperar(5);
+    expect(texto(q(`#compra-item-${ID1}-pedir-erro`))).toContain("Sem conexão.");
+    q<HTMLButtonElement>(`#compra-item-${ID1}-pedir-erro button`)!.click();
+    await esperar(5);
+    expect(pedirPreCadastro).toHaveBeenCalledTimes(2);
+    expect(ultimoItens(montado)[0]!.preCadastroId).toBe("pre_2");
+  });
+
+  it("esvaziar o campo limpa o medicamento e os ids; a temperatura que a pessoa escolheu fica (se não veio do Cadastro)", async () => {
+    montado = montarFormulario(compraComUmMedicamento({ itens: [itemDeTeste(1, { medicamento: "Novo Med", preCadastroId: "pre_1", temperatura: "Ambiente" })] }));
+    await digitar(med(ID1, "medicamento"), "");
+    expect(ultimoItens(montado)[0]).toMatchObject({ medicamento: "", medicamentoCadastroId: null, preCadastroId: null, temperatura: "Ambiente" });
+  });
+
+  it("carregar uma compra com medicamento de fora do Cadastro e pedido pendente já mostra o aviso, sem pedir nada de novo", () => {
+    const pedirPreCadastro = vi.fn();
+    montado = montarFormulario(compraComUmMedicamento({ itens: [itemDeTeste(1, { medicamento: "Novo Med", preCadastroId: "pre_1", preCadastroStatus: "pendente" })] }), { acoes: acoesFalsas({ pedirPreCadastro: pedirPreCadastro as never }) });
+    expect(texto(q(`#compra-item-${ID1}-pre-cadastro-pendente`))).toContain("aguardando aprovação");
+    expect(pedirPreCadastro).not.toHaveBeenCalled();
+  });
+
+  it("temperatura: a lista é a do Cadastro, com 'Selecione' no início e 'Outro…' por ÚLTIMO (nunca gravada)", async () => {
+    montado = montarFormulario(compraComUmMedicamento(), { opcoes: OPCOES });
+    await clicar(med(ID1, "temperatura"));
+    expect(qa("[role=option]").map((o) => texto(o))).toEqual(["Selecione", "2°C a 8°C", "Ambiente", "Outro…"]);
+    await clicar(med(ID1, "temperatura")); // fecha
+    await escolherNoSelect(med(ID1, "temperatura"), "Outro…");
+    expect(ultimoItens(montado)[0]!.temperatura).toBe(""); // o sentinela nunca é gravado
+  });
+
+  it("'Outro…' que já existe ativa (200): seleciona a existente que o servidor devolveu", async () => {
+    const registrarTemperatura = vi.fn(async () => ({ tipo: "existente" as const, nome: "Ambiente" }));
+    montado = montarFormulario(compraComUmMedicamento(), { opcoes: OPCOES, acoes: acoesFalsas({ registrarTemperatura }) });
+    await escolherNoSelect(med(ID1, "temperatura"), "Outro…");
+    await digitar(`${med(ID1, "temperatura")}-nova`, "Ambiente TESTE");
+    await clicar(`${med(ID1, "temperatura")}-adicionar`);
+    await esperar(5);
+    expect(ultimoItens(montado)[0]!.temperatura).toBe("Ambiente");
+  });
+
+  it("'Outro…': nome vazio não chama a API; erro de rede mostra a mensagem e 'Tentar de novo', que tenta outra vez", async () => {
+    const registrarTemperatura = vi
+      .fn<(nome: string) => Promise<{ tipo: "criada"; nome: string }>>()
+      .mockRejectedValueOnce(new Error("falhou"))
+      .mockImplementation(async (nome) => ({ tipo: "criada", nome }));
+    montado = montarFormulario(compraComUmMedicamento(), { opcoes: OPCOES, acoes: acoesFalsas({ registrarTemperatura }) });
+    await escolherNoSelect(med(ID1, "temperatura"), "Outro…");
+    await clicar(`${med(ID1, "temperatura")}-adicionar`); // nome vazio
+    expect(registrarTemperatura).not.toHaveBeenCalled();
+    await digitar(`${med(ID1, "temperatura")}-nova`, "Congelado TESTE");
+    await clicar(`${med(ID1, "temperatura")}-adicionar`);
+    await esperar(5);
+    expect(texto(q(`${med(ID1, "temperatura")}-erro`))).toContain("Não foi possível adicionar a temperatura.");
+    q<HTMLButtonElement>(`${med(ID1, "temperatura")}-erro button`)!.click();
+    await esperar(5);
+    expect(ultimoItens(montado)[0]!.temperatura).toBe("Congelado TESTE");
+    expect(q(`${med(ID1, "temperatura")}-outra`)).toBeNull(); // fechou
+  });
+
+  it("'Cancelar' no 'Outro…' fecha sem mexer na temperatura", async () => {
+    montado = montarFormulario(compraComUmMedicamento({ itens: [itemDeTeste(1, { temperatura: "Ambiente" })] }), { opcoes: OPCOES });
+    await escolherNoSelect(med(ID1, "temperatura"), "Outro…");
+    q<HTMLButtonElement>(`${med(ID1, "temperatura")}-outra button:last-of-type`)!.click();
+    await esperar();
+    expect(q(`${med(ID1, "temperatura")}-outra`)).toBeNull();
+    expect(ultimoItens(montado)[0]!.temperatura).toBe("Ambiente");
+  });
+});

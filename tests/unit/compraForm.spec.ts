@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CIAS_AEREAS_POR_MODAL, MODAIS_ENVIO } from "../../shared/constants/processos";
 import { COMPRA_ID_RE, PENDENCIAS_PADRAO } from "../../shared/constants/compra";
-import { adicionarItem, atualizarItem, ciaAposTrocaDeEnvio, itemTemConteudo, itemVazio, novoIdCompra, pendenciasDoFormulario, pendenciasParaFormulario, removerItem, renumerarItens } from "../../shared/utils/compraForm";
+import { adicionarItem, atualizarItem, ciaAposTrocaDeEnvio, itemVazio, novoIdCompra, pendenciasDoFormulario, pendenciasParaFormulario, removerItem, renumerarItens } from "../../shared/utils/compraForm";
 
 // Peças puras do formulário da Compra (uma compra por fornecedor: só há medicamentos). Dados fictícios (TESTE).
 
@@ -60,26 +60,6 @@ describe("renumerarItens", () => {
     const antes = JSON.stringify(itens);
     expect(renumerarItens(itens).map((i) => [i.id, i.posicao])).toEqual([["itm_aaaaaa", 1], ["itm_bbbbbb", 2], ["itm_cccccc", 3]]);
     expect(JSON.stringify(itens)).toBe(antes);
-  });
-});
-
-describe("itemTemConteudo", () => {
-  it("vazio: não; qualquer campo (texto, brand, dinheiro, ligação) conta; id e posição não", () => {
-    expect(itemTemConteudo(itemVazio(1))).toBe(false);
-    expect(itemTemConteudo({ ...itemVazio(1), medicamento: " " })).toBe(false);
-    for (const extra of [
-      { medicamento: "TESTE" },
-      { laboratorio: "Lab" },
-      { brand: "referencia" as const },
-      { quantidade: "2" },
-      { temperatura: "Ambiente" },
-      { valorUnitario: 0 },
-      { valorReal: 1 },
-      { medicamentoCadastroId: "med_1" },
-      { preCadastroId: "pre_1" },
-    ]) {
-      expect(itemTemConteudo({ ...itemVazio(1), ...extra }), JSON.stringify(extra)).toBe(true);
-    }
   });
 });
 

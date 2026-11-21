@@ -170,3 +170,58 @@ describe("Paciente, Obs., isenção, verificação, pendente e recorrente", () =
     for (const r of qa<HTMLButtonElement>("#compra-documentos [role=radio], #compra-termo-posterior [role=radio], #compra-pagamento-momento [role=radio]")) expect(r.disabled).toBe(true);
   });
 });
+
+describe("casos portados da tela antiga: pendências, termo e verificação", () => {
+  it("Quando pagar: sem valor escolhido, o grupo continua ALCANÇÁVEL pelo Tab (a 1ª opção tem tabindex 0)", () => {
+    montado = montarFormulario(compraComUmMedicamento());
+    expect(qa<HTMLElement>("#compra-pagamento-momento [role=radio]").map((r) => r.getAttribute("tabindex"))).toEqual(["0", "-1"]);
+  });
+
+  it("Termo: voltar a 'n/a' esconde a observação mas o texto fica guardado; carregar uma compra com termo já mostra o campo preenchido", async () => {
+    montado = montarFormulario(compraComUmMedicamento({ termoPosterior: true, termoObservacao: "pagar depois" }));
+    expect((q("#compra-termo-observacao") as HTMLInputElement).value).toBe("pagar depois");
+    qa<HTMLElement>("#compra-termo-posterior [role=radio]").find((r) => texto(r) === "n/a")!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(montado.compra().termoObservacao).toBe("pagar depois");
+  });
+
+  it("Verificação: carregar com documentos true/false/null marca a opção certa", () => {
+    const marcados = (documentos: boolean | null) => {
+      montado?.desmontar();
+      montado = montarFormulario(compraComUmMedicamento({ documentos }));
+      return qa<HTMLElement>("#compra-documentos [role=radio]").map((r) => r.getAttribute("aria-checked"));
+    };
+    expect(marcados(null)).toEqual(["false", "false"]);
+    expect(marcados(false)).toEqual(["true", "false"]); // Pendente
+    expect(marcados(true)).toEqual(["false", "true"]); // Verificado
+  });
+
+  it("o texto livre vira UMA entrada final, some quando o campo esvazia, e um espaço no fim não é engolido", async () => {
+    montado = montarFormulario(compraComUmMedicamento({ pendencias: [PENDENCIAS_PADRAO[1]] }));
+    await digitar("#compra-pendencias-livre", "algo ");
+    expect(ultima(montado)).toEqual({ pendencias: [PENDENCIAS_PADRAO[1], "algo"] });
+    expect((q("#compra-pendencias-livre") as HTMLInputElement).value).toBe("algo ");
+    await digitar("#compra-pendencias-livre", "");
+    expect(ultima(montado)).toEqual({ pendencias: [PENDENCIAS_PADRAO[1]] });
+  });
+
+  it("round-trip: carregar chips + entradas soltas mostra os chips marcados e as soltas no campo livre, unidas por '; '", () => {
+    montado = montarFormulario(compraComUmMedicamento({ pendencias: [PENDENCIAS_PADRAO[0], "Solta A", "Solta B"] }));
+    expect(q("#compra-pendencia-chip-0")!.getAttribute("aria-pressed")).toBe("true");
+    expect((q("#compra-pendencias-livre") as HTMLInputElement).value).toBe("Solta A; Solta B");
+  });
+
+  it("trocar de compra (ou carregar a versão salva) atualiza o campo livre e os chips", async () => {
+    montado = montarFormulario(compraComUmMedicamento({ id: "cmp_a", pendencias: ["Solta A"] }));
+    expect((q("#compra-pendencias-livre") as HTMLInputElement).value).toBe("Solta A");
+    await montado.trocarCompra(compraComUmMedicamento({ id: "cmp_b", pendencias: [PENDENCIAS_PADRAO[2]] }));
+    expect((q("#compra-pendencias-livre") as HTMLInputElement).value).toBe("");
+    expect(q("#compra-pendencia-chip-2")!.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("o campo livre aceita no máximo 300 caracteres (o limite de cada entrada no servidor)", () => {
+    montado = montarFormulario(compraComUmMedicamento());
+    expect((q("#compra-pendencias-livre") as HTMLInputElement).maxLength).toBe(300);
+  });
+});

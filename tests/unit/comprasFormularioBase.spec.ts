@@ -2,6 +2,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp, defineComponent, h } from "vue";
 import CompraCampo from "../../app/components/compras/CompraCampo.vue";
+import CompraFormulario from "../../app/components/compras/CompraFormulario.vue";
+import { OPCOES_VAZIAS } from "../../app/utils/comprasOpcoes";
 import { compraComUmMedicamento, compraVaziaDeTeste, montarFormulario, q, qa, texto, type FormularioMontado } from "./helpers/montarFormulario";
 
 // A linha base (CompraCampo), o cabeçalho (sem chips de status nem contador de pendências) e a casca do formulário único. Dados fictícios (TESTE).
@@ -102,5 +104,72 @@ describe("casca do formulário", () => {
 
   it("compra de teste usa o modelo novo (sem ordens)", () => {
     expect(compraVaziaDeTeste()).not.toHaveProperty("ordens");
+  });
+});
+
+describe("faixa de conflito e estados do formulário", () => {
+  function formularioDireto(estado: string, extra: Record<string, unknown> = {}) {
+    const ev: string[] = [];
+    const el = document.createElement("div");
+    document.body.appendChild(el);
+    createApp(
+      defineComponent({
+        render: () =>
+          h(CompraFormulario, {
+            compra: compraComUmMedicamento(),
+            estado,
+            salvoEm: null,
+            podeEditar: true,
+            opcoes: OPCOES_VAZIAS,
+            onCarregarVersaoSalva: () => ev.push("carregar"),
+            onManterMinhas: () => ev.push("manter"),
+            onTentarDeNovo: () => ev.push("tentar"),
+            ...extra,
+          }),
+      }),
+    ).mount(el);
+    return ev;
+  }
+
+  it("só no 409 (estado 'conflito') a faixa aparece, com o texto e as DUAS saídas, que avisam", () => {
+    const ev = formularioDireto("conflito");
+    expect(texto(q("#compra-faixa-conflito"))).toContain("Esta compra foi alterada por outra pessoa.");
+    q<HTMLButtonElement>("#btn-conflito-carregar")!.click();
+    q<HTMLButtonElement>("#btn-conflito-manter")!.click();
+    expect(ev).toEqual(["carregar", "manter"]);
+    expect(texto(q("#compra-salvamento"))).toBe("Não salvo");
+  });
+
+  it("sem conflito, a faixa não existe; e não há a faixa antiga 'Compra cancelada' (o selo do cabeçalho basta)", () => {
+    formularioDireto("salvo", { compra: compraComUmMedicamento({ cancelada: true }) });
+    expect(q("#compra-faixa-conflito")).toBeNull();
+    expect(q("#compra-faixa-cancelada")).toBeNull();
+    expect(texto(q("[data-selo-cancelada]"))).toBe("Cancelada");
+  });
+
+  it("falhou de vez: 'Não foi possível salvar. Tentar de novo' avisa", () => {
+    const ev = formularioDireto("erro", { esperandoClique: true });
+    q<HTMLButtonElement>("#compra-salvamento-erro")!.click();
+    expect(ev).toEqual(["tentar"]);
+  });
+
+  it("'Salvo automaticamente às 16:22' com a hora de BRASÍLIA", () => {
+    formularioDireto("salvo", { salvoEm: new Date("2026-11-19T19:22:00Z") });
+    expect(texto(q("#compra-salvamento"))).toBe("Salvo automaticamente às 16:22");
+  });
+
+  it("Duplicar e Cancelar avisam (só para quem edita)", () => {
+    const eventos: string[] = [];
+    formularioDireto("ocioso", { onDuplicar: () => eventos.push("duplicar"), onCancelar: () => eventos.push("cancelar") });
+    q<HTMLButtonElement>("#btn-duplicar-compra")!.click();
+    q<HTMLButtonElement>("#btn-cancelar-compra")!.click();
+    expect(eventos).toEqual(["duplicar", "cancelar"]);
+  });
+
+  it("somente leitura: campos desabilitados (aria-disabled no bloco), sem botões de escrita", () => {
+    formularioDireto("ocioso", { podeEditar: false });
+    expect(q("#compra-campos")!.getAttribute("aria-disabled")).toBe("true");
+    expect(q("#btn-duplicar-compra")).toBeNull();
+    expect(qa<HTMLInputElement>("#compra-campos input").every((i) => i.disabled)).toBe(true);
   });
 });

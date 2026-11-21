@@ -5,7 +5,7 @@ import type { OpcaoDespachante, OpcaoFornecedor, OpcaoNome, OpcoesCompra } from 
 // cias aéreas: a cia depende do ENVIO (modal) e vem das constantes do Follow-Up (`CIAS_AEREAS_POR_MODAL`), não do servidor.
 
 export interface OpcoesFormulario {
-  /** Consultores ativos (o Consultor da compra; o Vendedor continua só na DIR). */
+  /** Consultores ativos (o Consultor da compra). */
   consultores: OpcaoNome[];
   despachantes: OpcaoDespachante[];
   fornecedores: OpcaoFornecedor[];

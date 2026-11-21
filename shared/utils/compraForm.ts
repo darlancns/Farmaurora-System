@@ -83,25 +83,6 @@ export function pendenciasDoFormulario(marcadas: readonly string[], livre: strin
   return texto === "" ? [...escolhidas] : [...escolhidas, texto];
 }
 
-// ── O que o medicamento já tem ───────────────────────────────────────────────────────────────────────────────
-
-const tem = (v: string | null | undefined): boolean => (v ?? "").trim() !== "";
-
-/** O item tem algum campo preenchido? (O que o formulário mostra: ids e posição não contam.) */
-export function itemTemConteudo(i: ItemCompra): boolean {
-  return (
-    tem(i.medicamento) ||
-    tem(i.laboratorio) ||
-    tem(i.brand) ||
-    tem(i.quantidade) ||
-    tem(i.temperatura) ||
-    i.valorUnitario !== null ||
-    i.valorReal !== null ||
-    tem(i.medicamentoCadastroId) ||
-    tem(i.preCadastroId)
-  );
-}
-
 // ── Cia aérea depende do modal de envio ─────────────────────────────────────────────────────────────────────
 
 /**

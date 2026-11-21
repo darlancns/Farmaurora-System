@@ -12,7 +12,7 @@ export const ROTULO_ABA_COMPRAS: Record<AbaCompras, string> = {
 
 export type ColunaCompras = "esquerda" | "central" | "direita";
 
-/** Qual aba mostra cada coluna: a lista (esquerda), o formulário (centro) e o checklist com o resumo (direita). */
+/** Qual aba mostra cada coluna: a lista (esquerda), o formulário (centro) e o resumo (direita). */
 export const ABA_DA_COLUNA: Record<ColunaCompras, AbaCompras> = {
   esquerda: "lista",
   central: "formulario",

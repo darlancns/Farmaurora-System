@@ -3,7 +3,7 @@ import { ABAS_COMPRAS, ROTULO_ABA_COMPRAS, type AbaCompras } from "../../utils/c
 import type { AppSelectOption } from "../../types/appSelect";
 import SegmentedControl from "../SegmentedControl.vue";
 
-// As 3 abas da página Compras abaixo de lg: "Compras" (lista), "Formulário" e "Resumo" (checklist e resumo). Um painel por vez; no
+// As 3 abas da página Compras abaixo de lg: "Compras" (lista), "Formulário" e "Resumo" (o resumo ao vivo). Um painel por vez; no
 // desktop (lg+) este componente some (as três colunas aparecem juntas). Fica fixo (sticky) no topo da área rolável da página.
 defineProps<{ modelValue: AbaCompras }>();
 const emit = defineEmits<{ "update:modelValue": [aba: AbaCompras] }>();

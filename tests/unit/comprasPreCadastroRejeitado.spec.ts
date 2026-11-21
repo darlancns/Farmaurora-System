@@ -1,18 +1,11 @@
-// @vitest-environment happy-dom
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { nextTick } from "vue";
-import { TEXTO_PRE_CADASTRO_REJEITADO } from "../../shared/constants/compraChecklist";
-import type { ItemCompra, OrdemCompra } from "../../shared/types/compra";
-import { checklistCompra, contarPendencias, statusDaCompra, type CompraParaChecklist } from "../../shared/utils/compraChecklist";
-import { itemVazio, ordemVazia } from "../../shared/utils/compraForm";
-import { campoDoItem } from "../../app/utils/comprasCampos";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { TEXTO_PRE_CADASTRO_REJEITADO } from "../../shared/constants/compra";
 import { montarItem, type ItemRow } from "../../server/utils/compraMappers";
-import { compraTeste, montarFormulario, q, texto, type FormularioMontado } from "./helpers/formularioCompra";
 import { FakeSupabase } from "./helpers/fakeSupabase";
-import { compraTeste as compraCompleta } from "./helpers/compraCompletaFixtures";
 
-// O aviso de PRÉ-CADASTRO REJEITADO (aviso, não erro) no checklist e na linha do medicamento, e o item APROVADO que deixa de mostrar o aviso de
-// pré-cadastro. Mapeador, checklist (da tela, sai na E6), leitura da compra (Supabase simulado) e a linha real do formulário (tela, E6). Dados fictícios (TESTE).
+// O estado do PRÉ-CADASTRO que a compra devolve por item (pendente, rejeitado) e o item APROVADO que deixa de mostrar pré-cadastro. Mapeador e
+// leitura da compra (Supabase simulado). O aviso na linha do medicamento (TEXTO_PRE_CADASTRO_REJEITADO) é testado em comprasMedicamentos.spec.ts.
+// Dados fictícios (TESTE).
 
 const fake = new FakeSupabase();
 vi.mock("../../server/utils/supabaseServerClient", () => ({
@@ -23,7 +16,6 @@ const { aprovarPreCadastro, rejeitarPreCadastro } = await import("../../server/u
 
 const ANTIGA = "2026-11-10T10:00:00.000Z";
 const NOME = "TESTE MEDICAMENTO ALFA";
-const AVISO_REJEITADO = `${TEXTO_PRE_CADASTRO_REJEITADO} (${NOME})`;
 
 const linhaItem = (extra: Partial<ItemRow> = {}): ItemRow => ({
   id: "it_1",
@@ -68,43 +60,6 @@ describe("mapeador: o pré-cadastro que o item MOSTRA", () => {
   it("a LISTA do mês não lê o pré-cadastro: só o id e o texto do item (itemDaLista), e item ligado ao Cadastro continua sem pré-cadastro", () => {
     const ligado = montarItem(linhaItem({ medicamento_cadastro_id: "med_1", pre_cadastro_id: "pre_1" }));
     expect(ligado).toMatchObject({ preCadastroId: null, medicamentoCadastroId: "med_1" });
-  });
-});
-
-function compraComItem(item: Partial<ItemCompra>): CompraParaChecklist {
-  const base = compraCompleta();
-  return { ...base, ordens: [{ ...base.ordens[0]!, itens: [{ ...base.ordens[0]!.itens[0]!, medicamento: NOME, medicamentoCadastroId: null, preCadastroId: null, ...item }] }] };
-}
-const avisoDoItem = (c: CompraParaChecklist) => checklistCompra(c).itens.find((i) => i.id.endsWith("-pre-cadastro"));
-
-describe("checklist: aviso de pré-cadastro rejeitado", () => {
-  it("rejeitado: é um AVISO (nunca erro) com o texto pedido e o nome, no MESMO item da regra (clicável para o campo Medicamento)", () => {
-    const c = compraComItem({ preCadastroId: "pre_1", preCadastroStatus: "rejeitado" });
-    const aviso = avisoDoItem(c)!;
-    expect(aviso).toMatchObject({ id: "ordem-1-med-1-pre-cadastro", nivel: "aviso", texto: AVISO_REJEITADO });
-    expect(campoDoItem(aviso.id, c)).toBe("ordem-1-med-1-nome");
-  });
-
-  it("não vira pendência nem muda o estado da compra (rejeitar não trava a compra)", () => {
-    const semAviso = compraComItem({ medicamentoCadastroId: "med_1" });
-    const rejeitada = compraComItem({ preCadastroId: "pre_1", preCadastroStatus: "rejeitado" });
-    expect(contarPendencias(rejeitada)).toBe(contarPendencias(semAviso));
-    expect(checklistCompra(rejeitada).pronta).toBe(checklistCompra(semAviso).pronta);
-    expect(statusDaCompra(rejeitada)).toBe(statusDaCompra(semAviso));
-  });
-
-  it("pendente (ou sem estado): segue o aviso de sempre", () => {
-    expect(avisoDoItem(compraComItem({ preCadastroId: "pre_1", preCadastroStatus: "pendente" }))!.texto).toBe(`${NOME} no pré-cadastro: a linha da DIR leva o nome digitado`);
-    expect(avisoDoItem(compraComItem({ preCadastroId: "pre_1" }))!.texto).toBe(`${NOME} no pré-cadastro: a linha da DIR leva o nome digitado`);
-    expect(avisoDoItem(compraComItem({}))!.texto).toBe(`${NOME} no pré-cadastro: a linha da DIR leva o nome digitado`);
-  });
-
-  it("estado velho sem pré-cadastro no item (a pessoa trocou o medicamento): não vale como rejeitado", () => {
-    expect(avisoDoItem(compraComItem({ preCadastroId: null, preCadastroStatus: "rejeitado" }))!.texto).not.toContain("rejeitado");
-  });
-
-  it("item APROVADO (já ligado ao Cadastro, sem pré-cadastro): NENHUM aviso de pré-cadastro", () => {
-    expect(avisoDoItem(compraComItem({ medicamentoCadastroId: "med_1", preCadastroId: null }))).toBeUndefined();
   });
 });
 
@@ -168,45 +123,5 @@ describe("a compra devolve o estado do pré-cadastro de cada item", () => {
     fake.chamadas.length = 0;
     await obterCompra("compra_1");
     expect(fake.chamadas.some((c) => c.tabela === "pre_cadastro_medicamentos")).toBe(false);
-  });
-});
-
-// ── A linha do medicamento no formulário ───────────────────────────────────────────────────────────────────
-
-describe("linha do medicamento (formulário real)", () => {
-  let montado: FormularioMontado | null = null;
-  afterEach(() => {
-    montado?.desmontar();
-    montado = null;
-    document.body.innerHTML = "";
-  });
-
-  const item = (id: string, posicao: number, extra: Partial<ItemCompra> = {}): ItemCompra => ({ ...itemVazio(posicao), id, ...extra });
-  const ordem = (itens: ItemCompra[]): OrdemCompra => ({ ...ordemVazia(1), id: "ord_a00001", itens });
-  function abrir(itens: ItemCompra[]): FormularioMontado {
-    montado = montarFormulario(compraTeste({ ordens: [ordem(itens)] }), { opcoes: { temperaturas: [{ nome: "2°C a 8°C" }] } });
-    return montado;
-  }
-
-  it("rejeitado: mostra o aviso (e não o 'entra no pré-cadastro para aprovação'); o texto livre continua no campo", async () => {
-    abrir([item("itm_a", 1, { medicamento: NOME, preCadastroId: "pre_1", preCadastroStatus: "rejeitado", temperatura: "2°C a 8°C" })]);
-    await nextTick();
-    expect(texto(q("#item-itm_a-pre-cadastro-rejeitado"))).toBe(TEXTO_PRE_CADASTRO_REJEITADO);
-    expect(q("#item-itm_a-fora-do-cadastro")).toBeNull();
-    expect(q<HTMLInputElement>("#item-itm_a-medicamento")!.value).toBe(NOME);
-  });
-
-  it("pendente: só o texto de sempre", async () => {
-    abrir([item("itm_a", 1, { medicamento: NOME, preCadastroId: "pre_1", preCadastroStatus: "pendente", temperatura: "2°C a 8°C" })]);
-    await nextTick();
-    expect(q("#item-itm_a-pre-cadastro-rejeitado")).toBeNull();
-    expect(q("#item-itm_a-fora-do-cadastro")).not.toBeNull();
-  });
-
-  it("item aprovado (do Cadastro): nenhum dos dois avisos", async () => {
-    abrir([item("itm_a", 1, { medicamento: NOME, medicamentoCadastroId: "med_1", preCadastroId: null })]);
-    await nextTick();
-    expect(q("#item-itm_a-pre-cadastro-rejeitado")).toBeNull();
-    expect(q("#item-itm_a-fora-do-cadastro")).toBeNull();
   });
 });

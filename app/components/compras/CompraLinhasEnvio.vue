@@ -21,8 +21,8 @@ const emit = defineEmits<{ alterar: [mudancas: MudancasCompra] }>();
 const ciaOptions = computed(() => montarCiaAereaOptions(props.compra.envio, props.compra.cia));
 const semModal = computed(() => props.compra.envio.trim() === "");
 
-function aoTrocarEnvio(envio: ModalEnvio | ""): void {
-  emit("alterar", { envio, cia: ciaAposTrocaDeEnvio(envio, props.compra.cia) });
+function aoTrocarEnvio(envio: string): void {
+  emit("alterar", { envio: envio as ModalEnvio | "", cia: ciaAposTrocaDeEnvio(envio, props.compra.cia) });
 }
 
 // Um fornecedor antigo (que não está mais entre os ativos) continua aparecendo selecionado até a pessoa trocar.
