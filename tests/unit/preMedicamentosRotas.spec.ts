@@ -66,8 +66,7 @@ function semear(): void {
   fake.semear("cadastro_temperaturas", [{ id: "temp_1", nome: "2°C a 8°C", nome_chave: "2°c a 8°c", ativo: true, created_at: ANTIGA, updated_at: ANTIGA }]);
   fake.semear("cadastro_medicamentos", []);
   fake.semear("compras", [{ id: "compra_1", ano_mes: "2026-11", sequencia: 7, updated_at: ANTIGA }]);
-  fake.semear("compra_ordens", [{ id: "ord_1", compra_id: "compra_1", posicao: 1 }]);
-  fake.semear("compra_itens", [{ id: "it_1", ordem_id: "ord_1", posicao: 1, medicamento: "TESTE MEDICAMENTO ALFA", medicamento_cadastro_id: null, pre_cadastro_id: "pre_teste_alfa" }]);
+  fake.semear("compra_itens", [{ id: "it_1", compra_id: "compra_1", posicao: 1, medicamento: "TESTE MEDICAMENTO ALFA", medicamento_cadastro_id: null, pre_cadastro_id: "pre_teste_alfa" }]);
   fake.semear("pre_cadastro_medicamentos", [
     { id: "pre_teste_alfa", nome: "TESTE MEDICAMENTO ALFA", nome_chave: "teste medicamento alfa", temperatura: "2°C a 8°C", status: "pendente", compra_id: "compra_1", cadastro_id: null, solicitado_por: "Op Teste", decidido_por: null, decidido_em: null, created_at: "2026-11-12T12:00:00.000Z", updated_at: "2026-11-12T12:00:00.000Z" },
   ]);

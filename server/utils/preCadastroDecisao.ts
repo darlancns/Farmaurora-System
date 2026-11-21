@@ -21,7 +21,7 @@ import { erro } from "./storeKit";
 
 /**
  * A DECISÃO dos pré-cadastros de medicamento (o administrador aprova ou rejeita o que as compras pediram; o PEDIDO está em
- * preCadastroStore.ts). Tabelas `pre_cadastro_medicamentos`, `compra_itens`, `compra_ordens` e `compras`; o medicamento novo entra no Cadastro
+ * preCadastroStore.ts). Tabelas `pre_cadastro_medicamentos`, `compra_itens` e `compras`; o medicamento novo entra no Cadastro
  * pelo store dos Cadastros (`criarCadastro`), com todas as regras do cadastro normal. NUNCA apaga nada (o service_role nem tem DELETE).
  *
  * SEM TRANSAÇÃO (supabase-js): cada passo é um comando em autocommit, então a ORDEM é o que garante que REPETIR depois de uma falha no meio termina
@@ -47,7 +47,6 @@ import { erro } from "./storeKit";
 
 const PRE = "pre_cadastro_medicamentos";
 const ITENS = "compra_itens";
-const ORDENS = "compra_ordens";
 const COMPRAS = "compras";
 
 const TAMANHO_PAGINA = 1000;
@@ -163,32 +162,25 @@ async function lerPendente(db: Db, id: string): Promise<PreRow> {
 // ── Itens e compras afetados ─────────────────────────────────────────────────────────────────────────────────
 
 /** Os itens de compra que apontam para o pré-cadastro (já ligados ou ainda não: a coluna não é limpa ao ligar). */
-async function itensDoPreCadastro(db: Db, preId: string): Promise<Array<{ id: string; ordem_id: string }>> {
-  const itens: Array<{ id: string; ordem_id: string }> = [];
+async function itensDoPreCadastro(db: Db, preId: string): Promise<Array<{ id: string; compra_id: string }>> {
+  const itens: Array<{ id: string; compra_id: string }> = [];
   for (let de = 0; ; de += TAMANHO_PAGINA) {
     const { data, error } = await db
       .from(ITENS)
-      .select("id, ordem_id")
+      .select("id, compra_id")
       .eq("pre_cadastro_id", preId)
       .order("id", { ascending: true })
       .range(de, de + TAMANHO_PAGINA - 1);
     if (error) throw erro("ler os itens do pré-cadastro", error);
-    const pagina = (data ?? []) as Array<{ id: string; ordem_id: string }>;
+    const pagina = (data ?? []) as Array<{ id: string; compra_id: string }>;
     itens.push(...pagina);
     if (pagina.length < TAMANHO_PAGINA) break;
   }
   return itens;
 }
 
-async function comprasDasOrdens(db: Db, ordemIds: readonly string[]): Promise<string[]> {
-  const compras = new Set<string>();
-  for (const bloco of emBlocos([...new Set(ordemIds)])) {
-    const { data, error } = await db.from(ORDENS).select("id, compra_id").in("id", bloco);
-    if (error) throw erro("ler as ordens dos itens do pré-cadastro", error);
-    for (const o of (data ?? []) as Array<{ id: string; compra_id: string }>) compras.add(o.compra_id);
-  }
-  return [...compras];
-}
+/** As compras dos itens (sem repetir): cada item aponta direto para a sua compra. */
+const comprasDosItens = (itens: ReadonlyArray<{ compra_id: string }>): string[] => [...new Set(itens.map((i) => i.compra_id))];
 
 async function subirVersaoDasCompras(compraIds: readonly string[]): Promise<void> {
   for (const id of compraIds) await subirVersaoDaCompra(id);
@@ -272,7 +264,7 @@ export async function aprovarPreCadastro(id: string, corpo: unknown, por: string
     const { error } = await db.from(ITENS).update({ medicamento_cadastro_id: cadastroId, updated_at: new Date().toISOString() }).eq("pre_cadastro_id", pre.id).select("id");
     if (error) throw erro("ligar os itens das compras ao medicamento", error);
   }
-  const compras = await comprasDasOrdens(db, itens.map((i) => i.ordem_id));
+  const compras = comprasDosItens(itens);
   await subirVersaoDasCompras(compras);
 
   const decidido = await decidir(db, pre, "aprovado", por, cadastroId);
@@ -285,7 +277,7 @@ export async function rejeitarPreCadastro(id: string, por: string): Promise<Resp
   const pre = await lerPendente(db, id);
 
   const itens = await itensDoPreCadastro(db, pre.id);
-  const compras = await comprasDasOrdens(db, itens.map((i) => i.ordem_id));
+  const compras = comprasDosItens(itens);
   await subirVersaoDasCompras(compras);
 
   const decidido = await decidir(db, pre, "rejeitado", por, null);

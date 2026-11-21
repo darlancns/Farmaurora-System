@@ -42,8 +42,7 @@ const pre = (id: string, nome: string, extra: Linha = {}): Linha => ({
 const medicamento = (id: string, nome: string, ativo = true): Linha => ({ id, nome, nome_chave: chave(nome), temperatura: "Ambiente", ativo, atualizado_por: "Alguém", created_at: ANTIGA, updated_at: ANTIGA });
 const temperatura = (id: string, nome: string, ativo = true): Linha => ({ id, nome, nome_chave: chave(nome), ativo, atualizado_por: "Alguém", created_at: ANTIGA, updated_at: ANTIGA });
 const compra = (id: string, sequencia: number): Linha => ({ id, ano_mes: "2026-11", sequencia, paciente: "TESTE PACIENTE", updated_at: ANTIGA });
-const ordem = (id: string, compraId: string): Linha => ({ id, compra_id: compraId, posicao: 1 });
-const item = (id: string, ordemId: string, extra: Linha = {}): Linha => ({ id, ordem_id: ordemId, posicao: 1, medicamento: "TESTE MEDICAMENTO ALFA", medicamento_cadastro_id: null, pre_cadastro_id: null, ...extra });
+const item = (id: string, compraId: string, extra: Linha = {}): Linha => ({ id, compra_id: compraId, posicao: 1, medicamento: "TESTE MEDICAMENTO ALFA", medicamento_cadastro_id: null, pre_cadastro_id: null, ...extra });
 
 const PRE_ALFA = "pre_teste_alfa";
 const MED_ALFA = idDoMedicamentoDoPreCadastro(PRE_ALFA);
@@ -54,13 +53,12 @@ function semear(): void {
   fake.semear("cadastro_temperaturas", [temperatura("temp_1", "2°C a 8°C"), temperatura("temp_2", "Ambiente"), temperatura("temp_3", "Congelado -20°C", false)]);
   fake.semear("cadastro_medicamentos", [medicamento("med_gama", "TESTE MEDICAMENTO GAMA"), medicamento("med_delta", "TESTE MEDICAMENTO DELTA", false)]);
   fake.semear("compras", [compra("compra_1", 7), compra("compra_2", 8), compra("compra_3", 9)]);
-  fake.semear("compra_ordens", [ordem("ord_1", "compra_1"), ordem("ord_2", "compra_2"), ordem("ord_3", "compra_3")]);
   fake.semear("pre_cadastro_medicamentos", [pre(PRE_ALFA, "TESTE MEDICAMENTO ALFA"), pre("pre_teste_beta", "TESTE MEDICAMENTO BETA", { created_at: "2026-11-13T12:00:00.000Z" })]);
   fake.semear("compra_itens", [
-    item("it_1", "ord_1", { pre_cadastro_id: PRE_ALFA }),
-    item("it_2", "ord_2", { pre_cadastro_id: PRE_ALFA }), // outra compra com o MESMO pendente
-    item("it_3", "ord_3", { pre_cadastro_id: "pre_teste_beta", medicamento: "TESTE MEDICAMENTO BETA" }), // de outro pré-cadastro: nunca muda
-    item("it_4", "ord_3", { medicamento: "TESTE DO CADASTRO", medicamento_cadastro_id: "med_gama" }),
+    item("it_1", "compra_1", { pre_cadastro_id: PRE_ALFA }),
+    item("it_2", "compra_2", { pre_cadastro_id: PRE_ALFA }), // outra compra com o MESMO pendente
+    item("it_3", "compra_3", { pre_cadastro_id: "pre_teste_beta", medicamento: "TESTE MEDICAMENTO BETA" }), // de outro pré-cadastro: nunca muda
+    item("it_4", "compra_3", { medicamento: "TESTE DO CADASTRO", medicamento_cadastro_id: "med_gama" }),
   ]);
 }
 
@@ -313,7 +311,6 @@ const PASSOS_APROVAR: Array<[string, string, Op]> = [
   ["criar o medicamento", "cadastro_medicamentos", "insert"],
   ["ler os itens do pré-cadastro", "compra_itens", "select"],
   ["ligar os itens", "compra_itens", "update"],
-  ["ler as ordens", "compra_ordens", "select"],
   ["ler a versão da compra", "compras", "select"],
   ["subir a versão da compra", "compras", "update"],
   ["decidir (marcar aprovado)", "pre_cadastro_medicamentos", "update"],
@@ -393,7 +390,6 @@ describe("rejeitar: falha injetada em CADA passo e repetição", () => {
   it.each([
     ["ler o pré-cadastro", "pre_cadastro_medicamentos", "select"],
     ["ler os itens do pré-cadastro", "compra_itens", "select"],
-    ["ler as ordens", "compra_ordens", "select"],
     ["ler a versão da compra", "compras", "select"],
     ["subir a versão da compra", "compras", "update"],
     ["decidir (marcar rejeitado)", "pre_cadastro_medicamentos", "update"],
@@ -417,6 +413,23 @@ describe("item que o usuário trocou depois do pedido", () => {
     const r = await aprovarPreCadastro(PRE_ALFA, {}, ADM);
     expect(porId("compra_itens", "it_2").medicamento_cadastro_id).toBe("med_gama");
     expect(r).toMatchObject({ itens: 1, compras: 1 });
+  });
+
+  it("itens de DUAS compras e dois itens na MESMA compra: itens conta todos, compras conta cada compra uma vez, e a versão sobe só nas compras dos itens (cada item aponta direto para a sua compra)", async () => {
+    fake.semear("compra_itens", [item("it_5", "compra_1", { posicao: 2, pre_cadastro_id: PRE_ALFA })]); // 2º item da compra_1
+    const r = await aprovarPreCadastro(PRE_ALFA, {}, ADM);
+    expect(r).toMatchObject({ itens: 3, compras: 2 });
+    for (const id of ["it_1", "it_2", "it_5"]) expect(porId("compra_itens", id).medicamento_cadastro_id, id).toBe(MED_ALFA);
+    expect(porId("compras", "compra_3").updated_at).toBe(ANTIGA); // a compra do outro pré-cadastro não mexe
+    expect(linhas("compra_itens").every((i) => !("ordem_id" in i))).toBe(true); // nada de ordens no caminho
+  });
+
+  it("rejeitar com itens de duas compras: sobe a versão das duas e não toca nos itens", async () => {
+    fake.semear("compra_itens", [item("it_5", "compra_1", { posicao: 2, pre_cadastro_id: PRE_ALFA })]);
+    const r = await rejeitarPreCadastro(PRE_ALFA, ADM);
+    expect(r).toMatchObject({ itens: 3, compras: 2, preCadastro: { status: "rejeitado" } });
+    for (const id of ["compra_1", "compra_2"]) expect(porId("compras", id).updated_at, id).not.toBe(ANTIGA);
+    expect(escritasEm("compra_itens")).toEqual([]);
   });
 
   it("pré-cadastro sem nenhum item (a compra tirou o medicamento): aprova e cria o medicamento sem ligar nada", async () => {
