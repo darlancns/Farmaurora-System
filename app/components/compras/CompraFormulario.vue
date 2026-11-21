@@ -7,8 +7,12 @@ import type { OpcoesFormulario } from "../../utils/comprasOpcoes";
 import CompraFaixaConflito from "./CompraFaixaConflito.vue";
 import CompraFormCabecalho from "./CompraFormCabecalho.vue";
 import CompraLinhaOrdens from "./CompraLinhaOrdens.vue";
+import CompraLinhasAvisos from "./CompraLinhasAvisos.vue";
 import CompraLinhasEnvio from "./CompraLinhasEnvio.vue";
 import CompraLinhasMedicamento from "./CompraLinhasMedicamento.vue";
+import CompraLinhasPaciente from "./CompraLinhasPaciente.vue";
+import CompraLinhasPagamento from "./CompraLinhasPagamento.vue";
+import CompraLinhasResponsaveis from "./CompraLinhasResponsaveis.vue";
 import CompraLinhasValores from "./CompraLinhasValores.vue";
 
 // A coluna central: o cabeçalho, a faixa de conflito e UM ÚNICO BLOCO de campos (sem fieldsets nem títulos de seção): uma linha
@@ -85,6 +89,10 @@ const alterar = (m: MudancasCompra): void => emit("alterar", m);
       <CompraLinhaOrdens :compra="compra" :desabilitado="desabilitado" @alterar="alterar" />
       <CompraLinhasValores :compra="compra" :desabilitado="desabilitado" :opcoes="opcoes" @alterar="alterar" />
       <CompraLinhasEnvio :compra="compra" :desabilitado="desabilitado" :opcoes="opcoes" @alterar="alterar" />
+      <CompraLinhasPagamento :compra="compra" :desabilitado="desabilitado" @alterar="alterar" />
+      <CompraLinhasPaciente :compra="compra" :desabilitado="desabilitado" :opcoes="opcoes" @alterar="alterar" />
+      <CompraLinhasAvisos :compra="compra" :desabilitado="desabilitado" @alterar="alterar" />
+      <CompraLinhasResponsaveis :compra="compra" :desabilitado="desabilitado" :opcoes="opcoes" @alterar="alterar" />
     </div>
   </section>
 </template>

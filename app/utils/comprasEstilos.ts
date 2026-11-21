@@ -8,3 +8,6 @@ export const BOTAO_PRIMARIO_CLASS =
 /** Botão secundário (fundo paper + borda hairline). */
 export const BOTAO_SECUNDARIO_CLASS =
   "rounded-lg border border-hairline bg-paper px-4 py-2.5 max-lg:min-h-11 text-[13px] font-semibold text-ink transition-colors hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-dark disabled:cursor-not-allowed disabled:opacity-50";
+
+/** A caixinha (checkbox) dos campos da Compra. */
+export const CHECKBOX_CLASS = "h-[18px] w-[18px] shrink-0 accent-accent-dark disabled:cursor-not-allowed";
