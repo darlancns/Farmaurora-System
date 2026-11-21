@@ -9,15 +9,10 @@ export type ItemComCampo = ItemChecklist & { campo: string | null };
 // itens "ok" recolhidos num contador que expande. Cada item de ordem leva a etiqueta "Ordem N". Erro ou aviso que corresponde a um campo
 // é um BOTÃO: clicar rola até o campo e leva o foco a ele (`irParaCampo`); item "ok" nunca é botão. Só desenha: quem calcula é a coluna
 // da direita, ao vivo, a cada digitação.
-const props = withDefaults(
-  defineProps<{
-    itens: ItemComCampo[];
-    pronta: boolean;
-    /** O título da seção ("Antes de encaminhar"; o painel do Encaminhar usa "Conferência"). */
-    titulo?: string;
-  }>(),
-  { titulo: "Antes de encaminhar" },
-);
+const props = defineProps<{
+  itens: ItemComCampo[];
+  pronta: boolean;
+}>();
 
 const emit = defineEmits<{ irParaCampo: [campo: string] }>();
 
@@ -31,7 +26,7 @@ const rotuloOk = computed(() => (oks.value.length === 1 ? "1 item ok" : `${oks.v
 
 <template>
   <section id="compra-checklist" aria-labelledby="compra-checklist-titulo" class="rounded-lg border border-hairline bg-paper-raised p-3.5">
-    <h3 id="compra-checklist-titulo" class="mb-2 text-[11px] font-semibold tracking-wide text-ink-soft uppercase">{{ titulo }}</h3>
+    <h3 id="compra-checklist-titulo" class="mb-2 text-[11px] font-semibold tracking-wide text-ink-soft uppercase">Antes de encaminhar</h3>
 
     <p v-if="pronta" id="compra-checklist-pronta" class="mb-2 text-[12.5px] font-semibold text-green-800">Nada pendente: pronta para encaminhar.</p>
 
