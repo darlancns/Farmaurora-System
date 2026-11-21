@@ -190,7 +190,7 @@ describe("o resumo preenche os vazios enquanto se digita no formulário (ligado 
 
   it("com 2 medicamentos o resumo mostra 'Medicamento 1' e 'Medicamento 2'", async () => {
     formulario = montarFormulario(compraComUmMedicamento(), { comResumo: true });
-    q<HTMLButtonElement>("#compra-adicionar-medicamento")!.click();
+    q<HTMLButtonElement>("button[aria-label='Adicionar medicamento']")!.click();
     await nextTick();
     expect(linhaDoResumo("medicamento_1")).not.toBeNull();
     expect(linhaDoResumo("medicamento_2")).not.toBeNull();

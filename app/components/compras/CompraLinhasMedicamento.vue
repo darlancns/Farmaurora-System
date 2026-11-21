@@ -12,7 +12,7 @@ import CompraMedicamentoInput from "./CompraMedicamentoInput.vue";
 import CompraPorMedicamento from "./CompraPorMedicamento.vue";
 
 // As linhas 1 a 4 do formulário (a ordem do resumo): Medicamento, Laboratório, Brand e Quantidade. Cada uma é POR MEDICAMENTO: com um só,
-// um controle; com dois ou mais, um por medicamento, rotulados "Med. 1", "Med. 2". O "+ Adicionar medicamento" fica na linha Medicamento.
+// um controle; com dois ou mais, um por medicamento, rotulados "Med. 1", "Med. 2". O "+" (adicionar medicamento, com aria-label e title) fica à direita do input do ÚLTIMO medicamento; os demais têm o "✕".
 const props = defineProps<{ compra: Compra; desabilitado: boolean }>();
 const emit = defineEmits<{ alterar: [mudancas: MudancasCompra] }>();
 
@@ -39,24 +39,13 @@ const noLimite = (): boolean => props.compra.itens.length >= COMPRA_MAX_ITENS;
         :nome-acessivel="nomeAcessivel"
         :rotulo-med="`Med. ${indice + 1}`"
         :pode-remover="total > 1"
+        :eh-ultimo="indice === total - 1"
+        :no-limite="noLimite()"
         :desabilitado="desabilitado"
         @atualizar="(m) => atualizar(item.id, m)"
         @remover="remover(item.id)"
+        @adicionar="adicionar"
       />
-    </template>
-    <template #rodape>
-      <!-- O mesmo botão "+" do Follow-Up (ProcessoFormMedicamentos): borda hairline, texto em accent-dark, 44px de altura no celular. -->
-      <button
-        v-if="!desabilitado"
-        id="compra-adicionar-medicamento"
-        type="button"
-        :disabled="noLimite()"
-        :title="noLimite() ? `No máximo ${COMPRA_MAX_ITENS} medicamentos por compra` : 'Adicionar medicamento'"
-        class="mt-2 flex min-h-11 items-center justify-center rounded-md border border-hairline px-3 py-2 text-[14px] font-semibold text-accent-dark transition-colors hover:bg-paper focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-dark disabled:cursor-not-allowed disabled:opacity-60 lg:min-h-auto lg:text-[13px]"
-        @click="adicionar"
-      >
-        + Adicionar medicamento
-      </button>
     </template>
   </CompraPorMedicamento>
 

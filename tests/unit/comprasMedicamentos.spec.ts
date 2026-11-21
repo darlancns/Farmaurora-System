@@ -107,10 +107,12 @@ describe("2 ou mais medicamentos: um controle por medicamento, 'Med. 1', 'Med. 2
   });
 });
 
-describe("'+ Adicionar medicamento'", () => {
+const BOTAO_MAIS = "button[aria-label='Adicionar medicamento']";
+
+describe("'+' ao lado do input do último medicamento (aria-label 'Adicionar medicamento')", () => {
   it("acrescenta um medicamento vazio no fim (e a linha passa a ter Med. 1 e Med. 2)", async () => {
     montado = montarFormulario(compraComUmMedicamento());
-    await clicar("#compra-adicionar-medicamento");
+    await clicar(BOTAO_MAIS);
     expect(ultimoItens(montado)).toHaveLength(2);
     expect(ultimoItens(montado)[1]).toMatchObject({ posicao: 2, medicamento: "", medicamentoCadastroId: null, brand: "" });
     expect(qa('[data-linha="laboratorio"] [role="group"][aria-label^="Med."]')).toHaveLength(2);
@@ -119,17 +121,49 @@ describe("'+ Adicionar medicamento'", () => {
   it("no teto de 30 medicamentos o botão fica desabilitado, com title", () => {
     const itens = Array.from({ length: 30 }, (_, i) => itemDeTeste(i + 1, { id: `itm_teste_${String(i + 1).padStart(4, "0")}` }));
     montado = montarFormulario(compraComUmMedicamento({ itens }));
-    const botao = q<HTMLButtonElement>("#compra-adicionar-medicamento")!;
+    const botao = q<HTMLButtonElement>(BOTAO_MAIS)!;
     expect(botao.disabled).toBe(true);
     expect(botao.title).toContain("30");
   });
 
-  it("é um <button type=button> com texto e acessível por teclado (Enter/clique)", async () => {
+  it("é um botão quadrado só com '+': sem texto visível 'Adicionar medicamento', com aria-label e title, focável e que age com Enter/Espaço (click nativo)", async () => {
     montado = montarFormulario(compraComUmMedicamento());
-    const botao = q<HTMLButtonElement>("#compra-adicionar-medicamento")!;
+    const botao = q<HTMLButtonElement>(BOTAO_MAIS)!;
     expect(botao.type).toBe("button");
-    expect(texto(botao)).toBe("+ Adicionar medicamento");
+    expect(texto(botao)).toBe("+");
+    expect(botao.getAttribute("aria-label")).toBe("Adicionar medicamento");
+    expect(botao.title).toBe("Adicionar medicamento");
     expect(botao.tabIndex).not.toBe(-1);
+    expect(botao.className).toContain("focus-visible:outline-2");
+    expect(botao.className).toContain("w-11"); // quadrado
+    expect(document.body.textContent).not.toContain("Adicionar medicamento"); // nenhum texto visível
+    botao.focus();
+    expect(document.activeElement).toBe(botao);
+  });
+
+  it("com 1 medicamento: [input] [+]; com 2: o '+' só no ÚLTIMO, ao lado do ✕, e o 1º tem ✕ e um espaço do tamanho do '+' (inputs alinhados)", async () => {
+    montado = montarFormulario(compraComUmMedicamento());
+    const um = q<HTMLElement>(`#compra-item-${ID1}`)!;
+    expect(um.querySelector(BOTAO_MAIS)).not.toBeNull();
+    expect(um.querySelector("[id$='-remover']")).toBeNull();
+    await clicar(BOTAO_MAIS);
+    const [m1, m2] = qa<HTMLElement>("[data-item-medicamento]");
+    expect(m1!.querySelector(BOTAO_MAIS)).toBeNull();
+    expect(m1!.querySelector("[id$='-remover']")).not.toBeNull();
+    expect(m1!.querySelector("span[aria-hidden='true'].w-11")).not.toBeNull(); // espaço do "+"
+    expect(m2!.querySelector(BOTAO_MAIS)).not.toBeNull();
+    expect(m2!.querySelector("[id$='-remover']")).not.toBeNull();
+    // ✕ e + na ordem: [✕][+]
+    const trilho = m2!.querySelector(BOTAO_MAIS)!.parentElement!;
+    expect(trilho.firstElementChild!.querySelector("[id$='-remover']")).not.toBeNull();
+    expect(qa(BOTAO_MAIS)).toHaveLength(1);
+  });
+
+  it("depois de remover o último, o '+' passa para o que ficou como último", async () => {
+    montado = montarFormulario(doisMedicamentos());
+    await clicar(med(ID2, "remover"));
+    expect(qa(BOTAO_MAIS)).toHaveLength(1);
+    expect(q<HTMLElement>(`#compra-item-${ID1}`)!.querySelector(BOTAO_MAIS)).not.toBeNull();
   });
 });
 
@@ -359,7 +393,7 @@ describe("foco e somente leitura", () => {
     }
     expect(q<HTMLButtonElement>(med(ID1, "brand"))!.disabled).toBe(true);
     expect(q<HTMLButtonElement>(med(ID1, "temperatura"))!.disabled).toBe(true);
-    expect(q("#compra-adicionar-medicamento")).toBeNull();
+    expect(q("button[aria-label='Adicionar medicamento']")).toBeNull();
     expect(q(med(ID1, "remover"))).toBeNull();
   });
 

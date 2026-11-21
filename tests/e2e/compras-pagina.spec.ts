@@ -344,11 +344,11 @@ test.describe("Compras (tela) — formulário único", () => {
     expect(posicoes).toEqual([...posicoes].sort((a, b) => a - b));
   });
 
-  test("a compra nasce com UM medicamento; '+ Adicionar medicamento' cria o Med. 2 e as linhas por medicamento ganham 'Med. 1' e 'Med. 2'; remover mantém o que foi digitado", async ({ page }) => {
+  test("a compra nasce com UM medicamento; o '+' ao lado do input (aria-label 'Adicionar medicamento') cria o Med. 2 e as linhas por medicamento ganham 'Med. 1' e 'Med. 2'; remover mantém o que foi digitado", async ({ page }) => {
     await criarCompraComPaciente(page, unico());
     await expect(page.locator("[data-linha='laboratorio'] [role='group'][aria-label^='Med.']")).toHaveCount(0);
-    await page.getByRole("button", { name: "+ Adicionar medicamento" }).click();
-    await page.getByRole("button", { name: "+ Adicionar medicamento" }).click();
+    await page.getByRole("button", { name: "Adicionar medicamento" }).click();
+    await page.getByRole("button", { name: "Adicionar medicamento" }).click();
     const labs = page.locator("[id^='compra-item-'][id$='-laboratorio']");
     await expect(labs).toHaveCount(3);
     await expect(page.locator("[data-linha='laboratorio'] [role='group'][aria-label^='Med.']")).toHaveCount(3);
@@ -505,7 +505,7 @@ test.describe("Compras (tela) — sócio: só lê", () => {
       await expect(page.locator(id)).toBeDisabled();
     }
     await expect(page.locator("#compra-campos")).toHaveAttribute("aria-disabled", "true");
-    await expect(page.locator("#compra-adicionar-medicamento")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Adicionar medicamento" })).toHaveCount(0);
     await expect(page.locator("[id^='compra-item-'][id$='-quantidade']").first()).toBeDisabled();
     await expect(page.locator("[data-resumo-linha='paciente']")).toContainText("Paciente:");
     await expect(page.locator("#btn-copiar-resumo")).toBeEnabled();

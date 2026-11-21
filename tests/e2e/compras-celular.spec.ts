@@ -136,7 +136,7 @@ test.describe("Compras (celular, 375x667) — um painel por vez", () => {
     const controle = (await page.locator("#compra-paciente").boundingBox())!;
     expect(rotulo.y + rotulo.height).toBeLessThanOrEqual(controle.y + 1);
     // Um 2º medicamento (com ✕) empilha os controles por medicamento.
-    await page.getByRole("button", { name: "+ Adicionar medicamento" }).click();
+    await page.getByRole("button", { name: "Adicionar medicamento" }).click();
     const labs = page.locator("[id^='compra-item-'][id$='-laboratorio']");
     await expect(labs).toHaveCount(2);
     const lab1 = (await labs.nth(0).boundingBox())!;
@@ -217,7 +217,7 @@ for (const [nome, viewport] of [
     test("depois de remover um medicamento o foco vai para o campo Medicamento da linha de antes", async ({ page }) => {
       await abrir(page, viewport);
       await criarCompra(page, unico());
-      await page.getByRole("button", { name: "+ Adicionar medicamento" }).click();
+      await page.getByRole("button", { name: "Adicionar medicamento" }).click();
       await expect(page.locator("[id^='compra-item-'][id$='-medicamento']")).toHaveCount(2);
       await page.getByRole("button", { name: "Remover Med. 2" }).click();
       await expect(page.locator("[id^='compra-item-'][id$='-medicamento']")).toHaveCount(1);

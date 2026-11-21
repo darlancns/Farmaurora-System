@@ -79,11 +79,11 @@ describe("campos de 16px e 44px no celular (o padrão do app), voltando ao deskt
     }
   });
 
-  it("os botões de ação da Compra têm 44px de altura no celular (primário e secundário e o '+ Adicionar medicamento')", () => {
+  it("os botões de ação da Compra têm 44px de altura no celular (primário e secundário e o '+' de adicionar medicamento)", () => {
     expect(BOTAO_PRIMARIO_CLASS).toContain("max-lg:min-h-11");
     expect(BOTAO_SECUNDARIO_CLASS).toContain("max-lg:min-h-11");
     montado = montarFormulario(compraComUmMedicamento());
-    expect(q("#compra-adicionar-medicamento")!.className).toContain("min-h-11");
+    expect(q("button[aria-label='Adicionar medicamento']")!.className).toContain("h-11"); // 44px
   });
 
   it("as caixas de marcar têm rótulo (ou linha) de 44px de altura no celular", () => {

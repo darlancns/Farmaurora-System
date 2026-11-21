@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, inject, nextTick, ref, watch } from "vue";
-import { TEXTO_PRE_CADASTRO_REJEITADO } from "#shared/constants/compra";
+import { COMPRA_MAX_ITENS, TEXTO_PRE_CADASTRO_REJEITADO } from "#shared/constants/compra";
 import { NOME_CADASTRO_MAX } from "#shared/constants/cadastros";
 import type { ItemCompra } from "#shared/types/compra";
 import {
@@ -35,6 +35,10 @@ const props = defineProps<{
   nomeAcessivel?: string;
   /** Com mais de um medicamento aparece o ✕ de remover (nunca deixa a compra sem nenhum). */
   podeRemover: boolean;
+  /** É o ÚLTIMO medicamento: o "+" (adicionar outro) fica logo à direita do input dele. */
+  ehUltimo: boolean;
+  /** Chegou ao teto de medicamentos da compra: o "+" fica desabilitado. */
+  noLimite?: boolean;
   desabilitado: boolean;
   rotuloMed: string;
 }>();
@@ -42,6 +46,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   atualizar: [mudancas: Partial<ItemCompra>];
   remover: [];
+  adicionar: [];
 }>();
 
 const acoes = inject(ACOES_COMPRA_KEY, ACOES_VAZIAS);
@@ -153,17 +158,26 @@ async function pedirCadastro(): Promise<void> {
         />
         <p v-if="estaVinculado(item)" :id="`compra-item-${item.id}-do-cadastro`" class="mt-1 text-[11.5px] font-medium text-accent-dark">Do Cadastro</p>
       </div>
-      <button
-        v-if="podeRemover && !desabilitado"
-        :id="`compra-item-${item.id}-remover`"
-        type="button"
-        :aria-label="`Remover ${rotuloMed}`"
-        title="Remover medicamento"
-        :class="BOTAO_REMOVER_CLASS"
-        @click="emit('remover')"
-      >
-        ✕
-      </button>
+      <!-- À direita do input: [✕] (com 2 ou mais medicamentos) e, no ÚLTIMO, o [+] (o mesmo "+" do Follow-Up: botão quadrado, borda hairline, texto
+           accent-dark). Os demais ganham um espaço do tamanho do "+" para os inputs terminarem no mesmo ponto e o alinhamento ficar limpo. -->
+      <div v-if="!desabilitado" class="flex shrink-0 items-start gap-1">
+        <div v-if="podeRemover" class="flex h-11 w-11 items-center justify-center lg:h-[38px] lg:w-[38px]">
+          <button :id="`compra-item-${item.id}-remover`" type="button" :aria-label="`Remover ${rotuloMed}`" title="Remover medicamento" :class="BOTAO_REMOVER_CLASS" @click="emit('remover')">✕</button>
+        </div>
+        <button
+          v-if="ehUltimo"
+          id="compra-adicionar-medicamento"
+          type="button"
+          aria-label="Adicionar medicamento"
+          :disabled="noLimite"
+          :title="noLimite ? `No máximo ${COMPRA_MAX_ITENS} medicamentos por compra` : 'Adicionar medicamento'"
+          class="flex h-11 w-11 items-center justify-center rounded-md border border-hairline text-[14px] font-semibold text-accent-dark transition-colors hover:bg-paper focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-dark disabled:cursor-not-allowed disabled:opacity-60 lg:h-[38px] lg:w-[38px] lg:text-[13px]"
+          @click="emit('adicionar')"
+        >
+          +
+        </button>
+        <span v-else-if="podeRemover" aria-hidden="true" class="block h-11 w-11 lg:h-[38px] lg:w-[38px]" />
+      </div>
     </div>
 
     <p v-if="rejeitado" :id="`compra-item-${item.id}-pre-cadastro-rejeitado`" class="mt-1.5 text-[12px] font-medium text-warning-gold">{{ TEXTO_PRE_CADASTRO_REJEITADO }}</p>
