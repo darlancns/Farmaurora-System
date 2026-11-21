@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { CIAS_AEREAS_POR_MODAL, MODAIS_ENVIO } from "../../shared/constants/processos";
 import { COMPRA_ID_RE, PENDENCIAS_PADRAO } from "../../shared/constants/compra";
-import { itemTemConteudo, itemVazio, novoIdCompra, pendenciasDoFormulario, pendenciasParaFormulario, renumerarItens } from "../../shared/utils/compraForm";
+import { ciaAposTrocaDeEnvio, itemTemConteudo, itemVazio, novoIdCompra, pendenciasDoFormulario, pendenciasParaFormulario, renumerarItens } from "../../shared/utils/compraForm";
 
 // Peças puras do formulário da Compra (uma compra por fornecedor: só há medicamentos). Dados fictícios (TESTE).
 
@@ -93,5 +94,39 @@ describe("pendências: chips + texto livre", () => {
 
   it("entradas fora da lista padrão aparecem no campo livre, unidas por '; '", () => {
     expect(pendenciasParaFormulario(["Uma", PENDENCIAS_PADRAO[1], "Outra"])).toEqual({ marcadas: [PENDENCIAS_PADRAO[1]], livre: "Uma; Outra" });
+  });
+});
+
+describe("ciaAposTrocaDeEnvio: a cia some quando não vale para o novo modal", () => {
+  it("vale para o novo modal: fica (devolve o nome canônico da lista)", () => {
+    expect(ciaAposTrocaDeEnvio("Air Cargo", "Emirates")).toBe("Emirates");
+    expect(ciaAposTrocaDeEnvio("Courier Formal", "DHL")).toBe("DHL");
+    expect(ciaAposTrocaDeEnvio("Courier Simples", "FedEx")).toBe("FedEx");
+  });
+
+  it("não vale para o novo modal: vira vazio", () => {
+    expect(ciaAposTrocaDeEnvio("Courier Formal", "Emirates")).toBe("");
+    expect(ciaAposTrocaDeEnvio("Courier Simples", "Qatar")).toBe("");
+    expect(ciaAposTrocaDeEnvio("Air Cargo", "DHL")).toBe("");
+  });
+
+  it("sem modal (vazio, desconhecido ou o legado 'Courier'): nenhuma cia vale", () => {
+    for (const envio of ["", "Courier", "air cargo", "Navio"]) expect(ciaAposTrocaDeEnvio(envio, "Emirates")).toBe("");
+  });
+
+  it("cia vazia fica vazia; compara sem acento nem caixa e devolve o nome canônico", () => {
+    expect(ciaAposTrocaDeEnvio("Air Cargo", "")).toBe("");
+    expect(ciaAposTrocaDeEnvio("Air Cargo", "   ")).toBe("");
+    expect(ciaAposTrocaDeEnvio("Air Cargo", "  emirates ")).toBe("Emirates");
+    expect(ciaAposTrocaDeEnvio("Courier Formal", "fedex")).toBe("FedEx");
+  });
+
+  it("para TODO modal e TODA cia das constantes: a cia do próprio modal sempre fica; a de outro modal só fica se também estiver na lista dele", () => {
+    for (const modal of MODAIS_ENVIO) {
+      for (const cia of CIAS_AEREAS_POR_MODAL[modal]) expect(ciaAposTrocaDeEnvio(modal, cia)).toBe(cia);
+      for (const outro of MODAIS_ENVIO) {
+        for (const cia of CIAS_AEREAS_POR_MODAL[outro]) expect(ciaAposTrocaDeEnvio(modal, cia)).toBe(CIAS_AEREAS_POR_MODAL[modal].includes(cia) ? cia : "");
+      }
+    }
   });
 });

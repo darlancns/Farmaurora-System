@@ -1,5 +1,7 @@
 import { PENDENCIAS_PADRAO } from "../constants/compra";
+import { ciasAereasDoModal } from "../constants/processos";
 import type { ItemCompra } from "../types/compra";
+import { chaveCadastro } from "./cadastroNome";
 
 // Peças puras do formulário da Compra: ids novos, medicamento vazio, posições recalculadas e as pendências (chips + texto livre).
 
@@ -79,4 +81,17 @@ export function itemTemConteudo(i: ItemCompra): boolean {
     tem(i.medicamentoCadastroId) ||
     tem(i.preCadastroId)
   );
+}
+
+// ── Cia aérea depende do modal de envio ─────────────────────────────────────────────────────────────────────
+
+/**
+ * A cia que fica depois de o Envio mudar: a atual, se ela vale para o NOVO modal (comparada sem acento nem caixa, como o servidor; devolve o
+ * nome canônico da lista), senão "" (a cia some; a pessoa escolhe de novo). Sem modal, nenhuma cia vale. Pura: o editor e o formulário
+ * usam esta mesma função.
+ */
+export function ciaAposTrocaDeEnvio(envio: string, cia: string): string {
+  const chave = chaveCadastro(cia);
+  if (chave === "") return "";
+  return ciasAereasDoModal(envio).find((c) => chaveCadastro(c) === chave) ?? "";
 }
