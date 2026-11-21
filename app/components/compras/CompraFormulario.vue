@@ -9,6 +9,7 @@ import CompraFormCabecalho from "./CompraFormCabecalho.vue";
 import CompraLinhaOrdens from "./CompraLinhaOrdens.vue";
 import CompraLinhasAvisos from "./CompraLinhasAvisos.vue";
 import CompraLinhasEnvio from "./CompraLinhasEnvio.vue";
+import CompraLinhasLocal from "./CompraLinhasLocal.vue";
 import CompraLinhasMedicamento from "./CompraLinhasMedicamento.vue";
 import CompraLinhasPaciente from "./CompraLinhasPaciente.vue";
 import CompraLinhasPagamento from "./CompraLinhasPagamento.vue";
@@ -93,6 +94,7 @@ const alterar = (m: MudancasCompra): void => emit("alterar", m);
       <CompraLinhasPaciente :compra="compra" :desabilitado="desabilitado" :opcoes="opcoes" @alterar="alterar" />
       <CompraLinhasAvisos :compra="compra" :desabilitado="desabilitado" @alterar="alterar" />
       <CompraLinhasResponsaveis :compra="compra" :desabilitado="desabilitado" :opcoes="opcoes" @alterar="alterar" />
+      <CompraLinhasLocal :compra="compra" :desabilitado="desabilitado" @alterar="alterar" />
     </div>
   </section>
 </template>

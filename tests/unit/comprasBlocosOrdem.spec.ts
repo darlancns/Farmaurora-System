@@ -1,131 +1,170 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from "vitest";
-import { createApp, defineComponent, h } from "vue";
 import { BLOCOS_DA_COMPRA } from "../../shared/constants/compraResumo";
-import type { Compra, MudancasCompra } from "../../shared/types/compra";
-import { BLOCOS, BLOCOS_SEM_FORMULARIO, GRUPOS } from "../../app/components/compras/blocosRegistro";
-import CompraFormulario from "../../app/components/compras/CompraFormulario.vue";
-import { OPCOES_VAZIAS } from "../../app/utils/comprasBlocos";
+import { compraParaResumoEntrada, montarResumo } from "../../shared/utils/compraResumo";
+import { compraComUmMedicamento, itemDeTeste, montarFormulario, qa, texto, type FormularioMontado } from "./helpers/montarFormulario";
 
-// A ORDEM do formulário é a de BLOCOS_DA_COMPRA (a do resumo, que a Cris pediu para o formulário seguir): cada bloco é um componente com
-// data-bloco="<id>" no elemento raiz; blocos consecutivos pequenos dividem um fieldset sem mudar a ordem; a ordem de Tab é a do DOM.
-// Um id novo em BLOCOS_DA_COMPRA sem componente nem entrada em BLOCOS_SEM_FORMULARIO quebra este teste.
+// TESTE DE ARQUITETURA: a ordem das linhas do formulário é a ordem das linhas do resumo no modo "modelo" (montarResumo). Se alguém mexer
+// numa das duas, este teste quebra. Também confere o Tab (a ordem do DOM), que cada linha tem rótulo e que todo controle tem nome acessível.
+// Dados fictícios (TESTE).
 
-const montados: Array<() => void> = [];
+let montado: FormularioMontado | null = null;
 afterEach(() => {
-  while (montados.length) montados.pop()!();
+  montado?.desmontar();
+  montado = null;
   document.body.innerHTML = "";
 });
 
-const compra: Compra = {
-  id: "cmp_1",
-  anoMes: "2026-11",
-  sequencia: 1,
-  cancelada: false,
-  paciente: "PACIENTE TESTE",
-  processoNumero: "",
-  medico: "",
-  localAplicacao: "",
-  entrega: "",
-  contatos: "",
-  termoObservacao: "",
-  despachante: "",
-  isencaoPara: "",
-  observacoes: "",
-  vendedor: "",
-  responsavel: "Cris",
-  compraParticular: false,
-  localDeclarado: false,
-  termoPosterior: false,
-  courierSimples: false,
-  isencao: false,
-  recorrente: false,
-  pagamentoAlvara: null,
-  pagamentoMomento: null,
-  documentos: null,
-  pendencias: [],
-  criadoPor: "Cris",
-  atualizadoPor: "Cris",
-  createdAt: "2026-11-19T12:00:00.000Z",
-  updatedAt: "2026-11-19T12:00:00.000Z",
-  ordens: [],
-};
-
-function montar(c: Compra = compra): HTMLElement {
-  const el = document.createElement("div");
-  document.body.appendChild(el);
-  const app = createApp(
-    defineComponent({
-      render: () => h(CompraFormulario, { compra: c, estado: "ocioso", salvoEm: null, podeEditar: true, opcoes: OPCOES_VAZIAS, onAlterar: (_m: MudancasCompra) => undefined }),
-    }),
-  );
-  app.mount(el);
-  montados.push(() => {
-    app.unmount();
-    el.remove();
-  });
-  return el;
+/** O id de linha do resumo SEM o número do medicamento/temperatura (medicamento_2 → medicamento) e sem repetir. */
+function idsDoResumo(compra: Parameters<typeof compraParaResumoEntrada>[0]): string[] {
+  const ids = montarResumo(compraParaResumoEntrada(compra, null), "modelo").flatMap((b) => b.linhas.map((l) => l.id));
+  const base = ids.map((id) => id.replace(/_\d+$/, "")).filter((id) => id !== "titulo");
+  return base.filter((id, i) => base.indexOf(id) === i);
 }
 
-// Blocos que ainda não têm componente NESTE commit (a lista encolhe a cada commit da etapa 6b e termina vazia).
-const AINDA_SEM_COMPONENTE: readonly string[] = [];
+const idsDoFormulario = (): string[] => qa<HTMLElement>("#compra-campos [data-linha]").map((el) => el.getAttribute("data-linha")!);
 
-describe("a ordem dos blocos é a de BLOCOS_DA_COMPRA", () => {
-  const todos = BLOCOS_DA_COMPRA.filter((id) => !BLOCOS_SEM_FORMULARIO.includes(id));
-  const esperados = todos.filter((id) => !AINDA_SEM_COMPONENTE.includes(id));
+const ESPERADA = [
+  "medicamento",
+  "laboratorio",
+  "brand",
+  "quantidade",
+  "ordens",
+  "valor_unitario",
+  "valor_real",
+  "frete",
+  "frete_real",
+  "temperatura",
+  "envio",
+  "fornecedor",
+  "cnpj",
+  "pagamento",
+  "termo_posterior",
+  "paciente",
+  "despachante",
+  "observacoes",
+  "isencao",
+  "documentos",
+  "pendencias",
+  "recorrente",
+  "consultor",
+  "responsavel",
+  "processo",
+  "medico",
+  "local_aplicacao",
+  "entrega",
+  "contatos",
+];
 
-  it("os grupos visuais, concatenados, SÃO BLOCOS_DA_COMPRA (sem os ids sem formulário), na mesma ordem", () => {
-    expect(GRUPOS.flatMap((g) => g.blocos)).toEqual(todos);
+describe("a ordem das linhas do formulário é a ordem das linhas do resumo (modo 'modelo')", () => {
+  it("1 medicamento: as 29 linhas, EXATAMENTE na ordem de montarResumo('modelo') (sem o título)", () => {
+    const compra = compraComUmMedicamento();
+    montado = montarFormulario(compra);
+    expect(idsDoFormulario()).toEqual(idsDoResumo(compra));
+    expect(idsDoFormulario()).toEqual(ESPERADA);
+    expect(idsDoFormulario()).toHaveLength(29);
   });
 
-  it("todo id de BLOCOS_DA_COMPRA tem componente registrado ou está na lista de exceções (hoje só o `titulo`)", () => {
-    expect(BLOCOS_SEM_FORMULARIO).toEqual(["titulo"]);
-    const semComponente = BLOCOS_DA_COMPRA.filter((id) => BLOCOS[id] === undefined && !BLOCOS_SEM_FORMULARIO.includes(id));
-    expect(semComponente, `sem componente: ${semComponente.join(", ")}`).toEqual([...AINDA_SEM_COMPONENTE]);
+  it("2 medicamentos: a mesma ordem (cada linha por medicamento continua UMA linha, com um controle por medicamento)", () => {
+    const compra = compraComUmMedicamento({ itens: [itemDeTeste(1, { medicamento: "MED A" }), itemDeTeste(2, { medicamento: "MED B" })] });
+    montado = montarFormulario(compra);
+    expect(idsDoFormulario()).toEqual(idsDoResumo(compra));
+    expect(idsDoFormulario()).toEqual(ESPERADA);
   });
 
-  it("nenhum componente registrado para um id fora de BLOCOS_DA_COMPRA, e o `titulo` nunca tem componente", () => {
-    for (const id of Object.keys(BLOCOS)) expect(BLOCOS_DA_COMPRA as readonly string[]).toContain(id);
-    expect(BLOCOS.titulo).toBeUndefined();
+  it("uma compra completa e uma de Courier Simples também: a ordem do formulário não depende dos dados", () => {
+    for (const extra of [{ envio: "Courier Simples", despachante: "X" }, { envio: "Air Cargo", cia: "Emirates", paciente: "Paciente Teste", termoPosterior: true }]) {
+      const compra = compraComUmMedicamento(extra);
+      montado?.desmontar();
+      montado = montarFormulario(compra);
+      expect(idsDoFormulario()).toEqual(idsDoResumo(compra));
+    }
   });
 
-  it("no formulário montado, os [data-bloco] aparecem EXATAMENTE na ordem de BLOCOS_DA_COMPRA (menos o titulo), uma vez cada", () => {
-    const el = montar();
-    const ids = [...el.querySelectorAll<HTMLElement>("[data-bloco]")].map((b) => b.getAttribute("data-bloco"));
-    expect(ids).toEqual(esperados);
-    expect(new Set(ids).size).toBe(ids.length);
+  it("os rótulos, na ordem pedida pela Cris", () => {
+    montado = montarFormulario(compraComUmMedicamento());
+    const rotulos = qa<HTMLElement>("#compra-campos [data-linha]").map((linha) => texto(linha.querySelector(":scope > label, :scope > span")));
+    expect(rotulos).toEqual([
+      "Medicamento",
+      "Laboratório",
+      "Brand",
+      "Quantidade",
+      "Ordens",
+      "Valor unitário (US$)",
+      "Valor real (US$)",
+      "Frete (US$)",
+      "Valor real do frete (US$)",
+      "Temperatura",
+      "Envio",
+      "Fornecedor",
+      "CNPJ",
+      "Pagamento",
+      "Termo de pagamento posterior",
+      "Paciente",
+      "Despachante",
+      "Obs.",
+      "Pedir isenção de imposto",
+      "Verificação de documento e validação de assinatura",
+      "Pendente",
+      "Recorrente",
+      "Consultor",
+      "Responsável",
+      "Número do processo",
+      "Médico",
+      "Local de aplicação",
+      "Entrega (Doctor/AJC)",
+      "Contatos",
+    ]);
   });
 
-  it("vendedor_responsavel, processo e medico dividem UM fieldset, nessa ordem; cada um dos outros tem o seu", () => {
-    const el = montar();
-    const grupo = el.querySelector("#compra-grupo-vendedor-processo-medico")!;
-    expect([...grupo.querySelectorAll("[data-bloco]")].map((b) => b.getAttribute("data-bloco"))).toEqual(["vendedor_responsavel", "processo", "medico"]);
-    const fieldsets = [...el.querySelectorAll("fieldset")];
-    expect(fieldsets).toHaveLength(GRUPOS.filter((g) => g.blocos.some((id) => !AINDA_SEM_COMPONENTE.includes(id))).length);
-    expect(fieldsets.every((f) => f.querySelector("legend") !== null)).toBe(true);
-  });
-
-  it("as legendas dos fieldsets (11px, caixa alta pelo CSS)", () => {
-    const el = montar();
-    const legendas = [...el.querySelectorAll("legend")];
-    expect(legendas.map((l) => (l.textContent ?? "").trim())).toEqual(GRUPOS.filter((g) => g.blocos.some((id) => !AINDA_SEM_COMPONENTE.includes(id))).map((g) => g.legenda));
-    expect(legendas.every((l) => l.className.includes("text-[11px]") && l.className.includes("uppercase"))).toBe(true);
+  it("BLOCOS_DA_COMPRA segue sendo a fonte da ordem dos blocos do resumo (o id medicamentos_e_ordens não mudou)", () => {
+    expect([...BLOCOS_DA_COMPRA].slice(0, 3)).toEqual(["titulo", "medicamentos_e_ordens", "pagamento"]);
+    expect(BLOCOS_DA_COMPRA).toContain("consultor_responsavel");
   });
 });
 
-describe("a ordem de Tab é a do DOM", () => {
-  it("nenhum elemento do formulário tem tabindex positivo", () => {
-    const el = montar();
-    const positivos = [...el.querySelectorAll<HTMLElement>("[tabindex]")].filter((e) => Number(e.getAttribute("tabindex")) > 0);
-    expect(positivos).toEqual([]);
+describe("Tab e acessibilidade do formulário único", () => {
+  it("a ordem do DOM é a do Tab: nenhum tabindex positivo e os controles seguem a ordem das linhas", () => {
+    montado = montarFormulario(compraComUmMedicamento({ envio: "Air Cargo", termoPosterior: true }), { opcoes: { despachantes: [{ nome: "Despachante Teste", contatoNome: "", telefone: "", email: "" }] } });
+    const campos = qa<HTMLElement>("#compra-campos input, #compra-campos select, #compra-campos textarea, #compra-campos button, #compra-campos [role=radio]");
+    expect(campos.length).toBeGreaterThan(20);
+    for (const c of campos) expect(Number(c.getAttribute("tabindex") ?? "0"), c.id).toBeLessThanOrEqual(0);
+    const posicao = (el: HTMLElement): number => ESPERADA.indexOf(el.closest("[data-linha]")!.getAttribute("data-linha")!);
+    const sequencia = campos.map(posicao);
+    expect(sequencia.every((p) => p >= 0)).toBe(true);
+    expect(sequencia).toEqual([...sequencia].sort((a, b) => a - b));
   });
 
-  it("os campos aparecem no DOM na ordem dos blocos (cada campo dentro do seu bloco, e os blocos em sequência)", () => {
-    const el = montar();
-    const campos = [...el.querySelectorAll<HTMLElement>("[data-bloco] input, [data-bloco] button, [data-bloco] textarea")];
-    const blocosDosCampos = campos.map((c) => c.closest("[data-bloco]")!.getAttribute("data-bloco")!);
-    // Os blocos dos campos nunca "voltam": a sequência é não decrescente na ordem de BLOCOS_DA_COMPRA.
-    const posicoes = blocosDosCampos.map((b) => BLOCOS_DA_COMPRA.indexOf(b as (typeof BLOCOS_DA_COMPRA)[number]));
-    expect(posicoes).toEqual([...posicoes].sort((a, b) => a - b));
+  it("todo controle tem nome acessível (<label for>, aria-label ou o rótulo do grupo) e os ids são únicos", () => {
+    montado = montarFormulario(compraComUmMedicamento({ itens: [itemDeTeste(1, { medicamento: "MED A" }), itemDeTeste(2, { medicamento: "MED B" })], termoPosterior: true, envio: "Air Cargo" }), {
+      opcoes: { despachantes: [{ nome: "Despachante Teste", contatoNome: "", telefone: "", email: "" }] },
+    });
+    const controles = qa<HTMLElement>("#compra-campos input, #compra-campos textarea, #compra-campos select, #compra-campos [role=combobox]");
+    const ids = qa<HTMLElement>("#compra-campos [id]").map((e) => e.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const c of controles) {
+      const comLabel = c.id !== "" && document.querySelector(`label[for="${c.id}"]`) !== null;
+      const comAria = (c.getAttribute("aria-label") ?? "") !== "" || (c.getAttribute("aria-labelledby") ?? "") !== "";
+      expect(comLabel || comAria, `controle sem nome: ${c.tagName}#${c.id}`).toBe(true);
+    }
+  });
+
+  it("cada linha tem um rótulo; as de vários controles são grupos ligados ao rótulo (aria-labelledby)", () => {
+    montado = montarFormulario(compraComUmMedicamento());
+    for (const linha of qa<HTMLElement>("#compra-campos [data-linha]")) {
+      const id = linha.getAttribute("data-linha")!;
+      const rotulo = linha.querySelector(`#compra-linha-${id}-rotulo`);
+      expect(rotulo, id).not.toBeNull();
+      if (rotulo!.tagName === "SPAN") expect(linha.querySelector(`[role="group"][aria-labelledby="compra-linha-${id}-rotulo"]`), id).not.toBeNull();
+      else expect(rotulo!.getAttribute("for"), id).not.toBe("");
+    }
+  });
+
+  it("nada de 'vendedor', 'antes de encaminhar' nem 'Dicas' no formulário", () => {
+    montado = montarFormulario(compraComUmMedicamento());
+    const html = document.body.textContent ?? "";
+    expect(html).not.toMatch(/vendedor/i);
+    expect(html).not.toMatch(/antes de encaminhar/i);
+    expect(html).not.toMatch(/Dicas/);
   });
 });
