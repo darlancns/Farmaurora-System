@@ -1,8 +1,7 @@
 import { DIR_MEDICAMENTO_MAX, REGRAS_CHECKLIST as R, TEXTOS_CHECKLIST as T, type NivelChecklist } from "../constants/compraChecklist";
 import { TEXTOS_RESUMO } from "../constants/compraResumo";
 import { MODAL_COURIER_SIMPLES } from "../constants/processos";
-import type { StatusDaCompra } from "../constants/compra";
-import type { ItemCompra, OrdemCompra } from "../types/compra";
+import type { StatusPreCadastro } from "../types/compra";
 import { textoMedicamentoDir } from "./compraDir";
 import { NUMERO_PO_REGEX, normalizarNumeroPo } from "./numeroPo";
 
@@ -28,11 +27,32 @@ export interface ResultadoChecklist {
   pronta: boolean;
 }
 
+// ATENÇÃO: a checagem é DA TELA (o painel "antes de encaminhar") e ainda fala em ordens e vendedor; o servidor NÃO depende dela e o modelo da
+// Compra já não tem ordens. Os tipos abaixo são locais (não vêm de types/compra.ts) e a checagem inteira sai na E6.
+
+/** O estado derivado que a tela mostra hoje (a lista do servidor só tem ativa e cancelada). */
+export type StatusDaCompra = "rascunho" | "pronta" | "cancelada";
+
 /** O que a checagem lê de um medicamento. */
-export type ItemParaChecklist = Pick<ItemCompra, "posicao" | "medicamento" | "medicamentoCadastroId" | "preCadastroId" | "preCadastroStatus" | "apresentacao" | "quantidade" | "temperatura">;
+export interface ItemParaChecklist {
+  posicao: number;
+  medicamento: string;
+  medicamentoCadastroId: string | null;
+  preCadastroId: string | null;
+  preCadastroStatus?: StatusPreCadastro | null;
+  apresentacao: string;
+  quantidade: string;
+  temperatura: string;
+}
 
 /** O que a checagem lê de uma ordem. */
-export type OrdemParaChecklist = Pick<OrdemCompra, "posicao" | "fornecedor" | "envio" | "po"> & { itens: readonly ItemParaChecklist[] };
+export interface OrdemParaChecklist {
+  posicao: number;
+  fornecedor: string;
+  envio: string;
+  po: string;
+  itens: readonly ItemParaChecklist[];
+}
 
 /** O que a checagem lê de uma compra (a `Compra` inteira serve, e a lista do mês monta só isto, sem contatos nem valores). */
 export interface CompraParaChecklist {

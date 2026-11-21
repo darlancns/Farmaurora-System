@@ -1,15 +1,13 @@
 import { PENDENCIAS_PADRAO } from "../constants/compra";
-import { MODAL_COURIER_SIMPLES } from "../constants/processos";
-import type { ItemCompra, OrdemCompra } from "../types/compra";
+import type { ItemCompra } from "../types/compra";
 
-// Peças puras do formulário da Compra: ids novos, ordem e item vazios, posições recalculadas e o Courier Simples derivado.
+// Peças puras do formulário da Compra: ids novos, medicamento vazio, posições recalculadas e as pendências (chips + texto livre).
 
 /**
- * Id novo de uma ordem ("ord_...") ou de um item ("itm_..."). O servidor aceita 6 a 64 letras, números, "_" e "-" (COMPRA_ID_RE):
- * prefixo + crypto.randomUUID() (36 caracteres) cabe com folga. Sem crypto.randomUUID (navegador antigo, página sem HTTPS), cai num id aleatório
- * do mesmo formato.
+ * Id novo de um medicamento ("itm_..."). O servidor aceita 6 a 64 letras, números, "_" e "-" (COMPRA_ID_RE): prefixo + crypto.randomUUID()
+ * (36 caracteres) cabe com folga. Sem crypto.randomUUID (navegador antigo, página sem HTTPS), cai num id aleatório do mesmo formato.
  */
-export function novoIdCompra(prefixo: "ord" | "itm"): string {
+export function novoIdCompra(prefixo: "itm"): string {
   const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
   const unico = c?.randomUUID ? c.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}${Math.random().toString(36).slice(2, 12)}`;
   return `${prefixo}_${unico}`;
@@ -21,10 +19,10 @@ export function itemVazio(posicao: number): ItemCompra {
     posicao,
     medicamento: "",
     medicamentoCadastroId: null,
+    medicamentoCadastroNome: null,
     preCadastroId: null,
-    apresentacao: "",
-    referencia: "",
     laboratorio: "",
+    brand: "",
     quantidade: "",
     temperatura: "",
     valorUnitario: null,
@@ -32,29 +30,9 @@ export function itemVazio(posicao: number): ItemCompra {
   };
 }
 
-/** Uma ordem vazia com UM item vazio (o servidor aceita rascunho parcial). */
-export function ordemVazia(posicao: number): OrdemCompra {
-  return {
-    id: novoIdCompra("ord"),
-    posicao,
-    fornecedor: "",
-    envio: "",
-    cia: "",
-    po: "",
-    frete: null,
-    freteReal: null,
-    itens: [itemVazio(1)],
-  };
-}
-
-/** A posição (1..N) de cada ordem e de cada item é a ordem em que aparecem na tela. Não altera o recebido. */
-export function renumerar(ordens: readonly OrdemCompra[]): OrdemCompra[] {
-  return ordens.map((o, i) => ({ ...o, posicao: i + 1, itens: o.itens.map((it, j) => ({ ...it, posicao: j + 1 })) }));
-}
-
-/** Courier Simples da compra: verdadeiro quando há ordens e TODAS têm esse envio. É sempre derivado (não é campo editável). */
-export function courierSimplesDasOrdens(ordens: readonly Pick<OrdemCompra, "envio">[]): boolean {
-  return ordens.length > 0 && ordens.every((o) => o.envio === MODAL_COURIER_SIMPLES);
+/** A posição (1..N) de cada medicamento é a ordem em que aparece na tela. Não altera o recebido. */
+export function renumerarItens(itens: readonly ItemCompra[]): ItemCompra[] {
+  return itens.map((it, i) => ({ ...it, posicao: i + 1 }));
 }
 
 // ── Pendências: chips + texto livre ↔ pendencias[] ───────────────────────────────────────────────────────────
@@ -84,7 +62,7 @@ export function pendenciasDoFormulario(marcadas: readonly string[], livre: strin
   return texto === "" ? [...escolhidas] : [...escolhidas, texto];
 }
 
-// ── O que a ordem já tem ─────────────────────────────────────────────────────────────────────────────────────
+// ── O que o medicamento já tem ───────────────────────────────────────────────────────────────────────────────
 
 const tem = (v: string | null | undefined): boolean => (v ?? "").trim() !== "";
 
@@ -92,9 +70,8 @@ const tem = (v: string | null | undefined): boolean => (v ?? "").trim() !== "";
 export function itemTemConteudo(i: ItemCompra): boolean {
   return (
     tem(i.medicamento) ||
-    tem(i.apresentacao) ||
-    tem(i.referencia) ||
     tem(i.laboratorio) ||
+    tem(i.brand) ||
     tem(i.quantidade) ||
     tem(i.temperatura) ||
     i.valorUnitario !== null ||
@@ -102,9 +79,4 @@ export function itemTemConteudo(i: ItemCompra): boolean {
     tem(i.medicamentoCadastroId) ||
     tem(i.preCadastroId)
   );
-}
-
-/** A ordem tem qualquer campo ou item preenchido? É o que decide se "Remover ordem" pede confirmação. */
-export function ordemTemConteudo(o: OrdemCompra): boolean {
-  return tem(o.fornecedor) || tem(o.envio) || tem(o.cia) || tem(o.po) || o.frete !== null || o.freteReal !== null || o.itens.some(itemTemConteudo);
 }

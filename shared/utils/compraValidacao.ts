@@ -3,37 +3,40 @@ import {
   COMPRA_BUSCA_MAX,
   COMPRA_ID_RE,
   COMPRA_LINHA_MAX,
-  COMPRA_MAX_ITENS_POR_ORDEM,
+  COMPRA_MAX_ITENS,
   COMPRA_MAX_ORDENS,
   COMPRA_MAX_PENDENCIAS,
+  COMPRA_MEDICAMENTO_MAX,
   COMPRA_MEDICAMENTOS_LIMITE_MAX,
   COMPRA_MEDICAMENTOS_LIMITE_PADRAO,
   COMPRA_MOMENTOS_PAGAMENTO,
   COMPRA_REFERENCIA_ID_RE,
   COMPRA_TEXTO_LONGO_MAX,
   COMPRA_VALOR_MAX,
-  STATUS_DA_COMPRA,
-  type StatusDaCompra,
 } from "../constants/compra";
-import type { CamposCompraEditaveis, CompraEstado, ItemCompraEstado, OrdemCompraEstado } from "../types/compra";
+import type { BrandMedicamento } from "../types/processo";
+import type { CamposCompraEditaveis, CompraEstado, ItemCompraEstado } from "../types/compra";
 import type { MomentoPagamentoResumo } from "../types/compraResumo";
 import { chaveCadastro } from "./cadastroNome";
 import { validarNovoCadastro } from "./cadastroValidacao";
-import { NUMERO_PO_ERRO, NUMERO_PO_REGEX, normalizarNumeroPo } from "./numeroPo";
+import { NUMERO_REMESSA_ERRO } from "./numeroRemessa";
 
-// Validação PURA do salvamento da Compra: o servidor (handlers) a usa e o formulário da Etapa 6 poderá usar as mesmas regras. Devolve o
+// Validação PURA do salvamento da Compra: o servidor (handlers) a usa e o formulário poderá usar as mesmas regras. Devolve o
 // estado já LIMPO (texto aparado, só as chaves conhecidas) ou a mensagem do 400. O servidor não confia no cliente.
 //
-// RASCUNHO PARCIAL É VÁLIDO: campo vazio passa (a checagem do que falta é a de shared/utils/compraChecklist.ts, não daqui).
+// RASCUNHO PARCIAL É VÁLIDO: campo vazio passa. Aqui só se confere a FORMA (tipos, tetos, número de ordens); o que depende dos Cadastros
+// e das constantes compartilhadas com o Follow-Up (consultor, despachante, fornecedor, envio, cia por modal, empresa, brand, medicamento) é
+// conferido pelo servidor com 422 (server/utils/comprasCatalogo.ts).
 //
 // SEMÂNTICA DO CORPO (documentada também em comprasStore.ts → salvarCompra):
 //  - `atualizadoEm` (a versão que o cliente viu) é obrigatório;
-//  - campo da compra AUSENTE = não muda; `ordens` AUSENTE = não mexe nas ordens; `ordens` PRESENTE = o estado COMPLETO (o que não vier é
+//  - campo da compra AUSENTE = não muda; `itens` AUSENTE = não mexe nos itens; `itens` PRESENTE = o estado COMPLETO (o que não vier é
 //    apagado) e a posição é a ordem do array;
-//  - dentro de uma ordem e de um item, campo ausente = vazio (o item/ordem é o estado inteiro dele);
-//  - chave desconhecida (na compra, na ordem ou no item) é 400.
+//  - dentro de um item, campo ausente = vazio (o item é o estado inteiro dele);
+//  - chave desconhecida (na compra ou no item) é 400: `medicamentoCadastroNome` e `preCadastroStatus` são só leitura e não entram.
 //
-// Tetos: linhas 300 caracteres, observações 2000, até 10 ordens, até 30 itens por ordem, até 50 pendências (300 cada, 2000 no total).
+// Tetos: linhas 300 caracteres (o medicamento também), observações 2000, numeroOrdens de 1 a 10, até 30 itens, até 50 pendências (300 cada,
+// 2000 no total).
 
 export type ResultadoCompra<T> = { ok: true; valor: T } | { ok: false; erro: string };
 
@@ -75,12 +78,39 @@ export function validarDinheiroCompra(v: unknown, rotulo: string): ResultadoComp
   return ok(Math.round(v * 100) / 100);
 }
 
+/** "Ordens": um inteiro de 1 a COMPRA_MAX_ORDENS (a mesma mensagem do Nº Ordem do Follow-Up). */
+export function validarNumeroOrdens(v: unknown): ResultadoCompra<number> {
+  if (typeof v !== "number" || !Number.isInteger(v) || v < 1 || v > COMPRA_MAX_ORDENS) return falha(NUMERO_REMESSA_ERRO);
+  return ok(v);
+}
+
 // ── Campos da compra ──────────────────────────────────────────────────────────────────────────────────────────
 
-type CampoTextoCompra = Exclude<keyof CamposCompraEditaveis, "compraParticular" | "localDeclarado" | "termoPosterior" | "courierSimples" | "isencao" | "recorrente" | "pagamentoAlvara" | "pagamentoMomento" | "documentos" | "pendencias">;
+type CampoTextoCompra = Extract<
+  keyof CamposCompraEditaveis,
+  | "fornecedor"
+  | "envio"
+  | "cia"
+  | "empresa"
+  | "paciente"
+  | "processoNumero"
+  | "medico"
+  | "localAplicacao"
+  | "entrega"
+  | "contatos"
+  | "termoObservacao"
+  | "despachante"
+  | "observacoes"
+  | "consultor"
+  | "responsavel"
+>;
 
 /** Campos de texto da compra: rótulo (para a mensagem) e teto. */
 export const CAMPOS_TEXTO_COMPRA: Record<CampoTextoCompra, { rotulo: string; max: number }> = {
+  fornecedor: { rotulo: "Fornecedor", max: COMPRA_LINHA_MAX },
+  envio: { rotulo: "Envio", max: COMPRA_LINHA_MAX },
+  cia: { rotulo: "Cia. aérea", max: COMPRA_LINHA_MAX },
+  empresa: { rotulo: "Empresa", max: COMPRA_LINHA_MAX },
   paciente: { rotulo: "Paciente", max: COMPRA_LINHA_MAX },
   processoNumero: { rotulo: "Número do processo", max: COMPRA_LINHA_MAX },
   medico: { rotulo: "Médico", max: COMPRA_LINHA_MAX },
@@ -89,17 +119,14 @@ export const CAMPOS_TEXTO_COMPRA: Record<CampoTextoCompra, { rotulo: string; max
   contatos: { rotulo: "Contatos", max: COMPRA_LINHA_MAX },
   termoObservacao: { rotulo: "Observação do termo", max: COMPRA_TEXTO_LONGO_MAX },
   despachante: { rotulo: "Despachante", max: COMPRA_LINHA_MAX },
-  isencaoPara: { rotulo: "Isenção para", max: COMPRA_LINHA_MAX },
   observacoes: { rotulo: "Observações", max: COMPRA_TEXTO_LONGO_MAX },
-  vendedor: { rotulo: "Vendedor", max: COMPRA_LINHA_MAX },
+  consultor: { rotulo: "Consultor", max: COMPRA_LINHA_MAX },
   responsavel: { rotulo: "Responsável", max: COMPRA_LINHA_MAX },
 };
 
 const CAMPOS_BOOLEANOS_COMPRA = {
   compraParticular: "Compra particular",
-  localDeclarado: "Local declarado",
   termoPosterior: "Termo de pagamento posterior",
-  courierSimples: "Courier Simples",
   isencao: "Isenção",
   recorrente: "Recorrente",
 } as const;
@@ -109,14 +136,21 @@ const CAMPOS_BOOLEANOS_OU_NULO_COMPRA = {
   documentos: "Documentos",
 } as const;
 
+const CAMPOS_DINHEIRO_COMPRA = {
+  frete: "Frete",
+  freteReal: "Valor real do frete",
+} as const;
+
 const CHAVES_DA_COMPRA: readonly string[] = [
   "atualizadoEm",
   ...Object.keys(CAMPOS_TEXTO_COMPRA),
   ...Object.keys(CAMPOS_BOOLEANOS_COMPRA),
   ...Object.keys(CAMPOS_BOOLEANOS_OU_NULO_COMPRA),
+  ...Object.keys(CAMPOS_DINHEIRO_COMPRA),
+  "numeroOrdens",
   "pagamentoMomento",
   "pendencias",
-  "ordens",
+  "itens",
 ];
 
 function validarPendencias(v: unknown): ResultadoCompra<string[]> {
@@ -132,23 +166,20 @@ function validarPendencias(v: unknown): ResultadoCompra<string[]> {
   return ok(itens);
 }
 
-// ── Itens e ordens ────────────────────────────────────────────────────────────────────────────────────────────
+// ── Itens ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
 const CHAVES_DO_ITEM = [
   "id",
   "medicamento",
   "medicamentoCadastroId",
   "preCadastroId",
-  "apresentacao",
-  "referencia",
   "laboratorio",
+  "brand",
   "quantidade",
   "temperatura",
   "valorUnitario",
   "valorReal",
 ] as const;
-
-const CHAVES_DA_ORDEM = ["id", "fornecedor", "envio", "cia", "po", "frete", "freteReal", "itens"] as const;
 
 function idDoCorpo(v: unknown, rotulo: string): ResultadoCompra<string> {
   if (typeof v !== "string" || !COMPRA_ID_RE.test(v)) return falha(`${rotulo}: identificador inválido (de 6 a 64 letras, números, "_" ou "-").`);
@@ -170,19 +201,18 @@ function validarItem(bruto: unknown, onde: string): ResultadoCompra<ItemCompraEs
   const id = idDoCorpo(o.id, `${onde}: id`);
   if (!id.ok) return id;
 
-  const linha = (campo: "medicamento" | "apresentacao" | "referencia" | "laboratorio" | "quantidade" | "temperatura", rotulo: string): ResultadoCompra<string> =>
-    o[campo] === undefined ? ok("") : texto(o[campo], `${onde}: ${rotulo}`, COMPRA_LINHA_MAX);
-  const medicamento = linha("medicamento", "medicamento");
+  const linha = (campo: "medicamento" | "laboratorio" | "brand" | "quantidade" | "temperatura", rotulo: string, max: number): ResultadoCompra<string> =>
+    o[campo] === undefined ? ok("") : texto(o[campo], `${onde}: ${rotulo}`, max);
+  const medicamento = linha("medicamento", "medicamento", COMPRA_MEDICAMENTO_MAX);
   if (!medicamento.ok) return medicamento;
-  const apresentacao = linha("apresentacao", "apresentação");
-  if (!apresentacao.ok) return apresentacao;
-  const referencia = linha("referencia", "referência");
-  if (!referencia.ok) return referencia;
-  const laboratorio = linha("laboratorio", "laboratório");
+  const laboratorio = linha("laboratorio", "laboratório", COMPRA_LINHA_MAX);
   if (!laboratorio.ok) return laboratorio;
-  const quantidade = linha("quantidade", "quantidade");
+  // Só a FORMA (texto): se é "bioequivalente", "referencia" ou vazio, quem confere é o servidor (422).
+  const brand = linha("brand", "brand", COMPRA_LINHA_MAX);
+  if (!brand.ok) return brand;
+  const quantidade = linha("quantidade", "quantidade", COMPRA_LINHA_MAX);
   if (!quantidade.ok) return quantidade;
-  const temperatura = linha("temperatura", "temperatura");
+  const temperatura = linha("temperatura", "temperatura", COMPRA_LINHA_MAX);
   if (!temperatura.ok) return temperatura;
 
   const medicamentoCadastroId = referenciaOpcional(o.medicamentoCadastroId, `${onde}: medicamento do Cadastro`);
@@ -203,9 +233,8 @@ function validarItem(bruto: unknown, onde: string): ResultadoCompra<ItemCompraEs
     medicamento: medicamento.valor,
     medicamentoCadastroId: medicamentoCadastroId.valor,
     preCadastroId: preCadastroId.valor,
-    apresentacao: apresentacao.valor,
-    referencia: referencia.valor,
     laboratorio: laboratorio.valor,
+    brand: brand.valor as BrandMedicamento | "",
     quantidade: quantidade.valor,
     temperatura: temperatura.valor,
     valorUnitario: valorUnitario.valor,
@@ -213,65 +242,19 @@ function validarItem(bruto: unknown, onde: string): ResultadoCompra<ItemCompraEs
   });
 }
 
-function validarOrdem(bruto: unknown, posicao: number): ResultadoCompra<OrdemCompraEstado> {
-  const onde = `Ordem ${posicao}`;
-  const o = objeto(bruto);
-  if (!o) return falha(`${onde}: dados inválidos.`);
-  const desconhecida = chavesDesconhecidas(o, CHAVES_DA_ORDEM, ` (${onde})`);
-  if (desconhecida) return falha(desconhecida);
-
-  const id = idDoCorpo(o.id, `${onde}: id`);
-  if (!id.ok) return id;
-
-  const linha = (campo: "fornecedor" | "envio" | "cia", rotulo: string): ResultadoCompra<string> =>
-    o[campo] === undefined ? ok("") : texto(o[campo], `${onde}: ${rotulo}`, COMPRA_LINHA_MAX);
-  const fornecedor = linha("fornecedor", "fornecedor");
-  if (!fornecedor.ok) return fornecedor;
-  const envio = linha("envio", "envio");
-  if (!envio.ok) return envio;
-  const cia = linha("cia", "cia aérea");
-  if (!cia.ok) return cia;
-
-  // PO: vazio ou o PO completo (o mesmo CHECK da tabela); aceita minúsculas e espaços, que viram o formato certo.
-  let po = "";
-  if (o.po !== undefined) {
-    if (typeof o.po !== "string") return falha(`${onde}: PO: informe um texto.`);
-    po = normalizarNumeroPo(o.po) ?? "";
-    if (po !== "" && !NUMERO_PO_REGEX.test(po)) return falha(`${onde}: ${NUMERO_PO_ERRO}`);
-  }
-
-  const frete = validarDinheiroCompra(o.frete, `${onde}: frete`);
-  if (!frete.ok) return frete;
-  const freteReal = validarDinheiroCompra(o.freteReal, `${onde}: valor real do frete`);
-  if (!freteReal.ok) return freteReal;
-
-  if (!Array.isArray(o.itens)) return falha(`${onde}: informe a lista de medicamentos (itens).`);
-  if (o.itens.length > COMPRA_MAX_ITENS_POR_ORDEM) return falha(`${onde}: no máximo ${COMPRA_MAX_ITENS_POR_ORDEM} medicamentos por ordem.`);
+function validarItens(v: unknown): ResultadoCompra<ItemCompraEstado[]> {
+  if (!Array.isArray(v)) return falha("Medicamentos: informe uma lista (itens).");
+  if (v.length > COMPRA_MAX_ITENS) return falha(`No máximo ${COMPRA_MAX_ITENS} medicamentos por compra.`);
   const itens: ItemCompraEstado[] = [];
-  for (const [i, bruto] of o.itens.entries()) {
-    const item = validarItem(bruto, `${onde}, medicamento ${i + 1}`);
+  for (const [i, bruto] of v.entries()) {
+    const item = validarItem(bruto, `Medicamento ${i + 1}`);
     if (!item.ok) return item;
     itens.push(item.valor);
   }
-
-  return ok({ id: id.valor, fornecedor: fornecedor.valor, envio: envio.valor, cia: cia.valor, po, frete: frete.valor, freteReal: freteReal.valor, itens });
-}
-
-function validarOrdens(v: unknown): ResultadoCompra<OrdemCompraEstado[]> {
-  if (!Array.isArray(v)) return falha("Ordens: informe uma lista.");
-  if (v.length > COMPRA_MAX_ORDENS) return falha(`No máximo ${COMPRA_MAX_ORDENS} ordens por compra.`);
-  const ordens: OrdemCompraEstado[] = [];
-  for (const [i, bruto] of v.entries()) {
-    const ordem = validarOrdem(bruto, i + 1);
-    if (!ordem.ok) return ordem;
-    ordens.push(ordem.valor);
-  }
   // Ids repetidos no mesmo corpo (duas linhas com o mesmo id se sobrescreveriam).
-  const ordemIds = ordens.map((o) => o.id);
-  if (new Set(ordemIds).size !== ordemIds.length) return falha("Há ordens com o mesmo identificador.");
-  const itemIds = ordens.flatMap((o) => o.itens.map((i) => i.id));
+  const itemIds = itens.map((i) => i.id);
   if (new Set(itemIds).size !== itemIds.length) return falha("Há medicamentos com o mesmo identificador.");
-  return ok(ordens);
+  return ok(itens);
 }
 
 // ── O corpo inteiro ───────────────────────────────────────────────────────────────────────────────────────────
@@ -313,6 +296,17 @@ export function validarCompraSalvar(corpo: unknown): ResultadoCompra<CompraEstad
     if (!b.ok) return b;
     campos[campo] = b.valor;
   }
+  for (const [campo, rotulo] of Object.entries(CAMPOS_DINHEIRO_COMPRA)) {
+    if (o[campo] === undefined) continue;
+    const d = validarDinheiroCompra(o[campo], rotulo);
+    if (!d.ok) return d;
+    campos[campo] = d.valor;
+  }
+  if (o.numeroOrdens !== undefined) {
+    const n = validarNumeroOrdens(o.numeroOrdens);
+    if (!n.ok) return n;
+    campos.numeroOrdens = n.valor;
+  }
   if (o.pagamentoMomento !== undefined) {
     const m = o.pagamentoMomento;
     if (m !== null && !(COMPRA_MOMENTOS_PAGAMENTO as readonly unknown[]).includes(m)) {
@@ -327,10 +321,10 @@ export function validarCompraSalvar(corpo: unknown): ResultadoCompra<CompraEstad
   }
 
   const estado: CompraEstado = { atualizadoEm: versao.valor, campos: campos as Partial<CamposCompraEditaveis> };
-  if (o.ordens !== undefined) {
-    const ordens = validarOrdens(o.ordens);
-    if (!ordens.ok) return ordens;
-    estado.ordens = ordens.valor;
+  if (o.itens !== undefined) {
+    const itens = validarItens(o.itens);
+    if (!itens.ok) return itens;
+    estado.itens = itens.valor;
   }
   return ok(estado);
 }
@@ -404,27 +398,22 @@ export function validarPreCadastroCompra(corpo: unknown): ResultadoCompra<PreCad
 
 export interface ConsultaListaCompras {
   anoMes: string;
-  status: StatusDaCompra | null;
   incluirCanceladas: boolean;
   pagina: number;
 }
 
-/** A consulta de GET /api/compras: `?ano_mes=AAAA-MM`, `?status=` (rascunho|pronta|cancelada), `?pagina=` (a partir de 1) e `?incluir_canceladas=1`. */
+/**
+ * A consulta de GET /api/compras: `?ano_mes=AAAA-MM`, `?pagina=` (a partir de 1) e `?incluir_canceladas=1`. Parâmetro desconhecido é IGNORADO
+ * (como sempre): o `?status=` que existia antes deixou de existir (o estado da compra é só ativa ou cancelada) e, se vier, não muda nada.
+ */
 export function validarConsultaListaCompras(consulta: Record<string, unknown>, anoMesPadrao: string): ResultadoCompra<ConsultaListaCompras> {
   const mes = validarAnoMesDaConsulta(consulta.ano_mes, anoMesPadrao);
   if (!mes.ok) return mes;
 
-  const bruto = consulta.status;
-  let status: StatusDaCompra | null = null;
-  if (bruto !== undefined && bruto !== "") {
-    if (typeof bruto !== "string" || !(STATUS_DA_COMPRA as readonly string[]).includes(bruto)) return falha(`Status inválido: use ${STATUS_DA_COMPRA.join(", ")}.`);
-    status = bruto as StatusDaCompra;
-  }
-
   const pagina = inteiroDaConsulta(consulta.pagina, 1, 1, 100000, "Página");
   if (!pagina.ok) return pagina;
 
-  return ok({ anoMes: mes.valor, status, incluirCanceladas: consulta.incluir_canceladas === "1", pagina: pagina.valor });
+  return ok({ anoMes: mes.valor, incluirCanceladas: consulta.incluir_canceladas === "1", pagina: pagina.valor });
 }
 
 /** O id da compra na rota. */

@@ -1,22 +1,27 @@
-// A Compra (página Compras): o que o servidor guarda e devolve (tabelas compras, compra_ordens e compra_itens) e o que o cliente envia
-// ao salvar. O texto do "Resumo da compra" sai daqui por `compraParaResumoEntrada` (shared/utils/compraResumo.ts).
+// A Compra (página Compras): UMA compra por fornecedor. O que o servidor guarda e devolve (tabelas compras e compra_itens) e o que o
+// cliente envia ao salvar. O texto do "Resumo da compra" sai daqui por `compraParaResumoEntrada` (shared/utils/compraResumo.ts).
 //
 // Convenções (as mesmas da DIR e dos Cadastros): no modelo, texto vazio é "" (nunca undefined); dinheiro é número com 2 casas ou null
 // (vazio); datas e instantes são texto ISO. Quantidade é TEXTO com a unidade ("12 ampolas"). Nomes com sufixo próprio para não
 // colidir com `Medicamento` (processo.ts) nem com `MedicamentoCadastro` (Cadastro.ts).
 
-import type { StatusDaCompra } from "../constants/compra";
 import type { MomentoPagamentoResumo } from "./compraResumo";
+import type { BrandMedicamento, EmpresaProcesso } from "./processo";
 
-/** Um medicamento de uma ordem. */
+/** Um medicamento da compra. */
 export interface ItemCompra {
   id: string;
-  /** 1..N dentro da ordem (a ordem em que aparece). */
+  /** 1..N dentro da compra (a ordem em que aparece). */
   posicao: number;
-  /** Do Cadastro de medicamentos ou texto livre do pré-cadastro. */
+  /** UM texto só, já com a apresentação ("KEYTRUDA 100mg - 2 vials per box"), como foi digitado. */
   medicamento: string;
   /** Preenchido quando o medicamento é um item do Cadastro. */
   medicamentoCadastroId: string | null;
+  /**
+   * O nome do medicamento no Cadastro quando `medicamentoCadastroId` está ligado (e o medicamento existe); senão null. SÓ LEITURA: o
+   * servidor o preenche ao ler a compra e o salvamento recusa o campo. A tela o usa para saber se o texto ainda começa com o nome do Cadastro.
+   */
+  medicamentoCadastroNome: string | null;
   /**
    * Preenchido quando o medicamento está no pré-cadastro e ainda NÃO virou item do Cadastro. Aprovado o pré-cadastro, o item passa a ter
    * `medicamentoCadastroId` e este campo vem null (a coluna do banco guarda o vínculo, mas a leitura já o esconde: ver montarItem).
@@ -24,32 +29,16 @@ export interface ItemCompra {
   preCadastroId: string | null;
   /**
    * O estado do pré-cadastro do item (`pendente` ou `rejeitado`); null sem pré-cadastro. SÓ LEITURA: o servidor o preenche ao ler a compra e o
-   * salvamento ignora. Com `rejeitado` a tela mostra o aviso de pré-cadastro rejeitado. Ausente (a lista do mês, que não lê o pré-cadastro)
-   * vale como pendente.
+   * salvamento ignora. Ausente (a lista do mês, que não lê o pré-cadastro) vale como pendente.
    */
   preCadastroStatus?: StatusPreCadastro | null;
-  apresentacao: string;
-  referencia: string;
   laboratorio: string;
+  /** "" ou um valor de BRANDS_MEDICAMENTO ("bioequivalente" | "referencia"). */
+  brand: BrandMedicamento | "";
   quantidade: string;
   temperatura: string;
   valorUnitario: number | null;
   valorReal: number | null;
-}
-
-/** Uma ordem de compra: um fornecedor, um envio e seus medicamentos. */
-export interface OrdemCompra {
-  id: string;
-  /** 1..N dentro da compra. */
-  posicao: number;
-  fornecedor: string;
-  envio: string;
-  cia: string;
-  /** "" ou o PO completo (PO26-10-0471). */
-  po: string;
-  frete: number | null;
-  freteReal: number | null;
-  itens: ItemCompra[];
 }
 
 export interface Compra {
@@ -59,36 +48,43 @@ export interface Compra {
   /** Número da compra dentro do mês (1, 2, 3...). */
   sequencia: number;
   cancelada: boolean;
+  fornecedor: string;
+  /** Um valor de MODAIS_ENVIO ou "". */
+  envio: string;
+  /** "" ou uma cia que vale para o `envio` (ciaAereaValidaParaModal). */
+  cia: string;
+  empresa: EmpresaProcesso;
+  /** Quantas ordens a compra tem (só um número: de 1 a COMPRA_MAX_ORDENS). */
+  numeroOrdens: number;
+  frete: number | null;
+  freteReal: number | null;
   paciente: string;
   processoNumero: string;
+  compraParticular: boolean;
+  /** Compra recorrente (avisa no resumo). */
+  recorrente: boolean;
   medico: string;
   localAplicacao: string;
   entrega: string;
   contatos: string;
-  termoObservacao: string;
   despachante: string;
-  isencaoPara: string;
-  observacoes: string;
-  vendedor: string;
-  responsavel: string;
-  compraParticular: boolean;
-  localDeclarado: boolean;
-  termoPosterior: boolean;
-  courierSimples: boolean;
-  isencao: boolean;
-  /** Compra recorrente (avisa no resumo). */
-  recorrente: boolean;
   /** null = ainda não decidido. */
   pagamentoAlvara: boolean | null;
   pagamentoMomento: MomentoPagamentoResumo | null;
+  termoPosterior: boolean;
+  termoObservacao: string;
+  isencao: boolean;
   documentos: boolean | null;
   pendencias: string[];
+  observacoes: string;
+  consultor: string;
+  responsavel: string;
   criadoPor: string;
   atualizadoPor: string;
   createdAt: string;
   /** Também é a VERSÃO da compra: o cliente a devolve ao salvar e, se mudou, o servidor responde 409. */
   updatedAt: string;
-  ordens: OrdemCompra[];
+  itens: ItemCompra[];
 }
 
 /**
@@ -102,32 +98,30 @@ export interface CompraDaLista {
   sequencia: number;
   cancelada: boolean;
   paciente: string;
-  /** Nomes dos medicamentos de todas as ordens, sem repetir, na ordem em que aparecem (ordens e itens por posição). */
+  /** Nomes dos medicamentos da compra, sem repetir, na ordem em que aparecem (por posição). */
   medicamentos: string[];
-  totalOrdens: number;
-  /** Quantas pendências a checagem da compra acusa (contarPendencias). */
-  pendencias: number;
-  status: StatusDaCompra;
+  numeroOrdens: number;
   /** A versão (updated_at, ISO UTC). */
   atualizadoEm: string;
 }
 
-/** Quantas compras do mês há em cada estado (o mês INTEIRO, não só a página nem o filtro). */
-export type TotaisPorStatus = Record<StatusDaCompra, number>;
+/** Quantas compras do mês há ativas e canceladas (o mês INTEIRO, não só a página). O estado da compra é só derivado: ativa ou cancelada. */
+export interface TotaisDaLista {
+  ativas: number;
+  canceladas: number;
+}
 
 /** A resposta de GET /api/compras. */
 export interface ListaCompras {
   anoMes: string;
   compras: CompraDaLista[];
-  /** O filtro aplicado (`?status=`), ou null. */
-  status: StatusDaCompra | null;
   /** Página (a partir de 1) e tamanho usados; há mais depois desta? */
   pagina: number;
   limite: number;
   temMais: boolean;
-  /** Quantas compras casam com o filtro (todas as páginas). */
+  /** Quantas compras a lista tem (todas as páginas; sem as canceladas, a menos que `incluir_canceladas=1`). */
   total: number;
-  totais: TotaisPorStatus;
+  totais: TotaisDaLista;
 }
 
 // ── Entrada do salvamento ───────────────────────────────────────────────────────────────────────────────────
@@ -138,56 +132,48 @@ export interface ItemCompraSalvarDTO {
   medicamento?: string;
   medicamentoCadastroId?: string | null;
   preCadastroId?: string | null;
-  apresentacao?: string;
-  referencia?: string;
   laboratorio?: string;
+  brand?: BrandMedicamento | "";
   quantidade?: string;
   temperatura?: string;
   valorUnitario?: number | null;
   valorReal?: number | null;
 }
 
-export interface OrdemCompraSalvarDTO {
-  id: string;
-  fornecedor?: string;
-  envio?: string;
-  cia?: string;
-  po?: string;
-  frete?: number | null;
-  freteReal?: number | null;
-  itens: ItemCompraSalvarDTO[];
-}
-
 /**
  * O salvamento automático: o estado da compra. `atualizadoEm` (o `updatedAt` que o cliente viu) é obrigatório. Campo ausente = não
- * muda; `ordens` ausente = não mexe nas ordens; `ordens` presente = o estado COMPLETO (o que não vier é apagado) e a ordem do
- * array é a posição.
+ * muda; `itens` ausente = não mexe nos itens; `itens` presente = o estado COMPLETO (o que não vier é apagado) e a ordem do array é a
+ * posição.
  */
 export interface CompraSalvarDTO {
   atualizadoEm: string;
+  fornecedor?: string;
+  envio?: string;
+  cia?: string;
+  empresa?: EmpresaProcesso;
+  numeroOrdens?: number;
+  frete?: number | null;
+  freteReal?: number | null;
   paciente?: string;
   processoNumero?: string;
+  compraParticular?: boolean;
+  recorrente?: boolean;
   medico?: string;
   localAplicacao?: string;
   entrega?: string;
   contatos?: string;
-  termoObservacao?: string;
   despachante?: string;
-  isencaoPara?: string;
-  observacoes?: string;
-  vendedor?: string;
-  responsavel?: string;
-  compraParticular?: boolean;
-  localDeclarado?: boolean;
-  termoPosterior?: boolean;
-  courierSimples?: boolean;
-  isencao?: boolean;
-  recorrente?: boolean;
   pagamentoAlvara?: boolean | null;
   pagamentoMomento?: MomentoPagamentoResumo | null;
+  termoPosterior?: boolean;
+  termoObservacao?: string;
+  isencao?: boolean;
   documentos?: boolean | null;
   pendencias?: string[];
-  ordens?: OrdemCompraSalvarDTO[];
+  observacoes?: string;
+  consultor?: string;
+  responsavel?: string;
+  itens?: ItemCompraSalvarDTO[];
 }
 
 /** Os dados do despachante que o resumo usa (do Cadastro). NUNCA a chave PIX: este tipo nem tem o campo. */
@@ -206,72 +192,61 @@ export interface ItemCompraEstado {
   medicamento: string;
   medicamentoCadastroId: string | null;
   preCadastroId: string | null;
-  apresentacao: string;
-  referencia: string;
   laboratorio: string;
+  brand: BrandMedicamento | "";
   quantidade: string;
   temperatura: string;
   valorUnitario: number | null;
   valorReal: number | null;
 }
 
-/** Uma ordem já validada e normalizada. */
-export interface OrdemCompraEstado {
-  id: string;
+/** Os campos da compra que o salvamento pode alterar (os de identificação, numeração e auditoria não entram). */
+export interface CamposCompraEditaveis {
   fornecedor: string;
   envio: string;
   cia: string;
-  po: string;
+  empresa: EmpresaProcesso;
+  numeroOrdens: number;
   frete: number | null;
   freteReal: number | null;
-  itens: ItemCompraEstado[];
-}
-
-/** Os campos da compra que o salvamento pode alterar (os de identificação, numeração e auditoria não entram). */
-export interface CamposCompraEditaveis {
   paciente: string;
   processoNumero: string;
+  compraParticular: boolean;
+  recorrente: boolean;
   medico: string;
   localAplicacao: string;
   entrega: string;
   contatos: string;
-  termoObservacao: string;
   despachante: string;
-  isencaoPara: string;
-  observacoes: string;
-  vendedor: string;
-  responsavel: string;
-  compraParticular: boolean;
-  localDeclarado: boolean;
-  termoPosterior: boolean;
-  courierSimples: boolean;
-  isencao: boolean;
-  recorrente: boolean;
   pagamentoAlvara: boolean | null;
   pagamentoMomento: MomentoPagamentoResumo | null;
+  termoPosterior: boolean;
+  termoObservacao: string;
+  isencao: boolean;
   documentos: boolean | null;
   pendencias: string[];
+  observacoes: string;
+  consultor: string;
+  responsavel: string;
 }
 
-/** O que o formulário altera de uma vez: campos da compra e/ou as ordens (com os itens) inteiras. */
-export type MudancasCompra = Partial<CamposCompraEditaveis> & { ordens?: OrdemCompra[] };
+/** O que o formulário altera de uma vez: campos da compra e/ou os itens inteiros. */
+export type MudancasCompra = Partial<CamposCompraEditaveis> & { itens?: ItemCompra[] };
 
-/** O salvamento validado: só os campos que vieram, e as ordens (quando vieram) como o estado COMPLETO. */
+/** O salvamento validado: só os campos que vieram, e os itens (quando vieram) como o estado COMPLETO. */
 export interface CompraEstado {
   /** O `updatedAt` que o cliente viu. */
   atualizadoEm: string;
   campos: Partial<CamposCompraEditaveis>;
-  ordens?: OrdemCompraEstado[];
+  itens?: ItemCompraEstado[];
 }
 
 // ── Opções do formulário (GET /api/compras/opcoes) ────────────────────────────────────────────────────────────
-// Só itens ATIVOS e só os campos que o formulário usa. NUNCA há chave PIX aqui (nem nos despachantes nem nas transportadoras).
+// Só itens ATIVOS e só os campos que o formulário usa. NUNCA há chave PIX aqui. Envio, cia aérea (por modal) e empresa não vêm daqui:
+// são constantes compartilhadas com o Follow-Up (shared/constants/processos.ts).
 
 export interface OpcaoFornecedor {
   nome: string;
-  pais: string;
-  prazoAlertaDias: number | null;
-  semAlerta: boolean;
 }
 
 export interface OpcaoDespachante {
@@ -306,8 +281,6 @@ export interface PaginaMedicamentos {
 export interface OpcoesCompra {
   fornecedores: OpcaoFornecedor[];
   despachantes: OpcaoDespachante[];
-  ciasAereas: OpcaoNome[];
-  transportadoras: OpcaoNome[];
   consultores: OpcaoNome[];
   temperaturas: OpcaoNome[];
   medicamentos: PaginaMedicamentos;

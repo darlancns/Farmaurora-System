@@ -1,21 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { COMPRA_ID_RE } from "../../shared/constants/compra";
-import { MODAL_AIR_CARGO, MODAL_COURIER_FORMAL, MODAL_COURIER_SIMPLES } from "../../shared/constants/processos";
-import type { OrdemCompra } from "../../shared/types/compra";
-import { courierSimplesDasOrdens, itemVazio, novoIdCompra, ordemVazia, renumerar } from "../../shared/utils/compraForm";
+import { COMPRA_ID_RE, PENDENCIAS_PADRAO } from "../../shared/constants/compra";
+import { itemTemConteudo, itemVazio, novoIdCompra, pendenciasDoFormulario, pendenciasParaFormulario, renumerarItens } from "../../shared/utils/compraForm";
 
-// Peças puras do formulário da Compra. Dados fictícios (TESTE).
+// Peças puras do formulário da Compra (uma compra por fornecedor: só há medicamentos). Dados fictícios (TESTE).
 
 describe("ids novos", () => {
   it("têm o prefixo e passam no formato que o SERVIDOR aceita (COMPRA_ID_RE)", () => {
     for (let i = 0; i < 50; i++) {
-      const o = novoIdCompra("ord");
       const it = novoIdCompra("itm");
-      expect(o.startsWith("ord_")).toBe(true);
       expect(it.startsWith("itm_")).toBe(true);
-      expect(COMPRA_ID_RE.test(o), o).toBe(true);
       expect(COMPRA_ID_RE.test(it), it).toBe(true);
-      expect(o.length).toBeLessThanOrEqual(64);
+      expect(it.length).toBeLessThanOrEqual(64);
     }
   });
 
@@ -28,7 +23,7 @@ describe("ids novos", () => {
     const original = Object.getOwnPropertyDescriptor(globalThis, "crypto");
     Object.defineProperty(globalThis, "crypto", { value: {}, configurable: true });
     try {
-      const id = novoIdCompra("ord");
+      const id = novoIdCompra("itm");
       expect(COMPRA_ID_RE.test(id), id).toBe(true);
     } finally {
       if (original) Object.defineProperty(globalThis, "crypto", original);
@@ -36,57 +31,67 @@ describe("ids novos", () => {
   });
 });
 
-describe("ordem e item vazios", () => {
-  it("o item nasce todo vazio, sem cadastro nem pré-cadastro, dinheiro null", () => {
-    expect(itemVazio(3)).toMatchObject({
+describe("medicamento vazio", () => {
+  it("nasce todo vazio, sem cadastro nem pré-cadastro, brand vazio e dinheiro null (sem apresentação nem referência)", () => {
+    const i = itemVazio(3);
+    expect(i).toMatchObject({
       posicao: 3,
       medicamento: "",
       medicamentoCadastroId: null,
+      medicamentoCadastroNome: null,
       preCadastroId: null,
-      apresentacao: "",
-      referencia: "",
       laboratorio: "",
+      brand: "",
       quantidade: "",
       temperatura: "",
       valorUnitario: null,
       valorReal: null,
     });
-  });
-
-  it("a ordem nasce vazia com UM item vazio", () => {
-    const o = ordemVazia(2);
-    expect(o).toMatchObject({ posicao: 2, fornecedor: "", envio: "", cia: "", po: "", frete: null, freteReal: null });
-    expect(o.itens).toHaveLength(1);
-    expect(o.itens[0]!.posicao).toBe(1);
-    expect(o.itens[0]!.id).not.toBe(ordemVazia(2).itens[0]!.id);
+    expect(Object.keys(i)).not.toContain("apresentacao");
+    expect(Object.keys(i)).not.toContain("referencia");
+    expect(itemVazio(3).id).not.toBe(i.id);
   });
 });
 
-describe("renumerar", () => {
-  it("a posição é a ordem em que aparecem (ordens e itens), e não mexe no recebido", () => {
-    const a = ordemVazia(7);
-    const b = ordemVazia(3);
-    a.itens.push({ ...itemVazio(9), id: "itm_extra_0001" });
-    const antes = JSON.stringify([a, b]);
-    const r = renumerar([a, b]);
-    expect(r.map((o) => o.posicao)).toEqual([1, 2]);
-    expect(r[0]!.itens.map((i) => i.posicao)).toEqual([1, 2]);
-    expect(JSON.stringify([a, b])).toBe(antes);
+describe("renumerarItens", () => {
+  it("a posição é a ordem em que aparecem, e não mexe no recebido", () => {
+    const itens = [{ ...itemVazio(7), id: "itm_aaaaaa" }, { ...itemVazio(3), id: "itm_bbbbbb" }, { ...itemVazio(9), id: "itm_cccccc" }];
+    const antes = JSON.stringify(itens);
+    expect(renumerarItens(itens).map((i) => [i.id, i.posicao])).toEqual([["itm_aaaaaa", 1], ["itm_bbbbbb", 2], ["itm_cccccc", 3]]);
+    expect(JSON.stringify(itens)).toBe(antes);
   });
 });
 
-describe("courierSimplesDasOrdens (derivado)", () => {
-  const com = (...envios: string[]): Array<Pick<OrdemCompra, "envio">> => envios.map((envio) => ({ envio }));
-  it("todas Courier Simples: true", () => {
-    expect(courierSimplesDasOrdens(com(MODAL_COURIER_SIMPLES))).toBe(true);
-    expect(courierSimplesDasOrdens(com(MODAL_COURIER_SIMPLES, MODAL_COURIER_SIMPLES))).toBe(true);
+describe("itemTemConteudo", () => {
+  it("vazio: não; qualquer campo (texto, brand, dinheiro, ligação) conta; id e posição não", () => {
+    expect(itemTemConteudo(itemVazio(1))).toBe(false);
+    expect(itemTemConteudo({ ...itemVazio(1), medicamento: " " })).toBe(false);
+    for (const extra of [
+      { medicamento: "TESTE" },
+      { laboratorio: "Lab" },
+      { brand: "referencia" as const },
+      { quantidade: "2" },
+      { temperatura: "Ambiente" },
+      { valorUnitario: 0 },
+      { valorReal: 1 },
+      { medicamentoCadastroId: "med_1" },
+      { preCadastroId: "pre_1" },
+    ]) {
+      expect(itemTemConteudo({ ...itemVazio(1), ...extra }), JSON.stringify(extra)).toBe(true);
+    }
   });
-  it("uma que não é: false", () => {
-    expect(courierSimplesDasOrdens(com(MODAL_COURIER_SIMPLES, MODAL_AIR_CARGO))).toBe(false);
-    expect(courierSimplesDasOrdens(com(MODAL_COURIER_FORMAL))).toBe(false);
-    expect(courierSimplesDasOrdens(com(""))).toBe(false);
+});
+
+describe("pendências: chips + texto livre", () => {
+  it("ida e volta: os chips marcados (na ordem da lista padrão) e UMA entrada final com o texto livre", () => {
+    const [a, b] = [PENDENCIAS_PADRAO[0], PENDENCIAS_PADRAO[2]];
+    const lista = pendenciasDoFormulario([b, a], "  Algo a mais ");
+    expect(lista).toEqual([a, b, "Algo a mais"]);
+    expect(pendenciasParaFormulario(lista)).toEqual({ marcadas: [a, b], livre: "Algo a mais" });
+    expect(pendenciasDoFormulario([], "")).toEqual([]);
   });
-  it("nenhuma ordem: false (não é 'todas')", () => {
-    expect(courierSimplesDasOrdens([])).toBe(false);
+
+  it("entradas fora da lista padrão aparecem no campo livre, unidas por '; '", () => {
+    expect(pendenciasParaFormulario(["Uma", PENDENCIAS_PADRAO[1], "Outra"])).toEqual({ marcadas: [PENDENCIAS_PADRAO[1]], livre: "Uma; Outra" });
   });
 });
