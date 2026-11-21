@@ -6,13 +6,13 @@ import type { ItemCompra, OrdemCompra } from "../../shared/types/compra";
 import { checklistCompra, contarPendencias, statusDaCompra, type CompraParaChecklist } from "../../shared/utils/compraChecklist";
 import { itemVazio, ordemVazia } from "../../shared/utils/compraForm";
 import { campoDoItem } from "../../app/utils/comprasCampos";
-import { montarCompraParaChecklist, montarItem, type ItemRow } from "../../server/utils/compraMappers";
+import { montarItem, type ItemRow } from "../../server/utils/compraMappers";
 import { compraTeste, montarFormulario, q, texto, type FormularioMontado } from "./helpers/formularioCompra";
 import { FakeSupabase } from "./helpers/fakeSupabase";
 import { compraTeste as compraCompleta } from "./helpers/compraCompletaFixtures";
 
 // O aviso de PRÉ-CADASTRO REJEITADO (aviso, não erro) no checklist e na linha do medicamento, e o item APROVADO que deixa de mostrar o aviso de
-// pré-cadastro. Mapeador, checklist, leitura da compra (Supabase simulado) e a linha real do formulário. Dados fictícios (TESTE).
+// pré-cadastro. Mapeador, checklist (da tela, sai na E6), leitura da compra (Supabase simulado) e a linha real do formulário (tela, E6). Dados fictícios (TESTE).
 
 const fake = new FakeSupabase();
 vi.mock("../../server/utils/supabaseServerClient", () => ({
@@ -27,13 +27,12 @@ const AVISO_REJEITADO = `${TEXTO_PRE_CADASTRO_REJEITADO} (${NOME})`;
 
 const linhaItem = (extra: Partial<ItemRow> = {}): ItemRow => ({
   id: "it_1",
-  ordem_id: "ord_1",
+  compra_id: "compra_1",
   posicao: 1,
   medicamento: NOME,
   medicamento_cadastro_id: null,
   pre_cadastro_id: null,
-  apresentacao: "",
-  referencia: "",
+  brand: "",
   laboratorio: "",
   quantidade: "10",
   temperatura: "2°C a 8°C",
@@ -66,10 +65,9 @@ describe("mapeador: o pré-cadastro que o item MOSTRA", () => {
     expect("preCadastroStatus" in montarItem(linhaItem(), new Map([["pre_1", "pendente" as const]]))).toBe(false);
   });
 
-  it("a checagem da LISTA também esconde o pré-cadastro de item já ligado ao Cadastro", () => {
-    const row = { id: "c", ano_mes: "2026-11", sequencia: 1, cancelada: false, paciente: "TESTE", processo_numero: "", compra_particular: true, medico: "Dr", vendedor: "v", responsavel: "r", despachante: "d", pagamento_momento: null, local_aplicacao: "", entrega: "", documentos: null, updated_at: ANTIGA };
-    const checagem = montarCompraParaChecklist(row, [{ id: "ord_1", compra_id: "c", posicao: 1, fornecedor: "f", envio: "e", po: "" }], [linhaItem({ medicamento_cadastro_id: "med_1", pre_cadastro_id: "pre_1" })]);
-    expect(checagem.ordens[0]!.itens[0]).toMatchObject({ preCadastroId: null, medicamentoCadastroId: "med_1" });
+  it("a LISTA do mês não lê o pré-cadastro: só o id e o texto do item (itemDaLista), e item ligado ao Cadastro continua sem pré-cadastro", () => {
+    const ligado = montarItem(linhaItem({ medicamento_cadastro_id: "med_1", pre_cadastro_id: "pre_1" }));
+    expect(ligado).toMatchObject({ preCadastroId: null, medicamentoCadastroId: "med_1" });
   });
 });
 
@@ -117,7 +115,6 @@ function semear(): void {
   fake.chamadas.length = 0;
   fake.semear("cadastro_temperaturas", [{ id: "temp_1", nome: "2°C a 8°C", nome_chave: "2°c a 8°c", ativo: true }]);
   fake.semear("compras", [{ id: "compra_1", ano_mes: "2026-11", sequencia: 7, paciente: "TESTE PACIENTE", updated_at: ANTIGA, created_at: ANTIGA, cancelada: false }]);
-  fake.semear("compra_ordens", [{ id: "ord_1", compra_id: "compra_1", posicao: 1, fornecedor: "", envio: "", cia: "", po: "" }]);
   fake.semear("pre_cadastro_medicamentos", [
     { id: "pre_alfa", nome: NOME, nome_chave: "teste medicamento alfa", temperatura: "2°C a 8°C", status: "pendente", compra_id: "compra_1", cadastro_id: null, solicitado_por: "Op", created_at: ANTIGA, updated_at: ANTIGA },
     { id: "pre_beta", nome: "TESTE MEDICAMENTO BETA", nome_chave: "teste medicamento beta", temperatura: "2°C a 8°C", status: "pendente", compra_id: "compra_1", cadastro_id: null, solicitado_por: "Op", created_at: ANTIGA, updated_at: ANTIGA },
@@ -136,35 +133,28 @@ beforeEach(() => {
 describe("a compra devolve o estado do pré-cadastro de cada item", () => {
   it("pendente e rejeitado; item do Cadastro e item sem pré-cadastro não levam estado", async () => {
     await rejeitarPreCadastro("pre_beta", "Adm Teste");
-    const itens = (await obterCompra("compra_1"))!.ordens[0]!.itens;
+    const itens = (await obterCompra("compra_1"))!.itens;
     expect(itens.find((i) => i.id === "it_alfa")).toMatchObject({ preCadastroId: "pre_alfa", preCadastroStatus: "pendente" });
     expect(itens.find((i) => i.id === "it_beta")).toMatchObject({ preCadastroId: "pre_beta", preCadastroStatus: "rejeitado", medicamento: "TESTE MEDICAMENTO BETA" });
     expect("preCadastroStatus" in itens.find((i) => i.id === "it_cad")!).toBe(false);
   });
 
-  it("rejeitar NÃO apaga nem troca o texto do item; o checklist da compra lida mostra o aviso de rejeitado", async () => {
+  it("rejeitar NÃO apaga nem troca o texto do item: o item rejeitado segue com o texto livre e o estado, o pendente continua pendente", async () => {
     await rejeitarPreCadastro("pre_beta", "Adm Teste");
     const compra = (await obterCompra("compra_1"))!;
-    const beta = compra.ordens[0]!.itens.find((i) => i.id === "it_beta")!;
-    expect(beta.medicamento).toBe("TESTE MEDICAMENTO BETA");
-    const aviso = checklistCompra(compra).itens.find((i) => i.id === "ordem-1-med-2-pre-cadastro")!;
-    expect(aviso).toMatchObject({ nivel: "aviso", texto: `${TEXTO_PRE_CADASTRO_REJEITADO} (TESTE MEDICAMENTO BETA)` });
-    // O item pendente segue com o aviso de sempre.
-    expect(checklistCompra(compra).itens.find((i) => i.id === "ordem-1-med-1-pre-cadastro")!.texto).toBe(`${NOME} no pré-cadastro: a linha da DIR leva o nome digitado`);
+    expect(compra.itens).toHaveLength(3);
+    const beta = compra.itens.find((i) => i.id === "it_beta")!;
+    expect(beta).toMatchObject({ medicamento: "TESTE MEDICAMENTO BETA", preCadastroId: "pre_beta", preCadastroStatus: "rejeitado" });
+    expect(compra.itens.find((i) => i.id === "it_alfa")).toMatchObject({ preCadastroId: "pre_alfa", preCadastroStatus: "pendente" });
   });
 
-  it("APROVAR: o item passa a ser do Cadastro (sem pré-cadastro, sem estado) e o aviso de pré-cadastro some do checklist", async () => {
-    const antes = checklistCompra((await obterCompra("compra_1"))!).itens.some((i) => i.id === "ordem-1-med-1-pre-cadastro");
-    expect(antes).toBe(true);
-
+  it("APROVAR: o item passa a ser do Cadastro (sem pré-cadastro, sem estado, com o nome do Cadastro); o outro, ainda pendente, mantém o pré-cadastro", async () => {
     const r = await aprovarPreCadastro("pre_alfa", {}, "Adm Teste");
     const compra = (await obterCompra("compra_1"))!;
-    const alfa = compra.ordens[0]!.itens.find((i) => i.id === "it_alfa")!;
-    expect(alfa).toMatchObject({ medicamentoCadastroId: r.preCadastro.cadastroId, preCadastroId: null });
+    const alfa = compra.itens.find((i) => i.id === "it_alfa")!;
+    expect(alfa).toMatchObject({ medicamentoCadastroId: r.preCadastro.cadastroId, medicamentoCadastroNome: NOME, preCadastroId: null });
     expect("preCadastroStatus" in alfa).toBe(false);
-    expect(checklistCompra(compra).itens.some((i) => i.id === "ordem-1-med-1-pre-cadastro")).toBe(false);
-    // O outro, ainda pendente, mantém o aviso.
-    expect(checklistCompra(compra).itens.some((i) => i.id === "ordem-1-med-2-pre-cadastro")).toBe(true);
+    expect(compra.itens.find((i) => i.id === "it_beta")).toMatchObject({ preCadastroId: "pre_beta", preCadastroStatus: "pendente" });
   });
 
   it("a compra lida depois de aprovar sobe de versão (a aba antiga leva 409 e recarrega)", async () => {

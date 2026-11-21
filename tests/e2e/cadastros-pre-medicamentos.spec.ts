@@ -39,7 +39,7 @@ interface CompraApi {
   anoMes: string;
   sequencia: number;
   updatedAt: string;
-  ordens: Array<{ id: string; itens: Array<{ id: string; medicamentoCadastroId: string | null; preCadastroId: string | null; preCadastroStatus?: string | null }> }>;
+  itens: Array<{ id: string; medicamentoCadastroId: string | null; preCadastroId: string | null; preCadastroStatus?: string | null }>;
 }
 interface PreApi {
   id: string;
@@ -64,7 +64,7 @@ async function compraComPreCadastro(request: APIRequestContext, nome: string): P
     data: {
       atualizadoEm: compra.updatedAt,
       paciente: `TESTE E2E PACIENTE ${unico()}`,
-      ordens: [{ id: `ord_e2e_pre_${unico()}`, itens: [{ id: itemId, medicamento: nome, medicamentoCadastroId: null, preCadastroId: pre.id, temperatura: TEMPERATURA, quantidade: "2 caixas" }] }],
+      itens: [{ id: itemId, medicamento: nome, medicamentoCadastroId: null, preCadastroId: pre.id, temperatura: TEMPERATURA, quantidade: "2 caixas" }],
     },
   });
   expect(salvou.ok(), await salvou.text()).toBe(true);
@@ -76,7 +76,7 @@ async function lerCompra(request: APIRequestContext, id: string): Promise<Compra
   expect(r.ok()).toBe(true);
   return (await r.json()) as CompraApi;
 }
-const itemDe = (c: CompraApi, itemId: string) => c.ordens.flatMap((o) => o.itens).find((i) => i.id === itemId)!;
+const itemDe = (c: CompraApi, itemId: string) => c.itens.find((i) => i.id === itemId)!;
 
 async function abrirCadastros(page: Page): Promise<void> {
   await page.setViewportSize({ width: 1440, height: 900 });
