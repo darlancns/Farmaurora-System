@@ -6,32 +6,25 @@
 // Nomes com sufixo "Resumo" de propósito: `Medicamento` já é o item de um processo do Follow-Up (shared/types/processo.ts) e
 // `MedicamentoCadastro` é o do Cadastro.
 
+import type { BlocoDaCompra } from "../constants/compraResumo";
+
 /** Dinheiro opcional: número, ou vazio (null/undefined). NaN também conta como vazio. */
 export type ValorOpcionalResumo = number | null | undefined;
 
-/** Um medicamento de uma ordem. */
+/**
+ * Um medicamento da compra. `medicamento` é o texto como foi digitado (ou escolhido do Cadastro); a compra não tem apresentação
+ * nem "referência" soltos: o Brand (Bioequivalente/Referência) é um campo próprio.
+ */
 export interface MedicamentoResumo {
-  /** Do Cadastro ou texto livre do pré-cadastro. */
-  readonly nome: string;
-  /** Texto livre ("500 mg c/ 30 comprimidos"); opcional. */
-  readonly apresentacao?: string;
-  /** Referência / Bioequivalente; opcional. */
-  readonly referencia?: string;
+  readonly medicamento: string;
   readonly laboratorio?: string;
+  /** "bioequivalente" | "referencia" (BRANDS_MEDICAMENTO) ou "" / outro valor (não sai). */
+  readonly brand?: string;
   /** TEXTO com a unidade ("12 ampolas"). */
   readonly quantidade?: string;
+  readonly temperatura?: string;
   readonly valorUnitario?: ValorOpcionalResumo;
   readonly valorReal?: ValorOpcionalResumo;
-  readonly temperatura?: string;
-}
-
-/** Uma ordem de compra: um fornecedor, um envio e seus medicamentos (1 a N). */
-export interface OrdemResumo {
-  readonly fornecedor: string;
-  readonly envio: string;
-  readonly frete?: ValorOpcionalResumo;
-  readonly freteReal?: ValorOpcionalResumo;
-  readonly medicamentos: readonly MedicamentoResumo[];
 }
 
 export type MomentoPagamentoResumo = "vamos_pagar" | "apos_awb";
@@ -48,10 +41,11 @@ export interface TermoPosteriorResumo {
   readonly observacao?: string;
 }
 
-/** Despachante da compra; `null` na entrada = a compra não tem despachante (o bloco some). */
+/**
+ * Despachante da compra; `null` na entrada = a compra não tem despachante (a linha some). Courier Simples (envio) não tem
+ * despachante: quem decide é o `envio` da entrada (o resumo diz "Despachante: N/A"), não este objeto.
+ */
 export interface DespachanteResumo {
-  /** Courier Simples não tem despachante: o resumo diz só "Despachante: N/A". */
-  readonly courierSimples: boolean;
   readonly nome?: string;
   readonly telefone?: string;
   readonly email?: string;
@@ -60,14 +54,12 @@ export interface DespachanteResumo {
 
 export interface AvisosResumo {
   readonly isencao: boolean;
-  /** Para quem pedir a isenção; só aparece com `isencao`. */
-  readonly isencaoPara?: string;
   /** true: ✅, false: ❌, null: a linha não sai. */
   readonly documentos: boolean | null;
   /** Chips e texto livre JÁ UNIDOS por quem chama. */
   readonly pendencias: readonly string[];
   readonly observacoes?: string;
-  /** Compra recorrente: a linha "Recorrente" sai por ÚLTIMO no bloco de avisos. */
+  /** Compra recorrente: a linha "Recorrente" sai logo depois de "Pendente". */
   readonly recorrente: boolean;
 }
 
@@ -84,19 +76,52 @@ export interface CompraResumoEntrada {
   /** 1 a 12. */
   readonly mes: number;
   readonly ano: number;
-  readonly ordens: readonly OrdemResumo[];
+  readonly medicamentos: readonly MedicamentoResumo[];
+  /** Quantas ordens (inteiro de 1 a COMPRA_MAX_ORDENS): só um número. */
+  readonly numeroOrdens: number;
+  readonly frete?: ValorOpcionalResumo;
+  readonly freteReal?: ValorOpcionalResumo;
+  /** O modal (um de MODAIS_ENVIO) ou "". "Courier Simples" = sem despachante. */
+  readonly envio: string;
+  /** A cia aérea (já válida para o modal) ou "". Só sai com `envio`. */
+  readonly cia: string;
+  readonly fornecedor: string;
+  /** "FARMAURORA" | "MAINZFARMA": sai em Title Case ("Farmaurora") na linha do CNPJ. */
+  readonly empresa: string;
   readonly pagamento: PagamentoResumo;
   readonly termoPosterior: TermoPosteriorResumo;
   readonly paciente: string;
   readonly despachante: DespachanteResumo | null;
   readonly avisos: AvisosResumo;
-  readonly vendedor: string;
+  readonly consultor: string;
   readonly responsavel: string;
   readonly processo: ProcessoResumo;
   readonly medico: string;
   readonly localAplicacao: string;
-  /** O local de aplicação é o declarado pelo cliente (muda o rótulo da linha). */
-  readonly localDeclarado: boolean;
   readonly entrega: string;
   readonly contatos: string;
+}
+
+/**
+ * "modelo": TODOS os rótulos do formulário, com o valor cru (sem "pendente ⏳", sem "n/a" inventado) e `vazio: true` onde não há valor.
+ * "copia": o texto que vai para o WhatsApp (linhas sem valor somem; local e entrega vazios saem "pendente ⏳").
+ */
+export type ModoResumo = "modelo" | "copia";
+
+/**
+ * Uma linha do resumo. `id` é estável (não muda com o texto) para a tela achar o campo. `rotulo` é "" na linha do título;
+ * `valor` é "" quando `vazio` (modelo) ou quando a linha é só o rótulo (marcadores: "Recorrente", "Pedir isenção imposto ❗").
+ */
+export interface LinhaDoResumo {
+  readonly id: string;
+  readonly rotulo: string;
+  readonly valor: string;
+  readonly vazio: boolean;
+  /** O valor sai entre asteriscos (negrito do WhatsApp). */
+  readonly negrito?: boolean;
+}
+
+export interface BlocoDoResumo {
+  readonly id: BlocoDaCompra;
+  readonly linhas: readonly LinhaDoResumo[];
 }

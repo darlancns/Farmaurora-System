@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { montarResumoCompra } from "../../shared/utils/compraResumo";
 import { compraParaResumoEntrada } from "../../shared/utils/compraResumo";
-import type { Compra } from "../../shared/types/compra";
+import { compraVaziaDeTeste } from "./helpers/compraFixtures";
 import {
   anoMesAtualBrasilia,
   anoMesDoInstante,
@@ -72,7 +72,7 @@ describe("título da compra", () => {
 
   it("é IGUAL à primeira linha do resumo (sem os asteriscos)", () => {
     for (const [anoMes, sequencia] of [["2026-11", 13], ["2027-01", 1], ["2026-03", 105]] as const) {
-      const compra = { anoMes, sequencia, ordens: [], pendencias: [], paciente: "", despachante: "", courierSimples: false } as unknown as Compra;
+      const compra = compraVaziaDeTeste({ anoMes, sequencia });
       const primeiraLinha = montarResumoCompra(compraParaResumoEntrada(compra)).split("\n")[0]!;
       expect(primeiraLinha).toBe(`*${tituloDaCompra(anoMes, sequencia)}*`);
     }

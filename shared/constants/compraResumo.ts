@@ -8,15 +8,16 @@ export type BlocoDaCompra =
   | "paciente"
   | "despachante"
   | "avisos"
-  | "vendedor_responsavel"
+  | "consultor_responsavel"
   | "processo"
   | "medico"
   | "local_entrega"
   | "contatos";
 
 /**
- * Os blocos NA ORDEM do resumo (cada um vira um parágrafo; a linha em branco entre eles é a única separação). O formulário da
- * Compra (Etapa 6) importa ESTA mesma ordem para as seções.
+ * Os blocos NA ORDEM do resumo (cada um vira um parágrafo; a linha em branco entre eles é a única separação). É a FONTE ÚNICA da
+ * ordem: o formulário da Compra (E6) importa ESTA mesma ordem para as seções, e a ordem das LINHAS dentro de cada bloco (a do
+ * formulário: Medicamento, Laboratório, Brand, Quantidade, Ordens, Valor unitário...) está em shared/utils/compraResumo.ts.
  *
  * `satisfies` barra um id que não existe; a conferência logo abaixo barra um id ESQUECIDO (não compila). Repetido, só o teste pega.
  */
@@ -27,7 +28,7 @@ export const BLOCOS_DA_COMPRA = [
   "paciente",
   "despachante",
   "avisos",
-  "vendedor_responsavel",
+  "consultor_responsavel",
   "processo",
   "medico",
   "local_entrega",
@@ -62,19 +63,19 @@ export const TEXTOS_RESUMO = {
 
   // medicamentos e ordens
   medicamento: "Medicamento",
-  referencia: "Referência/Bioequivalente",
   laboratorio: "Laboratório",
+  brand: "Brand",
   quantidade: "Quantidade",
+  ordens: "Ordens",
   valorUnitario: "Valor Unitário",
   valorReal: "Valor Real",
-  ordens: "Ordens",
-  fornecedoresDistintos: "fornecedores distintos",
   frete: "Frete",
   valorRealFrete: "Valor real do Frete",
   envio: "Envio",
+  ciaAbre: "(",
+  ciaFecha: ")",
   fornecedor: "Fornecedor",
   cnpj: "CNPJ",
-  cnpjValor: "Farmaurora",
   temperatura: "Temperatura",
 
   // pagamento
@@ -99,15 +100,15 @@ export const TEXTOS_RESUMO = {
 
   // avisos
   isencao: "Pedir isenção imposto ❗",
-  isencaoPara: "para",
-  documentosOk: "Verificação de documento e validação de assinatura ✅",
-  documentosNaoOk: "Verificação de documento e validação de assinatura ❌",
+  documentos: "Verificação de documento e validação de assinatura",
+  documentosOk: "✅",
+  documentosNaoOk: "❌",
   pendencias: "Pendente",
   observacoes: "Obs.",
   recorrente: "Recorrente",
 
-  // vendedor e responsável
-  vendedor: "Vendedor",
+  // consultor e responsável
+  consultor: "Consultor",
   responsavel: "Responsável",
 
   // processo
@@ -119,7 +120,6 @@ export const TEXTOS_RESUMO = {
 
   // local e entrega
   localAplicacao: "Local de aplicação",
-  localAplicacaoDeclarado: "Local de aplicação (declarado)",
   entrega: "Entrega (Doctor/AJC)",
   pendenteMarca: "pendente ⏳",
 
