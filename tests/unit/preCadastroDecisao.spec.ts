@@ -424,6 +424,20 @@ describe("item que o usuário trocou depois do pedido", () => {
     expect(linhas("compra_itens").every((i) => !("ordem_id" in i))).toBe(true); // nada de ordens no caminho
   });
 
+  it("aprovar e rejeitar pedem ao banco `id, compra_id` dos itens e nunca tocam compra_ordens (a tabela não existe mais)", async () => {
+    fake.selects.length = 0;
+    await aprovarPreCadastro(PRE_ALFA, {}, ADM);
+    const pedidas = fake.selects.filter((x) => x.tabela === "compra_itens").map((x) => x.colunas);
+    expect(pedidas).toEqual(["id, compra_id"]);
+    expect(fake.chamadas.some((c) => c.tabela === "compra_ordens")).toBe(false);
+
+    semear();
+    fake.selects.length = 0;
+    await rejeitarPreCadastro(PRE_ALFA, ADM);
+    expect(fake.selects.filter((x) => x.tabela === "compra_itens").map((x) => x.colunas)).toEqual(["id, compra_id"]);
+    expect(fake.chamadas.some((c) => c.tabela === "compra_ordens")).toBe(false);
+  });
+
   it("rejeitar com itens de duas compras: sobe a versão das duas e não toca nos itens", async () => {
     fake.semear("compra_itens", [item("it_5", "compra_1", { posicao: 2, pre_cadastro_id: PRE_ALFA })]);
     const r = await rejeitarPreCadastro(PRE_ALFA, ADM);
