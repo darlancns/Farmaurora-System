@@ -47,8 +47,6 @@ function compra(extra: Partial<Compra> = {}): Compra {
         po: "PO26-11-0001",
         frete: 150,
         freteReal: null,
-        dirId: "dir_secreto",
-        encaminhadaEm: "2026-11-19T15:00:00.000Z",
         itens: [
           {
             id: "itm_1",
@@ -157,7 +155,7 @@ describe("compraParaResumoEntrada", () => {
 
   it("não vaza dados que o resumo não usa (po, cia, ids de DIR, ids de cadastro, auditoria)", () => {
     const texto = JSON.stringify(compraParaResumoEntrada(compra(), DESPACHANTE)) + montarResumoCompra(compraParaResumoEntrada(compra(), DESPACHANTE));
-    for (const nao of ["dir_secreto", "PO26-11-0001", "CIA TESTE", "med_1", "itm_1", "ord_1", "cmp_1", "Bruno", "criadoPor"]) expect(texto, nao).not.toContain(nao);
+    for (const nao of ["PO26-11-0001", "CIA TESTE", "med_1", "itm_1", "ord_1", "cmp_1", "Bruno", "criadoPor"]) expect(texto, nao).not.toContain(nao);
   });
 
   it("o texto do resumo sai da compra: título pelo ano_mes e sequência, e o despachante com o Broker", () => {

@@ -45,8 +45,6 @@ import detalheGet from "../../server/api/compras/[id].get";
 import salvarPatch from "../../server/api/compras/[id].patch";
 import duplicarPost from "../../server/api/compras/[id]/duplicar.post";
 import cancelarPost from "../../server/api/compras/[id]/cancelar.post";
-import encaminharPost from "../../server/api/compras/[id]/encaminhar.post";
-import encaminharPreviaGet from "../../server/api/compras/[id]/encaminhar-previa.get";
 import opcoesGet from "../../server/api/compras/opcoes.get";
 import medicamentosGet from "../../server/api/compras/opcoes/medicamentos.get";
 import temperaturasPost from "../../server/api/compras/temperaturas.post";
@@ -62,8 +60,6 @@ interface Rota {
   /** Arquivo em server/api/compras/ (para o scanner). */
   arquivo: string;
   escrita: boolean;
-  /** A rota cria linhas na DIR: além de compras = editar, exige dir = editar (conferido dentro do handler; o middleware só vê `compras`). */
-  exigeDir?: boolean;
 }
 
 const ID = "cmp_teste_000001";
@@ -74,8 +70,6 @@ const ROTAS: Rota[] = [
   { caminho: `/api/compras/${ID}`, metodo: "PATCH", handler: salvarPatch as Handler, arquivo: "[id].patch.ts", escrita: true },
   { caminho: `/api/compras/${ID}/duplicar`, metodo: "POST", handler: duplicarPost as Handler, arquivo: "[id]/duplicar.post.ts", escrita: true },
   { caminho: `/api/compras/${ID}/cancelar`, metodo: "POST", handler: cancelarPost as Handler, arquivo: "[id]/cancelar.post.ts", escrita: true },
-  { caminho: `/api/compras/${ID}/encaminhar-previa`, metodo: "GET", handler: encaminharPreviaGet as Handler, arquivo: "[id]/encaminhar-previa.get.ts", escrita: false },
-  { caminho: `/api/compras/${ID}/encaminhar`, metodo: "POST", handler: encaminharPost as Handler, arquivo: "[id]/encaminhar.post.ts", escrita: true, exigeDir: true },
   { caminho: "/api/compras/opcoes", metodo: "GET", handler: opcoesGet as Handler, arquivo: "opcoes.get.ts", escrita: false },
   { caminho: "/api/compras/opcoes/medicamentos", metodo: "GET", handler: medicamentosGet as Handler, arquivo: "opcoes/medicamentos.get.ts", escrita: false },
   { caminho: "/api/compras/temperaturas", metodo: "POST", handler: temperaturasPost as Handler, arquivo: "temperaturas.post.ts", escrita: true },
@@ -210,9 +204,7 @@ describe("handler (2ª camada), chamado direto sem o middleware: o mesmo quadro"
 
   for (const rota of ROTAS) {
     it.each(casos)(`${rota.metodo} ${rota.caminho.replace(ID, ":id")} — %s`, async (nome, user, lê, escreve) => {
-      // Rota que cria linhas na DIR: dos casos abaixo, só quem escreve em Compras E na DIR passa (os mapas deste quadro não dão `dir`).
-      const COM_ESCRITA_NA_DIR = ["administrador", "operacional"];
-      const permitido = rota.escrita ? escreve && (rota.exigeDir !== true || COM_ESCRITA_NA_DIR.includes(nome)) : lê;
+      const permitido = rota.escrita ? escreve : lê;
       // A compra do id existe, para que "permitido" não termine em 404 por outro motivo.
       const base = await criarCompraDireta();
       h.params = { id: base.id };
@@ -275,7 +267,7 @@ describe("GET /api/compras (lista)", () => {
       compras: [],
       temMais: false,
       total: 0,
-      totais: { rascunho: 0, pronta: 0, parcial: 0, encaminhada: 0, cancelada: 0 },
+      totais: { rascunho: 0, pronta: 0, cancelada: 0 },
     });
   });
 
@@ -283,7 +275,7 @@ describe("GET /api/compras (lista)", () => {
     const c = await criarCompraDireta();
     h.query = { ano_mes: c.anoMes, status: "rascunho" };
     const r = await chamar<{ compras: Array<{ id: string; status: string; pendencias: number }>; status: string; pagina: number; limite: number; temMais: boolean; total: number; totais: Record<string, number> }>(listaGet, adm);
-    expect(r).toMatchObject({ status: "rascunho", pagina: 1, limite: 50, temMais: false, total: 1, totais: { rascunho: 1, pronta: 0, parcial: 0, encaminhada: 0, cancelada: 0 } });
+    expect(r).toMatchObject({ status: "rascunho", pagina: 1, limite: 50, temMais: false, total: 1, totais: { rascunho: 1, pronta: 0, cancelada: 0 } });
     expect(r.compras[0]).toMatchObject({ id: c.id, status: "rascunho" });
     h.query = { ano_mes: c.anoMes, status: "pronta" };
     expect((await chamar<{ compras: unknown[] }>(listaGet, adm)).compras).toEqual([]);
@@ -364,14 +356,12 @@ describe("PATCH /api/compras/:id (autosave)", () => {
     expect((await erroDe(salvar(cancelada, { paciente: "X" }))).status).toBe(409);
   });
 
-  it("ordem com itens: grava, e `ordens: []` apaga; dirId e encaminhadaEm do corpo são ignorados", async () => {
+  it("ordem com itens: grava, e `ordens: []` apaga", async () => {
     const c = await criarCompraDireta();
     const comOrdem = await salvar(c, {
       ordens: [
         {
           id: "ord_teste_01",
-          dirId: "dir_forjado",
-          encaminhadaEm: "2026-11-19T10:00:00Z",
           po: "po26-11-0001",
           frete: 10,
           itens: [{ id: "itm_teste_01", medicamento: "MEDICAMENTO TESTE", quantidade: "2 caixas", valorUnitario: 5 }],
@@ -379,7 +369,7 @@ describe("PATCH /api/compras/:id (autosave)", () => {
       ],
     });
     expect(comOrdem.ordens).toHaveLength(1);
-    expect(comOrdem.ordens[0]).toMatchObject({ id: "ord_teste_01", po: "PO26-11-0001", frete: 10, dirId: null, encaminhadaEm: null });
+    expect(comOrdem.ordens[0]).toMatchObject({ id: "ord_teste_01", po: "PO26-11-0001", frete: 10 });
     expect(comOrdem.ordens[0]!.itens[0]).toMatchObject({ medicamento: "MEDICAMENTO TESTE", valorUnitario: 5 });
     const vazia = await salvar(comOrdem, { ordens: [] });
     expect(vazia.ordens).toEqual([]);
@@ -476,7 +466,7 @@ describe("POST /api/compras/:id/duplicar", () => {
     expect(copia).toMatchObject({ sequencia: 2, paciente: "PACIENTE TESTE", cancelada: false, criadoPor: "Pessoa operacional" });
     expect(copia.id).not.toBe(c.id);
     expect(copia.ordens[0]!.id).not.toBe("ord_teste_01");
-    expect(copia.ordens[0]).toMatchObject({ po: "", dirId: null, encaminhadaEm: null });
+    expect(copia.ordens[0]).toMatchObject({ po: "" });
     expect(copia.ordens[0]!.itens[0]).toMatchObject({ medicamento: "MED TESTE" });
 
     h.params = { id: "cmp_nao_existe" };

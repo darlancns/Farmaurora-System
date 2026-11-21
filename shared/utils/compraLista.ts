@@ -13,8 +13,6 @@ export type CompraParaItemDaLista = CompraParaChecklist & {
   atualizadoEm: string;
 };
 
-const preenchido = (v: string | null | undefined): boolean => (v ?? "").trim() !== "";
-
 export function itemDaLista(compra: CompraParaItemDaLista): CompraDaLista {
   const ordens = [...compra.ordens].sort((a, b) => a.posicao - b.posicao);
   const nomes: string[] = [];
@@ -32,7 +30,6 @@ export function itemDaLista(compra: CompraParaItemDaLista): CompraDaLista {
     paciente: compra.paciente,
     medicamentos: nomes,
     totalOrdens: ordens.length,
-    totalOrdensEncaminhadas: ordens.filter((o) => preenchido(o.dirId)).length,
     pendencias: contarPendencias(compra),
     status: statusDaCompra(compra),
     atualizadoEm: compra.atualizadoEm,

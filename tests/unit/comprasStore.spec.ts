@@ -269,8 +269,8 @@ describe("obterCompra", () => {
     const c = await criarCompra("Cris");
     // Linhas semeadas fora de ordem.
     fake.semear("compra_ordens", [
-      { id: "ord_b0001", compra_id: c.id, posicao: 2, fornecedor: "B", envio: "", cia: "", po: "", frete: "10.50", frete_real: null, dir_id: null, encaminhada_em: null },
-      { id: "ord_a0001", compra_id: c.id, posicao: 1, fornecedor: "A", envio: "", cia: "", po: "", frete: null, frete_real: null, dir_id: null, encaminhada_em: null },
+      { id: "ord_b0001", compra_id: c.id, posicao: 2, fornecedor: "B", envio: "", cia: "", po: "", frete: "10.50", frete_real: null },
+      { id: "ord_a0001", compra_id: c.id, posicao: 1, fornecedor: "A", envio: "", cia: "", po: "", frete: null, frete_real: null },
     ]);
     fake.semear("compra_itens", [
       { id: "itm_a0002", ordem_id: "ord_a0001", posicao: 2, medicamento: "SEGUNDO", valor_unitario: "0.00" },
@@ -556,25 +556,6 @@ describe("salvarCompra — ordens e itens", () => {
     expect(r.paciente).toBe("DEPOIS");
     expect(fake.linhas("compra_itens").map((i) => i.id).sort()).toEqual(["itm_a00001", "itm_a00003", "itm_c00001", "itm_nov0001"]);
   });
-
-  it("uma ordem encaminhada continua editável e NÃO perde dir_id nem encaminhada_em ao ser salva", async () => {
-    const c = await comTres();
-    Object.assign(fake.linhas("compra_ordens").find((o) => o.id === "ord_aaaaaa")!, { dir_id: "dir_9", encaminhada_em: "2026-11-19T16:00:00.000Z", po: "PO26-11-0009" });
-    const atual = (await obterCompra(c.id))!;
-    const r = (await salvarCompra(c.id, estado(atual, atual.ordens.map((o) => ordem(o.id, o.itens.map((i) => item(i.id)), { fornecedor: `${o.fornecedor} EDITADO`, po: o.po }))), "Cris"))!;
-    expect(r.ordens[0]).toMatchObject({ id: "ord_aaaaaa", fornecedor: "FORNECEDOR A EDITADO", dirId: "dir_9", encaminhadaEm: "2026-11-19T16:00:00.000Z" });
-    // E mesmo numa mudança de forma (a ordem do meio sai):
-    // (O PO da ordem encaminhada fica como está: trocá-lo é 409, ver comprasOrdemTravada.spec.ts.)
-    const r2 = (await salvarCompra(c.id, estado(r, [ordem("ord_aaaaaa", r.ordens[0]!.itens.map((i) => item(i.id)), { po: r.ordens[0]!.po }), ordem("ord_cccccc", [item("itm_c00001")])]), "Cris"))!;
-    expect(r2.ordens[0]).toMatchObject({ dirId: "dir_9", encaminhadaEm: "2026-11-19T16:00:00.000Z" });
-  });
-
-  it("nenhuma linha gravada tem dir_id ou encaminhada_em vindo do estado (o upsert não leva essas colunas)", async () => {
-    const c = await criarCompra("Cris");
-    const r = (await salvarCompra(c.id, estado(c, [ordem("ord_aaaaaa", [])]), "Cris"))!;
-    expect(r.ordens[0]).toMatchObject({ dirId: null, encaminhadaEm: null });
-    expect(Object.keys(fake.linhas("compra_ordens")[0]!)).not.toContain("dir_id");
-  });
 });
 
 describe("salvarCompra — sequestro de id (409)", () => {
@@ -650,8 +631,6 @@ describe("duplicarCompra", () => {
       ),
       "Cris",
     ))!;
-    // A ordem A já foi encaminhada à DIR.
-    Object.assign(fake.linhas("compra_ordens").find((o) => o.id === "ord_aaaaaa")!, { dir_id: "dir_9", encaminhada_em: "2026-11-19T16:00:00.000Z" });
     return (await obterCompra(salva.id))!;
   }
 
@@ -691,15 +670,15 @@ describe("duplicarCompra", () => {
     expect(copia.ordens[1]!.itens[0]!.medicamento).toBe("TESTE MED C");
   });
 
-  it("LIMPA po, dir_id, encaminhada_em e cancelada (a original, inclusive cancelada, não muda)", async () => {
+  it("LIMPA po e cancelada (a original, inclusive cancelada, não muda)", async () => {
     const o = await original();
     await cancelarCompra(o.id, "Cris");
     const copia = (await duplicarCompra(o.id, "Bruno"))!;
     expect(copia.cancelada).toBe(false);
-    for (const ordem of copia.ordens) expect(ordem).toMatchObject({ po: "", dirId: null, encaminhadaEm: null });
+    for (const ordem of copia.ordens) expect(ordem).toMatchObject({ po: "" });
     const original2 = (await obterCompra(o.id))!;
     expect(original2.cancelada).toBe(true);
-    expect(original2.ordens[0]).toMatchObject({ po: "PO26-11-0001", dirId: "dir_9", encaminhadaEm: "2026-11-19T16:00:00.000Z" });
+    expect(original2.ordens[0]).toMatchObject({ po: "PO26-11-0001" });
   });
 
   it("duplicar duas vezes dá dois números seguidos; compra que não existe é null", async () => {

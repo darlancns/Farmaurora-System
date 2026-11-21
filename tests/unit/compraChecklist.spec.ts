@@ -33,8 +33,6 @@ const ordem = (extra: Partial<OrdemCompra> = {}): OrdemCompra => ({
   po: "PO26-11-0001",
   frete: null,
   freteReal: null,
-  dirId: null,
-  encaminhadaEm: null,
   itens: [item()],
   ...extra,
 });
@@ -76,8 +74,8 @@ const compra = (extra: Partial<Compra> = {}): Compra => ({
 });
 
 const por = (itens: ItemChecklist[], id: string): ItemChecklist | undefined => itens.find((i) => i.id === id);
-const erros = (c: Compra, opcoes?: Parameters<typeof checklistCompra>[1]): string[] =>
-  checklistCompra(c, opcoes).itens.filter((i) => i.nivel === "erro").map((i) => i.id);
+const erros = (c: Compra): string[] =>
+  checklistCompra(c).itens.filter((i) => i.nivel === "erro").map((i) => i.id);
 
 describe("textoMedicamentoDir", () => {
   const o = (...pares: Array<[string, string]>) => ({ itens: pares.map(([medicamento, apresentacao]) => ({ medicamento, apresentacao })) });
@@ -310,47 +308,6 @@ describe("avisos (não bloqueiam)", () => {
   });
 });
 
-describe("POs que já existem na DIR (opcoes.poJaNaDir)", () => {
-  it("sem a opção a regra não é avaliada (nenhum item 'po-na-dir')", () => {
-    expect(checklistCompra(compra()).itens.some((i) => i.id.endsWith("po-na-dir"))).toBe(false);
-  });
-
-  it("PO que está na lista: erro 'PO … já existe na DIR'; que não está: ok", () => {
-    const c = compra({ ordens: [ordem(), ordem({ id: "o2", posicao: 2, po: "PO26-11-0002" })] });
-    const r = checklistCompra(c, { poJaNaDir: ["PO26-11-0002", "PO26-10-0471"] });
-    expect(por(r.itens, "ordem-2-po-na-dir")).toEqual({ id: "ordem-2-po-na-dir", nivel: "erro", texto: "PO PO26-11-0002 já existe na DIR", ordemPosicao: 2 });
-    expect(por(r.itens, "ordem-1-po-na-dir")!.nivel).toBe("ok");
-    expect(r.pronta).toBe(false);
-    expect(contarPendencias(c, { poJaNaDir: ["PO26-11-0002"] })).toBe(1);
-  });
-
-  it("a comparação ignora caixa e espaços (nos dois lados)", () => {
-    expect(erros(compra(), { poJaNaDir: [" po26-11-0001 "] })).toEqual(["ordem-1-po-na-dir"]);
-  });
-
-  it("ordem JÁ encaminhada por esta compra (dir_id): não é erro; 'ok' com 'encaminhada em dd/mm' no dia de BRASÍLIA", () => {
-    // 02h30 UTC de 20/11 ainda é 19/11 em Brasília (UTC-3).
-    const c = compra({ ordens: [ordem({ dirId: "dir_1", encaminhadaEm: "2026-11-20T02:30:00.000Z" })] });
-    const r = checklistCompra(c, { poJaNaDir: ["PO26-11-0001"] });
-    expect(por(r.itens, "ordem-1-encaminhada")).toEqual({ id: "ordem-1-encaminhada", nivel: "ok", texto: "Ordem 1 encaminhada em 19/11", ordemPosicao: 1 });
-    expect(por(r.itens, "ordem-1-po-na-dir")).toBeUndefined();
-    expect(r.pronta).toBe(true);
-  });
-
-  it("encaminhada sem data válida: 'Ordem N encaminhada' (sem dia)", () => {
-    for (const encaminhadaEm of [null, "", "lixo"]) {
-      const r = checklistCompra(compra({ ordens: [ordem({ dirId: "dir_1", encaminhadaEm })] }));
-      expect(por(r.itens, "ordem-1-encaminhada")!.texto, String(encaminhadaEm)).toBe("Ordem 1 encaminhada");
-    }
-  });
-
-  it("o dia de Brasília não depende do fuso da máquina (vira o dia às 03h UTC)", () => {
-    const dia = (iso: string) => por(checklistCompra(compra({ ordens: [ordem({ dirId: "d", encaminhadaEm: iso })] })).itens, "ordem-1-encaminhada")!.texto;
-    expect(dia("2026-12-01T02:59:59.000Z")).toBe("Ordem 1 encaminhada em 30/11");
-    expect(dia("2026-12-01T03:00:00.000Z")).toBe("Ordem 1 encaminhada em 01/12");
-  });
-});
-
 describe("contarPendencias", () => {
   it("é a quantidade de itens 'erro' (avisos e oks não contam)", () => {
     const c = compra({ paciente: "", medico: "", localAplicacao: "", documentos: null, ordens: [ordem({ po: "" })] });
@@ -366,37 +323,17 @@ describe("contarPendencias", () => {
 });
 
 describe("statusDaCompra", () => {
-  const enc = (n: number, dirId: string | null): OrdemCompra => ordem({ id: `o${n}`, posicao: n, po: `PO26-11-000${n}`, dirId });
-
-  it("cancelada vence tudo (mesmo encaminhada e pronta)", () => {
+  it("cancelada vence tudo (mesmo pronta)", () => {
     expect(statusDaCompra(compra({ cancelada: true }))).toBe("cancelada");
-    expect(statusDaCompra(compra({ cancelada: true, ordens: [enc(1, "d1")] }))).toBe("cancelada");
+    expect(statusDaCompra(compra({ cancelada: true, paciente: "" }))).toBe("cancelada");
   });
-  it("encaminhada: TODAS as ordens têm dir_id (mesmo com a compra incompleta)", () => {
-    expect(statusDaCompra(compra({ ordens: [enc(1, "d1"), enc(2, "d2")] }))).toBe("encaminhada");
-    expect(statusDaCompra(compra({ paciente: "", ordens: [enc(1, "d1")] }))).toBe("encaminhada");
-  });
-  it("parcial: algumas ordens com dir_id", () => {
-    expect(statusDaCompra(compra({ ordens: [enc(1, "d1"), enc(2, null)] }))).toBe("parcial");
-    expect(statusDaCompra(compra({ ordens: [enc(1, null), enc(2, "d2"), enc(3, null)] }))).toBe("parcial");
-  });
-  it("dir_id vazio ('' ou espaços) não conta como encaminhada", () => {
-    expect(statusDaCompra(compra({ ordens: [enc(1, ""), enc(2, "  ")] }))).toBe("pronta");
-  });
-  it("pronta: sem erro e nada encaminhado; rascunho: com erro", () => {
+  it("pronta: sem erro; rascunho: com erro", () => {
     expect(statusDaCompra(compra())).toBe("pronta");
     expect(statusDaCompra(compra({ paciente: "" }))).toBe("rascunho");
     expect(statusDaCompra(compra({ ordens: [] }))).toBe("rascunho");
   });
   it("aviso não tira a compra de 'pronta'", () => {
     expect(statusDaCompra(compra({ localAplicacao: "", documentos: null }))).toBe("pronta");
-  });
-  it("uma compra SEM ordens nunca é 'encaminhada'", () => {
-    expect(statusDaCompra(compra({ ordens: [] }))).not.toBe("encaminhada");
-  });
-  it("poJaNaDir entra na conta quando informado (PO repetido na DIR deixa de ser 'pronta')", () => {
-    expect(statusDaCompra(compra(), { poJaNaDir: ["PO26-11-0001"] })).toBe("rascunho");
-    expect(statusDaCompra(compra(), { poJaNaDir: [] })).toBe("pronta");
   });
 });
 
@@ -408,12 +345,12 @@ describe("os ids das regras são todos usados e únicos", () => {
   it("em uma compra com tudo errado e tudo avisado, os ids dos itens são únicos", () => {
     const c = compra({
       paciente: "",
-      ordens: [ordem({ po: "", itens: [item({ medicamento: "", medicamentoCadastroId: null }), item({ id: "i2", posicao: 2, medicamentoCadastroId: null, preCadastroId: "p" })] }), ordem({ id: "o2", posicao: 2, dirId: "d" })],
+      ordens: [ordem({ po: "", itens: [item({ medicamento: "", medicamentoCadastroId: null }), item({ id: "i2", posicao: 2, medicamentoCadastroId: null, preCadastroId: "p" })] }), ordem({ id: "o2", posicao: 2 })],
       documentos: null,
       localAplicacao: "",
       entrega: "",
     });
-    const ids = checklistCompra(c, { poJaNaDir: ["PO26-11-0001"] }).itens.map((i) => i.id);
+    const ids = checklistCompra(c).itens.map((i) => i.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
 });

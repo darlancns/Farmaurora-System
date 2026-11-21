@@ -172,12 +172,12 @@ describe("debounce de 800 ms e o estado completo", () => {
   it("o corpo é aceito pela validação do servidor (ida e volta), com ordens e itens", () => {
     const compra = compraBase({
       paciente: "PACIENTE TESTE",
-      ordens: [{ id: "ord_000001", posicao: 1, fornecedor: "Fornecedor Teste", envio: "Air Cargo", cia: "", po: "PO26-11-0001", frete: 10, freteReal: null, dirId: "dir_1", encaminhadaEm: "2026-11-19T15:00:00.000Z", itens: [{ id: "itm_000001", posicao: 1, medicamento: "MED TESTE", medicamentoCadastroId: "med_1", preCadastroId: null, apresentacao: "10 mg", referencia: "", laboratorio: "", quantidade: "2", temperatura: "2°C a 8°C", valorUnitario: 5, valorReal: null }] }],
+      ordens: [{ id: "ord_000001", posicao: 1, fornecedor: "Fornecedor Teste", envio: "Air Cargo", cia: "", po: "PO26-11-0001", frete: 10, freteReal: null, itens: [{ id: "itm_000001", posicao: 1, medicamento: "MED TESTE", medicamentoCadastroId: "med_1", preCadastroId: null, apresentacao: "10 mg", referencia: "", laboratorio: "", quantidade: "2", temperatura: "2°C a 8°C", valorUnitario: 5, valorReal: null }] }],
     });
     const r = validarCompraSalvar(corpoParaSalvar(compra, compra.updatedAt));
     expect(r.ok, r.ok ? "" : r.erro).toBe(true);
     const corpo = corpoParaSalvar(compra, compra.updatedAt);
-    expect(JSON.stringify(corpo)).not.toMatch(/posicao|dirId|encaminhadaEm|dir_1/); // só o Encaminhar grava isso
+    expect(JSON.stringify(corpo)).not.toMatch(/posicao/); // a posição é a ordem do array
   });
 
   it("depois do sucesso, o PATCH seguinte leva a versão devolvida pelo servidor", async () => {
@@ -565,8 +565,6 @@ describe("Courier Simples da compra é DERIVADO das ordens e sincronizado a cada
     po: "",
     frete: null,
     freteReal: null,
-    dirId: null,
-    encaminhadaEm: null,
     itens: [],
   });
 

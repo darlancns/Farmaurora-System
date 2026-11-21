@@ -1,6 +1,6 @@
 import { DIR_MEDICAMENTO_SEPARADOR } from "../constants/compraChecklist";
 
-// O que a Compra manda para a DIR. Função PURA, usada pelo checklist (limite de 300 caracteres) e, depois, pelo "Encaminhar para a DIR".
+// O texto do medicamento no formato da DIR. Função PURA, usada pelo checklist (limite de 300 caracteres).
 
 interface ItemParaDir {
   readonly medicamento: string;

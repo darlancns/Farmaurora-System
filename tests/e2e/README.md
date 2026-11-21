@@ -46,14 +46,6 @@ Dois grupos: **celular (375x667)** e **tela larga (1280x800 e 2130x1200)**. No c
 
 **Atenção ao interpretar:** o que depende do teclado do celular e da barra do iPhone (o teclado cobrindo a lista, o safe-area) não é reproduzido pelo Chromium de teste; esses pontos precisam do teste manual em aparelho real. Os testes de componente cobrem a lógica (posição da lista, rolagem ao focar) com `visualViewport` simulado.
 
-### Encaminhar para a DIR (7b): `compras-encaminhar.spec.ts`
-
-**Estado: escrito, NÃO executado** (só `--list`). Cobre o botão e as permissões (administrador e operacional habilitam; operacional com compras = editar e dir = ver e o sócio ficam desabilitados com a razão ao lado), o painel (conferência com erros clicáveis, o painel continua aberto ao clicar, a conferência acompanha o salvamento), o PO que já existe na DIR, o celular (painel na aba Resumo e a barra do pé com "Voltar" e "Encaminhar N linha(s)") e o **Encaminhar de verdade**: 2 ordens (Courier Simples e Air Cargo) com uma temperatura mista confirmada, duplo clique criando uma vez só, resultado, link "Abrir a DIR" com a linha nova, PO travado, "Remover ordem" travado e o aviso ao cancelar.
-
-- A compra do teste é montada pela **API** (POST e PATCH com o estado completo), não pelo formulário. Fornecedor, despachante e vendedor precisam ser itens **ativos** dos Cadastros do banco local: defina `E2E_ENCAMINHAR_FORNECEDOR`, `E2E_ENCAMINHAR_DESPACHANTE` e `E2E_ENCAMINHAR_VENDEDOR`; sem eles o teste do Encaminhar de verdade é pulado.
-- O teste de operacional com compras = editar e dir = ver precisa de uma conta criada à mão no banco local: `E2E_COMPRAS_EDITA_DIR_VE_EMAIL` / `_PASSWORD`.
-- O Encaminhar de verdade **cria linhas na DIR do banco local** (paciente "TESTE E2E ENCAMINHAR ...", POs PO26-12-xxxx). O teste as remove no fim pela API (`DELETE /api/dir/:id`); as compras ficam (o app não apaga compras).
-
 ### Pré-cadastros de medicamento (8): `cadastros-pre-medicamentos.spec.ts`
 
 **Estado: escrito, NÃO executado** (só `--list`). Cobre a seção "Pendentes de aprovação" da aba Medicamentos (acima da lista, com a etiqueta "N pendentes" no título; nome, temperatura, a compra do pedido sem paciente, quem pediu), **aprovar** (o pendente some, o medicamento passa a existir no Cadastro, o item da compra fica ligado e a versão da compra sobe), **rejeitar** (confirmação: cancelar não envia; depois a compra mostra o aviso "Pré-cadastro rejeitado…" com o texto livre intacto), **nome que já existe** ("Já existe no Cadastro" e "Vincular ao cadastro existente", sem linha nova), duas abas decidindo o mesmo pendente (409) e a barreira do operacional (a lista e as decisões respondem 403; a aba Cadastros não existe).

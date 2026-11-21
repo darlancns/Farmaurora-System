@@ -5,8 +5,6 @@
 // (vazio); datas e instantes são texto ISO. Quantidade é TEXTO com a unidade ("12 ampolas"). Nomes com sufixo próprio para não
 // colidir com `Medicamento` (processo.ts) nem com `MedicamentoCadastro` (Cadastro.ts).
 
-import type { ItemChecklist } from "../utils/compraChecklist";
-import type { Dir } from "./dir";
 import type { StatusDaCompra } from "../constants/compra";
 import type { MomentoPagamentoResumo } from "./compraResumo";
 
@@ -51,9 +49,6 @@ export interface OrdemCompra {
   po: string;
   frete: number | null;
   freteReal: number | null;
-  /** SÓ LEITURA aqui: quem preenche é o "Encaminhar para a DIR" (o salvamento da compra ignora estes dois). */
-  dirId: string | null;
-  encaminhadaEm: string | null;
   itens: ItemCompra[];
 }
 
@@ -110,8 +105,6 @@ export interface CompraDaLista {
   /** Nomes dos medicamentos de todas as ordens, sem repetir, na ordem em que aparecem (ordens e itens por posição). */
   medicamentos: string[];
   totalOrdens: number;
-  /** Ordens com dir_id (já encaminhadas para a DIR). */
-  totalOrdensEncaminhadas: number;
   /** Quantas pendências a checagem da compra acusa (contarPendencias). */
   pendencias: number;
   status: StatusDaCompra;
@@ -162,9 +155,6 @@ export interface OrdemCompraSalvarDTO {
   po?: string;
   frete?: number | null;
   freteReal?: number | null;
-  /** Aceitos e IGNORADOS (o cliente pode devolver o que leu): só o Encaminhar grava estes dois. */
-  dirId?: string | null;
-  encaminhadaEm?: string | null;
   itens: ItemCompraSalvarDTO[];
 }
 
@@ -225,7 +215,7 @@ export interface ItemCompraEstado {
   valorReal: number | null;
 }
 
-/** Uma ordem já validada e normalizada. Não tem dirId nem encaminhadaEm: só o Encaminhar os grava. */
+/** Uma ordem já validada e normalizada. */
 export interface OrdemCompraEstado {
   id: string;
   fornecedor: string;
@@ -378,59 +368,3 @@ export interface RespostaMedicamentoJaCadastrado {
   criado: false;
   medicamento: MedicamentoDoCadastro;
 }
-
-// ── Encaminhar para a DIR (GET /api/compras/:id/encaminhar-previa e POST /api/compras/:id/encaminhar) ──────────────────────────────
-
-/** O corpo do POST: a versão que o cliente viu, as ordens a encaminhar (ausente = todas as ainda não encaminhadas) e a confirmação da temperatura mista. */
-export interface CorpoEncaminhar {
-  atualizadoEm: string;
-  ordemIds?: string[];
-  confirmarTemperaturaMista?: boolean;
-}
-
-/** Uma ordem na prévia: a linha da DIR que SERIA criada (montada só com os dados da compra; nada é lido da DIR). */
-export interface LinhaDaPrevia {
-  ordemPosicao: number;
-  ordemId: string;
-  dir: Dir;
-  /** A ordem mistura temperaturas: o POST exige `confirmarTemperaturaMista: true`. */
-  temperaturaMista: boolean;
-  /** A ordem já tem dir_id (já foi encaminhada). */
-  jaEncaminhada: boolean;
-}
-
-/** A prévia: o que o Encaminhar criaria e o que o impede. Só leitura. Da DIR só se sabe QUAIS POs já existem. */
-export interface PreviaEncaminhar {
-  linhas: LinhaDaPrevia[];
-  /** POs das ordens a encaminhar que JÁ existem na DIR em outra linha (nunca na linha desta própria ordem). */
-  conflitosPo: string[];
-  /** Os erros da checagem da compra (só os das ordens a encaminhar e os da compra) e os das linhas que não cabem na DIR. */
-  erros: ItemChecklist[];
-  /** O vendedor da compra não é um consultor ativo do Cadastro. */
-  vendedorInativo: boolean;
-  /** POs repetidos entre as ordens a encaminhar desta compra. */
-  posRepetidosNaCompra: string[];
-}
-
-export interface OrdemEncaminhada {
-  ordemId: string;
-  dirId: string;
-  po: string;
-}
-
-/** A resposta do POST: a compra como ficou (mesmo formato do GET), o que ESTA chamada criou e se não havia nada a fazer. */
-export interface RespostaEncaminhar {
-  compra: Compra;
-  criadas: OrdemEncaminhada[];
-  /** Nada foi encaminhado por esta chamada: as ordens já estavam encaminhadas (ou outra chamada chegou antes). */
-  jaEncaminhada: boolean;
-}
-
-/** O `data.code` das respostas de erro do Encaminhar (além do `data.atual` do 409 de versão). */
-export type CodigoErroEncaminhar =
-  | "compra_cancelada"
-  | "checklist_com_erros"
-  | "vendedor_inativo"
-  | "po_repetido_na_compra"
-  | "po_ja_na_dir"
-  | "temperatura_mista_nao_confirmada";

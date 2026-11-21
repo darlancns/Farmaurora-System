@@ -53,15 +53,13 @@ interface Chip {
   contagem: number;
 }
 
-// Todas, Rascunhos, Prontas, Parciais (só com algum) e Encaminhadas. "Todas" é tudo menos as canceladas.
+// Todas, Rascunhos e Prontas. "Todas" é tudo menos as canceladas.
 const chips = computed<Chip[]>(() => {
   const lista: Chip[] = [
     { id: "todas", valor: null, rotulo: "Todas", curto: "Todas", contagem: props.totalDoMes },
     { id: "rascunho", valor: "rascunho", rotulo: "Rascunhos", curto: "Rasc.", contagem: props.totais.rascunho },
     { id: "pronta", valor: "pronta", rotulo: "Prontas", curto: "Prontas", contagem: props.totais.pronta },
   ];
-  if (props.totais.parcial > 0 || props.status === "parcial") lista.push({ id: "parcial", valor: "parcial", rotulo: "Parciais", curto: "Parc.", contagem: props.totais.parcial });
-  lista.push({ id: "encaminhada", valor: "encaminhada", rotulo: "Encaminhadas", curto: "Encam.", contagem: props.totais.encaminhada });
   return lista;
 });
 

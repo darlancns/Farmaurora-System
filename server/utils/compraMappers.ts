@@ -75,8 +75,6 @@ export interface OrdemRow {
   po: string | null;
   frete: string | number | null;
   frete_real: string | number | null;
-  dir_id: string | null;
-  encaminhada_em: string | null;
 }
 
 export interface ItemRow {
@@ -149,8 +147,6 @@ export function montarOrdem(row: OrdemRow, itens: readonly ItemRow[], statusPre?
     po: texto(row.po),
     frete: numeroDoNumeric(row.frete),
     freteReal: numeroDoNumeric(row.frete_real),
-    dirId: row.dir_id ?? null,
-    encaminhadaEm: row.encaminhada_em ? instanteIso(row.encaminhada_em) : null,
     itens: [...itens].sort((a, b) => a.posicao - b.posicao).map((i) => montarItem(i, statusPre)),
   };
 }
@@ -206,7 +202,7 @@ export function montarCompra(row: CompraRow, ordens: readonly OrdemRow[], itens:
 
 export const COLUNAS_LISTA_COMPRA =
   "id, ano_mes, sequencia, cancelada, paciente, processo_numero, compra_particular, medico, vendedor, responsavel, despachante, pagamento_momento, local_aplicacao, entrega, documentos, updated_at";
-export const COLUNAS_LISTA_ORDEM = "id, compra_id, posicao, fornecedor, envio, po, dir_id, encaminhada_em";
+export const COLUNAS_LISTA_ORDEM = "id, compra_id, posicao, fornecedor, envio, po";
 export const COLUNAS_LISTA_ITEM = "id, ordem_id, posicao, medicamento, medicamento_cadastro_id, pre_cadastro_id, apresentacao, quantidade, temperatura";
 
 export type CompraListaRow = Pick<
@@ -228,7 +224,7 @@ export type CompraListaRow = Pick<
   | "documentos"
   | "updated_at"
 >;
-export type OrdemListaRow = Pick<OrdemRow, "id" | "compra_id" | "posicao" | "fornecedor" | "envio" | "po" | "dir_id" | "encaminhada_em">;
+export type OrdemListaRow = Pick<OrdemRow, "id" | "compra_id" | "posicao" | "fornecedor" | "envio" | "po">;
 export type ItemListaRow = Pick<
   ItemRow,
   "id" | "ordem_id" | "posicao" | "medicamento" | "medicamento_cadastro_id" | "pre_cadastro_id" | "apresentacao" | "quantidade" | "temperatura"
@@ -258,8 +254,6 @@ export function montarCompraParaChecklist(row: CompraListaRow, ordens: readonly 
         fornecedor: texto(o.fornecedor),
         envio: texto(o.envio),
         po: texto(o.po),
-        dirId: o.dir_id ?? null,
-        encaminhadaEm: o.encaminhada_em === null || o.encaminhada_em === undefined ? null : instanteIso(o.encaminhada_em),
         itens: [...(itensDaOrdem.get(o.id) ?? [])]
           .sort((a, b) => a.posicao - b.posicao)
           .map((i) => ({
@@ -288,12 +282,12 @@ export function montarCompraDaLista(row: CompraListaRow, ordens: readonly OrdemL
 
 // ── Modelo → linha (escrita) ─────────────────────────────────────────────────────────────────────────────────────
 
-/** Linha de uma ordem para gravar: NUNCA leva `dir_id` nem `encaminhada_em` (só o Encaminhar grava), então um upsert preserva os dois. */
+/** Linha de uma ordem para gravar. */
 export function linhaDeOrdem(
   compraId: string,
   posicao: number,
   o: { id: string; fornecedor: string; envio: string; cia: string; po: string; frete: number | null; freteReal: number | null },
-): Omit<OrdemRow, "dir_id" | "encaminhada_em"> {
+): Omit<OrdemRow, never> {
   return {
     id: o.id,
     compra_id: compraId,

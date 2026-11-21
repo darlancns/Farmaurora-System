@@ -4,7 +4,6 @@ import type { Compra } from "#shared/types/compra";
 import { ordemVazia } from "#shared/utils/compraForm";
 import { tituloDaCompra } from "#shared/utils/compraMes";
 import { ApiError, apiFetch } from "../utils/apiFetch";
-import { AVISO_CANCELAR_COM_ENCAMINHADAS } from "../utils/comprasEncaminhar";
 import { abaInicial, type AbaCompras } from "../utils/comprasAbas";
 import { lerQueryCompras, montarQueryCompras } from "../utils/comprasUrl";
 import { getErrorMessage } from "../utils/errorMessages";
@@ -63,7 +62,7 @@ export interface ComprasPagina {
   /** O diálogo de "Cancelar compra" está aberto. */
   confirmandoCancelar: Ref<boolean>;
   tituloParaDialogo: () => string;
-  /** O texto do diálogo de cancelar; avisa quando alguma ordem já foi encaminhada para a DIR (as linhas da DIR não são alteradas). */
+  /** O texto do diálogo de cancelar. */
   mensagemCancelar: () => string;
   iniciar: () => Promise<void>;
   selecionar: (id: string) => Promise<void>;
@@ -252,9 +251,7 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
     tituloParaDialogo: () => (editor.compra.value ? tituloDaCompra(editor.compra.value.anoMes, editor.compra.value.sequencia) : ""),
     mensagemCancelar: () => {
       const c = editor.compra.value;
-      const base = `Cancelar a ${c ? tituloDaCompra(c.anoMes, c.sequencia) : ""}? Ela continua na lista como cancelada e não poderá mais ser editada.`;
-      const comEncaminhada = c?.ordens.some((o) => (o.dirId ?? "").trim() !== "") === true;
-      return comEncaminhada ? `${base} ${AVISO_CANCELAR_COM_ENCAMINHADAS}` : base;
+      return `Cancelar a ${c ? tituloDaCompra(c.anoMes, c.sequencia) : ""}? Ela continua na lista como cancelada e não poderá mais ser editada.`;
     },
     iniciar,
     selecionar,

@@ -2,8 +2,7 @@ import { computed, ref, type ComputedRef, type Ref } from "vue";
 import type { Compra, CompraSalvarDTO, MudancasCompra } from "#shared/types/compra";
 import { courierSimplesDasOrdens } from "#shared/utils/compraForm";
 import { corpoParaSalvar } from "#shared/utils/compraPayload";
-import { ApiError, apiFetch, codigoDoErro } from "../utils/apiFetch";
-import { conflitoEhDeTrava } from "../utils/comprasEncaminhar";
+import { ApiError, apiFetch } from "../utils/apiFetch";
 
 // O editor da compra aberta no formulário: o estado local (uma cópia da compra do servidor) e o SALVAMENTO AUTOMÁTICO.
 //
@@ -12,8 +11,7 @@ import { conflitoEhDeTrava } from "../utils/comprasEncaminhar";
 //  - NUNCA dois PATCH ao mesmo tempo: mudou durante um salvamento? marca "sujo" e salva de novo logo depois do que está em curso.
 //  - `flush()` descarrega o que está pendente ANTES de trocar de compra/mês ou sair da página; false = não salvou (quem chama não troca).
 //  - 409 (outra pessoa salvou antes): para o autosave e espera a escolha — `carregarVersaoSalva()` (descarta as mudanças locais) ou
-//    `manterMinhas()` (reenvia o estado local com a versão atual). Nada some sem a pessoa escolher. O 409 de TRAVA da ordem encaminhada
-//    (data.code ordem_encaminhada_removida ou po_travado) só tem a primeira saída: `manterMinhas()` não faz nada nesse caso.
+//    `manterMinhas()` (reenvia o estado local com a versão atual). Nada some sem a pessoa escolher.
 //  - Erro de rede ou 5xx: o estado local fica; tenta de novo sozinho com recuo (3 tentativas); depois espera `tentarDeNovo()`. Erro 4xx
 //    (dado recusado) não repete sozinho: espera o clique, com a mensagem do servidor.
 //  - Somente leitura (sem permissão de escrita, ou compra cancelada): nenhum campo muda, nenhum timer, nenhuma chamada.
@@ -37,12 +35,6 @@ export const DEBOUNCE_SALVAR_MS = 800;
 /** Esperas antes de cada nova tentativa automática depois de uma falha de rede ou 5xx (3 tentativas). */
 export const RECUO_TENTATIVAS_MS: readonly number[] = [2000, 5000, 10000];
 
-/** Por que o editor parou em "conflito": `codigo` é o `data.code` do 409 (null = alguém salvou antes), `mensagem` a do servidor, se houver. */
-export interface ConflitoEditor {
-  codigo: string | null;
-  mensagem: string | null;
-}
-
 export interface OpcoesCompraEditor {
   api?: ApiCompra;
   /** true = ninguém edita (conta sem permissão de escrita). Lido a cada uso (a permissão pode carregar depois). */
@@ -64,8 +56,6 @@ export interface CompraEditor {
   mensagemErro: Ref<string | null>;
   /** Acabaram as tentativas automáticas (ou o erro não se repete sozinho): só o clique salva de novo. */
   esperandoClique: Ref<boolean>;
-  /** Quando `estado` é "conflito": o motivo (a faixa de conflito mostra a mensagem e decide as saídas). */
-  conflito: Ref<ConflitoEditor | null>;
   /** Nenhum campo é editável (sem permissão, ou compra cancelada, ou nenhuma compra aberta). */
   somenteLeituraAgora: ComputedRef<boolean>;
   /** Há algo ainda não salvo (ou salvando, ou com falha): é o que o aviso de "sair da página" olha. */
@@ -77,8 +67,6 @@ export interface CompraEditor {
   tentarDeNovo: () => Promise<void>;
   carregarVersaoSalva: () => Promise<void>;
   manterMinhas: () => Promise<void>;
-  /** Para o salvamento e abre a faixa de conflito (quem soube do 409 por outro caminho, como o Encaminhar). Nada local some. */
-  sinalizarConflito: (motivo?: ConflitoEditor) => void;
 }
 
 export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
@@ -92,7 +80,6 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
   const salvoEm = ref<Date | null>(null);
   const mensagemErro = ref<string | null>(null);
   const esperandoClique = ref(false);
-  const conflito = ref<ConflitoEditor | null>(null);
   /** Mudou, não salvou? (contadores: `versao` sobe a cada mudança; `versaoSalva` é a do último PATCH que passou). */
   const versao = ref(0);
   const versaoSalva = ref(0);
@@ -146,7 +133,6 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
   function aposFalha(e: unknown): void {
     if (e instanceof ApiError && e.status === 409) {
       estado.value = "conflito";
-      conflito.value = { codigo: codigoDoErro(e), mensagem: e.message };
       return;
     }
     estado.value = "erro";
@@ -215,7 +201,6 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
     tentativasAutomaticas = 0;
     esperandoClique.value = false;
     mensagemErro.value = null;
-    conflito.value = null;
     estado.value = "ocioso";
     emVoo = null;
   }
@@ -260,13 +245,6 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
     await executar();
   }
 
-  function sinalizarConflito(motivo: ConflitoEditor = { codigo: null, mensagem: null }): void {
-    if (!compra.value) return;
-    limparTimer();
-    conflito.value = motivo;
-    estado.value = "conflito";
-  }
-
   async function carregarVersaoSalva(): Promise<void> {
     const id = compra.value?.id;
     if (!id) return;
@@ -276,12 +254,9 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
   async function manterMinhas(): Promise<void> {
     const atual = compra.value;
     if (!atual) return;
-    // O 409 de trava (ordem encaminhada removida, PO travado) se repetiria igual: só se carrega a versão salva.
-    if (conflitoEhDeTrava(conflito.value?.codigo)) return;
     const naBase = await api.obter(atual.id);
     if (compra.value?.id !== atual.id) return;
     atualizadoEm = naBase.updatedAt; // o meu estado local vai por cima, mas com a versão que está valendo agora
-    conflito.value = null;
     estado.value = "ocioso";
     versao.value += 1;
     await executar();
@@ -293,7 +268,6 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
     salvoEm,
     mensagemErro,
     esperandoClique,
-    conflito,
     somenteLeituraAgora,
     temPendencia,
     carregar,
@@ -303,6 +277,5 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
     tentarDeNovo,
     carregarVersaoSalva,
     manterMinhas,
-    sinalizarConflito,
   };
 }

@@ -23,8 +23,6 @@ export const REGRAS_CHECKLIST = {
   fornecedor: "fornecedor",
   envio: "envio",
   po: "po",
-  poNaDir: "po-na-dir",
-  encaminhada: "encaminhada",
   medicamentos: "medicamentos",
   medNome: "nome",
   medTemperatura: "temperatura",
@@ -57,11 +55,6 @@ export const TEXTOS_CHECKLIST = {
     invalido: (o: number): string => `PO da ordem ${o} fora do formato (PO00-00-0000)`,
     ok: (o: number): string => `PO da ordem ${o} preenchido`,
   },
-  poNaDir: {
-    erro: (po: string): string => `PO ${po} já existe na DIR`,
-    ok: (po: string): string => `PO ${po} não está na DIR`,
-  },
-  encaminhada: { ok: (o: number, dia: string): string => (dia === "" ? `Ordem ${o} encaminhada` : `Ordem ${o} encaminhada em ${dia}`) },
   medicamentos: { falta: (o: number): string => `Ordem ${o} sem medicamento`, ok: (o: number): string => (`Ordem ${o} com medicamento`) },
   medNome: {
     falta: (o: number, m: number): string => `Medicamento ${m} da ordem ${o}: nome não preenchido`,

@@ -41,7 +41,6 @@ const compra = (sequencia: number, extra: Partial<CompraDaLista> = {}): CompraDa
   paciente: `PACIENTE TESTE ${sequencia}`,
   medicamentos: ["MED A", "MED B"],
   totalOrdens: 1,
-  totalOrdensEncaminhadas: 0,
   pendencias: 0,
   status: "rascunho",
   atualizadoEm: "2026-11-19T12:00:00.000Z",
@@ -50,16 +49,14 @@ const compra = (sequencia: number, extra: Partial<CompraDaLista> = {}): CompraDa
 
 describe("CompraStatusChip e estilos", () => {
   it("o rótulo e a classe de cada estado", () => {
-    expect(ROTULO_STATUS_COMPRA).toEqual({ rascunho: "Rascunho", pronta: "Pronta", parcial: "Parcial", encaminhada: "Encaminhada", cancelada: "Cancelada" });
+    expect(ROTULO_STATUS_COMPRA).toEqual({ rascunho: "Rascunho", pronta: "Pronta", cancelada: "Cancelada" });
     expect(CLASSE_STATUS_COMPRA.rascunho).toContain("text-ink-soft");
     expect(CLASSE_STATUS_COMPRA.pronta).toContain("green");
-    expect(CLASSE_STATUS_COMPRA.parcial).toContain("gold");
-    expect(CLASSE_STATUS_COMPRA.encaminhada).toContain("farm-blue");
     expect(CLASSE_STATUS_COMPRA.cancelada).toContain("line-through"); // cinza riscada
     expect(CLASSE_STATUS_COMPRA.rascunho).not.toContain("line-through");
   });
 
-  it.each(["rascunho", "pronta", "parcial", "encaminhada", "cancelada"] as StatusDaCompra[])("o selo '%s' mostra o rótulo e o data-status", (status) => {
+  it.each(["rascunho", "pronta", "cancelada"] as StatusDaCompra[])("o selo '%s' mostra o rótulo e o data-status", (status) => {
     const el = montar(defineComponent({ render: () => h(CompraStatusChip, { status }) }));
     expect(texto(el)).toBe(ROTULO_STATUS_COMPRA[status]);
     expect(el.querySelector("span")!.getAttribute("data-status")).toBe(status);
@@ -137,7 +134,7 @@ describe("CompraCartao", () => {
 
 // ── O painel ──────────────────────────────────────────────────────────────────────────────────────────────────
 
-const TOTAIS: TotaisPorStatus = { rascunho: 3, pronta: 4, parcial: 0, encaminhada: 6, cancelada: 2 };
+const TOTAIS: TotaisPorStatus = { rascunho: 3, pronta: 4, cancelada: 2 };
 
 interface PropsPainel {
   compras?: CompraDaLista[];
@@ -205,22 +202,16 @@ describe("ComprasListaPainel: o mês", () => {
 });
 
 describe("ComprasListaPainel: chips com contagem", () => {
-  it("Todas (soma sem canceladas), Rascunhos, Prontas e Encaminhadas; Parciais só aparece com algum", () => {
-    painel({ totalDoMes: 13 });
+  it("Todas (soma sem canceladas), Rascunhos e Prontas", () => {
+    painel({ totalDoMes: 7 });
     // Texto CURTO no chip (cabem numa linha só na coluna de ~320px); o nome inteiro vai no aria-label e na dica.
-    expect(qa("#compras-filtros button").map((b) => texto(b))).toEqual(["Todas (13)", "Rasc. (3)", "Prontas (4)", "Encam. (6)"]);
-    expect(qa("#compras-filtros button").map((b) => b.getAttribute("aria-label"))).toEqual(["Todas (13)", "Rascunhos (3)", "Prontas (4)", "Encaminhadas (6)"]);
-    expect(q("#compras-chip-parcial")).toBeNull();
-  });
-
-  it("com Parciais > 0 o chip aparece na ordem certa", () => {
-    painel({ totais: { ...TOTAIS, parcial: 2 }, totalDoMes: 15 });
-    expect(qa("#compras-filtros button").map((b) => texto(b))).toEqual(["Todas (15)", "Rasc. (3)", "Prontas (4)", "Parc. (2)", "Encam. (6)"]);
-    expect(q("#compras-chip-parcial")!.getAttribute("aria-label")).toBe("Parciais (2)");
+    expect(qa("#compras-filtros button").map((b) => texto(b))).toEqual(["Todas (7)", "Rasc. (3)", "Prontas (4)"]);
+    expect(qa("#compras-filtros button").map((b) => b.getAttribute("aria-label"))).toEqual(["Todas (7)", "Rascunhos (3)", "Prontas (4)"]);
+    expect(qa("#compras-filtros button")).toHaveLength(3);
   });
 
   it("os chips ficam numa LINHA só: sem quebra (flex-nowrap) e com rolagem horizontal discreta se não couber; cada chip não encolhe", () => {
-    painel({ totais: { ...TOTAIS, parcial: 2 }, totalDoMes: 15 });
+    painel({ totalDoMes: 7 });
     const linha = q("#compras-filtros")!;
     expect(linha.className).toContain("flex-nowrap");
     expect(linha.className).toContain("overflow-x-auto");
@@ -230,11 +221,6 @@ describe("ComprasListaPainel: chips com contagem", () => {
       expect(chip.className).toContain("whitespace-nowrap");
       expect(chip.className).toContain("px-1.5"); // pouco padding horizontal
     }
-  });
-
-  it("se o filtro Parciais está ativo, o chip fica mesmo com a contagem em 0 (não some debaixo da pessoa)", () => {
-    painel({ status: "parcial", totais: TOTAIS });
-    expect(q("#compras-chip-parcial")).not.toBeNull();
   });
 
   it("o chip ativo leva aria-pressed e o estilo primário; clicar avisa o estado (Todas = null)", () => {

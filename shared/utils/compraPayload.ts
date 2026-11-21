@@ -1,8 +1,7 @@
 import type { CompraSalvarDTO, Compra, OrdemCompra, OrdemCompraSalvarDTO } from "../types/compra";
 
 // O corpo do salvamento automático (PATCH /api/compras/:id) a partir da compra que o formulário tem na mão: o ESTADO COMPLETO (todos os
-// campos editáveis e as ordens com os itens). `posicao` NÃO vai (a posição é a ordem do array), nem dirId/encaminhadaEm (só o
-// Encaminhar os grava; o servidor os ignoraria). O formato é o que validarCompraSalvar aceita (testado em ida e volta).
+// campos editáveis e as ordens com os itens). `posicao` NÃO vai (a posição é a ordem do array). O formato é o que validarCompraSalvar aceita (testado em ida e volta).
 
 function ordemParaSalvar(o: OrdemCompra): OrdemCompraSalvarDTO {
   return {

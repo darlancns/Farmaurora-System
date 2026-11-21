@@ -1,7 +1,6 @@
-import type { Compra, LinhaDaPrevia, OrdemCompra, PreviaEncaminhar } from "../../../shared/types/compra";
-import { novoDir } from "./dirFixtures";
+import type { Compra, OrdemCompra } from "../../../shared/types/compra";
 
-// Fixtures SINTÉTICAS do painel "Encaminhar para a DIR" (compra, ordens, prévia). Dados fictícios (TESTE).
+// Fixtures SINTÉTICAS de uma compra completa (compra e ordens). Dados fictícios (TESTE).
 
 export function ordemTeste(posicao: number, extra: Partial<OrdemCompra> = {}): OrdemCompra {
   return {
@@ -13,8 +12,6 @@ export function ordemTeste(posicao: number, extra: Partial<OrdemCompra> = {}): O
     po: `PO26-12-999${8 + posicao - 1}`,
     frete: null,
     freteReal: null,
-    dirId: null,
-    encaminhadaEm: null,
     itens: [
       {
         id: `itm_teste_000${posicao}`,
@@ -70,39 +67,4 @@ export function compraTeste(extra: Partial<Compra> = {}): Compra {
     ordens: [ordemTeste(1), ordemTeste(2, { envio: "Courier Simples", cia: "" })],
     ...extra,
   };
-}
-
-export function linhaPrevia(ordem: OrdemCompra, extra: Partial<LinhaDaPrevia> = {}, dir: Partial<LinhaDaPrevia["dir"]> = {}): LinhaDaPrevia {
-  return {
-    ordemPosicao: ordem.posicao,
-    ordemId: ordem.id,
-    temperaturaMista: false,
-    jaEncaminhada: ordem.dirId !== null,
-    dir: novoDir({
-      id: `dir_${ordem.id}`,
-      po: ordem.po,
-      paciente: "TESTE PACIENTE",
-      vendedor: "Mateus Morais",
-      responsavel: "Rebeca",
-      medicamento: "MED TESTE 10 MG",
-      fornecedor: ordem.fornecedor,
-      envio: ordem.envio,
-      companhiaAerea: ordem.cia,
-      despachante: ordem.envio === "Courier Simples" ? "COURIER I N/A" : "Despachante Teste",
-      temperatura: "2°C a 8°C",
-      observacao: "",
-      status: "on_going",
-      awb: "",
-      contratoCambio: "",
-      banco: "",
-      receita: "",
-      ...dir,
-    }),
-    ...extra,
-  };
-}
-
-/** A prévia de uma compra SEM impedimentos (uma linha por ordem). */
-export function previaTeste(compra: Compra, extra: Partial<PreviaEncaminhar> = {}): PreviaEncaminhar {
-  return { linhas: compra.ordens.map((o) => linhaPrevia(o)), conflitosPo: [], erros: [], vendedorInativo: false, posRepetidosNaCompra: [], ...extra };
 }

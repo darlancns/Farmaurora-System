@@ -16,7 +16,6 @@ const item = (sequencia: number, status: StatusDaCompra = "rascunho", extra: Par
   paciente: `PACIENTE TESTE ${sequencia}`,
   medicamentos: [],
   totalOrdens: 0,
-  totalOrdensEncaminhadas: 0,
   pendencias: 7,
   status,
   atualizadoEm: "2026-11-19T12:00:00.000Z",
@@ -24,7 +23,7 @@ const item = (sequencia: number, status: StatusDaCompra = "rascunho", extra: Par
 });
 
 const totaisDe = (itens: CompraDaLista[]): TotaisPorStatus => {
-  const t: TotaisPorStatus = { rascunho: 0, pronta: 0, parcial: 0, encaminhada: 0, cancelada: 0 };
+  const t: TotaisPorStatus = { rascunho: 0, pronta: 0, cancelada: 0 };
   for (const i of itens) t[i.status] += 1;
   return t;
 };
@@ -80,11 +79,11 @@ describe("mês inicial: o corrente de BRASÍLIA", () => {
 
 describe("carregar, totais e 'N compras'", () => {
   it("lê o mês e guarda lista, totais e total; 'N compras' soma tudo menos as canceladas", async () => {
-    const compras = [item(1), item(2, "pronta"), item(3, "parcial"), item(4, "encaminhada"), item(5, "cancelada"), item(6, "cancelada")];
+    const compras = [item(1), item(2, "pronta"), item(3), item(4, "pronta"), item(5, "cancelada"), item(6, "cancelada")];
     const m = useComprasMes({ mes: "2026-11", api: servidor({ "2026-11": compras }).api });
     await m.carregar();
     expect(m.compras.value.map((c) => c.sequencia)).toEqual([4, 3, 2, 1]); // sem as canceladas
-    expect(m.totais.value).toEqual({ rascunho: 1, pronta: 1, parcial: 1, encaminhada: 1, cancelada: 2 });
+    expect(m.totais.value).toEqual({ rascunho: 2, pronta: 2, cancelada: 2 });
     expect(m.totalDoMes.value).toBe(4);
     expect(m.carregando.value).toBe(false);
     expect(m.erro.value).toBeNull();
@@ -140,7 +139,7 @@ describe("mês anterior e próximo", () => {
 });
 
 describe("filtro por estado e canceladas", () => {
-  const compras = [item(1), item(2, "pronta"), item(3, "pronta"), item(4, "encaminhada"), item(5, "cancelada")];
+  const compras = [item(1), item(2, "pronta"), item(3, "pronta"), item(4), item(5, "cancelada")];
 
   it("definirStatus relê com o filtro e mantém os totais do mês inteiro", async () => {
     const s = servidor({ "2026-11": compras });
@@ -150,7 +149,7 @@ describe("filtro por estado e canceladas", () => {
     expect(s.chamadas.at(-1)).toMatchObject({ status: "pronta", pagina: 1 });
     expect(m.compras.value.map((c) => c.sequencia)).toEqual([3, 2]);
     expect(m.total.value).toBe(2);
-    expect(m.totais.value).toEqual({ rascunho: 1, pronta: 2, parcial: 0, encaminhada: 1, cancelada: 1 });
+    expect(m.totais.value).toEqual({ rascunho: 2, pronta: 2, cancelada: 1 });
     await m.definirStatus(null);
     expect(m.compras.value).toHaveLength(4);
   });
@@ -261,7 +260,7 @@ describe("aplicarCompra: o cartão e os totais refletem o que acabou de ser salv
     m.aplicarCompra(
       compraCompleta({
         paciente: "NOVO PACIENTE TESTE",
-        ordens: [{ id: "o1", posicao: 1, fornecedor: "F", envio: "Air Cargo", cia: "", po: "", frete: null, freteReal: null, dirId: null, encaminhadaEm: null, itens: [{ id: "i1", posicao: 1, medicamento: "MED TESTE", medicamentoCadastroId: "m1", preCadastroId: null, apresentacao: "", referencia: "", laboratorio: "", quantidade: "", temperatura: "", valorUnitario: null, valorReal: null }] }],
+        ordens: [{ id: "o1", posicao: 1, fornecedor: "F", envio: "Air Cargo", cia: "", po: "", frete: null, freteReal: null, itens: [{ id: "i1", posicao: 1, medicamento: "MED TESTE", medicamentoCadastroId: "m1", preCadastroId: null, apresentacao: "", referencia: "", laboratorio: "", quantidade: "", temperatura: "", valorUnitario: null, valorReal: null }] }],
       }),
     );
     const c = m.compras.value.find((x) => x.id === "cmp_2")!;

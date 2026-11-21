@@ -219,7 +219,7 @@ interface PropsCab {
   cancelada?: boolean;
   pendencias?: number;
   esperandoClique?: boolean;
-  status?: "rascunho" | "pronta" | "parcial" | "encaminhada" | "cancelada";
+  status?: "rascunho" | "pronta" | "cancelada";
 }
 function cabecalho(p: PropsCab = {}) {
   const ev: string[] = [];

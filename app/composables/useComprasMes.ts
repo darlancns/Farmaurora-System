@@ -46,7 +46,7 @@ export interface OpcoesUseComprasMes {
   api?: ApiListaCompras;
 }
 
-const totaisZerados = (): TotaisPorStatus => ({ rascunho: 0, pronta: 0, parcial: 0, encaminhada: 0, cancelada: 0 });
+const totaisZerados = (): TotaisPorStatus => ({ rascunho: 0, pronta: 0, cancelada: 0 });
 
 export interface ComprasMes {
   mes: Ref<string>;
@@ -201,7 +201,7 @@ export function useComprasMes(opcoes: OpcoesUseComprasMes = {}): ComprasMes {
   }
 
   const rotuloMes = computed(() => rotuloDoMes(mes.value));
-  const totalDoMes = computed(() => totais.value.rascunho + totais.value.pronta + totais.value.parcial + totais.value.encaminhada);
+  const totalDoMes = computed(() => totais.value.rascunho + totais.value.pronta);
 
   return {
     mes,

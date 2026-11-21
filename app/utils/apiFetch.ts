@@ -4,7 +4,7 @@ import { readApiError, readApiErrorDetalhado } from "./errorMessages";
 // precisa distinguir a resposta (ex.: 409 de conflito de versão).
 export class ApiError extends Error {
   readonly status: number;
-  /** O `data` da resposta de erro (ex.: `{ code, atual, pos }` do Encaminhar e das travas de Compras), quando o servidor mandou. */
+  /** O `data` da resposta de erro (ex.: `{ code, ... }` dos erros de Compras e dos Cadastros), quando o servidor mandou. */
   readonly data?: unknown;
 
   constructor(message: string, status: number, data?: unknown) {
@@ -15,7 +15,7 @@ export class ApiError extends Error {
   }
 }
 
-/** O `data.code` de um erro da API (ou null): é como a tela distingue os 409 e 422 das Compras. */
+/** O `data.code` de um erro da API (ou null): é como a tela distingue os 409 e 422 das Compras e dos Cadastros. */
 export function codigoDoErro(e: unknown): string | null {
   if (!(e instanceof ApiError)) return null;
   const data = e.data;

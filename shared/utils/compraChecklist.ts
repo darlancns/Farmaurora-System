@@ -4,11 +4,10 @@ import { MODAL_COURIER_SIMPLES } from "../constants/processos";
 import type { StatusDaCompra } from "../constants/compra";
 import type { ItemCompra, OrdemCompra } from "../types/compra";
 import { textoMedicamentoDir } from "./compraDir";
-import { dataBrasiliaDe, formatarDiaMes } from "./dataBrasilia";
 import { NUMERO_PO_REGEX, normalizarNumeroPo } from "./numeroPo";
 
-// A CHECAGEM ÚNICA da compra: uma função pura que diz o que falta para a compra poder ser encaminhada (o "N pendências" da lista, o
-// painel de checagem do formulário e o botão Encaminhar leem a MESMA função). Não consulta nada: tudo o que ela precisa vem em
+// A CHECAGEM ÚNICA da compra: uma função pura que diz o que falta para a compra estar completa (o "N pendências" da lista e o
+// painel de checagem do formulário leem a MESMA função). Não consulta nada: tudo o que ela precisa vem em
 // `compra` e em `opcoes`. Os textos e os ids das regras ficam em shared/constants/compraChecklist.ts.
 //
 // Cada regra bloqueante vira UM item: "ok" quando atendida, "erro" quando não. Os "avisos" não bloqueiam e só aparecem quando valem.
@@ -29,16 +28,11 @@ export interface ResultadoChecklist {
   pronta: boolean;
 }
 
-export interface OpcoesChecklist {
-  /** POs que já existem na DIR (quem chama consulta; a função não consulta nada). Sem isto, a regra "PO na DIR" não é avaliada. */
-  poJaNaDir?: readonly string[];
-}
-
 /** O que a checagem lê de um medicamento. */
 export type ItemParaChecklist = Pick<ItemCompra, "posicao" | "medicamento" | "medicamentoCadastroId" | "preCadastroId" | "preCadastroStatus" | "apresentacao" | "quantidade" | "temperatura">;
 
 /** O que a checagem lê de uma ordem. */
-export type OrdemParaChecklist = Pick<OrdemCompra, "posicao" | "fornecedor" | "envio" | "po" | "dirId" | "encaminhadaEm"> & { itens: readonly ItemParaChecklist[] };
+export type OrdemParaChecklist = Pick<OrdemCompra, "posicao" | "fornecedor" | "envio" | "po"> & { itens: readonly ItemParaChecklist[] };
 
 /** O que a checagem lê de uma compra (a `Compra` inteira serve, e a lista do mês monta só isto, sem contatos nem valores). */
 export interface CompraParaChecklist {
@@ -59,16 +53,8 @@ export interface CompraParaChecklist {
 
 const preenchido = (v: string | null | undefined): boolean => (v ?? "").trim() !== "";
 const porPosicao = <T extends { posicao: number }>(lista: readonly T[]): T[] => [...lista].sort((a, b) => a.posicao - b.posicao);
-const foiParaDir = (o: Pick<OrdemCompra, "dirId">): boolean => preenchido(o.dirId);
 
-/** "dd/mm" do dia (de BRASÍLIA) em que a ordem foi encaminhada; "" se não há data válida. */
-export function diaDoEncaminhamento(encaminhadaEm: string | null): string {
-  if (!preenchido(encaminhadaEm)) return "";
-  const t = new Date(encaminhadaEm as string).getTime();
-  return Number.isNaN(t) ? "" : formatarDiaMes(dataBrasiliaDe(t));
-}
-
-export function checklistCompra(compra: CompraParaChecklist, opcoes: OpcoesChecklist = {}): ResultadoChecklist {
+export function checklistCompra(compra: CompraParaChecklist): ResultadoChecklist {
   const itens: ItemChecklist[] = [];
   const exigido = (id: string, atendida: boolean, falta: string, ok: string, ordemPosicao?: number): void => {
     itens.push({ id, nivel: atendida ? "ok" : "erro", texto: atendida ? ok : falta, ...(ordemPosicao === undefined ? {} : { ordemPosicao }) });
@@ -92,8 +78,6 @@ export function checklistCompra(compra: CompraParaChecklist, opcoes: OpcoesCheck
   const ordens = porPosicao(compra.ordens);
   exigido(R.ordens, ordens.length >= 1, T.ordens.falta, T.ordens.ok(ordens.length));
 
-  const poNaDir = opcoes.poJaNaDir === undefined ? null : new Set(opcoes.poJaNaDir.map((p) => normalizarNumeroPo(p) ?? "").filter((p) => p !== ""));
-
   // ── cada ordem ──
   for (const ordem of ordens) {
     const n = ordem.posicao;
@@ -103,14 +87,6 @@ export function checklistCompra(compra: CompraParaChecklist, opcoes: OpcoesCheck
     const po = normalizarNumeroPo(ordem.po);
     if (po === null) exigido(`ordem-${n}-${R.po}`, false, T.po.falta(n), T.po.ok(n), n);
     else exigido(`ordem-${n}-${R.po}`, NUMERO_PO_REGEX.test(po), T.po.invalido(n), T.po.ok(n), n);
-
-    if (foiParaDir(ordem)) {
-      // Ordem que ESTA compra já encaminhou: o PO estar na DIR é o esperado, nunca erro.
-      itens.push({ id: `ordem-${n}-${R.encaminhada}`, nivel: "ok", texto: T.encaminhada.ok(n, diaDoEncaminhamento(ordem.encaminhadaEm)), ordemPosicao: n });
-    } else if (poNaDir !== null && po !== null && NUMERO_PO_REGEX.test(po)) {
-      const jaExiste = poNaDir.has(po);
-      itens.push({ id: `ordem-${n}-${R.poNaDir}`, nivel: jaExiste ? "erro" : "ok", texto: jaExiste ? T.poNaDir.erro(po) : T.poNaDir.ok(po), ordemPosicao: n });
-    }
 
     const meds = porPosicao(ordem.itens);
     exigido(`ordem-${n}-${R.medicamentos}`, meds.length >= 1, T.medicamentos.falta(n), T.medicamentos.ok(n), n);
@@ -158,19 +134,12 @@ export function checklistCompra(compra: CompraParaChecklist, opcoes: OpcoesCheck
 }
 
 /** Quantas pendências (itens "erro") a compra tem: o "N pendências" da lista. */
-export function contarPendencias(compra: CompraParaChecklist, opcoes: OpcoesChecklist = {}): number {
-  return checklistCompra(compra, opcoes).itens.filter((i) => i.nivel === "erro").length;
+export function contarPendencias(compra: CompraParaChecklist): number {
+  return checklistCompra(compra).itens.filter((i) => i.nivel === "erro").length;
 }
 
-/**
- * O estado da compra: cancelada; encaminhada (TODAS as ordens têm dir_id; uma compra sem ordens nunca é encaminhada); parcial (só
- * algumas); senão pronta (a checagem não tem erro) ou rascunho.
- */
-export function statusDaCompra(compra: CompraParaChecklist, opcoes: OpcoesChecklist = {}): StatusDaCompra {
+/** O estado da compra: cancelada; senão pronta (a checagem não tem erro) ou rascunho. */
+export function statusDaCompra(compra: CompraParaChecklist): StatusDaCompra {
   if (compra.cancelada) return "cancelada";
-  const total = compra.ordens.length;
-  const encaminhadas = compra.ordens.filter(foiParaDir).length;
-  if (total > 0 && encaminhadas === total) return "encaminhada";
-  if (encaminhadas > 0) return "parcial";
-  return checklistCompra(compra, opcoes).pronta ? "pronta" : "rascunho";
+  return checklistCompra(compra).pronta ? "pronta" : "rascunho";
 }

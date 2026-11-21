@@ -10,12 +10,8 @@ import { textoMedicamentoDir } from "#shared/utils/compraDir";
 //   - `processo` com "Compra particular" marcada → a caixa (`processo-particular`; sem número a preencher);
 //   - `ordem-N-med-M-pre-cadastro` → o campo Medicamento da linha (`ordem-N-med-M-nome`);
 //   - `ordem-N-texto-dir` → o Medicamento da linha MAIS LONGA da ordem (o que mais pesa no limite de 300 caracteres);
-//   - `ordem-N-po-na-dir` → o campo PO da ordem;
 //   - `ordens` (nenhuma ordem) → o botão "+ Adicionar ordem".
-// Item "ok" nunca é botão. `encaminhada` (e o despachante dispensado) só existem como "ok": são as exceções sem alvo.
-
-/** As regras do checklist que NUNCA viram botão (só aparecem como "ok"). Toda outra regra de REGRAS_CHECKLIST tem alvo (conferido por teste). */
-export const REGRAS_SEM_ALVO: readonly string[] = [REGRAS_CHECKLIST.encaminhada];
+// Item "ok" nunca é botão (o despachante dispensado só existe como "ok").
 
 /** Os campos "simples" da compra: o data-campo é o próprio id do checklist. */
 export const CAMPOS_SIMPLES = [
@@ -48,7 +44,6 @@ export function campoDoItem(id: string, compra: Pick<Compra, "compraParticular" 
   if (ordem) {
     const [, n, regra] = ordem;
     if (regra === REGRAS_CHECKLIST.fornecedor || regra === REGRAS_CHECKLIST.envio || regra === REGRAS_CHECKLIST.po || regra === REGRAS_CHECKLIST.medicamentos) return id;
-    if (regra === REGRAS_CHECKLIST.poNaDir) return `ordem-${n}-${REGRAS_CHECKLIST.po}`;
     if (regra === REGRAS_CHECKLIST.textoDir) {
       const linha = linhaMaisLongaDaOrdem(compra, Number(n));
       return linha === null ? `ordem-${n}-${REGRAS_CHECKLIST.medicamentos}` : `ordem-${n}-med-${linha}-${REGRAS_CHECKLIST.medNome}`;

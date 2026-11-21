@@ -206,7 +206,7 @@ describe("Resumo no celular: barra de ações fixa no pé da tela", () => {
     expect(copiar.className).toContain("max-lg:min-h-11");
     expect(encaminhar.disabled).toBe(true);
     expect(copiar.disabled).toBe(false);
-    expect(texto(q("#encaminhar-dir-aviso"))).toBe("Sem permissão para editar Compras"); // a coluna aqui não recebe as permissões
+    expect(encaminhar.getAttribute("title")).toBe("Em breve: depende da migração da DIR");
   });
 
   it("a coluna reserva espaço no fim para a barra fixa não cobrir o resumo (só abaixo de lg)", () => {

@@ -2,7 +2,6 @@ import { createError } from "h3";
 import { COMPRA_LISTA_POR_PAGINA, type StatusDaCompra } from "../../shared/constants/compra";
 import type { Compra, CompraDaLista, CompraEstado, CamposCompraEditaveis, ListaCompras, OrdemCompraEstado, StatusPreCadastro, TotaisPorStatus } from "../../shared/types/compra";
 import { dataBrasiliaDe } from "../../shared/utils/dataBrasilia";
-import { normalizarNumeroPo } from "../../shared/utils/numeroPo";
 import {
   COLUNAS_LISTA_COMPRA,
   COLUNAS_LISTA_ITEM,
@@ -65,8 +64,6 @@ export const MENSAGEM_CONFLITO_VERSAO = "Esta compra foi alterada por outra pess
 export const MENSAGEM_COMPRA_CANCELADA = "Esta compra foi cancelada e não pode mais ser editada.";
 export const MENSAGEM_ID_DE_OUTRA_COMPRA = "Identificador já usado em outra compra.";
 export const MENSAGEM_REFERENCIA_INVALIDA = "Medicamento do Cadastro ou do pré-cadastro não encontrado.";
-export const MENSAGEM_ORDEM_ENCAMINHADA_REMOVIDA = "Ordem já encaminhada para a DIR não pode ser removida";
-export const MENSAGEM_PO_TRAVADO = "PO travado: já encaminhado; altere na DIR";
 
 /** Erro de regra das Compras (409 versão, 409 id alheio, 422 referência, 503 sem número). `data` vai na resposta (ex.: a versão atual). */
 export class ComprasRegraError extends Error {
@@ -221,8 +218,7 @@ export interface OpcoesLista {
  * As compras do mês (AAAA-MM de Brasília) para o painel esquerdo: da mais recente para a mais antiga (sequencia desc), 50 por vez
  * ("mostrar mais"). O ESTADO e as PENDÊNCIAS de cada compra são DERIVADOS (checklistCompra), então não dá para filtrar nem contar no
  * banco: o servidor lê o mês inteiro só das colunas que a checagem usa (nada de contatos, valores nem observações), calcula, filtra,
- * conta os `totais` por estado do mês TODO e devolve só a página pedida, só com o necessário para a linha. A DIR não é consultada
- * (o PO repetido na DIR só entra na checagem do Encaminhar).
+ * conta os `totais` por estado do mês TODO e devolve só a página pedida, só com o necessário para a linha. A DIR não é consultada.
  */
 export async function listarComprasDoMes(anoMes: string, opcoes: OpcoesLista = {}): Promise<ListaCompras> {
   if (!ANO_MES_RE.test(anoMes)) throw new ComprasRegraError("Mês inválido: use AAAA-MM.", 400);
@@ -249,7 +245,7 @@ export async function listarComprasDoMes(anoMes: string, opcoes: OpcoesLista = {
   const itensDe = new Map<string, ItemListaRow[]>();
   for (const i of itens) itensDe.set(i.ordem_id, [...(itensDe.get(i.ordem_id) ?? []), i]);
 
-  const totais: TotaisPorStatus = { rascunho: 0, pronta: 0, parcial: 0, encaminhada: 0, cancelada: 0 };
+  const totais: TotaisPorStatus = { rascunho: 0, pronta: 0, cancelada: 0 };
   const casam: CompraDaLista[] = [];
   for (const row of rows) {
     const minhasOrdens = ordensDe.get(row.id) ?? [];
@@ -322,7 +318,7 @@ export async function criarCompra(usuario: string, opcoes: { agora?: Date } = {}
 
 /**
  * Duplica a compra: uma NOVA compra com o próximo número do mês ATUAL de Brasília, com os mesmos dados e as mesmas ordens e itens
- * (ids novos). Limpa po, dir_id e encaminhada_em das ordens e `cancelada`; o resto fica. Se copiar as ordens e itens falhar, a cópia
+ * (ids novos). Limpa o po das ordens e `cancelada`; o resto fica. Se copiar as ordens e itens falhar, a cópia
  * é cancelada (compra não se apaga) e o erro sobe. null = a original não existe.
  */
 export async function duplicarCompra(id: string, usuario: string, opcoes: { agora?: Date } = {}): Promise<Compra | null> {
@@ -347,7 +343,7 @@ export async function duplicarCompra(id: string, usuario: string, opcoes: { agor
   const nova = await inserirCompraNumerada(db, copia, anoMesDeBrasilia(agora));
 
   try {
-    const ordensNovas: Array<Omit<OrdemRow, "dir_id" | "encaminhada_em">> = [];
+    const ordensNovas: Array<Omit<OrdemRow, never>> = [];
     const itensNovos: ItemRow[] = [];
     const ordensOrdenadas = [...original.ordens].sort((a, b) => a.posicao - b.posicao);
     for (const [i, ordem] of ordensOrdenadas.entries()) {
@@ -358,7 +354,7 @@ export async function duplicarCompra(id: string, usuario: string, opcoes: { agor
           fornecedor: ordem.fornecedor ?? "",
           envio: ordem.envio ?? "",
           cia: ordem.cia ?? "",
-          po: "", // o PO é de UMA ordem encaminhada: a cópia começa sem ele
+          po: "", // o PO é de UMA ordem: a cópia começa sem ele
           frete: ordem.frete === null ? null : Number(ordem.frete),
           freteReal: ordem.frete_real === null ? null : Number(ordem.frete_real),
         }),
@@ -449,7 +445,7 @@ const TENTATIVAS_DE_VERSAO = 3;
 
 /**
  * Sobe a versão da compra (compare-and-swap relendo a versão atual; até 3 tentativas): editar em outra aba depois disto leva 409. Usado pelo
- * Encaminhar e pela decisão de pré-cadastros (que mudam a compra por fora do salvamento). Compra que não existe mais: não faz nada.
+ * decisão de pré-cadastros (que muda a compra por fora do salvamento). Compra que não existe mais: não faz nada.
  */
 export async function subirVersaoDaCompra(compraId: string): Promise<void> {
   const db = createSupabaseAdminClient();
@@ -501,30 +497,13 @@ async function conferirIdsDoCorpo(db: Db, atual: CompraCarregada, ordens: readon
   if (alheiaOrdem.length > 0 || alheioItem.length > 0) throw new ComprasRegraError(MENSAGEM_ID_DE_OUTRA_COMPRA, 409);
 }
 
-/**
- * A ordem JÁ ENCAMINHADA para a DIR (tem dir_id) é travada em duas coisas: não pode ser REMOVIDA e o seu PO não pode TROCAR (409 nos dois casos,
- * com a compra atual em `data.atual` e o motivo em `data.code`). Tudo o mais na ordem e na compra segue editável (fornecedor, envio, medicamentos,
- * campos da compra...): a DIR não muda sozinha, mas a compra pode continuar sendo ajustada. Reenviar o MESMO po não é erro.
- */
-function conferirOrdensEncaminhadas(atual: CompraCarregada, compraAtual: Compra, ordens: readonly OrdemCompraEstado[]): void {
-  const mesmoPo = (a: string | null, b: string): boolean => (normalizarNumeroPo(a ?? "") ?? "") === (normalizarNumeroPo(b) ?? "");
-  for (const antes of atual.ordens) {
-    if ((antes.dir_id ?? "").trim() === "") continue;
-    const depois = ordens.find((o) => o.id === antes.id);
-    if (!depois) throw new ComprasRegraError(MENSAGEM_ORDEM_ENCAMINHADA_REMOVIDA, 409, { code: "ordem_encaminhada_removida", ordemId: antes.id, atual: compraAtual });
-    if (!mesmoPo(antes.po, depois.po)) throw new ComprasRegraError(MENSAGEM_PO_TRAVADO, 409, { code: "po_travado", ordemId: antes.id, atual: compraAtual });
-  }
-}
-
 /** A "forma" das ordens: ids das ordens na ordem e, em cada uma, os ids dos itens na ordem. Igual = nada entrou, saiu nem mudou de lugar. */
 const formaDe = (ordens: ReadonlyArray<{ id: string; itens: ReadonlyArray<{ id: string }> }>): string =>
   JSON.stringify(ordens.map((o) => [o.id, o.itens.map((i) => i.id)]));
 
-async function apagarPorId(db: Db, tabela: string, ids: readonly string[], acao: string, opcoes: { soSemDirId?: boolean } = {}): Promise<void> {
+async function apagarPorId(db: Db, tabela: string, ids: readonly string[], acao: string): Promise<void> {
   for (const bloco of emBlocos(ids)) {
-    const consulta = db.from(tabela).delete().in("id", bloco);
-    // Ordem que foi encaminhada ENTRE a conferência e este comando (outra requisição) não é apagada: a trava vale também na hora de gravar.
-    const { error } = await (opcoes.soSemDirId === true ? consulta.is("dir_id", null) : consulta);
+    const { error } = await db.from(tabela).delete().in("id", bloco);
     if (error) throw erro(acao, error);
   }
 }
@@ -537,7 +516,7 @@ async function gravarLista(db: Db, tabela: string, linhas: ReadonlyArray<Record<
 
 /**
  * Faz as ordens e os itens do banco ficarem iguais ao estado: o que está no estado é gravado (upsert por id, com a posição = a ordem
- * do array, de 1 a N) e o que não está é APAGADO. dir_id e encaminhada_em não entram nunca nas linhas (o upsert os preserva).
+ * do array, de 1 a N) e o que não está é APAGADO.
  *
  * POR QUE NÃO É UMA TRANSAÇÃO: o supabase-js só faz um comando por chamada. O que protege a unicidade das posições:
  *  1. caminho RÁPIDO (a forma não mudou: mesmas ordens, mesmos itens, mesma ordem): só os dois upserts com as posições finais, que
@@ -591,7 +570,6 @@ async function sincronizarFilhas(db: Db, compraId: string, atual: CompraCarregad
     ORDENS,
     atual.ordens.filter((o) => !ordemIdsNovos.has(o.id)).map((o) => o.id),
     "apagar as ordens removidas da compra",
-    { soSemDirId: true },
   );
 
   await gravarLista(db, ORDENS, linhasDasOrdens((i) => i + 1), "gravar as ordens da compra");
@@ -627,7 +605,6 @@ export async function salvarCompra(id: string, estadoRecebido: CompraEstado, usu
 
   const estado = (await opcoes.antesDeGravar?.(compraAtual)) ?? estadoRecebido;
   if (estado.ordens) await conferirIdsDoCorpo(db, atual, estado.ordens);
-  if (estado.ordens) conferirOrdensEncaminhadas(atual, compraAtual, estado.ordens);
 
   const { data, error } = await db
     .from(COMPRAS)

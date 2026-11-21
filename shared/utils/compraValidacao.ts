@@ -15,7 +15,7 @@ import {
   STATUS_DA_COMPRA,
   type StatusDaCompra,
 } from "../constants/compra";
-import type { CamposCompraEditaveis, CompraEstado, CorpoEncaminhar, ItemCompraEstado, OrdemCompraEstado } from "../types/compra";
+import type { CamposCompraEditaveis, CompraEstado, ItemCompraEstado, OrdemCompraEstado } from "../types/compra";
 import type { MomentoPagamentoResumo } from "../types/compraResumo";
 import { chaveCadastro } from "./cadastroNome";
 import { validarNovoCadastro } from "./cadastroValidacao";
@@ -24,14 +24,14 @@ import { NUMERO_PO_ERRO, NUMERO_PO_REGEX, normalizarNumeroPo } from "./numeroPo"
 // Validação PURA do salvamento da Compra: o servidor (handlers) a usa e o formulário da Etapa 6 poderá usar as mesmas regras. Devolve o
 // estado já LIMPO (texto aparado, só as chaves conhecidas) ou a mensagem do 400. O servidor não confia no cliente.
 //
-// RASCUNHO PARCIAL É VÁLIDO: campo vazio passa (a checagem de "pronto para encaminhar" é do Encaminhar, não daqui).
+// RASCUNHO PARCIAL É VÁLIDO: campo vazio passa (a checagem do que falta é a de shared/utils/compraChecklist.ts, não daqui).
 //
 // SEMÂNTICA DO CORPO (documentada também em comprasStore.ts → salvarCompra):
 //  - `atualizadoEm` (a versão que o cliente viu) é obrigatório;
 //  - campo da compra AUSENTE = não muda; `ordens` AUSENTE = não mexe nas ordens; `ordens` PRESENTE = o estado COMPLETO (o que não vier é
 //    apagado) e a posição é a ordem do array;
 //  - dentro de uma ordem e de um item, campo ausente = vazio (o item/ordem é o estado inteiro dele);
-//  - `dirId` e `encaminhadaEm` das ordens são ACEITOS e IGNORADOS (só o Encaminhar os grava); qualquer outra chave desconhecida é 400.
+//  - chave desconhecida (na compra, na ordem ou no item) é 400.
 //
 // Tetos: linhas 300 caracteres, observações 2000, até 10 ordens, até 30 itens por ordem, até 50 pendências (300 cada, 2000 no total).
 
@@ -148,7 +148,7 @@ const CHAVES_DO_ITEM = [
   "valorReal",
 ] as const;
 
-const CHAVES_DA_ORDEM = ["id", "fornecedor", "envio", "cia", "po", "frete", "freteReal", "itens", "dirId", "encaminhadaEm"] as const;
+const CHAVES_DA_ORDEM = ["id", "fornecedor", "envio", "cia", "po", "frete", "freteReal", "itens"] as const;
 
 function idDoCorpo(v: unknown, rotulo: string): ResultadoCompra<string> {
   if (typeof v !== "string" || !COMPRA_ID_RE.test(v)) return falha(`${rotulo}: identificador inválido (de 6 a 64 letras, números, "_" ou "-").`);
@@ -335,39 +335,6 @@ export function validarCompraSalvar(corpo: unknown): ResultadoCompra<CompraEstad
   return ok(estado);
 }
 
-/** O corpo do POST /api/compras/:id/encaminhar: a versão que o cliente viu, `ordemIds` opcional e `confirmarTemperaturaMista` opcional. */
-export function validarEncaminharCompra(corpo: unknown): ResultadoCompra<CorpoEncaminhar> {
-  const o = objeto(corpo);
-  if (!o) return falha("Dados inválidos.");
-  const desconhecida = chavesDesconhecidas(o, ["atualizadoEm", "ordemIds", "confirmarTemperaturaMista"], "");
-  if (desconhecida) return falha(desconhecida);
-
-  const versao = validarVersao(o.atualizadoEm);
-  if (!versao.ok) return versao;
-
-  const valor: CorpoEncaminhar = { atualizadoEm: versao.valor };
-
-  if (o.ordemIds !== undefined) {
-    if (!Array.isArray(o.ordemIds) || o.ordemIds.length === 0 || o.ordemIds.length > COMPRA_MAX_ORDENS) {
-      return falha(`ordemIds: informe de 1 a ${COMPRA_MAX_ORDENS} identificadores de ordem.`);
-    }
-    const ids: string[] = [];
-    for (const [i, bruto] of o.ordemIds.entries()) {
-      const id = idDoCorpo(bruto, `ordemIds[${i}]`);
-      if (!id.ok) return id;
-      if (!ids.includes(id.valor)) ids.push(id.valor);
-    }
-    valor.ordemIds = ids;
-  }
-
-  if (o.confirmarTemperaturaMista !== undefined) {
-    const b = booleano(o.confirmarTemperaturaMista, "confirmarTemperaturaMista");
-    if (!b.ok) return b;
-    valor.confirmarTemperaturaMista = b.valor;
-  }
-  return ok(valor);
-}
-
 /** O mês da lista (`?ano_mes=AAAA-MM`); ausente = o `padrao`. */
 export function validarAnoMesDaConsulta(v: unknown, padrao: string): ResultadoCompra<string> {
   if (v === undefined || v === "") return ok(padrao);
@@ -442,7 +409,7 @@ export interface ConsultaListaCompras {
   pagina: number;
 }
 
-/** A consulta de GET /api/compras: `?ano_mes=AAAA-MM`, `?status=` (rascunho|pronta|parcial|encaminhada|cancelada), `?pagina=` (a partir de 1) e `?incluir_canceladas=1`. */
+/** A consulta de GET /api/compras: `?ano_mes=AAAA-MM`, `?status=` (rascunho|pronta|cancelada), `?pagina=` (a partir de 1) e `?incluir_canceladas=1`. */
 export function validarConsultaListaCompras(consulta: Record<string, unknown>, anoMesPadrao: string): ResultadoCompra<ConsultaListaCompras> {
   const mes = validarAnoMesDaConsulta(consulta.ano_mes, anoMesPadrao);
   if (!mes.ok) return mes;

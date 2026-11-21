@@ -28,20 +28,21 @@ describe("lerQueryCompras", () => {
     expect(lerQueryCompras({ mes: ["2026-10", "2026-11"], status: ["rascunho", "pronta"] })).toMatchObject({ mes: "2026-10", status: "rascunho" });
   });
 
-  it("os 5 estados são aceitos", () => {
-    for (const s of ["rascunho", "pronta", "parcial", "encaminhada", "cancelada"]) expect(lerQueryCompras({ status: s }).status).toBe(s);
+  it("os 3 estados são aceitos; os que saíram (parcial, encaminhada) são ignorados", () => {
+    for (const s of ["rascunho", "pronta", "cancelada"]) expect(lerQueryCompras({ status: s }).status).toBe(s);
+    for (const s of ["parcial", "encaminhada"]) expect(lerQueryCompras({ status: s }).status).toBeNull();
   });
 });
 
 describe("montarQueryCompras", () => {
   it("o mês sempre; id, filtro e canceladas só quando em uso", () => {
     expect(montarQueryCompras({ mes: "2026-11", id: null, status: null, canceladas: false })).toEqual({ mes: "2026-11" });
-    expect(montarQueryCompras({ mes: "2026-11", id: "cmp_1", status: "parcial", canceladas: true })).toEqual({ mes: "2026-11", id: "cmp_1", status: "parcial", canceladas: "1" });
+    expect(montarQueryCompras({ mes: "2026-11", id: "cmp_1", status: "pronta", canceladas: true })).toEqual({ mes: "2026-11", id: "cmp_1", status: "pronta", canceladas: "1" });
     expect(montarQueryCompras({ mes: "2026-11", id: "cmp_1", status: null, canceladas: false, aba: "formulario" })).toEqual({ mes: "2026-11", id: "cmp_1", aba: "formulario" });
   });
 
   it("ida e volta: o que se grava é o que se lê", () => {
-    const estado = { mes: "2026-10", id: "cmp_9", status: "encaminhada" as const, canceladas: true, aba: "resumo" as const };
+    const estado = { mes: "2026-10", id: "cmp_9", status: "pronta" as const, canceladas: true, aba: "resumo" as const };
     expect(lerQueryCompras(montarQueryCompras(estado))).toEqual(estado);
   });
 });

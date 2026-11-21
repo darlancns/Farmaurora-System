@@ -232,7 +232,7 @@ describe("botões só de ícone têm nome acessível em português", () => {
             rotuloMes: "Novembro/2026",
             totalDoMes: 0,
             compras: [],
-            totais: { rascunho: 0, pronta: 0, parcial: 0, encaminhada: 0, cancelada: 0 },
+            totais: { rascunho: 0, pronta: 0, cancelada: 0 },
             total: 0,
             temMais: false,
             status: null,

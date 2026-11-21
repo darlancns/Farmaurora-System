@@ -14,17 +14,13 @@ export const BOTAO_SECUNDARIO_CLASS =
 export const ROTULO_STATUS_COMPRA: Record<StatusDaCompra, string> = {
   rascunho: "Rascunho",
   pronta: "Pronta",
-  parcial: "Parcial",
-  encaminhada: "Encaminhada",
   cancelada: "Cancelada",
 };
 
-/** O selo de cada estado: Rascunho cinza, Pronta verde, Parcial âmbar, Encaminhada azul, Cancelada cinza riscada. */
+/** O selo de cada estado: Rascunho cinza, Pronta verde, Cancelada cinza riscada. */
 export const CLASSE_STATUS_COMPRA: Record<StatusDaCompra, string> = {
   rascunho: "bg-hairline/50 text-ink-soft",
   pronta: "bg-green-100 text-green-800",
-  parcial: "bg-mainz-gold-soft text-warning-gold",
-  encaminhada: "bg-farm-blue-soft text-farm-blue",
   cancelada: "bg-hairline/50 text-ink-soft line-through",
 };
 

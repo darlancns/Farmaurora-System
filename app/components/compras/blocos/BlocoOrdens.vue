@@ -10,7 +10,7 @@ import CompraOrdemCartao from "../CompraOrdemCartao.vue";
 
 // Bloco `medicamentos_e_ordens`: uma "Ordem N" por cartão, cada uma com os seus medicamentos. A posição (1..N) é recalculada pela
 // ordem na tela (renumerar). Limites do servidor: 10 ordens por compra (e 30 itens por ordem, no cartão). "Remover ordem" só a partir
-// da 2ª, bloqueado na ordem já encaminhada para a DIR e com confirmação quando a ordem tem qualquer coisa preenchida.
+// da 2ª e com confirmação quando a ordem tem qualquer coisa preenchida.
 const props = defineProps<PropsBloco>();
 const emit = defineEmits<{ alterar: [mudancas: MudancasCompra] }>();
 
@@ -32,7 +32,6 @@ function adicionarOrdem(): void {
 }
 
 function pedirRemocao(ordem: OrdemCompra): void {
-  if (ordem.dirId !== null && ordem.dirId.trim() !== "") return; // já encaminhada: não se remove
   if (!ordemTemConteudo(ordem)) {
     remover(ordem.id);
     return;

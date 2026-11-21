@@ -9,7 +9,7 @@ import { itemTemConteudo, ordemTemConteudo, ordemVazia, itemVazio } from "../../
 import { dinheiroDoTexto, dinheiroParaTexto } from "../../app/utils/comprasDinheiro";
 import { compraTeste, clicar, digitar, escolherNoSelect, montarFormulario, q, qa, texto, type FormularioMontado } from "./helpers/formularioCompra";
 
-// O bloco Ordens e medicamentos no formulário REAL: cartões, linhas, chaves estáveis, remover, limites, ordem encaminhada, PO, dinheiro
+// O bloco Ordens e medicamentos no formulário REAL: cartões, linhas, chaves estáveis, remover, limites, PO, dinheiro
 // e somente leitura. Dados fictícios (TESTE).
 
 let montado: FormularioMontado | null = null;
@@ -250,7 +250,7 @@ describe("adicionar e remover (chaves estáveis: nunca o índice)", () => {
     await clicar("#compra-adicionar-ordem");
     const ordens = f.compra.value.ordens;
     expect(ordens).toHaveLength(2);
-    expect(ordens[1]).toMatchObject({ posicao: 2, fornecedor: "", dirId: null });
+    expect(ordens[1]).toMatchObject({ posicao: 2, fornecedor: "" });
     expect(ordens[1]!.itens).toHaveLength(1);
     expect(COMPRA_ID_RE.test(ordens[1]!.id)).toBe(true);
     expect(cartoes().map((c) => texto(c.querySelector("h3")))).toEqual(["Ordem 1", "Ordem 2"]);
@@ -318,26 +318,6 @@ describe("adicionar e remover (chaves estáveis: nunca o índice)", () => {
     expect(ordemTemConteudo(ordem("o", 2, [item("i", 1)]))).toBe(false);
     expect(itemTemConteudo(item("i", 1, { preCadastroId: "pre_1" }))).toBe(true);
     expect(itemTemConteudo(item("i", 1))).toBe(false);
-  });
-});
-
-describe("ordem já encaminhada para a DIR", () => {
-  it("etiqueta 'Encaminhada em dd/mm' (dia de BRASÍLIA) e 'Remover ordem' desabilitado com a dica", () => {
-    // 02h30 UTC de 20/11 ainda é 19/11 em Brasília.
-    abrir(compraTeste({ ordens: [ordem("ord_a", 1, [item("itm_a", 1)]), ordem("ord_b", 2, [item("itm_b", 1)], { dirId: "dir_1", encaminhadaEm: "2026-11-20T02:30:00.000Z" })] }));
-    expect(texto(q("#ordem-ord_b-encaminhada"))).toBe("Encaminhada em 19/11");
-    const botao = q<HTMLButtonElement>("#ordem-ord_b-remover")!;
-    expect(botao.disabled).toBe(true);
-    expect(botao.title).toBe("Já encaminhada para a DIR");
-    expect(q("#ordem-ord_a-encaminhada")).toBeNull();
-  });
-
-  it("a ordem encaminhada continua editável (só a remoção é travada) e, sem data, a etiqueta é só 'Encaminhada'", async () => {
-    const f = abrir(compraTeste({ ordens: [ordem("ord_a", 1, [item("itm_a", 1)], { dirId: "dir_1", encaminhadaEm: null })] }));
-    expect(texto(q("#ordem-ord_a-encaminhada"))).toBe("Encaminhada");
-    await digitar("#item-itm_a-apresentacao", "AINDA EDITA");
-    expect(f.compra.value.ordens[0]!.itens[0]!.apresentacao).toBe("AINDA EDITA");
-    expect(f.compra.value.ordens[0]!.dirId).toBe("dir_1"); // o dir_id é preservado no estado
   });
 });
 

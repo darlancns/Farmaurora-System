@@ -9,7 +9,7 @@ import { campoDoItem } from "../../app/utils/comprasCampos";
 import { montarCompraParaChecklist, montarItem, type ItemRow } from "../../server/utils/compraMappers";
 import { compraTeste, montarFormulario, q, texto, type FormularioMontado } from "./helpers/formularioCompra";
 import { FakeSupabase } from "./helpers/fakeSupabase";
-import { compraTeste as compraCompleta } from "./helpers/encaminharFixtures";
+import { compraTeste as compraCompleta } from "./helpers/compraCompletaFixtures";
 
 // O aviso de PRÉ-CADASTRO REJEITADO (aviso, não erro) no checklist e na linha do medicamento, e o item APROVADO que deixa de mostrar o aviso de
 // pré-cadastro. Mapeador, checklist, leitura da compra (Supabase simulado) e a linha real do formulário. Dados fictícios (TESTE).
@@ -68,7 +68,7 @@ describe("mapeador: o pré-cadastro que o item MOSTRA", () => {
 
   it("a checagem da LISTA também esconde o pré-cadastro de item já ligado ao Cadastro", () => {
     const row = { id: "c", ano_mes: "2026-11", sequencia: 1, cancelada: false, paciente: "TESTE", processo_numero: "", compra_particular: true, medico: "Dr", vendedor: "v", responsavel: "r", despachante: "d", pagamento_momento: null, local_aplicacao: "", entrega: "", documentos: null, updated_at: ANTIGA };
-    const checagem = montarCompraParaChecklist(row, [{ id: "ord_1", compra_id: "c", posicao: 1, fornecedor: "f", envio: "e", po: "", dir_id: null, encaminhada_em: null }], [linhaItem({ medicamento_cadastro_id: "med_1", pre_cadastro_id: "pre_1" })]);
+    const checagem = montarCompraParaChecklist(row, [{ id: "ord_1", compra_id: "c", posicao: 1, fornecedor: "f", envio: "e", po: "" }], [linhaItem({ medicamento_cadastro_id: "med_1", pre_cadastro_id: "pre_1" })]);
     expect(checagem.ordens[0]!.itens[0]).toMatchObject({ preCadastroId: null, medicamentoCadastroId: "med_1" });
   });
 });

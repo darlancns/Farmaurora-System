@@ -63,7 +63,7 @@ function mundo(inicial: Compra[], agora = "2026-11-19T15:00:00Z") {
     listar: vi.fn(async (p: { anoMes: string; status: StatusDaCompra | null; incluirCanceladas: boolean; pagina: number }): Promise<ListaCompras> => {
       chamadas.push(`lista:${p.anoMes}`);
       const itens = [...banco.values()].filter((c) => c.anoMes === p.anoMes).map((c) => itemDaLista({ ...c, atualizadoEm: c.updatedAt })).sort((a, b) => b.sequencia - a.sequencia);
-      const totais: TotaisPorStatus = { rascunho: 0, pronta: 0, parcial: 0, encaminhada: 0, cancelada: 0 };
+      const totais: TotaisPorStatus = { rascunho: 0, pronta: 0, cancelada: 0 };
       for (const i of itens) totais[i.status] += 1;
       const casam = itens.filter((i) => (p.status !== null ? i.status === p.status : p.incluirCanceladas || i.status !== "cancelada"));
       return { anoMes: p.anoMes, compras: casam.slice(0, 50), status: p.status, pagina: p.pagina, limite: 50, temMais: casam.length > 50, total: casam.length, totais };
@@ -324,7 +324,7 @@ describe("+ Nova compra", () => {
     expect(p.lista.totais.value.rascunho).toBe(2);
     const ordens = p.editor.compra.value!.ordens;
     expect(ordens).toHaveLength(1);
-    expect(ordens[0]).toMatchObject({ posicao: 1, fornecedor: "", envio: "", po: "", dirId: null });
+    expect(ordens[0]).toMatchObject({ posicao: 1, fornecedor: "", envio: "", po: "" });
     expect(ordens[0]!.itens).toHaveLength(1);
     expect(ordens[0]!.itens[0]).toMatchObject({ posicao: 1, medicamento: "", quantidade: "" });
     expect(foco).toHaveBeenCalledTimes(1);

@@ -61,8 +61,6 @@ const ordemRow = (extra: Partial<OrdemRow> = {}): OrdemRow => ({
   po: "PO26-11-0001",
   frete: "150.00",
   frete_real: null,
-  dir_id: null,
-  encaminhada_em: null,
   ...extra,
 });
 
@@ -168,15 +166,13 @@ describe("itens e ordens", () => {
 
   it("a ordem converte frete e frete real, e os itens saem por posição", () => {
     const o = montarOrdem(ordemRow({ frete: "150.00", frete_real: "140.50" }), [itemRow({ id: "b", posicao: 2 }), itemRow({ id: "a", posicao: 1 })]);
-    expect(o).toMatchObject({ id: "ord_1", frete: 150, freteReal: 140.5, dirId: null, encaminhadaEm: null });
+    expect(o).toMatchObject({ id: "ord_1", frete: 150, freteReal: 140.5 });
     expect(o.itens.map((i) => i.id)).toEqual(["a", "b"]);
   });
 
-  it("frete '0.00' é zero e frete null é null; encaminhada_em vira ISO com Z e dir_id é preservado", () => {
+  it("frete '0.00' é zero e frete null é null", () => {
     expect(montarOrdem(ordemRow({ frete: "0.00" }), []).frete).toBe(0);
     expect(montarOrdem(ordemRow({ frete: null }), []).frete).toBeNull();
-    const o = montarOrdem(ordemRow({ dir_id: "dir_9", encaminhada_em: "2026-11-19T15:00:00+00:00" }), []);
-    expect(o).toMatchObject({ dirId: "dir_9", encaminhadaEm: "2026-11-19T15:00:00.000Z" });
   });
 });
 
@@ -239,17 +235,17 @@ describe("a compra", () => {
     expect(ordens).toEqual(copia);
   });
 
-  it("item da lista: só o necessário, com o total de ordens e quantas já foram encaminhadas (por dir_id)", () => {
+  it("item da lista: só o necessário, com o total de ordens", () => {
     const l = montarCompraDaLista(
       compraRow(),
-      [ordemRow({ id: "o1" }), ordemRow({ id: "o2", posicao: 2, encaminhada_em: "2026-11-19T15:00:00+00:00", dir_id: "dir_1" })],
+      [ordemRow({ id: "o1" }), ordemRow({ id: "o2", posicao: 2 })],
       [],
     );
-    expect(l).toMatchObject({ id: "cmp_1", anoMes: "2026-11", sequencia: 7, totalOrdens: 2, totalOrdensEncaminhadas: 1, atualizadoEm: "2026-11-19T12:30:15.250Z" });
+    expect(l).toMatchObject({ id: "cmp_1", anoMes: "2026-11", sequencia: 7, totalOrdens: 2, atualizadoEm: "2026-11-19T12:30:15.250Z" });
     expect(Object.keys(l).sort()).toEqual(
-      ["anoMes", "atualizadoEm", "cancelada", "id", "medicamentos", "paciente", "pendencias", "sequencia", "status", "totalOrdens", "totalOrdensEncaminhadas"].sort(),
+      ["anoMes", "atualizadoEm", "cancelada", "id", "medicamentos", "paciente", "pendencias", "sequencia", "status", "totalOrdens"].sort(),
     );
-    expect(montarCompraDaLista(compraRow(), [], [])).toMatchObject({ totalOrdens: 0, totalOrdensEncaminhadas: 0 });
+    expect(montarCompraDaLista(compraRow(), [], [])).toMatchObject({ totalOrdens: 0 });
   });
 
   it("os nomes dos medicamentos: únicos, na ordem das ordens e dos itens (por posição), sem vazios", () => {
@@ -269,11 +265,9 @@ describe("a compra", () => {
 });
 
 describe("modelo → linha", () => {
-  it("a linha de uma ordem NÃO tem dir_id nem encaminhada_em (um upsert os preserva) e arredonda o frete", () => {
+  it("a linha de uma ordem arredonda o frete", () => {
     const linha = linhaDeOrdem("cmp_1", 2, { id: "ord_9", fornecedor: "F", envio: "E", cia: "C", po: "", frete: 10.1, freteReal: null });
     expect(linha).toEqual({ id: "ord_9", compra_id: "cmp_1", posicao: 2, fornecedor: "F", envio: "E", cia: "C", po: "", frete: 10.1, frete_real: null });
-    expect(Object.keys(linha)).not.toContain("dir_id");
-    expect(Object.keys(linha)).not.toContain("encaminhada_em");
   });
 
   it("a linha de um item leva a posição, a ordem e os valores (null quando vazios)", () => {

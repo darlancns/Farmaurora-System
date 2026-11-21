@@ -8,7 +8,7 @@ import { checklistCompra } from "../../shared/utils/compraChecklist";
 import { courierSimplesDasOrdens, itemVazio, ordemVazia } from "../../shared/utils/compraForm";
 import CompraColunaDireita from "../../app/components/compras/CompraColunaDireita.vue";
 import CompraFormulario from "../../app/components/compras/CompraFormulario.vue";
-import { campoDoItem, CAMPOS_SIMPLES, linhaMaisLongaDaOrdem, REGRAS_SEM_ALVO } from "../../app/utils/comprasCampos";
+import { campoDoItem, CAMPOS_SIMPLES, linhaMaisLongaDaOrdem } from "../../app/utils/comprasCampos";
 import { acharCampo, DURACAO_DESTAQUE_MS, irParaCampoComAba, rolarEFocar } from "../../app/utils/comprasFoco";
 import { OPCOES_VAZIAS } from "../../app/utils/comprasBlocos";
 import { compraTeste } from "./helpers/formularioCompra";
@@ -38,20 +38,18 @@ const ordem = (id: string, posicao: number, itens: ItemCompra[], extra: Partial<
 
 describe("o mapa único do checklist para os campos", () => {
   const PLANAS = [REGRAS_CHECKLIST.paciente, REGRAS_CHECKLIST.processo, REGRAS_CHECKLIST.medico, REGRAS_CHECKLIST.vendedor, REGRAS_CHECKLIST.responsavel, REGRAS_CHECKLIST.ordens, REGRAS_CHECKLIST.despachante, REGRAS_CHECKLIST.pagamentoMomento, REGRAS_CHECKLIST.localAplicacao, REGRAS_CHECKLIST.entrega, REGRAS_CHECKLIST.documentos];
-  const DE_ORDEM = [REGRAS_CHECKLIST.fornecedor, REGRAS_CHECKLIST.envio, REGRAS_CHECKLIST.po, REGRAS_CHECKLIST.poNaDir, REGRAS_CHECKLIST.medicamentos, REGRAS_CHECKLIST.textoDir];
+  const DE_ORDEM = [REGRAS_CHECKLIST.fornecedor, REGRAS_CHECKLIST.envio, REGRAS_CHECKLIST.po, REGRAS_CHECKLIST.medicamentos, REGRAS_CHECKLIST.textoDir];
   const DE_MEDICAMENTO = [REGRAS_CHECKLIST.medNome, REGRAS_CHECKLIST.medTemperatura, REGRAS_CHECKLIST.medQuantidade, REGRAS_CHECKLIST.preCadastro];
   const compra = compraTeste({ ordens: [ordem("o1", 1, [item("i1", 1, { medicamento: "A" })])] });
 
-  it("TODA regra de REGRAS_CHECKLIST tem alvo ou está na lista de exceções (uma regra nova sem alvo quebra este teste)", () => {
-    const classificadas = new Set<string>([...PLANAS, ...DE_ORDEM, ...DE_MEDICAMENTO, ...REGRAS_SEM_ALVO]);
+  it("TODA regra de REGRAS_CHECKLIST tem alvo (uma regra nova sem alvo quebra este teste)", () => {
+    const classificadas = new Set<string>([...PLANAS, ...DE_ORDEM, ...DE_MEDICAMENTO]);
     const todas = Object.values(REGRAS_CHECKLIST);
     const semDestino = todas.filter((r) => !classificadas.has(r));
     expect(semDestino, `regras do checklist sem alvo nem exceção: ${semDestino.join(", ")}`).toEqual([]);
-    expect(REGRAS_SEM_ALVO).toEqual(["encaminhada"]);
     for (const r of PLANAS) expect(campoDoItem(r, compra), r).not.toBeNull();
     for (const r of DE_ORDEM) expect(campoDoItem(`ordem-1-${r}`, compra), r).not.toBeNull();
     for (const r of DE_MEDICAMENTO) expect(campoDoItem(`ordem-1-med-1-${r}`, compra), r).not.toBeNull();
-    expect(campoDoItem("ordem-1-encaminhada", compra)).toBeNull(); // só existe como 'ok'
   });
 
   it("os campos simples têm data-campo igual ao id do checklist", () => {
@@ -68,9 +66,8 @@ describe("o mapa único do checklist para os campos", () => {
     for (const r of ["nome", "temperatura", "quantidade"]) expect(campoDoItem(`ordem-2-med-3-${r}`, compra)).toBe(`ordem-2-med-3-${r}`);
   });
 
-  it("med-M-pre-cadastro vai para o campo Medicamento da linha; po-na-dir para o PO da ordem", () => {
+  it("med-M-pre-cadastro vai para o campo Medicamento da linha", () => {
     expect(campoDoItem("ordem-2-med-3-pre-cadastro", compra)).toBe("ordem-2-med-3-nome");
-    expect(campoDoItem("ordem-4-po-na-dir", compra)).toBe("ordem-4-po");
   });
 
   it("texto-dir vai para a linha do medicamento MAIS LONGA da ordem (o 1º em empate); sem itens, para o '+ Adicionar medicamento'", () => {

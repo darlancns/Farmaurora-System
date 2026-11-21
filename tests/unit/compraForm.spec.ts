@@ -53,9 +53,9 @@ describe("ordem e item vazios", () => {
     });
   });
 
-  it("a ordem nasce vazia com UM item vazio, sem dir_id e sem data de encaminhamento", () => {
+  it("a ordem nasce vazia com UM item vazio", () => {
     const o = ordemVazia(2);
-    expect(o).toMatchObject({ posicao: 2, fornecedor: "", envio: "", cia: "", po: "", frete: null, freteReal: null, dirId: null, encaminhadaEm: null });
+    expect(o).toMatchObject({ posicao: 2, fornecedor: "", envio: "", cia: "", po: "", frete: null, freteReal: null });
     expect(o.itens).toHaveLength(1);
     expect(o.itens[0]!.posicao).toBe(1);
     expect(o.itens[0]!.id).not.toBe(ordemVazia(2).itens[0]!.id);

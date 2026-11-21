@@ -43,8 +43,6 @@ export function ordemVazia(posicao: number): OrdemCompra {
     po: "",
     frete: null,
     freteReal: null,
-    dirId: null,
-    encaminhadaEm: null,
     itens: [itemVazio(1)],
   };
 }

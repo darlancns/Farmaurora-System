@@ -4,10 +4,8 @@ import { COMPRA_MAX_ITENS_POR_ORDEM } from "#shared/constants/compra";
 import { MODAIS_ENVIO } from "#shared/constants/processos";
 import type { ItemCompra, OrdemCompra } from "#shared/types/compra";
 import { chaveCadastro } from "#shared/utils/cadastroNome";
-import { diaDoEncaminhamento } from "#shared/utils/compraChecklist";
 import { itemVazio } from "#shared/utils/compraForm";
 import { campoDaOrdem } from "../../utils/comprasCampos";
-import { TEXTO_PO_ENCAMINHADO, TEXTO_REMOVER_ENCAMINHADA } from "../../utils/comprasEncaminhar";
 import type { AppSelectOption } from "../../types/appSelect";
 import type { OpcoesFormulario } from "../../utils/comprasBlocos";
 import { BOTAO_SECUNDARIO_CLASS } from "../../utils/comprasEstilos";
@@ -16,8 +14,7 @@ import AppSelect from "../AppSelect.vue";
 import CampoDinheiro from "./CampoDinheiro.vue";
 import CompraItemLinha from "./CompraItemLinha.vue";
 
-// O cartão de UMA ordem ("Ordem N"): Fornecedor, Envio, Cia. aérea, PO, Frete, Frete real e os medicamentos (CompraItemLinha). Cada
-// ordem vira uma linha da DIR com o seu PO. `v-for` das linhas com :key = id do item: remover o do meio nunca troca o valor digitado
+// O cartão de UMA ordem ("Ordem N"): Fornecedor, Envio, Cia. aérea, PO, Frete, Frete real e os medicamentos (CompraItemLinha). `v-for` das linhas com :key = id do item: remover o do meio nunca troca o valor digitado
 // em outra linha. Quem guarda o estado é o pai (BlocoOrdens): aqui só se avisa a ordem nova inteira (`atualizar`).
 const props = defineProps<{
   ordem: OrdemCompra;
@@ -36,8 +33,6 @@ const emit = defineEmits<{
 
 const idCampo = (nome: string): string => `ordem-${props.ordem.id}-${nome}`;
 const idDoItem = (itemId: string, nome: string): string => `item-${itemId}-${nome}`;
-const encaminhada = computed(() => props.ordem.dirId !== null && props.ordem.dirId.trim() !== "");
-const dia = computed(() => diaDoEncaminhamento(props.ordem.encaminhadaEm));
 const noLimite = computed(() => props.ordem.itens.length >= COMPRA_MAX_ITENS_POR_ORDEM);
 
 /** Select com "Selecione" + os itens; um valor que não está na lista (antigo, ou desativado depois) continua aparecendo. */
@@ -95,16 +90,12 @@ function aoDigitarPo(event: Event): void {
   <section :id="`ordem-${ordem.id}`" :data-campo="`ordem-${numero}`" data-ordem-cartao :aria-label="`Ordem ${numero}`" class="rounded-lg border border-hairline bg-paper-raised p-3.5">
     <header class="mb-3 flex flex-wrap items-center gap-2">
       <h3 class="text-[13px] font-semibold text-ink">Ordem {{ numero }}</h3>
-      <span v-if="encaminhada" :id="idCampo('encaminhada')" class="rounded-full bg-farm-blue-soft px-2 py-0.5 text-[11px] font-semibold text-farm-blue">
-        {{ dia ? `Encaminhada em ${dia}` : "Encaminhada" }}
-      </span>
       <span class="ml-auto" />
       <button
         v-if="podeRemover"
         :id="idCampo('remover')"
         type="button"
-        :disabled="desabilitado || encaminhada"
-        :title="encaminhada ? TEXTO_REMOVER_ENCAMINHADA : undefined"
+        :disabled="desabilitado"
         :class="BOTAO_SECUNDARIO_CLASS"
         @click="emit('remover')"
       >
@@ -136,13 +127,12 @@ function aoDigitarPo(event: Event): void {
           placeholder="PO26-11-0000"
           :class="INPUT_MONO_CLASS"
           :value="ordem.po"
-          :disabled="desabilitado || encaminhada"
+          :disabled="desabilitado"
           :aria-describedby="idCampo('po-apoio')"
           autocomplete="off"
           @input="aoDigitarPo"
         />
-        <!-- Ordem já encaminhada: o servidor trava o PO (a linha da DIR foi criada com ele); só se altera na DIR. -->
-        <p :id="idCampo('po-apoio')" class="mt-1 text-[11px] text-ink-soft">{{ encaminhada ? TEXTO_PO_ENCAMINHADO : "Pode ficar para depois." }}</p>
+        <p :id="idCampo('po-apoio')" class="mt-1 text-[11px] text-ink-soft">Pode ficar para depois.</p>
       </div>
       <div>
         <label :for="idCampo('frete')" :class="LABEL_CLASS">Frete (US$)</label>

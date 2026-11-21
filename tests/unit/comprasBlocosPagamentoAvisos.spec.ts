@@ -106,7 +106,7 @@ describe("bloco Despachante", () => {
     expect(document.body.innerHTML.toLowerCase()).not.toMatch(/chave_?pix|\bpix\b/);
   });
 
-  const ordem = (id: string, envio: string) => ({ id, posicao: 1, fornecedor: "", envio, cia: "", po: "", frete: null, freteReal: null, dirId: null, encaminhadaEm: null, itens: [] });
+  const ordem = (id: string, envio: string) => ({ id, posicao: 1, fornecedor: "", envio, cia: "", po: "", frete: null, freteReal: null, itens: [] });
 
   it("TODAS as ordens Courier Simples: o campo some e aparece 'Dispensado: todas as ordens são Courier Simples'", () => {
     abrir(compraTeste({ courierSimples: true, ordens: [ordem("o1", "Courier Simples"), ordem("o2", "Courier Simples")] }), { opcoes: { despachantes } });

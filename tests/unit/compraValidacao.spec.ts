@@ -187,11 +187,9 @@ describe("ordens", () => {
     expect(erroDe(base({ ordens: [ordem({ itens: "x" })] }))).toMatch(/itens/);
   });
 
-  it("dirId e encaminhadaEm são aceitos e IGNORADOS (só o Encaminhar os grava); outra chave desconhecida é recusada", () => {
-    const v = valorDe(base({ ordens: [ordem({ dirId: "dir_forjado", encaminhadaEm: "2026-11-19T10:00:00Z" })] }));
-    expect(v.ordens![0]).not.toHaveProperty("dirId");
-    expect(v.ordens![0]).not.toHaveProperty("encaminhadaEm");
-    expect(JSON.stringify(v)).not.toContain("dir_forjado");
+  it("chave desconhecida na ordem ou no medicamento é recusada (dirId e encaminhadaEm inclusive)", () => {
+    expect(erroDe(base({ ordens: [ordem({ dirId: "dir_forjado" })] }))).toBe("Campo desconhecido (Ordem 1): dirId.");
+    expect(erroDe(base({ ordens: [ordem({ encaminhadaEm: "2026-11-19T10:00:00Z" })] }))).toBe("Campo desconhecido (Ordem 1): encaminhadaEm.");
     expect(erroDe(base({ ordens: [ordem({ posicao: 3 })] }))).toBe("Campo desconhecido (Ordem 1): posicao.");
     expect(erroDe(base({ ordens: [ordem({ itens: [item({ posicao: 2 })] })] }))).toBe("Campo desconhecido (Ordem 1, medicamento 1): posicao.");
     expect(erroDe(base({ ordens: [ordem({ itens: [item({ chavePix: "x" })] })] }))).toMatch(/chavePix/);

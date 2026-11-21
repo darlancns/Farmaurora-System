@@ -83,8 +83,6 @@ const compraCompleta = (extra: Partial<Compra> = {}): Compra => ({
       po: "PO26-11-0001",
       frete: null,
       freteReal: null,
-      dirId: null,
-      encaminhadaEm: null,
       itens: [{ id: "itm_1", posicao: 1, medicamento: "MED TESTE", medicamentoCadastroId: "med_1", preCadastroId: null, apresentacao: "10 mg", referencia: "", laboratorio: "", quantidade: "2 caixas", temperatura: "2°C a 8°C", valorUnitario: 5, valorReal: null }],
     },
   ],
@@ -230,14 +228,13 @@ describe("coluna direita", () => {
     expect(q("#compra-resumo-texto")!.textContent).toContain("Paciente: *Paciente Novo*");
   });
 
-  it("'Encaminhar para a DIR': secundário; sem as permissões (a coluna não as recebe) fica DESABILITADO com a razão ao lado (o resto está em comprasEncaminharBotao.spec.ts)", () => {
+  it("'Encaminhar para a DIR': secundário, sempre DESABILITADO, com a dica \"Em breve: depende da migração da DIR\"", () => {
     coluna(compraCompleta());
     const b = q<HTMLButtonElement>("#btn-encaminhar-dir")!;
     expect(b.disabled).toBe(true);
     expect(texto(b)).toBe("Encaminhar para a DIR");
     expect(b.className).not.toContain("bg-accent-dark");
-    expect(texto(q("#encaminhar-dir-aviso"))).toBe("Sem permissão para editar Compras");
-    expect(b.getAttribute("aria-describedby")).toBe("encaminhar-dir-aviso");
+    expect(b.getAttribute("title")).toBe("Em breve: depende da migração da DIR");
   });
 
   it("o 'Copiar resumo' não depende de permissão: está sempre habilitado (a coluna nem recebe a permissão)", () => {

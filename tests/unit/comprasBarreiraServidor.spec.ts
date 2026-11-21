@@ -38,7 +38,7 @@ vi.mock("../../server/utils/supabaseServerClient", () => ({
 
 import middleware from "../../server/middleware/auth";
 
-const CAMINHOS = ["/api/compras", "/api/compras/", "/api/compras/12", "/api/compras/12/encaminhar", "/api/compras/12/encaminhar-previa", "/api/compras/12?x=1", "/api/compras?mes=11"];
+const CAMINHOS = ["/api/compras", "/api/compras/", "/api/compras/12", "/api/compras/12/duplicar", "/api/compras/12/cancelar", "/api/compras/12?x=1", "/api/compras?mes=11"];
 const LEITURA = ["GET", "HEAD"] as const;
 const ESCRITA = ["POST", "PUT", "PATCH", "DELETE"] as const;
 

@@ -39,6 +39,8 @@ interface Semente {
   estado: StatusDaCompra;
   anoMes?: string;
   itensPorOrdem?: number;
+  /** Quantas ordens semear (padrão: 1 para 'pronta' e 0 para as outras). */
+  ordens?: number;
   nomeBase?: string;
 }
 
@@ -46,7 +48,7 @@ let contador = 0;
 
 function semearCompra(s: Semente): string {
   const id = `cmp_${String(++contador).padStart(6, "0")}`;
-  const pronta = s.estado === "pronta" || s.estado === "parcial" || s.estado === "encaminhada";
+  const pronta = s.estado === "pronta";
   fake.semear("compras", [
     {
       id,
@@ -82,11 +84,10 @@ function semearCompra(s: Semente): string {
     },
   ]);
 
-  // Uma ordem por compra (duas para o "parcial"); rascunho/cancelada ficam sem ordem.
-  const qtdOrdens = s.estado === "parcial" ? 2 : pronta ? 1 : 0;
+  // Uma ordem por compra (ou `ordens`); rascunho/cancelada ficam sem ordem.
+  const qtdOrdens = s.ordens ?? (pronta ? 1 : 0);
   for (let o = 1; o <= qtdOrdens; o++) {
     const ordemId = `ord_${id}_${o}`;
-    const encaminhada = s.estado === "encaminhada" || (s.estado === "parcial" && o === 1);
     fake.semear("compra_ordens", [
       {
         id: ordemId,
@@ -98,8 +99,6 @@ function semearCompra(s: Semente): string {
         po: `PO26-11-${String(s.sequencia * 10 + o).padStart(4, "0")}`,
         frete: SEGREDOS.frete,
         frete_real: SEGREDOS.freteReal,
-        dir_id: encaminhada ? `dir_${ordemId}` : null,
-        encaminhada_em: encaminhada ? "2026-11-19T15:00:00.000Z" : null,
       },
     ]);
     const itens = Array.from({ length: s.itensPorOrdem ?? 1 }, (_, i) => ({
@@ -133,8 +132,8 @@ const sequencias = (l: ListaCompras): number[] => l.compras.map((c) => c.sequenc
 // ── O formato ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 describe("o item da lista", () => {
-  it("formato exato: id, anoMes, sequencia, cancelada, paciente, medicamentos, totalOrdens, totalOrdensEncaminhadas, pendencias, status, atualizadoEm", async () => {
-    const id = semearCompra({ sequencia: 1, estado: "parcial", itensPorOrdem: 2 });
+  it("formato exato: id, anoMes, sequencia, cancelada, paciente, medicamentos, totalOrdens, pendencias, status, atualizadoEm", async () => {
+    const id = semearCompra({ sequencia: 1, estado: "pronta", ordens: 2, itensPorOrdem: 2 });
     const lista = await listarComprasDoMes("2026-11");
     expect(lista.compras).toEqual([
       {
@@ -145,9 +144,8 @@ describe("o item da lista", () => {
         paciente: "PACIENTE TESTE 1",
         medicamentos: ["MED 1-1-1", "MED 1-1-2", "MED 1-2-1", "MED 1-2-2"],
         totalOrdens: 2,
-        totalOrdensEncaminhadas: 1,
         pendencias: 0,
-        status: "parcial",
+        status: "pronta",
         atualizadoEm: "2026-11-19T12:00:00.000Z",
       },
     ]);
@@ -162,14 +160,14 @@ describe("o item da lista", () => {
   });
 
   it("a lista NÃO traz valores, contatos, endereços nem outros dados: nem o campo, nem o texto, em lugar nenhum da resposta", async () => {
-    for (const estado of ["pronta", "parcial", "encaminhada", "rascunho", "cancelada"] as const) semearCompra({ sequencia: ++contador, estado, itensPorOrdem: 2 });
+    for (const estado of ["pronta", "rascunho", "cancelada"] as const) semearCompra({ sequencia: ++contador, estado, itensPorOrdem: 2 });
     const lista = await listarComprasDoMes("2026-11", { incluirCanceladas: true });
     const texto = JSON.stringify(lista);
     for (const [campo, segredo] of Object.entries(SEGREDOS)) expect(texto, campo).not.toContain(segredo);
     expect(texto).not.toMatch(/DESPACHANTE TESTE|VENDEDOR TESTE|RESPONSAVEL TESTE|98765|87654|76543|65432/);
     const chaves = new Set(lista.compras.flatMap((c) => Object.keys(c)));
     expect([...chaves].sort()).toEqual(
-      ["anoMes", "atualizadoEm", "cancelada", "id", "medicamentos", "paciente", "pendencias", "sequencia", "status", "totalOrdens", "totalOrdensEncaminhadas"].sort(),
+      ["anoMes", "atualizadoEm", "cancelada", "id", "medicamentos", "paciente", "pendencias", "sequencia", "status", "totalOrdens"].sort(),
     );
     expect(Object.keys(lista).sort()).toEqual(["anoMes", "compras", "limite", "pagina", "status", "temMais", "totais", "total"]);
   });
@@ -249,20 +247,16 @@ describe("o mês e a ordem", () => {
 
 describe("filtro por estado", () => {
   beforeEach(() => {
-    // 1..3 rascunho, 4..7 pronta, 8..9 parcial, 10..15 encaminhada, 16..17 cancelada
+    // 1..3 rascunho, 4..7 pronta, 8..9 cancelada
     for (let n = 1; n <= 3; n++) semearCompra({ sequencia: n, estado: "rascunho" });
     for (let n = 4; n <= 7; n++) semearCompra({ sequencia: n, estado: "pronta" });
-    for (let n = 8; n <= 9; n++) semearCompra({ sequencia: n, estado: "parcial" });
-    for (let n = 10; n <= 15; n++) semearCompra({ sequencia: n, estado: "encaminhada" });
-    for (let n = 16; n <= 17; n++) semearCompra({ sequencia: n, estado: "cancelada" });
+    for (let n = 8; n <= 9; n++) semearCompra({ sequencia: n, estado: "cancelada" });
   });
 
   it.each([
     ["rascunho", [3, 2, 1]],
     ["pronta", [7, 6, 5, 4]],
-    ["parcial", [9, 8]],
-    ["encaminhada", [15, 14, 13, 12, 11, 10]],
-    ["cancelada", [17, 16]],
+    ["cancelada", [9, 8]],
   ] as const)("status=%s devolve só as dele, em sequencia desc", async (status, esperado) => {
     const lista = await listarComprasDoMes("2026-11", { status });
     expect(sequencias(lista)).toEqual(esperado);
@@ -272,12 +266,12 @@ describe("filtro por estado", () => {
 
   it("sem filtro: todas menos as canceladas", async () => {
     const lista = await listarComprasDoMes("2026-11");
-    expect(lista.total).toBe(15);
+    expect(lista.total).toBe(7);
     expect(lista.compras.some((c) => c.status === "cancelada")).toBe(false);
   });
 
   it("os totais por estado são do mês INTEIRO, iguais com qualquer filtro e em qualquer página", async () => {
-    const esperado = { rascunho: 3, pronta: 4, parcial: 2, encaminhada: 6, cancelada: 2 };
+    const esperado = { rascunho: 3, pronta: 4, cancelada: 2 };
     for (const opcoes of [{}, { status: "pronta" as const }, { status: "cancelada" as const }, { pagina: 2 }, { incluirCanceladas: true }, { limite: 2, pagina: 3 }]) {
       expect((await listarComprasDoMes("2026-11", opcoes)).totais, JSON.stringify(opcoes)).toEqual(esperado);
     }
@@ -366,8 +360,8 @@ describe("validarConsultaListaCompras", () => {
     expect(validarConsultaListaCompras({}, "2026-11")).toEqual({ ok: true, valor: { anoMes: "2026-11", status: null, incluirCanceladas: false, pagina: 1 } });
   });
 
-  it("aceita os 5 estados, a página e ?incluir_canceladas=1", () => {
-    for (const s of ["rascunho", "pronta", "parcial", "encaminhada", "cancelada"]) expect(validarConsultaListaCompras({ status: s }, "2026-11")).toMatchObject({ ok: true, valor: { status: s } });
+  it("aceita os 3 estados, a página e ?incluir_canceladas=1", () => {
+    for (const s of ["rascunho", "pronta", "cancelada"]) expect(validarConsultaListaCompras({ status: s }, "2026-11")).toMatchObject({ ok: true, valor: { status: s } });
     expect(validarConsultaListaCompras({ ano_mes: "2026-10", pagina: "3", incluir_canceladas: "1" }, "2026-11")).toEqual({
       ok: true,
       valor: { anoMes: "2026-10", status: null, incluirCanceladas: true, pagina: 3 },
@@ -376,7 +370,7 @@ describe("validarConsultaListaCompras", () => {
   });
 
   it("status desconhecido, repetido ou com outra caixa; página 0, negativa, decimal ou texto; mês ruim → erro", () => {
-    for (const ruim of [{ status: "todas" }, { status: "PRONTA" }, { status: ["pronta", "parcial"] }, { status: 1 }, { pagina: "0" }, { pagina: "-1" }, { pagina: "1.5" }, { pagina: "x" }, { pagina: ["1", "2"] }, { ano_mes: "2026-13" }]) {
+    for (const ruim of [{ status: "todas" }, { status: "PRONTA" }, { status: "parcial" }, { status: "encaminhada" }, { status: ["pronta", "rascunho"] }, { status: 1 }, { pagina: "0" }, { pagina: "-1" }, { pagina: "1.5" }, { pagina: "x" }, { pagina: ["1", "2"] }, { ano_mes: "2026-13" }]) {
       expect(validarConsultaListaCompras(ruim, "2026-11").ok, JSON.stringify(ruim)).toBe(false);
     }
   });

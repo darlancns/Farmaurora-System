@@ -2,7 +2,7 @@
 import type { StatusDaCompra } from "#shared/constants/compra";
 import { CLASSE_STATUS_COMPRA, ROTULO_STATUS_COMPRA } from "../../utils/comprasEstilos";
 
-// O selo do estado da compra (Rascunho, Pronta, Parcial, Encaminhada, Cancelada). Só uma marca, sem ação.
+// O selo do estado da compra (Rascunho, Pronta, Cancelada). Só uma marca, sem ação.
 defineProps<{ status: StatusDaCompra }>();
 </script>
 

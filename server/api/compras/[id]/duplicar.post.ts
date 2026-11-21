@@ -7,7 +7,7 @@ import { exigirEscritaCompras } from "../../../utils/comprasAcesso";
 import { duplicarCompra, responderErroDeCompra } from "../../../utils/comprasStore";
 
 // Duplica a compra: uma NOVA compra com o próximo número do mês atual de Brasília, com os mesmos dados e as mesmas ordens e itens
-// (ids novos), sem po, dir_id, encaminhada_em nem cancelada. Só quem ESCREVE em Compras. 201 com a nova; 404 se a original não existe.
+// (ids novos), sem po nem cancelada. Só quem ESCREVE em Compras. 201 com a nova; 404 se a original não existe.
 export default defineEventHandler(async (event): Promise<Compra> => {
   const user: AuthUser | null | undefined = event.context.user;
   exigirEscritaCompras(user);

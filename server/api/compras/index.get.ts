@@ -6,7 +6,7 @@ import { exigirLeituraCompras } from "../../utils/comprasAcesso";
 import { anoMesDeBrasilia, listarComprasDoMes, responderErroDeCompra } from "../../utils/comprasStore";
 
 // Lista as compras de um mês para o painel esquerdo: `?ano_mes=AAAA-MM` (sem ele, o mês ATUAL de Brasília), `?status=` (rascunho,
-// pronta, parcial, encaminhada ou cancelada), `?pagina=` ("mostrar mais": 50 por vez, `temMais` diz se há outra página) e, só para as
+// pronta ou cancelada), `?pagina=` ("mostrar mais": 50 por vez, `temMais` diz se há outra página) e, só para as
 // canceladas junto das outras, `?incluir_canceladas=1`. Sem filtro, as canceladas ficam de fora. Quem LÊ Compras (administrador,
 // operacional, sócio; o mapa da conta decide). Cada compra vem só com o necessário para a linha (sem valores, contatos nem endereços;
 // o detalhe é GET /api/compras/:id) e a resposta traz os `totais` por estado do mês inteiro. Mais recente primeiro.
