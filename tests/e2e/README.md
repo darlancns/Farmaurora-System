@@ -4,6 +4,8 @@
 
 **Estado: escritos para o formulário ÚNICO (uma compra por fornecedor) e NÃO EXECUTADOS.** Foram conferidos só com `npx playwright test --list` (os testes aparecem e o TypeScript carrega). Nenhum rodou contra um navegador nem contra um banco, e nenhum seletor foi validado numa tela de verdade. Ao rodar pela primeira vez, espere ajustes de seletor e de tempo.
 
+**Ponto de sincronia do salvamento:** a tela NÃO mostra texto de "salvo". Os testes esperam `#compra-formulario[data-salvamento="salvo"]` (o atributo vai por `ocioso`, `pendente`, `salvando`, `salvo`, `erro` e `conflito`). O erro de salvamento aparece numa linha abaixo do cabeçalho (`#compra-salvamento-regiao`) e o conflito tem a faixa `#compra-faixa-conflito`.
+
 ### Onde rodar (importante)
 
 - **Só no Supabase LOCAL** (`supabase start`). O `playwright.config.ts` carrega `.env.e2e` (nunca o `.env`, que aponta para PRODUÇÃO) e a guarda em `tests/e2e/_guards/` aborta se a URL não for loopback (localhost, 127.0.0.1 ou [::1]).

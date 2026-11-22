@@ -126,7 +126,25 @@ Detalhes:
 | Pagamentos (lotes de banco, lançamentos, grupos) | Supabase Postgres — `pagamento_lotes_banco`, `pagamento_lancamentos_banco`, `pagamento_grupos` |
 | Chave PIX por despachante / transportadora | Lida dos Cadastros (`chave_pix` em `cadastro_despachantes` e `cadastro_transportadoras`), só leitura em Pagamentos; quem edita é o administrador, em Configurações → Cadastros. A tabela antiga `pagamento_pix_chaves` não é mais lida (a remover na etapa 3) |
 | Cadastros (Configurações → Cadastros) | Supabase Postgres — `cadastro_fornecedores`, `cadastro_despachantes`, `cadastro_transportadoras`, `cadastro_cias_aereas`, `cadastro_consultores`, `cadastro_temperaturas` e `cadastro_medicamentos`; todos leem a API, só o administrador escreve; remover é desativar (não há exclusão). O medicamento tem nome em MAIÚSCULAS (renomeável pelo administrador, sem propagação) e a temperatura é cópia do nome de uma temperatura **ativa**; o nome da temperatura não muda. A tela desenha as linhas só com a seção aberta, 50 por vez ("Mostrar mais") |
+| Compras (`/compras`) | Supabase Postgres — `compras` (UMA compra por fornecedor, com `numero_ordens` de 1 a 10), `compra_itens` (os medicamentos) e `pre_cadastro_medicamentos` (pedidos de cadastro de medicamento novo); ver "Compras" abaixo |
 | Anexos de paciente (invoice, câmbio, despachante, transporte, serviço) | **Supabase Storage** — bucket privado `attachments`, `<patientId>/<slot>.png` (ver "Anexos de prestação") |
+
+### Compras
+
+- **Modelo:** UMA compra por fornecedor. "Ordens" é só um número (`numeroOrdens`, 1 a 10); não há ordens como registros, PO na compra,
+  checklist nem status rascunho/pronta: a compra é **ativa** ou **cancelada**. O vendedor virou **Consultor** (a DIR e os Cadastros de
+  consultores continuam com `vendedor`). A numeração é por mês de Brasília ("Compra 05 - Novembro/2026").
+- **Tela:** a lista do mês (esquerda), o **formulário único** (meio: uma linha por tópico, na ordem do resumo, sem seções) e o
+  **resumo ao vivo** (direita). O resumo tem dois modos (`shared/utils/compraResumo.ts`): "modelo" (todos os rótulos, vazio = traço, é o que a
+  tela mostra) e "cópia" (o texto do WhatsApp, o que "Copiar resumo" copia). O formulário salva sozinho (debounce de 800 ms, com versão para
+  detectar conflito: 409). Nada de "salvo às": só aparece algo quando há falha de salvamento ou conflito.
+- **Medicamento:** um texto só (nome com a apresentação), com sugestões do Cadastro. O vínculo com o Cadastro continua enquanto o texto começa
+  com o nome do Cadastro (com limite de palavra); fora do Cadastro, o pedido de pré-cadastro é sempre explícito (botão "Pedir cadastro",
+  exige temperatura).
+- **Envio e DIR:** envio, cia aérea (por modal), brand e empresa usam as mesmas constantes do Follow-Up (`shared/constants/processos.ts`).
+  "Encaminhar para a DIR" fica visível e **desabilitado** ("Em breve: depende da migração da DIR").
+- **Testes:** `tests/unit/comprasBlocosOrdem.spec.ts` garante que a ordem das linhas do formulário é a do resumo;
+  `tests/unit/comprasArquitetura.spec.ts` garante que o código da tela antiga não volta. Os e2e estão em `tests/e2e/` e **não foram executados**.
 
 Todo acesso ao Postgres é feito com a **service role key** (sem RLS) — ver seção "Como
 funciona". `data/*.json` e `public/uploads/` (resíduo local de antes do Storage) estão no
