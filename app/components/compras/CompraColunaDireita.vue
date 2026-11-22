@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { Compra, DespachanteCadastroResumo } from "#shared/types/compra";
-import { compraParaResumoEntrada, montarResumo, resumoParaTexto } from "#shared/utils/compraResumo";
+import { compraParaResumoEntrada, montarResumo, montarResumoCompra } from "#shared/utils/compraResumo";
 import { useCopiarTexto } from "../../composables/useCopiarTexto";
 import { useToast } from "../../composables/useToast";
 import { BOTAO_PRIMARIO_CLASS, BOTAO_SECUNDARIO_CLASS } from "../../utils/comprasEstilos";
@@ -12,7 +12,7 @@ import CompraResumoPainel from "./CompraResumoPainel.vue";
 // que está na tela (sem esperar o salvamento): montarResumo é uma função pura compartilhada. O despachante do Cadastro (telefone, e-mail e
 // contato; NUNCA PIX) vem de GET /api/compras/opcoes, via a página.
 //
-// "Copiar resumo" copia o texto do modo "copia" (resumoParaTexto(montarResumo(e, "copia")): só as linhas com valor, "pendente ⏳" no local e na
+// "Copiar resumo" copia o texto do modo "copia" (montarResumoCompra = resumoParaTexto(montarResumo(e, "copia")): só as linhas com valor, "pendente ⏳" no local e na
 // entrega) e fica habilitado para quem só lê (copiar não altera dados).
 const props = defineProps<{
   compra: Compra;
@@ -27,7 +27,7 @@ const entrada = computed(() => compraParaResumoEntrada(props.compra, props.despa
 const modelo = computed(() => montarResumo(entrada.value, "modelo"));
 
 async function copiarResumo(): Promise<void> {
-  const ok = await copiar(resumoParaTexto(montarResumo(entrada.value, "copia")));
+  const ok = await copiar(montarResumoCompra(entrada.value));
   showToast(ok ? "Resumo copiado" : "Não foi possível copiar o resumo. Selecione o texto e copie manualmente.");
 }
 </script>

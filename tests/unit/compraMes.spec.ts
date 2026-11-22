@@ -4,7 +4,6 @@ import { compraParaResumoEntrada } from "../../shared/utils/compraResumo";
 import { compraVaziaDeTeste } from "./helpers/compraFixtures";
 import {
   anoMesAtualBrasilia,
-  anoMesDoInstante,
   anoMesValido,
   horaMinutoBrasilia,
   rotuloCurtoDaCompra,
@@ -27,8 +26,6 @@ describe("mês corrente de BRASÍLIA (nunca o do navegador)", () => {
   });
   it("às 21h de Brasília (00h UTC do dia seguinte) o mês ainda é o de Brasília", () => {
     expect(anoMesAtualBrasilia(new Date("2026-11-30T23:59:00-03:00"))).toBe("2026-11");
-    expect(anoMesDoInstante("2026-12-01T00:30:00-03:00")).toBe("2026-12");
-    expect(anoMesDoInstante("lixo")).toBe("");
   });
   it("sem argumento devolve um mês válido", () => {
     expect(anoMesValido(anoMesAtualBrasilia())).toBe(true);

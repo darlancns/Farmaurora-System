@@ -19,7 +19,6 @@ const props = defineProps<{
 
 defineSlots<{
   default(props: { item: ItemCompra; indice: number; idControle: string; nomeAcessivel: string | undefined; total: number }): unknown;
-  rodape?(): unknown;
 }>();
 
 const varios = computed(() => props.itens.length > 1);
@@ -41,6 +40,5 @@ const idControle = (item: ItemCompra): string => `compra-item-${item.id}-${props
         </div>
       </div>
     </div>
-    <slot name="rodape" />
   </CompraCampo>
 </template>

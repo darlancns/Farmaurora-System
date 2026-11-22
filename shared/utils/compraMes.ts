@@ -1,5 +1,5 @@
 import { TEXTOS_RESUMO } from "../constants/compraResumo";
-import { dataBrasiliaDe, hojeBrasilia } from "./dataBrasilia";
+import { hojeBrasilia } from "./dataBrasilia";
 
 // O mês da Compra no cliente e no servidor: tudo em BRASÍLIA (nunca o fuso do navegador). Funções puras.
 
@@ -19,11 +19,6 @@ export function anoMesValido(valor: unknown): valor is string {
 /** O mês corrente de BRASÍLIA ("AAAA-MM"). `agora` existe para testar. */
 export function anoMesAtualBrasilia(agora: Date = new Date()): string {
   return hojeBrasilia(agora).slice(0, 7);
-}
-
-/** O mês de BRASÍLIA de um instante ("AAAA-MM"); instante inválido devolve "". */
-export function anoMesDoInstante(instante: Date | string | number): string {
-  return dataBrasiliaDe(instante).slice(0, 7);
 }
 
 /** "2026-11" + n meses ("2026-12" com 1; "2026-10" com -1; vira o ano). Mês inválido devolve o próprio texto. */

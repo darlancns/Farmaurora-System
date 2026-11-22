@@ -83,7 +83,7 @@ const rede = (): TypeError => new TypeError("Failed to fetch");
 const erro500 = (): ApiError => new ApiError("Erro interno.", 500);
 
 function editor(s: ReturnType<typeof servidor>, extra: { somenteLeitura?: () => boolean; aoSalvar?: (c: Compra) => void } = {}) {
-  return useCompraEditor({ api: s.api, somenteLeitura: extra.somenteLeitura ?? (() => false), aoSalvar: extra.aoSalvar, agora: () => new Date("2026-11-19T19:22:00Z") });
+  return useCompraEditor({ api: s.api, somenteLeitura: extra.somenteLeitura ?? (() => false), aoSalvar: extra.aoSalvar });
 }
 
 async function abrir(s: ReturnType<typeof servidor>, extra: Parameters<typeof editor>[1] = {}) {
@@ -110,7 +110,6 @@ describe("debounce de 800 ms e o estado completo", () => {
     await avancar(1);
     expect(s.salvar).toHaveBeenCalledTimes(1);
     expect(e.estado.value).toBe("salvo");
-    expect(e.salvoEm.value).toEqual(new Date("2026-11-19T19:22:00Z"));
     expect(e.temPendencia.value).toBe(false);
   });
 
@@ -314,7 +313,7 @@ describe("409: alguém salvou antes (o único conflito é o de versão)", () => 
   it("o editor não expõe trava de PO/ordem nem estado de 'bloqueado': só as duas saídas do conflito de versão", () => {
     const e = editor(servidor());
     expect(Object.keys(e).sort()).toEqual(
-      ["alterar", "carregar", "carregarVersaoSalva", "compra", "definir", "esperandoClique", "estado", "flush", "manterMinhas", "mensagemErro", "salvoEm", "somenteLeituraAgora", "temPendencia", "tentarDeNovo"].sort(),
+      ["alterar", "carregar", "carregarVersaoSalva", "compra", "definir", "esperandoClique", "estado", "flush", "manterMinhas", "mensagemErro", "somenteLeituraAgora", "temPendencia", "tentarDeNovo"].sort(),
     );
   });
 

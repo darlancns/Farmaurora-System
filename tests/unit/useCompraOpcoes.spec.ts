@@ -8,7 +8,7 @@ import { ciasDoEnvio, OPCOES_VAZIAS, opcoesParaFormulario } from "../../app/util
 // vendedor), sem lista de cias aéreas nem de transportadoras do servidor — a cia vem do envio (CIAS_AEREAS_POR_MODAL). Dados fictícios (TESTE).
 
 const OPCOES: OpcoesCompra = {
-  fornecedores: [{ nome: "Fornecedor Teste", pais: "Alemanha", prazoAlertaDias: 30, semAlerta: false }],
+  fornecedores: [{ nome: "Fornecedor Teste" }],
   despachantes: [{ nome: "Despachante Teste", contatoNome: "Contato D", telefone: "11 90000-0000", email: "d@teste.com" }],
   consultores: [{ nome: "Dani" }, { nome: "Flávia" }],
   temperaturas: [{ nome: "2°C a 8°C" }],

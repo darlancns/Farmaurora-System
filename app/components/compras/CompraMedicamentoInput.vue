@@ -11,6 +11,7 @@ import {
   limparMedicamento,
   montarPedidoPreCadastro,
   nomeInicialParaOCadastro,
+  podeOferecerPreCadastro,
   PRE_CADASTRO_SEM_TEMPERATURA,
 } from "#shared/utils/compraMedicamento";
 import { ACOES_COMPRA_KEY, ACOES_VAZIAS } from "../../utils/comprasContexto";
@@ -58,7 +59,7 @@ const idDica = computed(() => `compra-item-${props.item.id}-pedir-dica`);
 const foraDoCadastro = computed(() => estaForaDoCadastro(props.item));
 const rejeitado = computed(() => props.item.preCadastroId !== null && props.item.preCadastroStatus === "rejeitado");
 const pendente = computed(() => props.item.preCadastroId !== null && !rejeitado.value);
-const podePedir = computed(() => foraDoCadastro.value && props.item.preCadastroId === null && !props.desabilitado);
+const podePedir = computed(() => podeOferecerPreCadastro(props.item) && !props.desabilitado);
 const semTemperatura = computed(() => props.item.temperatura.trim() === "");
 
 // O "nome para o cadastro" nasce do texto atual e o acompanha até a pessoa editar o campo; depois disso é dela.

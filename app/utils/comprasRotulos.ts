@@ -33,5 +33,3 @@ export const ROTULOS_DO_FORMULARIO = {
   entrega: "Entrega (Doctor/AJC)",
   contatos: "Contatos",
 } as const;
-
-export type LinhaDoFormulario = keyof typeof ROTULOS_DO_FORMULARIO;

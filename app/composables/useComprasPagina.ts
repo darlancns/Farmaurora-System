@@ -93,7 +93,6 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
     api: opcoes.apiCompra,
     somenteLeitura: () => !opcoes.podeEditar(),
     aoSalvar: (compra) => lista.aplicarCompra(compra),
-    agora: opcoes.agora,
   });
 
   // A URL acompanha o mês, a compra aberta e o filtro.

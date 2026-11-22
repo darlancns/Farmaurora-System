@@ -16,7 +16,7 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-const opcoes = (o: Record<string, unknown> = {}) => ({ fornecedores: [{ nome: "Fornecedor Teste A", pais: "", prazoAlertaDias: 30, semAlerta: false }, { nome: "Fornecedor Teste B", pais: "", prazoAlertaDias: 30, semAlerta: false }], ...o });
+const opcoes = (o: Record<string, unknown> = {}) => ({ fornecedores: [{ nome: "Fornecedor Teste A" }, { nome: "Fornecedor Teste B" }], ...o });
 const ultima = (m: FormularioMontado) => m.mudancas.at(-1)!;
 const opcoesDoSelect = () => qa<HTMLElement>("[role=option]").map((o) => texto(o));
 

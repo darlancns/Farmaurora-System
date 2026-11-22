@@ -44,15 +44,11 @@ export interface OpcoesCompraEditor {
   aoSalvar?: (compra: Compra) => void;
   debounceMs?: number;
   recuoMs?: readonly number[];
-  /** Relógio (testes). */
-  agora?: () => Date;
 }
 
 export interface CompraEditor {
   compra: Ref<Compra | null>;
   estado: Ref<EstadoSalvamento>;
-  /** Quando o último salvamento terminou. */
-  salvoEm: Ref<Date | null>;
   /** A mensagem do servidor quando ele recusou o salvamento (4xx). */
   mensagemErro: Ref<string | null>;
   /** Acabaram as tentativas automáticas (ou o erro não se repete sozinho): só o clique salva de novo. */
@@ -74,11 +70,9 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
   const api = opcoes.api ?? apiPadrao;
   const debounceMs = opcoes.debounceMs ?? DEBOUNCE_SALVAR_MS;
   const recuo = opcoes.recuoMs ?? RECUO_TENTATIVAS_MS;
-  const agora = opcoes.agora ?? ((): Date => new Date());
 
   const compra = ref<Compra | null>(null);
   const estado = ref<EstadoSalvamento>("ocioso");
-  const salvoEm = ref<Date | null>(null);
   const mensagemErro = ref<string | null>(null);
   const esperandoClique = ref(false);
   /** Mudou, não salvou? (contadores: `versao` sobe a cada mudança; `versaoSalva` é a do último PATCH que passou). */
@@ -171,7 +165,6 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
         tentativasAutomaticas = 0;
         esperandoClique.value = false;
         mensagemErro.value = null;
-        salvoEm.value = agora();
         opcoes.aoSalvar?.(salvo);
       } catch (e) {
         if (minhaGeracao !== geracao) return;
@@ -266,7 +259,6 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
   return {
     compra,
     estado,
-    salvoEm,
     mensagemErro,
     esperandoClique,
     somenteLeituraAgora,
