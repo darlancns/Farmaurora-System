@@ -42,7 +42,7 @@ export const COMPRA_BUSCA_MAX = 80;
 export const COMPRA_LISTA_POR_PAGINA = 50;
 
 /**
- * As pendências que viram chip no bloco Avisos do formulário (clique para marcar). O que se grava em `pendencias[]` é o RÓTULO do chip
+ * As pendências que viram chip na linha Pendente do formulário (clique para marcar). O que se grava em `pendencias[]` é o RÓTULO do chip
  * marcado (por isso o texto daqui é parte do dado: mudar um rótulo faz as compras antigas passarem a mostrar o texto no campo livre).
  */
 export const PENDENCIAS_PADRAO = [

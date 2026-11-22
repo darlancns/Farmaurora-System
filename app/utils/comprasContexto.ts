@@ -2,7 +2,7 @@ import type { InjectionKey } from "vue";
 import type { OpcaoBusca } from "../components/AppSearchSelect.vue";
 
 // As AÇÕES que as linhas do formulário precisam do servidor (medicamento com busca, pré-cadastro e temperatura nova). O formulário
-// as recebe da página e as oferece aos filhos por `provide`/`inject` (a linha de medicamento fica três níveis abaixo do bloco).
+// as recebe da página e as oferece aos filhos por `provide`/`inject` (o campo de medicamento fica vários níveis abaixo da casca do formulário).
 
 /** O resultado de pedir uma temperatura nova. `inativa` = já existe mas está desativada (nada é selecionado). */
 export type ResultadoTemperatura = { tipo: "criada" | "existente"; nome: string } | { tipo: "inativa" };

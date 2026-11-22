@@ -278,7 +278,7 @@ function linhaNova(id: string, agora: string, por: string, responsavel: string):
 }
 
 /**
- * Cria uma compra VAZIA (rascunho) com o próximo número do mês de Brasília: empresa FARMAURORA, uma ordem, sem medicamentos.
+ * Cria uma compra VAZIA com o próximo número do mês de Brasília: empresa FARMAURORA, numeroOrdens 1, sem medicamentos.
  * `responsavel` começa com o nome de quem criou. `agora` só existe para o teste escolher o instante.
  */
 export async function criarCompra(usuario: string, opcoes: { agora?: Date } = {}): Promise<Compra> {

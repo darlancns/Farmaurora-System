@@ -6,7 +6,7 @@ import { chaveCadastro, nomeEmMaiusculas } from "./cadastroNome";
 // (medicamentoCadastroId + o nome do Cadastro, só leitura); o texto pode ser COMPLETADO depois ("DIPIRONA" → "DIPIRONA 500 mg c/ 10")
 // sem perder o vínculo, mas se o começo do texto deixa de ser o nome do Cadastro, o vínculo desaparece (e com ele a temperatura que
 // veio do Cadastro). O item "fora do Cadastro" pode ser pedido ao pré-cadastro, mas SÓ por um pedido EXPLÍCITO (botão), com o "nome para
-// o cadastro" editável. Funções puras: a tela (E6) só aplica o que elas devolvem.
+// o cadastro" editável. Funções puras: a tela só aplica o que elas devolvem.
 
 type CampoDoVinculo = "medicamento" | "medicamentoCadastroId" | "medicamentoCadastroNome" | "preCadastroId" | "preCadastroStatus" | "temperatura";
 

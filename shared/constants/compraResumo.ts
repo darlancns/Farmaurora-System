@@ -16,8 +16,8 @@ export type BlocoDaCompra =
 
 /**
  * Os blocos NA ORDEM do resumo (cada um vira um parágrafo; a linha em branco entre eles é a única separação). É a FONTE ÚNICA da
- * ordem: o formulário da Compra (E6) importa ESTA mesma ordem para as seções, e a ordem das LINHAS dentro de cada bloco (a do
- * formulário: Medicamento, Laboratório, Brand, Quantidade, Ordens, Valor unitário...) está em shared/utils/compraResumo.ts.
+ * ordem dos blocos. A ordem das LINHAS (a mesma do formulário, conferida em comprasBlocosOrdem.spec.ts: Medicamento, Laboratório, Brand,
+ * Quantidade, Ordens, Valor unitário...) está em shared/utils/compraResumo.ts.
  *
  * `satisfies` barra um id que não existe; a conferência logo abaixo barra um id ESQUECIDO (não compila). Repetido, só o teste pega.
  */

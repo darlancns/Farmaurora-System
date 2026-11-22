@@ -25,7 +25,7 @@ export interface CompraOpcoes {
   /** Os consultores ativos (para o Consultor); vazio enquanto não carrega. */
   consultores: ComputedRef<Array<{ nome: string }>>;
   despachantes: ComputedRef<OpcoesCompra["despachantes"]>;
-  /** Tudo o que os blocos do formulário leem dos Cadastros (vazio enquanto não carrega). */
+  /** Tudo o que as linhas do formulário leem dos Cadastros (vazio enquanto não carrega). */
   paraFormulario: ComputedRef<OpcoesFormulario>;
   /** Lê as opções se ainda não leu (uma vez por sessão); `forcar` relê (o botão "Tentar de novo"). */
   carregar: (forcar?: boolean) => Promise<void>;

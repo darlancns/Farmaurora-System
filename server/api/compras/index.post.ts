@@ -5,7 +5,7 @@ import { nomeParaAuditoriaDir as nomeParaAuditoria } from "../../utils/dirAudito
 import { exigirEscritaCompras } from "../../utils/comprasAcesso";
 import { criarCompra, responderErroDeCompra } from "../../utils/comprasStore";
 
-// Cria uma compra VAZIA (rascunho) com o próximo número do mês de Brasília. Sem corpo: o `responsavel` começa com o nome de quem criou
+// Cria uma compra VAZIA com o próximo número do mês de Brasília. Sem corpo: o `responsavel` começa com o nome de quem criou
 // e `criado_por` é o usuário. Só quem ESCREVE em Compras (administrador e operacional; o sócio só lê). 201 com a compra.
 export default defineEventHandler(async (event): Promise<Compra> => {
   const user: AuthUser | null | undefined = event.context.user;
