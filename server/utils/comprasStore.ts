@@ -1,4 +1,3 @@
-import { createError } from "h3";
 import { COMPRA_LISTA_POR_PAGINA } from "../../shared/constants/compra";
 import { EMPRESAS_PROCESSO } from "../../shared/constants/processos";
 import type { Compra, CompraDaLista, CompraEstado, CamposCompraEditaveis, ItemCompraEstado, ListaCompras, StatusPreCadastro, TotaisDaLista } from "../../shared/types/compra";
@@ -18,6 +17,7 @@ import {
   type StatusDosPreCadastros,
 } from "./compraMappers";
 import { nomesDosMedicamentosDoCadastro } from "./comprasCatalogo";
+import { ComprasRegraError } from "./comprasErro";
 import { createSupabaseAdminClient } from "./supabaseServerClient";
 import { erro, randomId } from "./storeKit";
 
@@ -61,25 +61,6 @@ export const MENSAGEM_CONFLITO_VERSAO = "Esta compra foi alterada por outra pess
 export const MENSAGEM_COMPRA_CANCELADA = "Esta compra foi cancelada e não pode mais ser editada.";
 export const MENSAGEM_ID_DE_OUTRA_COMPRA = "Identificador já usado em outra compra.";
 export const MENSAGEM_REFERENCIA_INVALIDA = "Medicamento do Cadastro ou do pré-cadastro não encontrado.";
-
-/** Erro de regra das Compras (409 versão, 409 id alheio, 422 referência, 503 sem número). `data` vai na resposta (ex.: a versão atual). */
-export class ComprasRegraError extends Error {
-  constructor(
-    message: string,
-    readonly statusCode: number,
-    readonly data?: unknown,
-  ) {
-    super(message);
-    this.name = "ComprasRegraError";
-  }
-}
-
-export function responderErroDeCompra(e: unknown): never {
-  if (e instanceof ComprasRegraError) {
-    throw createError({ statusCode: e.statusCode, statusMessage: e.message, ...(e.data === undefined ? {} : { data: e.data }) });
-  }
-  throw e;
-}
 
 // ── Número e mês ─────────────────────────────────────────────────────────────────────────────────────────────
 

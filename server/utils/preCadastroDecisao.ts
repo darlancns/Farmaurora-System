@@ -15,7 +15,8 @@ import { validarAprovacaoPreCadastro } from "../../shared/utils/preCadastroAprov
 import { CadastroRegraError, criarCadastro } from "./cadastrosStore";
 import { instanteIso } from "./compraMappers";
 import { buscarMedicamentoPorNome } from "./comprasCatalogo";
-import { ComprasRegraError, subirVersaoDaCompra } from "./comprasStore";
+import { subirVersaoDaCompra } from "./comprasStore";
+import { ComprasRegraError } from "./comprasErro";
 import { createSupabaseAdminClient } from "./supabaseServerClient";
 import { erro } from "./storeKit";
 

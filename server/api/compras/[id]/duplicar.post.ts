@@ -4,7 +4,8 @@ import type { AuthUser } from "../../../../shared/types/auth";
 import { idDaCompraValido } from "../../../../shared/utils/compraValidacao";
 import { nomeParaAuditoriaDir as nomeParaAuditoria } from "../../../utils/dirAuditoria";
 import { exigirEscritaCompras } from "../../../utils/comprasAcesso";
-import { duplicarCompra, responderErroDeCompra } from "../../../utils/comprasStore";
+import { duplicarCompra } from "../../../utils/comprasStore";
+import { responderErroDeCompra } from "../../../utils/comprasErro";
 
 // Duplica a compra: uma NOVA compra com o próximo número do mês atual de Brasília, com os mesmos dados e os mesmos medicamentos
 // (ids novos), sem po nem cancelada. Só quem ESCREVE em Compras. 201 com a nova; 404 se a original não existe.

@@ -12,8 +12,8 @@ vi.mock("../../server/utils/supabaseServerClient", () => ({
 }));
 
 const store = await import("../../server/utils/comprasStore");
+const { ComprasRegraError } = await import("../../server/utils/comprasErro");
 const {
-  ComprasRegraError,
   MAX_TENTATIVAS_NUMERO,
   MENSAGEM_COMPRA_CANCELADA,
   MENSAGEM_CONFLITO_VERSAO,

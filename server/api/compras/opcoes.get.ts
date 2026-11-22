@@ -4,7 +4,7 @@ import type { AuthUser } from "../../../shared/types/auth";
 import { validarConsultaMedicamentos } from "../../../shared/utils/compraValidacao";
 import { exigirLeituraCompras } from "../../utils/comprasAcesso";
 import { listarOpcoesDeCompra } from "../../utils/comprasCatalogo";
-import { responderErroDeCompra } from "../../utils/comprasStore";
+import { responderErroDeCompra } from "../../utils/comprasErro";
 
 // As opções do formulário de Compras: só itens ATIVOS e só os campos necessários (fornecedores, despachantes,
 // consultores, temperaturas; envio, cia por modal e empresa são constantes, não vêm daqui) e UMA página de medicamentos (`?q=` busca, `?limite=` 1 a 100 — padrão 50 —, `?pagina=`).

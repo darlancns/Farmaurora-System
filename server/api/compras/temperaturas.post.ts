@@ -5,7 +5,7 @@ import { validarNovaTemperaturaCompra } from "../../../shared/utils/compraValida
 import { nomeParaAuditoriaDir as nomeParaAuditoria } from "../../utils/dirAuditoria";
 import { exigirEscritaCompras } from "../../utils/comprasAcesso";
 import { criarTemperaturaDeCompra } from "../../utils/comprasTemperatura";
-import { responderErroDeCompra } from "../../utils/comprasStore";
+import { responderErroDeCompra } from "../../utils/comprasErro";
 
 // Cria uma temperatura a partir da Compra: `{ nome }`. Só quem ESCREVE em Compras. Passa pelo store dos Cadastros (mesmas regras).
 // 201 `{ criada: true, item }` quando cria; 200 `{ criada: false, item }` quando o nome já existe e está ativo (nunca duplica);

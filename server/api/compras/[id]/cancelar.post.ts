@@ -4,7 +4,8 @@ import type { AuthUser } from "../../../../shared/types/auth";
 import { idDaCompraValido } from "../../../../shared/utils/compraValidacao";
 import { nomeParaAuditoriaDir as nomeParaAuditoria } from "../../../utils/dirAuditoria";
 import { exigirEscritaCompras } from "../../../utils/comprasAcesso";
-import { cancelarCompra, responderErroDeCompra } from "../../../utils/comprasStore";
+import { cancelarCompra } from "../../../utils/comprasStore";
+import { responderErroDeCompra } from "../../../utils/comprasErro";
 
 // Cancela a compra (cancelada = true; compra NUNCA é apagada). Idempotente. Só quem ESCREVE em Compras. 404 se não existe.
 export default defineEventHandler(async (event): Promise<Compra> => {

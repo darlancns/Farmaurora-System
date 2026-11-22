@@ -4,7 +4,7 @@ import type { AuthUser } from "../../../shared/types/auth";
 import { validarPreCadastroCompra } from "../../../shared/utils/compraValidacao";
 import { nomeParaAuditoriaDir as nomeParaAuditoria } from "../../utils/dirAuditoria";
 import { exigirEscritaCompras } from "../../utils/comprasAcesso";
-import { responderErroDeCompra } from "../../utils/comprasStore";
+import { responderErroDeCompra } from "../../utils/comprasErro";
 import { pedirPreCadastro } from "../../utils/preCadastroStore";
 
 // Pede o pré-cadastro de um medicamento que ainda não está no Cadastro: `{ nome, temperatura, compraId? }`. Só quem ESCREVE em

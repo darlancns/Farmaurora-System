@@ -3,7 +3,7 @@ import type { PreCadastroMedicamentoDTO } from "../../shared/utils/compraValidac
 import { chaveCadastro } from "../../shared/utils/cadastroNome";
 import { instanteIso } from "./compraMappers";
 import { buscarMedicamentoPorNome } from "./comprasCatalogo";
-import { ComprasRegraError } from "./comprasStore";
+import { ComprasRegraError } from "./comprasErro";
 import { createSupabaseAdminClient } from "./supabaseServerClient";
 import { erro, randomId } from "./storeKit";
 

@@ -10,7 +10,8 @@ vi.mock("../../server/utils/supabaseServerClient", () => ({
   createSupabaseAdminClient: () => fake.asClient(),
 }));
 
-const { ComprasRegraError, listarComprasDoMes } = await import("../../server/utils/comprasStore");
+const { listarComprasDoMes } = await import("../../server/utils/comprasStore");
+const { ComprasRegraError } = await import("../../server/utils/comprasErro");
 
 // ── Semeadura ─────────────────────────────────────────────────────────────────────────────────────────────────
 

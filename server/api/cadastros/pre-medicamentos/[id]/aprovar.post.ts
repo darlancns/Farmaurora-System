@@ -3,7 +3,7 @@ import type { AuthUser } from "../../../../../shared/types/auth";
 import type { RespostaDecisaoPreCadastro } from "../../../../../shared/types/PreCadastro";
 import { exigirAdministradorNosCadastros } from "../../../../utils/cadastroAcesso";
 import { nomeParaAuditoriaDir as nomeParaAuditoria } from "../../../../utils/dirAuditoria";
-import { responderErroDeCompra } from "../../../../utils/comprasStore";
+import { responderErroDeCompra } from "../../../../utils/comprasErro";
 import { aprovarPreCadastro } from "../../../../utils/preCadastroDecisao";
 
 // Aprova um pré-cadastro de medicamento: `{ nome?, temperatura?, vincularExistente? }` (tudo opcional). Cria o medicamento no Cadastro, liga os itens

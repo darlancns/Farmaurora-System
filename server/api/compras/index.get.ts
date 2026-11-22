@@ -3,7 +3,8 @@ import type { ListaCompras } from "../../../shared/types/compra";
 import type { AuthUser } from "../../../shared/types/auth";
 import { validarConsultaListaCompras } from "../../../shared/utils/compraValidacao";
 import { exigirLeituraCompras } from "../../utils/comprasAcesso";
-import { anoMesDeBrasilia, listarComprasDoMes, responderErroDeCompra } from "../../utils/comprasStore";
+import { anoMesDeBrasilia, listarComprasDoMes } from "../../utils/comprasStore";
+import { responderErroDeCompra } from "../../utils/comprasErro";
 
 // Lista as compras de um mês para o painel esquerdo: `?ano_mes=AAAA-MM` (sem ele, o mês ATUAL de Brasília), `?pagina=` ("mostrar mais": 50 por vez, `temMais` diz se há outra página) e, só para as
 // canceladas junto das outras, `?incluir_canceladas=1`. Sem ele, as canceladas ficam de fora. O `?status=` que existia deixou de existir

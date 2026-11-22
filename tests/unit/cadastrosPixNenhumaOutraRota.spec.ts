@@ -208,6 +208,7 @@ describe("a chave PIX dos Cadastros só sai por /api/cadastros", () => {
       "server/utils/compraMappers.ts",
       "server/utils/comprasAcesso.ts",
       "server/utils/comprasCatalogo.ts",
+      "server/utils/comprasErro.ts",
       "server/utils/comprasStore.ts",
       "server/utils/comprasTemperatura.ts",
       "server/utils/preCadastroStore.ts",

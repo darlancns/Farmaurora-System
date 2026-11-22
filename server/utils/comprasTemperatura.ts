@@ -1,7 +1,7 @@
 import type { RespostaTemperatura, RespostaTemperaturaInativa, TemperaturaCriada } from "../../shared/types/compra";
 import { chaveCadastro } from "../../shared/utils/cadastroNome";
 import { CadastroRegraError, criarCadastro, listarCadastro } from "./cadastrosStore";
-import { ComprasRegraError } from "./comprasStore";
+import { ComprasRegraError } from "./comprasErro";
 
 /**
  * Criar uma temperatura a partir da Compra (POST /api/compras/temperaturas). A criação NÃO é reescrita aqui: passa pelo store dos

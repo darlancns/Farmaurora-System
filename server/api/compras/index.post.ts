@@ -3,7 +3,8 @@ import type { Compra } from "../../../shared/types/compra";
 import type { AuthUser } from "../../../shared/types/auth";
 import { nomeParaAuditoriaDir as nomeParaAuditoria } from "../../utils/dirAuditoria";
 import { exigirEscritaCompras } from "../../utils/comprasAcesso";
-import { criarCompra, responderErroDeCompra } from "../../utils/comprasStore";
+import { criarCompra } from "../../utils/comprasStore";
+import { responderErroDeCompra } from "../../utils/comprasErro";
 
 // Cria uma compra VAZIA com o próximo número do mês de Brasília. Sem corpo: o `responsavel` começa com o nome de quem criou
 // e `criado_por` é o usuário. Só quem ESCREVE em Compras (administrador e operacional; o sócio só lê). 201 com a compra.

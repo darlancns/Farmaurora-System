@@ -4,7 +4,7 @@ import type { Compra, CompraEstado, ItemCompraEstado, OpcoesCompra, PaginaMedica
 import type { ConsultaMedicamentos } from "../../shared/utils/compraValidacao";
 import { chaveCadastro } from "../../shared/utils/cadastroNome";
 import { listarConsultoresAtivos } from "./consultoresCadastro";
-import { ComprasRegraError } from "./comprasStore";
+import { ComprasRegraError } from "./comprasErro";
 import { createSupabaseAdminClient } from "./supabaseServerClient";
 import { erro } from "./storeKit";
 

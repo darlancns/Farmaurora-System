@@ -5,7 +5,8 @@ import { idDaCompraValido, validarCompraSalvar } from "../../../shared/utils/com
 import { nomeParaAuditoriaDir as nomeParaAuditoria } from "../../utils/dirAuditoria";
 import { exigirEscritaCompras } from "../../utils/comprasAcesso";
 import { validarEstadoContraCadastros } from "../../utils/comprasCatalogo";
-import { responderErroDeCompra, salvarCompra } from "../../utils/comprasStore";
+import { salvarCompra } from "../../utils/comprasStore";
+import { responderErroDeCompra } from "../../utils/comprasErro";
 
 // O SALVAMENTO AUTOMÁTICO da compra (só quem ESCREVE em Compras). O corpo é o estado (ver shared/utils/compraValidacao.ts): validado aqui,
 // no servidor; `atualizadoEm` é a versão que o cliente viu. 400 corpo inválido; 404 não existe; 409 versão antiga (a resposta traz a

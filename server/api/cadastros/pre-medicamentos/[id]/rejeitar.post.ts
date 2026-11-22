@@ -3,7 +3,7 @@ import type { AuthUser } from "../../../../../shared/types/auth";
 import type { RespostaDecisaoPreCadastro } from "../../../../../shared/types/PreCadastro";
 import { exigirAdministradorNosCadastros } from "../../../../utils/cadastroAcesso";
 import { nomeParaAuditoriaDir as nomeParaAuditoria } from "../../../../utils/dirAuditoria";
-import { responderErroDeCompra } from "../../../../utils/comprasStore";
+import { responderErroDeCompra } from "../../../../utils/comprasErro";
 import { rejeitarPreCadastro } from "../../../../utils/preCadastroDecisao";
 
 // Rejeita um pré-cadastro de medicamento (sem corpo). NUNCA apaga a linha: marca `rejeitado` com quem decidiu e quando; os itens das compras
