@@ -101,3 +101,22 @@ describe("'vendedor' não existe na Compra (é Consultor)", () => {
     for (const arquivo of compra) expect(/vendedor/i.test(ler(arquivo)), rel(arquivo)).toBe(false);
   });
 });
+
+describe("módulos do servidor: sem ciclo comprasStore ↔ comprasCatalogo", () => {
+  it("o erro de regra vive em comprasErro.ts e quem o store importa (catálogo, erro) não importa o store de volta", () => {
+    const store = ler(join(RAIZ, "server/utils/comprasStore.ts"));
+    expect(store).toContain('from "./comprasErro"');
+    expect(store).not.toMatch(/export class ComprasRegraError/);
+    for (const dependencia of ["comprasCatalogo", "comprasErro"]) {
+      expect(store).toContain(`from "./${dependencia}"`);
+      const texto = ler(join(RAIZ, `server/utils/${dependencia}.ts`));
+      expect(/from "\.\/comprasStore"/.test(texto), `${dependencia} importa comprasStore (ciclo)`).toBe(false);
+    }
+    // comprasTemperatura e preCadastroStore também lançam o erro a partir do arquivo próprio, não do store.
+    for (const nome of ["comprasTemperatura", "preCadastroStore", "preCadastroDecisao"]) {
+      const texto = ler(join(RAIZ, `server/utils/${nome}.ts`));
+      expect(texto, nome).toContain('from "./comprasErro"');
+      expect(/import\s*\{[^}]*ComprasRegraError[^}]*\}\s*from "\.\/comprasStore"/.test(texto), `${nome}: ComprasRegraError vindo do store`).toBe(false);
+    }
+  });
+});
