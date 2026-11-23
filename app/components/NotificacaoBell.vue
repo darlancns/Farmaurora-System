@@ -5,7 +5,7 @@ import type { Notificacao } from "#shared/types/notificacao";
 import { podeResolverAlertaMandado } from "#shared/utils/mandadoPermissao";
 import { podeDarCienciaPrazoAnvisa } from "#shared/utils/avisoPrazoAnvisa";
 import { pastaLimpa, temPasta } from "#shared/utils/rotuloPasta";
-import { calcularNotificacoesFornecedor, type NotificacaoFornecedor } from "../utils/prazoFornecedor";
+import { calcularNotificacoesFornecedor, fornecedoresParaAlerta, type NotificacaoFornecedor } from "../utils/prazoFornecedor";
 import { calcularNotificacoesMandadoDoUsuario, type NotificacaoMandado } from "../utils/prazoMandado";
 import { calcularAvisosChegada, type AvisoChegadaSino } from "../utils/avisosChegada";
 import { calcularAvisosPrazoAnvisa, type AvisoPrazoAnvisaSino } from "../utils/avisosPrazoAnvisa";
@@ -13,6 +13,7 @@ import { totalDoBadgeSino } from "../utils/notificacoesPorTipo";
 import { criarAcoesSino } from "../utils/acoesSino";
 import { modoAlertasProcesso } from "../utils/modoAlertasProcesso";
 import { useAuth } from "../composables/useAuth";
+import { useCadastrosFollowUp } from "../composables/useCadastrosFollowUp";
 import { useProcessos } from "../composables/useProcessos";
 import { useNotificacoes } from "../composables/useNotificacoes";
 import { useChegadaAvisos } from "../composables/useChegadaAvisos";
@@ -61,6 +62,9 @@ const mostraAlertasProcesso = computed<boolean>(() => modoAlertas.value !== "nen
 const podeAgirNosAlertas = computed<boolean>(() => modoAlertas.value === "editar");
 
 const { processos, patchProcesso, fetchProcessos, darCienciaPrazoAnvisa, recarregarProcesso } = useProcessos();
+// O prazo do alerta de fornecedor vem do Cadastro de Fornecedores. Se a lista ainda não carregou, falhou ou veio vazia, o sino NÃO cai: usa a
+// tabela de reserva de prazoFornecedor.ts (a falha de carga é silenciosa aqui; quem avisa é a tela de Follow-Up).
+const { fornecedores: fornecedoresCadastro, fornecedoresCarregados, carregar: carregarCadastros } = useCadastrosFollowUp();
 const { fetchNotificacoes, marcarComoLida, recadosNaoLidos, contasNaoLidas, processosNaoLidos } = useNotificacoes();
 const { showToast } = useToast();
 const { vistos: chegadaVistos, vistosCarregados: chegadaVistosCarregados, fetchVistos: fetchChegadaVistos } =
@@ -72,7 +76,10 @@ onMounted(() => {
   // Busca a lista completa de processos só quando algum alerta de processo pode
   // aparecer (quem lê Processos e não é consultor) — evita um fetch inútil pra
   // quem nunca vê essas seções. Dedup de in-flight fica dentro de fetchProcessos().
-  if (mostraAlertasProcesso.value) fetchProcessos();
+  if (mostraAlertasProcesso.value) {
+    fetchProcessos();
+    void carregarCadastros();
+  }
   fetchNotificacoes();
   // As dispensas ("olhinho") são só do administrador.
   if (user.value?.role === "administrador") void fetchChegadaVistos();
@@ -80,7 +87,10 @@ onMounted(() => {
 
 // Permissão que passa a valer depois do carregamento inicial: começa a buscar os processos dos alertas.
 watch(mostraAlertasProcesso, (mostra) => {
-  if (mostra) void fetchProcessos();
+  if (mostra) {
+    void fetchProcessos();
+    void carregarCadastros();
+  }
 });
 
 // Cargo que chega depois do carregamento inicial (a conta é resolvida de forma assíncrona).
@@ -102,7 +112,9 @@ const buttonRef = ref<HTMLButtonElement | null>(null);
 const dismissedIds = reactive(new Set<string>());
 
 const notificacoesFornecedor = computed<NotificacaoFornecedor[]>(() =>
-  mostraAlertasProcesso.value ? calcularNotificacoesFornecedor(processos.value) : [],
+  mostraAlertasProcesso.value
+    ? calcularNotificacoesFornecedor(processos.value, undefined, fornecedoresParaAlerta(fornecedoresCarregados.value, fornecedoresCadastro.value))
+    : [],
 );
 const notificacoesFornecedorVisiveis = computed(() =>
   notificacoesFornecedor.value.filter((n) => !dismissedIds.has(n.processoId)),

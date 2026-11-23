@@ -1,4 +1,7 @@
+import { FORNECEDOR_NACIONAL } from "#shared/constants/processos";
+import type { FornecedorLido } from "#shared/types/Cadastro";
 import type { FornecedorProcesso, Processo, StatusProcesso } from "#shared/types/processo";
+import { mesmoNomeCadastro, rotuloFornecedorPagamento } from "#shared/utils/pagamentoCadastro";
 import { DATA_BR_RE, diferencaEmDias, hojeBrasilia, parseDataBR, somarDiasISO } from "#shared/utils/dataBrasilia";
 
 // parseDataBR mora em shared/utils/dataBrasilia.ts (o servidor também usa); continua exportado daqui.
@@ -6,15 +9,39 @@ export { parseDataBR };
 
 // Prazo em dias CORRIDOS a partir de datas.dataCompraPO (dia da compra = dia 0)
 // pra cobrar o fornecedor caso não haja sinal de envio (abertura de thread).
-// Qualquer fornecedor fora desta tabela (ex.: "Outro", "Upharm", ou um valor
-// legado sem sufixo de país como "Poros" sozinho) não tem prazo definido —
-// não gera alerta. Não inferir por aproximação de nome.
-const PRAZO_DIAS_POR_FORNECEDOR: Partial<Record<FornecedorProcesso, number>> = {
+//
+// A FONTE DO PRAZO é o Cadastro de Fornecedores (`prazoAlertaDias` e `semAlerta`; ver `prazoDoFornecedorNoCadastro`). Esta tabela é só a
+// RESERVA: vale enquanto a lista do Cadastro ainda não carregou, falhou ou veio vazia, para o sino nunca ficar sem os alertas de sempre
+// (Poros, Speciality, Beldimed e Pharyx). Qualquer fornecedor fora dela (ex.: "Outro", "Upharm", "Nacional", ou um valor legado sem
+// sufixo de país como "Poros" sozinho) não tem prazo definido — não gera alerta. Não inferir por aproximação de nome.
+const PRAZO_DIAS_RESERVA_POR_FORNECEDOR: Partial<Record<FornecedorProcesso, number>> = {
   "Poros - Turquia": 3,
   "Speciality - Índia": 3,
   "Beldimed - Bélgica": 7,
   "Pharyx - China": 10,
 };
+
+/**
+ * O prazo (dias corridos) do fornecedor pelo CADASTRO, ou undefined quando não há alerta. Casa o texto gravado no processo com o rótulo
+ * "Nome - País" do Cadastro (o que o formulário grava; mesma comparação sem acento nem caixa que o resto do app) e só o RÓTULO INTEIRO: um
+ * legado sem país ("Can Pharma") NÃO herda o prazo de "Can Pharma - China", então nenhum alerta novo aparece por aproximação de nome.
+ * Sem alerta: fornecedor que não está no Cadastro ("Outro", "Upharm"), `semAlerta` e prazo nulo. "Nacional" (compra no Brasil) NUNCA tem
+ * alerta, mesmo que alguém cadastre um fornecedor com esse nome. O Cadastro desativado continua valendo: o prazo é do processo que já existe.
+ */
+export function prazoDoFornecedorNoCadastro(fornecedor: string, fornecedores: readonly FornecedorLido[]): number | undefined {
+  if (mesmoNomeCadastro(fornecedor, FORNECEDOR_NACIONAL)) return undefined;
+  const item = fornecedores.find((f) => mesmoNomeCadastro(rotuloFornecedorPagamento(f), fornecedor));
+  if (!item || item.semAlerta || item.prazoAlertaDias === null) return undefined;
+  return item.prazoAlertaDias;
+}
+
+/**
+ * A lista de fornecedores do Cadastro em que o sino PODE confiar, ou null (usa a tabela de reserva): ainda não carregou, falhou ou veio
+ * vazia (o Cadastro sempre tem fornecedores; vazio quer dizer que algo não veio, não que ninguém tem prazo).
+ */
+export function fornecedoresParaAlerta(carregada: boolean, lista: readonly FornecedorLido[]): readonly FornecedorLido[] | null {
+  return carregada && lista.length > 0 ? lista : null;
+}
 
 // Só processos nestes status geram o alerta de prazo do fornecedor (cobrar o fornecedor só faz sentido
 // enquanto a compra ainda está sendo encaminhada). Fácil de alterar: é a única lista.
@@ -74,8 +101,11 @@ export interface NotificacaoFornecedor {
 // compra em si.
 export function calcularNotificacoesFornecedor(
   processos: Processo[],
-  hoje: Date = new Date()
+  hoje: Date = new Date(),
+  // Os fornecedores do Cadastro (prazoAlertaDias/semAlerta). Ausente, null ou vazia: vale a tabela de reserva (ver acima).
+  fornecedoresCadastro?: readonly FornecedorLido[] | null,
 ): NotificacaoFornecedor[] {
+  const usarCadastro = fornecedoresCadastro !== undefined && fornecedoresCadastro !== null && fornecedoresCadastro.length > 0;
   const hojeISO = hojeBrasilia(hoje);
   const notificacoes: NotificacaoFornecedor[] = [];
 
@@ -91,7 +121,9 @@ export function calcularNotificacoesFornecedor(
 
     const fornecedor = processo.fornecedor;
     if (!fornecedor) continue;
-    const prazoDias = PRAZO_DIAS_POR_FORNECEDOR[fornecedor as FornecedorProcesso];
+    const prazoDias = usarCadastro
+      ? prazoDoFornecedorNoCadastro(fornecedor, fornecedoresCadastro)
+      : PRAZO_DIAS_RESERVA_POR_FORNECEDOR[fornecedor as FornecedorProcesso];
     if (prazoDias === undefined) continue;
 
     const dataCompra = interpretarDataCompra(processo.datas.dataCompraPO, hoje);
