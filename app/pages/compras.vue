@@ -4,6 +4,7 @@ import { onBeforeRouteLeave } from "vue-router";
 import { useRoute, useRouter } from "#app";
 import CompraColunaDireita from "../components/compras/CompraColunaDireita.vue";
 import CompraFormulario from "../components/compras/CompraFormulario.vue";
+import CompraNovaDialogo from "../components/compras/CompraNovaDialogo.vue";
 import ComprasAbas from "../components/compras/ComprasAbas.vue";
 import ComprasListaPainel from "../components/compras/ComprasListaPainel.vue";
 import ConfirmDialog from "../components/ConfirmDialog.vue";
@@ -42,6 +43,9 @@ const { lista, editor } = pagina;
 
 // O que as linhas do formulário pedem ao servidor: busca de medicamento, pré-cadastro e temperatura nova.
 const acoes = useCompraAcoes({ opcoes, compraId: () => editor.compra.value?.id ?? null, avisar: (mensagem) => showToast(mensagem) });
+
+// O resumo (coluna direita) mostra o número que VALE no servidor: um Nº recusado (repetido) ainda digitado no campo não vai para ele.
+const compraDoResumo = computed(() => (editor.compra.value ? { ...editor.compra.value, sequencia: editor.sequenciaExibida.value } : null));
 
 // O despachante da compra no Cadastro (telefone, e-mail e contato; nunca PIX): o resumo o usa.
 const despachanteCadastro = computed(() => (editor.compra.value ? opcoes.despachantePeloNome(editor.compra.value.despachante) : null));
@@ -112,6 +116,8 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", antesDeFecharAA
           :estado="editor.estado.value"
           :mensagem-erro="editor.mensagemErro.value"
           :esperando-clique="editor.esperandoClique.value"
+          :erro-numero="editor.erroNumero.value"
+          :sequencia-exibida="editor.sequenciaExibida.value"
           :pode-editar="podeEditar"
           :opcoes="opcoes.paraFormulario.value"
           :acoes="acoes"
@@ -132,8 +138,8 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", antesDeFecharAA
 
       <aside id="compras-coluna-direita" :class="['min-w-0 lg:min-h-0 lg:overflow-y-auto lg:pb-10', classeDaColuna('direita', pagina.aba.value)]">
         <CompraColunaDireita
-          v-if="editor.compra.value"
-          :compra="editor.compra.value"
+          v-if="compraDoResumo"
+          :compra="compraDoResumo"
           :despachante-cadastro="despachanteCadastro"
         />
         <p v-else id="compras-direita-vazia" class="rounded-lg border border-hairline bg-paper-raised px-4 py-6 text-center text-[12.5px] text-ink-soft">
@@ -141,6 +147,18 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", antesDeFecharAA
         </p>
       </aside>
     </div>
+
+    <CompraNovaDialogo
+      v-if="pagina.dialogo.value"
+      :tipo="pagina.dialogo.value.tipo"
+      :rotulo-mes="pagina.dialogo.value.rotuloMes"
+      :sugestao="pagina.dialogo.value.sugestao"
+      :maior="pagina.dialogo.value.maior"
+      :erro="pagina.dialogo.value.erro"
+      :ocupado="pagina.dialogo.value.ocupado"
+      @confirmar="(numero) => pagina.confirmarDialogo(numero)"
+      @cancelar="pagina.cancelarDialogo()"
+    />
 
     <ConfirmDialog
       v-if="pagina.confirmandoCancelar.value"

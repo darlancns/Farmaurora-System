@@ -114,6 +114,8 @@ export interface TotaisDaLista {
 /** A resposta de GET /api/compras. */
 export interface ListaCompras {
   anoMes: string;
+  /** O MAIOR número do mês, contando TAMBÉM as canceladas (elas continuam ocupando o número); 0 com o mês vazio. É de onde sai a sugestão do próximo. */
+  maiorSequencia: number;
   compras: CompraDaLista[];
   /** Página (a partir de 1) e tamanho usados; há mais depois desta? */
   pagina: number;
@@ -147,6 +149,8 @@ export interface ItemCompraSalvarDTO {
  */
 export interface CompraSalvarDTO {
   atualizadoEm: string;
+  /** O Nº da compra (opcional: só vai quando é para conferir ou trocar o número). */
+  sequencia?: number;
   fornecedor?: string;
   envio?: string;
   cia?: string;
@@ -200,8 +204,10 @@ export interface ItemCompraEstado {
   valorReal: number | null;
 }
 
-/** Os campos da compra que o salvamento pode alterar (os de identificação, numeração e auditoria não entram). */
+/** Os campos da compra que o salvamento pode alterar (os de identificação e auditoria não entram; o Nº da compra entra, digitado). */
 export interface CamposCompraEditaveis {
+  /** O Nº da compra: digitado, de 1 a COMPRA_NUMERO_MAX, único dentro do mês (409 se repetir). */
+  sequencia: number;
   fornecedor: string;
   envio: string;
   cia: string;
@@ -340,4 +346,9 @@ export interface RespostaPreCadastro {
 export interface RespostaMedicamentoJaCadastrado {
   criado: false;
   medicamento: MedicamentoDoCadastro;
+}
+
+/** O corpo de POST /api/compras e de POST /api/compras/:id/duplicar: o Nº da compra, DIGITADO (o servidor nunca o gera). */
+export interface NovaCompraDTO {
+  sequencia: number;
 }

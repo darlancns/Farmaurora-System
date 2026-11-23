@@ -208,7 +208,8 @@ describe("handler (2ª camada), chamado direto sem o middleware: o mesmo quadro"
       // A compra do id existe, para que "permitido" não termine em 404 por outro motivo.
       const base = await criarCompraDireta();
       h.params = { id: base.id };
-      h.body = { atualizadoEm: base.updatedAt };
+      // Criar e duplicar pedem o Nº da compra digitado; as outras rotas, a versão. (Um corpo errado dá 400, nunca 401/403: a permissão vem antes.)
+      h.body = rota.metodo === "POST" && (rota.arquivo === "index.post.ts" || rota.arquivo.endsWith("duplicar.post.ts")) ? { sequencia: 90 } : { atualizadoEm: base.updatedAt };
       const status = await statusDe(chamar(rota, user));
       if (permitido) expect([401, 403], `${rota.metodo} ${rota.arquivo}`).not.toContain(status);
       else expect(status).toBe(user ? 403 : 401);
@@ -233,11 +234,26 @@ describe("handler (2ª camada), chamado direto sem o middleware: o mesmo quadro"
 
 const adm = usuario("administrador");
 
-async function criarCompraDireta(): Promise<Compra> {
+// O Nº da compra é DIGITADO: os testes que só precisam de uma compra usam números seguidos (1, 2, 3...) por conta do TESTE.
+let proximoNumero = 1;
+beforeEach(() => {
+  proximoNumero = 1;
+});
+
+async function criarCompraDireta(sequencia: number = proximoNumero++): Promise<Compra> {
   h.status = 0;
+  h.body = { sequencia };
   const c = await chamar<Compra>(criarPost, adm);
   h.status = 0;
+  h.body = {};
   return c;
+}
+
+/** Duplica a compra de `id` com o número digitado. */
+async function duplicarDireto(id: string, sequencia: number = proximoNumero++, user: AuthUser = adm): Promise<Compra> {
+  h.params = { id };
+  h.body = { sequencia };
+  return chamar<Compra>(duplicarPost, user);
 }
 
 /** As chaves do contrato da compra (GET, POST, PATCH, duplicar e cancelar devolvem exatamente isto). */
@@ -253,16 +269,71 @@ const CHAVES_DO_ITEM = [
 ];
 
 describe("POST /api/compras", () => {
-  it("201, rascunho vazio, responsável e criado_por = nome do usuário logado, empresa FARMAURORA, 1 ordem, sem itens, número 1 do mês", async () => {
+  it("201, rascunho vazio com o Nº DIGITADO, responsável e criado_por = nome do usuário logado, empresa FARMAURORA, 1 ordem, sem itens", async () => {
+    h.body = { sequencia: 14 };
     const c = await chamar<Compra>(criarPost, usuario("operacional"));
     expect(h.status).toBe(201);
-    expect(c).toMatchObject({ sequencia: 1, cancelada: false, paciente: "", responsavel: "Pessoa operacional", criadoPor: "Pessoa operacional", empresa: "FARMAURORA", numeroOrdens: 1, itens: [] });
-    expect((await chamar<Compra>(criarPost, adm)).sequencia).toBe(2);
+    expect(c).toMatchObject({ sequencia: 14, cancelada: false, paciente: "", responsavel: "Pessoa operacional", criadoPor: "Pessoa operacional", empresa: "FARMAURORA", numeroOrdens: 1, itens: [] });
+    h.body = { sequencia: 3 }; // fora de ordem: o servidor não gera nem corrige
+    expect((await chamar<Compra>(criarPost, adm)).sequencia).toBe(3);
   });
 
   it("a resposta tem exatamente as chaves do contrato (e nenhuma das que saíram)", async () => {
     const c = await criarCompraDireta();
     expect(Object.keys(c).sort()).toEqual([...CHAVES_DA_COMPRA].sort());
+  });
+
+  it.each([
+    ["sem corpo", {}],
+    ["corpo vazio", undefined],
+    ["número 0", { sequencia: 0 }],
+    ["número negativo", { sequencia: -3 }],
+    ["decimal", { sequencia: 1.5 }],
+    ["acima de 9999", { sequencia: 10000 }],
+    ["texto", { sequencia: "14" }],
+    ["null", { sequencia: null }],
+    ["vazio", { sequencia: "" }],
+    ["NaN", { sequencia: Number.NaN }],
+    ["Infinity", { sequencia: Number.POSITIVE_INFINITY }],
+    ["campo estranho junto", { sequencia: 14, cancelada: true }],
+    ["lista", [14]],
+  ])("400 com mensagem clara para o número inválido (%s) e NADA é criado", async (_nome, corpo) => {
+    h.body = corpo;
+    const e = await erroDe(chamar(criarPost, adm));
+    expect(e.status).toBe(400);
+    expect(e.msg).toMatch(/^Nº da compra|corpo|campo|inválid/i);
+    expect(fake.tabelas.compras).toHaveLength(0);
+  });
+
+  it("os limites passam: 1 e 9999", async () => {
+    expect((await criarCompraDireta(1)).sequencia).toBe(1);
+    expect((await criarCompraDireta(9999)).sequencia).toBe(9999);
+  });
+
+  it("número que já existe no mês: 409 com a mensagem amigável (e o código para a tela), sem criar nada; cancelada também ocupa o número", async () => {
+    const c = await criarCompraDireta(14);
+    h.params = { id: c.id };
+    h.body = { atualizadoEm: c.updatedAt, fornecedor: "Fornecedor Teste" };
+    const salvo = await chamar<Compra>(salvarPatch, adm);
+    h.body = { sequencia: 14 };
+    const e = await erroDe(chamar(criarPost, adm));
+    expect(e.status).toBe(409);
+    expect(e.msg).toBe("A Compra 14 de novembro já existe (Fornecedor Teste). Escolha outro número.");
+    expect(e.data).toMatchObject({ code: "NUMERO_JA_EXISTE", sequencia: 14 });
+    expect(fake.tabelas.compras).toHaveLength(1);
+
+    h.params = { id: salvo.id };
+    await chamar(cancelarPost, adm);
+    h.body = { sequencia: 14 };
+    expect((await erroDe(chamar(criarPost, adm))).status).toBe(409); // a cancelada continua ocupando
+  });
+
+  it("só quem ESCREVE cria: sócio e consultor levam 403, mesmo com um número válido (e nada é criado)", async () => {
+    for (const quem of [usuario("socio"), usuario("consultor"), usuario("socio", mapa("ver"))]) {
+      h.body = { sequencia: 21 };
+      expect(await statusDe(chamar(criarPost, quem))).toBe(403);
+    }
+    expect(fake.tabelas.compras).toHaveLength(0);
   });
 });
 
@@ -292,7 +363,7 @@ describe("GET /api/compras (lista)", () => {
     const c = await criarCompraDireta();
     h.query = { ano_mes: c.anoMes };
     const r = await chamar<Record<string, unknown>>(listaGet, adm);
-    expect(Object.keys(r).sort()).toEqual(["anoMes", "compras", "limite", "pagina", "temMais", "total", "totais"].sort());
+    expect(Object.keys(r).sort()).toEqual(["anoMes", "compras", "limite", "maiorSequencia", "pagina", "temMais", "total", "totais"].sort());
     expect(r).toMatchObject({ pagina: 1, limite: 50, temMais: false, total: 1, totais: { ativas: 1, canceladas: 0 } });
   });
 
@@ -373,7 +444,7 @@ describe("PATCH /api/compras/:id (autosave)", () => {
   it("corpo inválido → 400 e nada muda (inclusive as chaves que saíram do modelo e as só de leitura)", async () => {
     const c = await criarCompraDireta();
     const ruins = [
-      { campoNovo: 1 }, { paciente: 5 }, { itens: "x" }, { cancelada: true }, { sequencia: 99 },
+      { campoNovo: 1 }, { paciente: 5 }, { itens: "x" }, { cancelada: true }, { sequencia: 0 }, { sequencia: "99" }, { sequencia: 1.5 }, { sequencia: 10000 },
       { vendedor: "X" }, { ordens: [] }, { courierSimples: true }, { localDeclarado: true }, { isencaoPara: "X" }, { po: "PO26-11-0001" },
       { itens: [itemDe("itm_teste_01", { medicamentoCadastroNome: "X" })] }, { itens: [itemDe("itm_teste_01", { apresentacao: "10 mg" })] },
     ];
@@ -566,7 +637,7 @@ describe("recorrente pelas rotas", () => {
     const salvo = await chamar<Compra>(salvarPatch, adm);
     expect(salvo.recorrente).toBe(true);
     expect((await chamar<Compra>(detalheGet, usuario("socio"))).recorrente).toBe(true);
-    expect((await chamar<Compra>(duplicarPost, adm)).recorrente).toBe(true);
+    expect((await duplicarDireto(c.id)).recorrente).toBe(true);
     for (const ruim of ["true", 1, null]) {
       h.params = { id: c.id };
       h.body = { atualizadoEm: salvo.updatedAt, recorrente: ruim };
@@ -576,22 +647,87 @@ describe("recorrente pelas rotas", () => {
 });
 
 describe("POST /api/compras/:id/duplicar", () => {
-  it("201, nova compra com o próximo número, mesmos dados e medicamentos com ids novos; 404 se a original não existe", async () => {
-    const c = await criarCompraDireta();
+  it("201, nova compra com o número DIGITADO, mesmos dados e medicamentos com ids novos; 404 se a original não existe", async () => {
+    const c = await criarCompraDireta(5);
     h.params = { id: c.id };
     h.body = { atualizadoEm: c.updatedAt, paciente: "PACIENTE TESTE", fornecedor: "Fornecedor Teste", envio: "Air Cargo", numeroOrdens: 3, itens: [{ id: "itm_teste_01", medicamento: "MED TESTE", brand: "referencia" }] };
     await chamar(salvarPatch, adm);
     h.status = 0;
-    const copia = await chamar<Compra>(duplicarPost, usuario("operacional"));
+    const copia = await duplicarDireto(c.id, 40, usuario("operacional"));
     expect(h.status).toBe(201);
-    expect(copia).toMatchObject({ sequencia: 2, paciente: "PACIENTE TESTE", fornecedor: "Fornecedor Teste", envio: "Air Cargo", numeroOrdens: 3, cancelada: false, criadoPor: "Pessoa operacional" });
+    expect(copia).toMatchObject({ sequencia: 40, paciente: "PACIENTE TESTE", fornecedor: "Fornecedor Teste", envio: "Air Cargo", numeroOrdens: 3, cancelada: false, criadoPor: "Pessoa operacional" });
+    expect(copia.sequencia).not.toBe(c.sequencia); // o número da original nunca é copiado
     expect(copia.id).not.toBe(c.id);
     expect(copia.itens[0]!.id).not.toBe("itm_teste_01");
     expect(copia.itens[0]).toMatchObject({ medicamento: "MED TESTE", brand: "referencia" });
     expect(Object.keys(copia).sort()).toEqual([...CHAVES_DA_COMPRA].sort());
 
-    h.params = { id: "cmp_nao_existe" };
-    expect((await erroDe(chamar(duplicarPost, adm))).status).toBe(404);
+    expect((await erroDe(duplicarDireto("cmp_nao_existe", 41))).status).toBe(404);
+  });
+
+  it.each([
+    ["sem número", {}],
+    ["número 0", { sequencia: 0 }],
+    ["decimal", { sequencia: 2.5 }],
+    ["acima de 9999", { sequencia: 10000 }],
+    ["texto", { sequencia: "9" }],
+  ])("400 para o número inválido (%s) e nenhuma cópia é criada", async (_nome, corpo) => {
+    const c = await criarCompraDireta(5);
+    h.params = { id: c.id };
+    h.body = corpo;
+    expect((await erroDe(chamar(duplicarPost, adm))).status).toBe(400);
+    expect(fake.tabelas.compras).toHaveLength(1);
+  });
+
+  it("número que já existe no mês (inclusive o da própria original): 409 amigável e nada é criado", async () => {
+    const c = await criarCompraDireta(5);
+    const e = await erroDe(duplicarDireto(c.id, 5));
+    expect(e.status).toBe(409);
+    expect(e.msg).toBe("A Compra 05 de novembro já existe. Escolha outro número.");
+    expect(e.data).toMatchObject({ code: "NUMERO_JA_EXISTE", sequencia: 5 });
+    expect(fake.tabelas.compras).toHaveLength(1);
+  });
+
+  it("sócio e consultor não duplicam (403)", async () => {
+    const c = await criarCompraDireta(5);
+    for (const quem of [usuario("socio"), usuario("consultor")]) expect(await statusDe(duplicarDireto(c.id, 6, quem))).toBe(403);
+    expect(fake.tabelas.compras).toHaveLength(1);
+  });
+});
+
+describe("PATCH /api/compras/:id — o Nº da compra é editável", () => {
+  it("troca para um número livre (200) e devolve a compra com o número novo", async () => {
+    const c = await criarCompraDireta(5);
+    h.params = { id: c.id };
+    h.body = { atualizadoEm: c.updatedAt, sequencia: 12 };
+    expect((await chamar<Compra>(salvarPatch, adm)).sequencia).toBe(12);
+  });
+
+  it("para um número que outra compra tem: 409 amigável (com o código), e a compra fica como estava", async () => {
+    const a = await criarCompraDireta(5);
+    await criarCompraDireta(6);
+    h.params = { id: a.id };
+    h.body = { atualizadoEm: a.updatedAt, sequencia: 6 };
+    const e = await erroDe(chamar(salvarPatch, adm));
+    expect(e.status).toBe(409);
+    expect(e.msg).toBe("A Compra 06 de novembro já existe. Escolha outro número.");
+    expect(e.data).toMatchObject({ code: "NUMERO_JA_EXISTE" });
+    h.params = { id: a.id };
+    expect((await chamar<Compra>(detalheGet, adm)).sequencia).toBe(5);
+  });
+
+  it.each([0, -1, 1.5, 10000, "14", null])("400 para o número inválido (%s)", async (ruim) => {
+    const a = await criarCompraDireta(5);
+    h.params = { id: a.id };
+    h.body = { atualizadoEm: a.updatedAt, sequencia: ruim };
+    expect((await erroDe(chamar(salvarPatch, adm))).status).toBe(400);
+  });
+
+  it("sócio não troca o número (403)", async () => {
+    const a = await criarCompraDireta(5);
+    h.params = { id: a.id };
+    h.body = { atualizadoEm: a.updatedAt, sequencia: 12 };
+    expect(await statusDe(chamar(salvarPatch, usuario("socio")))).toBe(403);
   });
 });
 
@@ -617,7 +753,7 @@ describe("nenhuma rota de Compras devolve chave PIX", () => {
     h.body = { atualizadoEm: c.updatedAt, despachante: "Despachante Teste", fornecedor: "Fornecedor Teste", itens: [] };
     const salvo = await chamar<Compra>(salvarPatch, adm);
     h.query = { ano_mes: c.anoMes };
-    const respostas = [salvo, await chamar(listaGet, adm), await chamar(detalheGet, adm), await chamar(duplicarPost, adm), await chamar(cancelarPost, adm)];
+    const respostas = [salvo, await chamar(listaGet, adm), await chamar(detalheGet, adm), await duplicarDireto(c.id), await chamar(cancelarPost, adm)];
     for (const r of respostas) {
       const texto = JSON.stringify(r);
       expect(texto).not.toContain("CHAVE-PIX-SECRETA");

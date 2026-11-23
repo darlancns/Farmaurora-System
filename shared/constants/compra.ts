@@ -25,6 +25,11 @@ export const COMPRA_REFERENCIA_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$/;
 /** O aviso do medicamento cujo pré-cadastro o administrador REJEITOU: a linha do medicamento mostra este texto; aviso, não erro. */
 export const TEXTO_PRE_CADASTRO_REJEITADO = "Pré-cadastro rejeitado: escolha outro medicamento do Cadastro ou mantenha o texto livre";
 
+/** O Nº da compra (combinado e digitado pelo time, nunca gerado): um inteiro de 1 a este teto, único dentro do mês. */
+export const COMPRA_NUMERO_MAX = 9999;
+/** O `data.code` do 409 "esse número já existe naquele mês" (a tela o distingue do 409 de versão, que traz a compra atual em `data.atual`). */
+export const CODIGO_NUMERO_JA_EXISTE = "NUMERO_JA_EXISTE";
+
 /** Mês da lista de compras: AAAA-MM. */
 export const COMPRA_ANO_MES_RE = /^[0-9]{4}-(0[1-9]|1[0-2])$/;
 

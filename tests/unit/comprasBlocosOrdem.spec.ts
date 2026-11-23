@@ -18,13 +18,15 @@ afterEach(() => {
 /** O id de linha do resumo SEM o número do medicamento/temperatura (medicamento_2 → medicamento) e sem repetir. */
 function idsDoResumo(compra: Parameters<typeof compraParaResumoEntrada>[0]): string[] {
   const ids = montarResumo(compraParaResumoEntrada(compra, null), "modelo").flatMap((b) => b.linhas.map((l) => l.id));
-  const base = ids.map((id) => id.replace(/_\d+$/, "")).filter((id) => id !== "titulo");
+  const base = ids.map((id) => id.replace(/_\d+$/, ""));
   return base.filter((id, i) => base.indexOf(id) === i);
 }
 
 const idsDoFormulario = (): string[] => qa<HTMLElement>("#compra-campos [data-linha]").map((el) => el.getAttribute("data-linha")!);
 
+// A 1ª linha é o Nº da compra (o título do resumo, "Compra 14 - Novembro/2026").
 const ESPERADA = [
+  "titulo",
   "medicamento",
   "laboratorio",
   "brand",
@@ -57,12 +59,12 @@ const ESPERADA = [
 ];
 
 describe("a ordem das linhas do formulário é a ordem das linhas do resumo (modo 'modelo')", () => {
-  it("1 medicamento: as 29 linhas, EXATAMENTE na ordem de montarResumo('modelo') (sem o título)", () => {
+  it("1 medicamento: as 30 linhas (o Nº da compra primeiro), EXATAMENTE na ordem de montarResumo('modelo')", () => {
     const compra = compraComUmMedicamento();
     montado = montarFormulario(compra);
     expect(idsDoFormulario()).toEqual(idsDoResumo(compra));
     expect(idsDoFormulario()).toEqual(ESPERADA);
-    expect(idsDoFormulario()).toHaveLength(29);
+    expect(idsDoFormulario()).toHaveLength(30);
   });
 
   it("2 medicamentos: a mesma ordem (cada linha por medicamento continua UMA linha, com um controle por medicamento)", () => {
@@ -85,6 +87,7 @@ describe("a ordem das linhas do formulário é a ordem das linhas do resumo (mod
     montado = montarFormulario(compraComUmMedicamento());
     const rotulos = qa<HTMLElement>("#compra-campos [data-linha]").map((linha) => texto(linha.querySelector(":scope > label, :scope > span")));
     expect(rotulos).toEqual([
+      "Nº da compra",
       "Medicamento",
       "Laboratório",
       "Brand",
@@ -170,7 +173,7 @@ describe("Tab e acessibilidade do formulário único", () => {
 });
 
 describe("rótulos do FORMULÁRIO x rótulos do RESUMO (separados)", () => {
-  it("o formulário diz 'Documento e assinatura' e 'Nº do processo', vindos de ROTULOS_DO_FORMULARIO (um por linha, as 29)", async () => {
+  it("o formulário diz 'Documento e assinatura' e 'Nº do processo', vindos de ROTULOS_DO_FORMULARIO (um por linha, as 30)", async () => {
     const { ROTULOS_DO_FORMULARIO } = await import("../../app/utils/comprasRotulos");
     expect(ROTULOS_DO_FORMULARIO.documentos).toBe("Documento e assinatura");
     expect(ROTULOS_DO_FORMULARIO.processo).toBe("Nº do processo");

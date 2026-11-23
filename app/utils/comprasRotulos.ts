@@ -3,6 +3,8 @@
 // validação de assinatura"...) e aqui os rótulos são curtos para caber na coluna estreita. A chave é o id da linha (o mesmo de montarResumo("modelo")).
 
 export const ROTULOS_DO_FORMULARIO = {
+  // A 1ª linha: o número da compra (corresponde ao título do resumo, "Compra 14 - Novembro/2026").
+  titulo: "Nº da compra",
   medicamento: "Medicamento",
   laboratorio: "Laboratório",
   brand: "Brand",

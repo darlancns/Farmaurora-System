@@ -1,8 +1,9 @@
 import { nextTick, ref, watch, type Ref } from "vue";
-import type { Compra } from "#shared/types/compra";
+import { CODIGO_NUMERO_JA_EXISTE } from "#shared/constants/compra";
+import type { Compra, NovaCompraDTO } from "#shared/types/compra";
 import { itemVazio } from "#shared/utils/compraForm";
-import { tituloDaCompra } from "#shared/utils/compraMes";
-import { ApiError, apiFetch } from "../utils/apiFetch";
+import { anoMesAtualBrasilia, rotuloDoMes, tituloDaCompra } from "#shared/utils/compraMes";
+import { ApiError, apiFetch, codigoDoErro } from "../utils/apiFetch";
 import { abaInicial, type AbaCompras } from "../utils/comprasAbas";
 import { lerQueryCompras, montarQueryCompras } from "../utils/comprasUrl";
 import { getErrorMessage } from "../utils/errorMessages";
@@ -11,26 +12,49 @@ import { useComprasMes, type ApiListaCompras, type ComprasMes } from "./useCompr
 
 // A ORQUESTRAÇÃO da página Compras: liga a lista do mês (useComprasMes), o editor da compra aberta (useCompraEditor) e a URL.
 // A página (app/pages/compras.vue) só desenha. Aqui moram as regras de trocar de lugar:
+//  - "+ Nova compra" e "Duplicar compra" abrem a caixinha do Nº da compra (o time combina o número; nada é gerado sozinho); a compra só é criada em "Criar compra";
 //  - ANTES de trocar de compra, de mês, criar, duplicar ou cancelar, o salvamento pendente é descarregado (flush); se falhar, a
 //    pessoa é avisada e NADA troca em silêncio;
 //  - mês e compra abertos vão na URL (?mes, ?id, ?canceladas; um ?status antigo é ignorado); id de uma compra de outro mês abre no mês dela;
 //  - depois de cada salvamento a lista é atualizada com o que o servidor devolveu (sem reler o mês).
 
 export interface ApiAcoesCompra {
-  criar: () => Promise<Compra>;
-  duplicar: (id: string) => Promise<Compra>;
+  /** Cria com o Nº da compra DIGITADO (o servidor nunca escolhe o número). */
+  criar: (corpo: NovaCompraDTO) => Promise<Compra>;
+  duplicar: (id: string, corpo: NovaCompraDTO) => Promise<Compra>;
   cancelar: (id: string) => Promise<Compra>;
 }
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
 const apiAcoesPadrao: ApiAcoesCompra = {
-  criar: () => apiFetch<Compra>("/api/compras", { method: "POST", headers: JSON_HEADERS }, "Não foi possível criar a compra."),
-  duplicar: (id) => apiFetch<Compra>(`/api/compras/${encodeURIComponent(id)}/duplicar`, { method: "POST", headers: JSON_HEADERS }, "Não foi possível duplicar a compra."),
+  criar: (corpo) => apiFetch<Compra>("/api/compras", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(corpo) }, "Não foi possível criar a compra."),
+  duplicar: (id, corpo) =>
+    apiFetch<Compra>(`/api/compras/${encodeURIComponent(id)}/duplicar`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(corpo) }, "Não foi possível duplicar a compra."),
   cancelar: (id) => apiFetch<Compra>(`/api/compras/${encodeURIComponent(id)}/cancelar`, { method: "POST", headers: JSON_HEADERS }, "Não foi possível cancelar a compra."),
 };
 
 export const MENSAGEM_NAO_SALVOU = "Não foi possível salvar as alterações desta compra. Tente salvar de novo antes de continuar.";
+export const MENSAGEM_NUMERO_PENDENTE = "O Nº desta compra já existe no mês. Troque o número antes de continuar.";
+
+/** A caixinha do Nº da compra (nova ou duplicar): o que ela mostra e o que a pessoa já fez. */
+export interface DialogoNumeroCompra {
+  tipo: "nova" | "duplicar";
+  /** O mês em que a compra vai nascer ("AAAA-MM"). */
+  anoMes: string;
+  /** O mês por extenso ("Novembro/2026"). */
+  rotuloMes: string;
+  /** O maior número do mês (0 = vazio; null = ainda buscando ou não foi possível ler). */
+  maior: number | null;
+  /** A sugestão (o maior + 1); null enquanto busca. */
+  sugestao: number | null;
+  /** O erro do servidor (número repetido...): aparece no campo, a caixinha continua aberta. */
+  erro: string | null;
+  /** Criando: novos cliques são ignorados. */
+  ocupado: boolean;
+  /** A compra que está sendo duplicada (só em "duplicar"). */
+  origemId: string | null;
+}
 
 export interface OpcoesComprasPagina {
   /** O que veio na URL (route.query). */
@@ -61,6 +85,8 @@ export interface ComprasPagina {
    * pediu). Em ref (e não em callback) para a tela reagir também quando a compra só aparece depois.
    */
   pedidoDeFocoMedicamento: Ref<number>;
+  /** A caixinha do Nº da compra ("+ Nova compra" e "Duplicar compra"); null = fechada. */
+  dialogo: Ref<DialogoNumeroCompra | null>;
   /** O diálogo de "Cancelar compra" está aberto. */
   confirmandoCancelar: Ref<boolean>;
   tituloParaDialogo: () => string;
@@ -71,8 +97,13 @@ export interface ComprasPagina {
   mesAnterior: () => Promise<void>;
   mesSeguinte: () => Promise<void>;
   definirMostrarCanceladas: (valor: boolean) => Promise<void>;
+  /** "+ Nova compra": abre a caixinha do número (nada é criado ainda). */
   criarNova: () => Promise<void>;
+  /** "Duplicar compra": abre a caixinha do número da cópia (o número da original nunca é copiado). */
   duplicar: () => Promise<void>;
+  /** "Criar compra" na caixinha: cria (ou duplica) com o número digitado. */
+  confirmarDialogo: (numero: number) => Promise<void>;
+  cancelarDialogo: () => void;
   pedirCancelar: () => void;
   confirmarCancelar: () => Promise<void>;
   /** Para sair da página (onBeforeRouteLeave): descarrega o pendente; false = não saia. */
@@ -87,6 +118,7 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
   const aba = ref<AbaCompras>(abaInicial(inicial.aba, inicial.id !== null));
   const ocupado = ref(false);
   const confirmandoCancelar = ref(false);
+  const dialogo = ref<DialogoNumeroCompra | null>(null);
   const pedidoDeFocoMedicamento = ref(0);
 
   const editor = useCompraEditor({
@@ -103,7 +135,7 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
   /** Descarrega o salvamento pendente; se não deu, avisa e devolve false (quem chama não troca nada). */
   async function descarregar(): Promise<boolean> {
     const ok = await editor.flush();
-    if (!ok) opcoes.avisar(MENSAGEM_NAO_SALVOU);
+    if (!ok) opcoes.avisar(editor.erroNumero.value !== null ? MENSAGEM_NUMERO_PENDENTE : MENSAGEM_NAO_SALVOU);
     return ok;
   }
 
@@ -179,29 +211,70 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
     aba.value = "formulario"; // a compra nova ou duplicada abre no formulário (no celular)
   }
 
+  /** O mês em que a compra nasce. (Hoje: o mês corrente de Brasília, o mesmo que o servidor usa.) */
+  function anoMesDaNovaCompra(): string {
+    return anoMesAtualBrasilia(opcoes.agora?.());
+  }
+
+  /** Abre a caixinha do número e busca a sugestão (o maior do mês + 1) sem travar a abertura. */
+  async function abrirDialogo(tipo: "nova" | "duplicar", origemId: string | null): Promise<void> {
+    const anoMes = anoMesDaNovaCompra();
+    const aberto: DialogoNumeroCompra = { tipo, anoMes, rotuloMes: rotuloDoMes(anoMes), maior: null, sugestao: null, erro: null, ocupado: false, origemId };
+    dialogo.value = aberto;
+    const maior = await lista.consultarMaiorSequencia(anoMes);
+    // A pessoa pode ter fechado a caixinha (ou aberto outra) enquanto a lista era lida.
+    if (dialogo.value?.anoMes !== anoMes || dialogo.value.tipo !== tipo || dialogo.value.origemId !== origemId) return;
+    if (maior !== null) {
+      dialogo.value.maior = maior;
+      dialogo.value.sugestao = maior + 1;
+    }
+  }
+
   async function criarNova(): Promise<void> {
-    if (!opcoes.podeEditar()) return;
-    await comOcupado(async () => {
-      if (!(await descarregar())) return;
-      const nova = await acoes.criar();
+    if (!opcoes.podeEditar() || ocupado.value) return;
+    await abrirDialogo("nova", null);
+  }
+
+  async function duplicar(): Promise<void> {
+    const atual = editor.compra.value;
+    if (!opcoes.podeEditar() || ocupado.value || !atual || atual.cancelada) return;
+    await abrirDialogo("duplicar", atual.id);
+  }
+
+  function cancelarDialogo(): void {
+    if (dialogo.value?.ocupado) return;
+    dialogo.value = null;
+  }
+
+  /** "Criar compra" na caixinha. Número repetido (ou qualquer recusa do servidor): o erro aparece NO CAMPO e a caixinha fica aberta com o que foi digitado. */
+  async function confirmarDialogo(numero: number): Promise<void> {
+    const aberto = dialogo.value;
+    if (!aberto || aberto.ocupado || ocupado.value || !opcoes.podeEditar()) return;
+    aberto.ocupado = true;
+    aberto.erro = null;
+    ocupado.value = true;
+    try {
+      if (!(await descarregar())) return; // o aviso já foi dado; a caixinha continua aberta
+      const nova = aberto.tipo === "duplicar" && aberto.origemId !== null ? await acoes.duplicar(aberto.origemId, { sequencia: numero }) : await acoes.criar({ sequencia: numero });
+      dialogo.value = null;
       await mostrarNova(nova);
+      if (aberto.tipo === "duplicar") {
+        opcoes.avisar(`Compra duplicada: ${tituloDaCompra(nova.anoMes, nova.sequencia)}`);
+        return;
+      }
       // A compra nasce com o 1º medicamento (vazio): o servidor aceita rascunho parcial e o autosave o grava. O foco vai para o campo
       // Medicamento do Med. 1 (a tela observa `pedidoDeFocoMedicamento`).
       if (nova.itens.length === 0) editor.alterar({ itens: [itemVazio(1)] });
       await nextTick();
       pedidoDeFocoMedicamento.value += 1;
-    }, "Não foi possível criar a compra.");
-  }
-
-  async function duplicar(): Promise<void> {
-    const atual = editor.compra.value;
-    if (!opcoes.podeEditar() || !atual || atual.cancelada) return;
-    await comOcupado(async () => {
-      if (!(await descarregar())) return;
-      const copia = await acoes.duplicar(atual.id);
-      await mostrarNova(copia);
-      opcoes.avisar(`Compra duplicada: ${tituloDaCompra(copia.anoMes, copia.sequencia)}`);
-    }, "Não foi possível duplicar a compra.");
+    } catch (e) {
+      const repetido = e instanceof ApiError && e.status === 409 && codigoDoErro(e) === CODIGO_NUMERO_JA_EXISTE;
+      aberto.erro = getErrorMessage(e, aberto.tipo === "duplicar" ? "Não foi possível duplicar a compra." : "Não foi possível criar a compra.");
+      if (!repetido && dialogo.value === null) opcoes.avisar(aberto.erro); // já fechou: o erro não tem onde aparecer
+    } finally {
+      aberto.ocupado = false;
+      ocupado.value = false;
+    }
   }
 
   function pedirCancelar(): void {
@@ -246,6 +319,7 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
     ocupado,
     confirmandoCancelar,
     pedidoDeFocoMedicamento,
+    dialogo,
     tituloParaDialogo: () => (editor.compra.value ? tituloDaCompra(editor.compra.value.anoMes, editor.compra.value.sequencia) : ""),
     mensagemCancelar: () => {
       const c = editor.compra.value;
@@ -258,6 +332,8 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
     definirMostrarCanceladas,
     criarNova,
     duplicar,
+    confirmarDialogo,
+    cancelarDialogo,
     pedirCancelar,
     confirmarCancelar,
     antesDeSair,

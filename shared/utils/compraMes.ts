@@ -42,6 +42,13 @@ export function tituloDaCompra(anoMes: string, sequencia: number): string {
   return `${TEXTOS_RESUMO.compra} ${String(sequencia).padStart(2, "0")} - ${rotuloDoMes(anoMes)}`;
 }
 
+/** "Compra 14 de novembro": como as mensagens falam da compra (o mês por extenso, em minúsculas; o ano só aparece no título). Mês inválido: só "Compra 14". */
+export function descricaoDaCompra(anoMes: string, sequencia: number): string {
+  const m = ANO_MES_RE.exec(anoMes);
+  const mes = m ? TEXTOS_RESUMO.meses[Number(m[2]) - 1] : undefined;
+  return mes ? `${rotuloCurtoDaCompra(sequencia)} de ${mes.toLocaleLowerCase("pt-BR")}` : rotuloCurtoDaCompra(sequencia);
+}
+
 /** "Compra 13": o rótulo curto do cartão. */
 export function rotuloCurtoDaCompra(sequencia: number): string {
   return `${TEXTOS_RESUMO.compra} ${String(sequencia).padStart(2, "0")}`;

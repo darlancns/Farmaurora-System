@@ -147,7 +147,7 @@ describe("o item da lista", () => {
     expect(texto).not.toMatch(/DESPACHANTE TESTE|CONSULTOR TESTE|RESPONSAVEL TESTE|98765|87654|76543|65432/);
     const chaves = new Set(lista.compras.flatMap((c) => Object.keys(c)));
     expect([...chaves].sort()).toEqual(["anoMes", "atualizadoEm", "cancelada", "id", "medicamentos", "numeroOrdens", "paciente", "sequencia"].sort());
-    expect(Object.keys(lista).sort()).toEqual(["anoMes", "compras", "limite", "pagina", "temMais", "total", "totais"].sort());
+    expect(Object.keys(lista).sort()).toEqual(["anoMes", "compras", "limite", "maiorSequencia", "pagina", "temMais", "total", "totais"].sort());
   });
 
   it("lê só as colunas necessárias (nunca `*`, contatos, valores, frete, fornecedor, observações) e NÃO consulta a DIR nem os Cadastros", async () => {

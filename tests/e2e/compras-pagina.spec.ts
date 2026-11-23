@@ -4,7 +4,7 @@ import { test, expect, type Page } from "@playwright/test";
 // "Mostrar canceladas", mês, teclado, conflito (409) com duas abas e somente leitura.
 //
 // ESCRITO, NÃO EXECUTADO. A e2e só roda no Supabase LOCAL (a guarda em tests/e2e/_guards aborta fora de loopback): estes testes CRIAM
-// compras de verdade (paciente "TESTE E2E ...") e o contador do mês avança a cada "+ Nova compra". Nunca rode contra produção.
+// compras de verdade (paciente "TESTE E2E ...") e cada "+ Nova compra" usa o número sugerido na caixinha (o maior do mês + 1). Nunca rode contra produção.
 // Credenciais por env (os mesmos nomes de rbac.spec.ts); cada grupo é pulado sem elas. Nenhuma conta é criada aqui.
 // Ver tests/e2e/README.md.
 
@@ -75,6 +75,8 @@ const ORDEM_DAS_LINHAS = [
 /** Cria uma compra pela tela e digita o paciente; espera o salvamento (data-salvamento="salvo"; a tela não mostra texto de salvamento). */
 async function criarCompraComPaciente(page: Page, paciente: string): Promise<void> {
   await page.locator("#btn-nova-compra").click();
+  await expect(page.locator("#compra-dialogo-numero")).not.toHaveValue(""); // a sugestão (o maior do mês + 1) chega
+  await page.locator("#btn-compra-dialogo-criar").click();
   await expect(primeiroMedicamento(page)).toBeFocused(); // a compra nasce com o 1º medicamento vazio e o foco vai ao Med. 1
   await page.locator("#compra-paciente").fill(paciente);
   await expect(page.locator("#compra-formulario")).toHaveAttribute("data-salvamento", "salvo");
@@ -126,6 +128,8 @@ for (const [rotulo, conta] of [
     test("+ Nova compra: cria, seleciona, leva o foco ao Medicamento do Med. 1; digitar salva sozinho e o resumo ao vivo preenche o vazio", async ({ page }) => {
       await abrirCompras(page);
       await page.locator("#btn-nova-compra").click();
+      await expect(page.locator("#compra-dialogo-numero")).not.toHaveValue(""); // a sugestão (o maior do mês + 1) chega
+      await page.locator("#btn-compra-dialogo-criar").click();
       await expect(primeiroMedicamento(page)).toBeFocused();
       await expect(page.locator("#compra-titulo")).toHaveText(/^Compra \d{2,} - /);
       await expect(page.locator("[data-resumo-linha='paciente']")).toHaveAttribute("data-vazio", "true");
@@ -212,6 +216,8 @@ for (const [rotulo, conta] of [
       await criarCompraComPaciente(page, paciente);
       const tituloAntes = await page.locator("#compra-titulo").innerText();
       await page.locator("#btn-duplicar-compra").click();
+      await expect(page.locator("#compra-dialogo-numero")).not.toHaveValue(""); // a sugestão (o maior do mês + 1) chega
+      await page.locator("#btn-compra-dialogo-criar").click();
       await expect(page.locator("#compra-titulo")).not.toHaveText(tituloAntes);
       await expect(page.locator("#compra-paciente")).toHaveValue(paciente);
       await expect(page.locator("[data-compra-cartao]").filter({ hasText: paciente })).toHaveCount(2);

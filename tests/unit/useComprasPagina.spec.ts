@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { nextTick } from "vue";
-import type { Compra, CompraSalvarDTO, ListaCompras, TotaisDaLista } from "../../shared/types/compra";
+import type { Compra, CompraSalvarDTO, ListaCompras, NovaCompraDTO, TotaisDaLista } from "../../shared/types/compra";
 import { itemDaLista } from "../../shared/utils/compraLista";
 import { ApiError } from "../../app/utils/apiFetch";
 import { MENSAGEM_NAO_SALVOU, useComprasPagina } from "../../app/composables/useComprasPagina";
@@ -31,8 +31,12 @@ function mundo(inicial: Compra[], agora = "2026-11-19T15:00:00Z") {
   const banco = new Map<string, Compra>(inicial.map((c) => [c.id, c]));
   const chamadas: string[] = [];
   let falhaSalvar: unknown = null;
-  let proxima = Math.max(0, ...inicial.map((c) => c.sequencia)) + 1;
   const mesCorrente = () => agora.slice(0, 7).replace(/-(\d\d)$/, "-$1");
+  /** O unique do banco: o mesmo número no mesmo mês é o 409 amigável do servidor (e nada é criado). */
+  const conferirNumero = (anoMes: string, sequencia: number): void => {
+    const dono = [...banco.values()].find((c) => c.anoMes === anoMes && c.sequencia === sequencia);
+    if (dono) throw new ApiError(`A Compra ${String(sequencia).padStart(2, "0")} de novembro já existe. Escolha outro número.`, 409, { code: "NUMERO_JA_EXISTE", anoMes, sequencia });
+  };
 
   const apiLista = {
     listar: vi.fn(async (p: { anoMes: string; incluirCanceladas: boolean; pagina: number }): Promise<ListaCompras> => {
@@ -40,7 +44,8 @@ function mundo(inicial: Compra[], agora = "2026-11-19T15:00:00Z") {
       const itens = [...banco.values()].filter((c) => c.anoMes === p.anoMes).map((c) => itemDaLista({ ...c, atualizadoEm: c.updatedAt })).sort((a, b) => b.sequencia - a.sequencia);
       const totais: TotaisDaLista = { ativas: itens.filter((i) => !i.cancelada).length, canceladas: itens.filter((i) => i.cancelada).length };
       const casam = itens.filter((i) => p.incluirCanceladas || !i.cancelada);
-      return { anoMes: p.anoMes, compras: casam.slice(0, 50), pagina: p.pagina, limite: 50, temMais: casam.length > 50, total: casam.length, totais };
+      const maiorSequencia = itens.reduce((maior, i) => Math.max(maior, i.sequencia), 0);
+      return { anoMes: p.anoMes, compras: casam.slice(0, 50), pagina: p.pagina, limite: 50, temMais: casam.length > 50, total: casam.length, totais, maiorSequencia };
     }),
   };
   const apiCompra = {
@@ -61,16 +66,17 @@ function mundo(inicial: Compra[], agora = "2026-11-19T15:00:00Z") {
     }),
   };
   const apiAcoes = {
-    criar: vi.fn(async (): Promise<Compra> => {
-      chamadas.push("criar");
-      const nova = compraBase(proxima++, { anoMes: mesCorrente(), paciente: "", responsavel: "Cris" });
+    criar: vi.fn(async (corpo: NovaCompraDTO): Promise<Compra> => {
+      chamadas.push(`criar:${corpo.sequencia}`);
+      conferirNumero(mesCorrente(), corpo.sequencia);
+      const nova = compraBase(corpo.sequencia, { anoMes: mesCorrente(), paciente: "", responsavel: "Cris" });
       banco.set(nova.id, nova);
       return { ...nova };
     }),
-    duplicar: vi.fn(async (id: string): Promise<Compra> => {
-      chamadas.push(`duplicar:${id}`);
-      const copia = { ...banco.get(id)!, id: `cmp_${proxima}`, sequencia: proxima, anoMes: mesCorrente() };
-      proxima += 1;
+    duplicar: vi.fn(async (id: string, corpo: NovaCompraDTO): Promise<Compra> => {
+      chamadas.push(`duplicar:${id}:${corpo.sequencia}`);
+      conferirNumero(mesCorrente(), corpo.sequencia);
+      const copia = { ...banco.get(id)!, id: `cmp_${corpo.sequencia}`, sequencia: corpo.sequencia, anoMes: mesCorrente() };
       banco.set(copia.id, copia);
       return { ...copia };
     }),
@@ -296,23 +302,101 @@ function erro500(): ApiError {
   return new ApiError("Erro interno.", 500);
 }
 
-describe("+ Nova compra", () => {
-  it("cria, mostra no topo da lista, abre no formulário com o 1º medicamento (vazio) e pede o foco no campo Medicamento do Med. 1", async () => {
+/** "+ Nova compra" e "Criar compra" com o número digitado. */
+async function criarCom(p: ReturnType<typeof pagina>["p"], numero: number): Promise<void> {
+  await p.criarNova();
+  await p.confirmarDialogo(numero);
+}
+
+describe("+ Nova compra: a caixinha do Nº da compra", () => {
+  it("só ABRE a caixinha (nada é criado): mês por extenso, a sugestão = o maior do mês + 1 e o maior para a frase de apoio", async () => {
+    const m = mundo([compraBase(3), compraBase(18)]);
+    const { p } = pagina(m);
+    await p.iniciar();
+    await p.criarNova();
+    expect(p.dialogo.value).toMatchObject({ tipo: "nova", anoMes: "2026-11", rotuloMes: "Novembro/2026", maior: 18, sugestao: 19, erro: null, ocupado: false, origemId: null });
+    expect(m.apiAcoes.criar).not.toHaveBeenCalled();
+    expect(p.editor.compra.value).toBeNull();
+  });
+
+  it("mês vazio: a sugestão é 1 (e o maior é 0)", async () => {
+    const m = mundo([]);
+    const { p } = pagina(m);
+    await p.iniciar();
+    await p.criarNova();
+    expect(p.dialogo.value).toMatchObject({ maior: 0, sugestao: 1 });
+  });
+
+  it("a sugestão conta as CANCELADAS (o número delas continua ocupado) e vem do servidor na hora, não da lista de antes", async () => {
+    const m = mundo([compraBase(4), compraBase(9, { cancelada: true })]);
+    const { p } = pagina(m);
+    await p.iniciar();
+    m.banco.set("cmp_12", compraBase(12)); // outra pessoa criou depois de a lista abrir
+    await p.criarNova();
+    expect(p.dialogo.value).toMatchObject({ maior: 12, sugestao: 13 });
+  });
+
+  it("não deu para ler a lista: usa o que a tela já tem (mesmo mês); em outro mês abre sem sugestão (a pessoa digita) e criar funciona", async () => {
+    const m = mundo([compraBase(1)]);
+    const { p } = pagina(m);
+    await p.iniciar();
+    m.apiLista.listar.mockRejectedValue(new TypeError("Failed to fetch"));
+    await p.criarNova();
+    expect(p.dialogo.value).toMatchObject({ maior: 1, sugestao: 2 }); // o maior que a lista da tela já conhecia
+    p.cancelarDialogo();
+
+    const m2 = mundo([compraBase(1)]);
+    const { p: p2 } = pagina(m2, { query: { mes: "2026-08" } });
+    await p2.iniciar();
+    m2.apiLista.listar.mockRejectedValue(new TypeError("Failed to fetch"));
+    await p2.criarNova();
+    expect(p2.dialogo.value).toMatchObject({ maior: null, sugestao: null });
+    await p2.confirmarDialogo(5);
+    expect(p2.editor.compra.value!.sequencia).toBe(5);
+  });
+
+  it("cancelar a caixinha: nada é criado e a caixinha fecha", async () => {
+    const m = mundo([compraBase(1)]);
+    const { p } = pagina(m);
+    await p.iniciar();
+    await p.criarNova();
+    p.cancelarDialogo();
+    expect(p.dialogo.value).toBeNull();
+    expect(m.apiAcoes.criar).not.toHaveBeenCalled();
+    expect(p.editor.compra.value).toBeNull();
+  });
+
+  it("estando com a compra aberta, abrir a caixinha NÃO troca nada (só 'Criar compra' descarrega e troca)", async () => {
+    const m = mundo([compraBase(1)]);
+    const { p } = pagina(m, { query: { id: "cmp_1" } });
+    await p.iniciar();
+    m.chamadas.length = 0;
+    p.editor.alterar({ paciente: "PENDENTE" });
+    await p.criarNova();
+    expect(m.chamadas.filter((c) => c.startsWith("salvar") || c.startsWith("criar"))).toEqual([]);
+    expect(p.editor.compra.value!.id).toBe("cmp_1");
+  });
+});
+
+describe("+ Nova compra: criar com o número digitado", () => {
+  it("cria com o número DIGITADO (fora de ordem), mostra no topo da lista, abre no formulário com o 1º medicamento (vazio) e pede o foco no campo Medicamento do Med. 1", async () => {
     const m = mundo([compraBase(1)]);
     const { p, urls } = pagina(m);
     await p.iniciar();
     expect(p.pedidoDeFocoMedicamento.value).toBe(0);
-    await p.criarNova();
-    expect(p.editor.compra.value!.sequencia).toBe(2);
-    expect(p.selecionadaId.value).toBe("cmp_2");
-    expect(p.lista.compras.value.map((c) => c.sequencia)).toEqual([2, 1]);
+    await criarCom(p, 14);
+    expect(m.apiAcoes.criar).toHaveBeenCalledWith({ sequencia: 14 });
+    expect(p.dialogo.value).toBeNull();
+    expect(p.editor.compra.value!.sequencia).toBe(14);
+    expect(p.selecionadaId.value).toBe("cmp_14");
+    expect(p.lista.compras.value.map((c) => c.sequencia)).toEqual([14, 1]);
     expect(p.lista.totais.value.ativas).toBe(2);
     const itens = p.editor.compra.value!.itens;
     expect(itens).toHaveLength(1);
     expect(itens[0]).toMatchObject({ posicao: 1, medicamento: "", medicamentoCadastroId: null, laboratorio: "", brand: "", quantidade: "", temperatura: "", valorUnitario: null, valorReal: null });
     expect(p.pedidoDeFocoMedicamento.value).toBe(1);
     expect(p.editor.estado.value).toBe("pendente"); // o autosave grava o 1º medicamento
-    expect(urls.at(-1)).toMatchObject({ id: "cmp_2" });
+    expect(urls.at(-1)).toMatchObject({ id: "cmp_14" });
   });
 
   it("o servidor já devolveu itens? Não cria outro; o pedido de foco sobe a cada compra nova", async () => {
@@ -320,11 +404,11 @@ describe("+ Nova compra", () => {
     m.apiAcoes.criar.mockResolvedValueOnce(compraBase(1, { itens: [itemDeTeste(1, { medicamento: "" })] }));
     const { p } = pagina(m);
     await p.iniciar();
-    await p.criarNova();
+    await criarCom(p, 1);
     expect(p.editor.compra.value!.itens).toHaveLength(1);
     expect(p.editor.estado.value).toBe("ocioso"); // nada mudou: nada a salvar
     expect(p.pedidoDeFocoMedicamento.value).toBe(1);
-    await p.criarNova();
+    await criarCom(p, 2);
     expect(p.pedidoDeFocoMedicamento.value).toBe(2);
   });
 
@@ -334,29 +418,57 @@ describe("+ Nova compra", () => {
     await p.iniciar();
     m.chamadas.length = 0;
     p.editor.alterar({ paciente: "PENDENTE" });
-    await p.criarNova();
-    expect(m.chamadas).toEqual(["salvar:cmp_1:PENDENTE", "criar"]);
+    await criarCom(p, 2);
+    expect(m.chamadas.filter((c) => !c.startsWith("lista"))).toEqual(["salvar:cmp_1:PENDENTE", "criar:2"]);
   });
 
-  it("se o pendente não salvou, NÃO cria (e avisa)", async () => {
+  it("se o pendente não salvou, NÃO cria (avisa) e a caixinha continua aberta", async () => {
     const m = mundo([compraBase(1)]);
     const { p, avisos } = pagina(m, { query: { id: "cmp_1" } });
     await p.iniciar();
     p.editor.alterar({ paciente: "PENDENTE" });
     m.falharSalvamentos(new TypeError("Failed to fetch"));
-    await p.criarNova();
+    await criarCom(p, 2);
     expect(m.apiAcoes.criar).not.toHaveBeenCalled();
     expect(avisos).toEqual([MENSAGEM_NAO_SALVOU]);
+    expect(p.dialogo.value).not.toBeNull();
+    expect(p.dialogo.value!.ocupado).toBe(false);
     expect(p.pedidoDeFocoMedicamento.value).toBe(0);
   });
 
-  it("falha na criação: avisa com a mensagem do servidor e nada abre", async () => {
-    const m = mundo([]);
-    m.apiAcoes.criar.mockRejectedValueOnce(new ApiError("Não foi possível gerar o número da compra. Tente novamente.", 503));
+  it("número que já existe: o erro vai para a caixinha (que continua aberta), nada abre, e trocar o número cria", async () => {
+    const m = mundo([compraBase(14)]);
     const { p, avisos } = pagina(m);
     await p.iniciar();
     await p.criarNova();
-    expect(avisos).toEqual(["Não foi possível gerar o número da compra. Tente novamente."]);
+    await p.confirmarDialogo(14);
+    expect(p.dialogo.value).not.toBeNull();
+    expect(p.dialogo.value!.erro).toBe("A Compra 14 de novembro já existe. Escolha outro número.");
+    expect(p.dialogo.value!.ocupado).toBe(false);
+    expect(p.editor.compra.value).toBeNull();
+    expect(p.lista.compras.value).toHaveLength(1);
+    expect(avisos).toEqual([]); // o erro está no campo, não em toast
+    await p.confirmarDialogo(15);
+    expect(p.dialogo.value).toBeNull();
+    expect(p.editor.compra.value!.sequencia).toBe(15);
+  });
+
+  it("não cria de novo com outro número sozinho: um 409 é UMA chamada", async () => {
+    const m = mundo([compraBase(14)]);
+    const { p } = pagina(m);
+    await p.iniciar();
+    await criarCom(p, 14);
+    expect(m.apiAcoes.criar).toHaveBeenCalledTimes(1);
+    expect(m.apiAcoes.criar).toHaveBeenCalledWith({ sequencia: 14 });
+  });
+
+  it("falha na criação (503): a mensagem do servidor aparece na caixinha e nada abre", async () => {
+    const m = mundo([]);
+    m.apiAcoes.criar.mockRejectedValueOnce(new ApiError("Não foi possível criar a compra. Tente novamente.", 503));
+    const { p } = pagina(m);
+    await p.iniciar();
+    await criarCom(p, 1);
+    expect(p.dialogo.value!.erro).toBe("Não foi possível criar a compra. Tente novamente.");
     expect(p.editor.compra.value).toBeNull();
   });
 
@@ -365,35 +477,63 @@ describe("+ Nova compra", () => {
     const { p } = pagina(m, { query: { mes: "2026-08" } });
     await p.iniciar();
     expect(p.lista.mes.value).toBe("2026-08");
-    await p.criarNova();
+    await criarCom(p, 2);
     expect(p.lista.mes.value).toBe("2026-11");
     expect(p.lista.compras.value.map((c) => c.id)).toContain("cmp_2");
     expect(p.selecionadaId.value).toBe("cmp_2");
   });
 
-  it("clique duplo: só uma compra é criada (ocupado)", async () => {
+  it("clique duplo em 'Criar compra': só uma compra é criada (ocupado)", async () => {
     const m = mundo([]);
     const { p } = pagina(m);
     await p.iniciar();
-    await Promise.all([p.criarNova(), p.criarNova()]);
+    await p.criarNova();
+    await Promise.all([p.confirmarDialogo(1), p.confirmarDialogo(1)]);
     expect(m.apiAcoes.criar).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("Duplicar e Cancelar", () => {
-  it("duplicar: cópia com o número seguinte, aberta no formulário, com aviso; descarrega o pendente antes", async () => {
+  it("duplicar: abre a caixinha com a sugestão (a cópia NUNCA leva o número da original); só 'Criar compra' duplica, descarregando o pendente antes", async () => {
     const m = mundo([compraBase(1, { paciente: "PACIENTE ORIGINAL" })]);
     const { p, avisos } = pagina(m, { query: { id: "cmp_1" } });
     await p.iniciar();
     m.chamadas.length = 0;
     p.editor.alterar({ medico: "Dr. Antes" });
     await p.duplicar();
-    expect(m.chamadas).toEqual(["salvar:cmp_1:PACIENTE ORIGINAL", "duplicar:cmp_1"]);
-    expect(p.editor.compra.value!.sequencia).toBe(2);
+    expect(p.dialogo.value).toMatchObject({ tipo: "duplicar", origemId: "cmp_1", anoMes: "2026-11", maior: 1, sugestao: 2 });
+    expect(m.apiAcoes.duplicar).not.toHaveBeenCalled();
+    await p.confirmarDialogo(7);
+    expect(m.chamadas.filter((c) => !c.startsWith("lista"))).toEqual(["salvar:cmp_1:PACIENTE ORIGINAL", "duplicar:cmp_1:7"]);
+    expect(m.apiAcoes.duplicar).toHaveBeenCalledWith("cmp_1", { sequencia: 7 });
+    expect(p.editor.compra.value!.sequencia).toBe(7);
     expect(p.editor.compra.value!.medico).toBe("Dr. Antes");
-    expect(p.selecionadaId.value).toBe("cmp_2");
-    expect(p.lista.compras.value.map((c) => c.sequencia)).toEqual([2, 1]);
-    expect(avisos.at(-1)).toBe("Compra duplicada: Compra 02 - Novembro/2026");
+    expect(p.selecionadaId.value).toBe("cmp_7");
+    expect(p.lista.compras.value.map((c) => c.sequencia)).toEqual([7, 1]);
+    expect(avisos.at(-1)).toBe("Compra duplicada: Compra 07 - Novembro/2026");
+  });
+
+  it("duplicar com um número que já existe (inclusive o da original): o erro fica na caixinha e nada é copiado", async () => {
+    const m = mundo([compraBase(1), compraBase(2)]);
+    const { p } = pagina(m, { query: { id: "cmp_1" } });
+    await p.iniciar();
+    await p.duplicar();
+    await p.confirmarDialogo(1);
+    expect(p.dialogo.value!.erro).toBe("A Compra 01 de novembro já existe. Escolha outro número.");
+    expect(p.editor.compra.value!.id).toBe("cmp_1");
+    await p.confirmarDialogo(2);
+    expect(p.dialogo.value!.erro).toBe("A Compra 02 de novembro já existe. Escolha outro número.");
+    expect(p.lista.compras.value).toHaveLength(2);
+  });
+
+  it("cancelar a caixinha do duplicar não copia nada", async () => {
+    const m = mundo([compraBase(1)]);
+    const { p } = pagina(m, { query: { id: "cmp_1" } });
+    await p.iniciar();
+    await p.duplicar();
+    p.cancelarDialogo();
+    expect(p.dialogo.value).toBeNull();
+    expect(m.apiAcoes.duplicar).not.toHaveBeenCalled();
   });
 
   it("cancelar: pede confirmação; confirmar cancela, deixa a compra aberta SÓ PARA LEITURA e atualiza a lista e os totais", async () => {
@@ -436,6 +576,7 @@ describe("Duplicar e Cancelar", () => {
     await p.iniciar();
     await p.duplicar();
     p.pedirCancelar();
+    expect(p.dialogo.value).toBeNull();
     expect(m.apiAcoes.duplicar).not.toHaveBeenCalled();
     expect(p.confirmandoCancelar.value).toBe(false);
   });
@@ -449,11 +590,13 @@ describe("somente leitura (sócio, mapa 'ver')", () => {
     expect(p.editor.compra.value!.id).toBe("cmp_1");
     await p.criarNova();
     await p.duplicar();
+    await p.confirmarDialogo(9);
     p.pedirCancelar();
     p.editor.alterar({ paciente: "NAO PODE" });
     await soltar(10_000);
     expect(m.apiAcoes.criar).not.toHaveBeenCalled();
     expect(m.apiAcoes.duplicar).not.toHaveBeenCalled();
+    expect(p.dialogo.value).toBeNull(); // a caixinha nem abre para quem só lê
     expect(p.confirmandoCancelar.value).toBe(false);
     expect(m.apiCompra.salvar).not.toHaveBeenCalled();
     expect(p.editor.compra.value!.paciente).toBe("PACIENTE TESTE 1");
@@ -538,10 +681,11 @@ describe("aba do celular (lista, formulário, resumo)", () => {
     const m = mundo([compraBase(1)]);
     const { p } = pagina(m);
     await p.iniciar();
-    await p.criarNova();
+    await criarCom(p, 2);
     expect(p.aba.value).toBe("formulario");
     p.irParaAba("lista");
     await p.duplicar();
+    await p.confirmarDialogo(3);
     expect(p.aba.value).toBe("formulario");
   });
 

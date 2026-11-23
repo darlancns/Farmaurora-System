@@ -10,12 +10,13 @@ import {
   COMPRA_MEDICAMENTOS_LIMITE_MAX,
   COMPRA_MEDICAMENTOS_LIMITE_PADRAO,
   COMPRA_MOMENTOS_PAGAMENTO,
+  COMPRA_NUMERO_MAX,
   COMPRA_REFERENCIA_ID_RE,
   COMPRA_TEXTO_LONGO_MAX,
   COMPRA_VALOR_MAX,
 } from "../constants/compra";
 import type { BrandMedicamento } from "../types/processo";
-import type { CamposCompraEditaveis, CompraEstado, ItemCompraEstado } from "../types/compra";
+import type { CamposCompraEditaveis, CompraEstado, ItemCompraEstado, NovaCompraDTO } from "../types/compra";
 import type { MomentoPagamentoResumo } from "../types/compraResumo";
 import { chaveCadastro } from "./cadastroNome";
 import { validarNovoCadastro } from "./cadastroValidacao";
@@ -76,6 +77,15 @@ export function validarDinheiroCompra(v: unknown, rotulo: string): ResultadoComp
   if (v > COMPRA_VALOR_MAX) return falha(`${rotulo} é grande demais.`);
   if (Math.abs(v * 100 - Math.round(v * 100)) > 1e-6) return falha(`${rotulo} deve ter no máximo 2 casas decimais.`);
   return ok(Math.round(v * 100) / 100);
+}
+
+/** A mensagem do Nº da compra inválido (a mesma na tela e no servidor). */
+export const NUMERO_DA_COMPRA_ERRO = `Nº da compra: informe um número inteiro de 1 a ${COMPRA_NUMERO_MAX}.`;
+
+/** O Nº da compra: um NÚMERO inteiro de 1 a COMPRA_NUMERO_MAX (texto, decimal, 0, negativo e vazio são recusados). O servidor nunca gera o número. */
+export function validarNumeroDaCompra(v: unknown): ResultadoCompra<number> {
+  if (typeof v !== "number" || !Number.isInteger(v) || v < 1 || v > COMPRA_NUMERO_MAX) return falha(NUMERO_DA_COMPRA_ERRO);
+  return ok(v);
 }
 
 /** "Ordens": um inteiro de 1 a COMPRA_MAX_ORDENS (a mesma mensagem do Nº Ordem do Follow-Up). */
@@ -147,6 +157,7 @@ const CHAVES_DA_COMPRA: readonly string[] = [
   ...Object.keys(CAMPOS_BOOLEANOS_COMPRA),
   ...Object.keys(CAMPOS_BOOLEANOS_OU_NULO_COMPRA),
   ...Object.keys(CAMPOS_DINHEIRO_COMPRA),
+  "sequencia",
   "numeroOrdens",
   "pagamentoMomento",
   "pendencias",
@@ -302,6 +313,11 @@ export function validarCompraSalvar(corpo: unknown): ResultadoCompra<CompraEstad
     if (!d.ok) return d;
     campos[campo] = d.valor;
   }
+  if (o.sequencia !== undefined) {
+    const n = validarNumeroDaCompra(o.sequencia);
+    if (!n.ok) return n;
+    campos.sequencia = n.valor;
+  }
   if (o.numeroOrdens !== undefined) {
     const n = validarNumeroOrdens(o.numeroOrdens);
     if (!n.ok) return n;
@@ -327,6 +343,16 @@ export function validarCompraSalvar(corpo: unknown): ResultadoCompra<CompraEstad
     estado.itens = itens.valor;
   }
   return ok(estado);
+}
+
+/** O corpo de POST /api/compras e de /duplicar: o Nº da compra DIGITADO (obrigatório) → o corpo limpo, ou a mensagem do 400. */
+export function validarNovaCompra(corpo: unknown): ResultadoCompra<NovaCompraDTO> {
+  const o = objeto(corpo);
+  if (!o) return falha(NUMERO_DA_COMPRA_ERRO);
+  const desconhecida = chavesDesconhecidas(o, ["sequencia"], "");
+  if (desconhecida) return falha(desconhecida);
+  const n = validarNumeroDaCompra(o.sequencia);
+  return n.ok ? ok({ sequencia: n.valor }) : n;
 }
 
 /** O mês da lista (`?ano_mes=AAAA-MM`); ausente = o `padrao`. */

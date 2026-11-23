@@ -1,8 +1,9 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
 import type { Compra, CompraSalvarDTO, MudancasCompra } from "#shared/types/compra";
+import { CODIGO_NUMERO_JA_EXISTE } from "#shared/constants/compra";
 import { ciaAposTrocaDeEnvio } from "#shared/utils/compraForm";
 import { corpoParaSalvar } from "#shared/utils/compraPayload";
-import { ApiError, apiFetch } from "../utils/apiFetch";
+import { ApiError, apiFetch, codigoDoErro } from "../utils/apiFetch";
 
 // O editor da compra aberta no formulário: o estado local (uma cópia da compra do servidor) e o SALVAMENTO AUTOMÁTICO.
 //
@@ -10,7 +11,10 @@ import { ApiError, apiFetch } from "../utils/apiFetch";
 //    leitura/gravação; ao sucesso a versão passa a ser a devolvida.
 //  - NUNCA dois PATCH ao mesmo tempo: mudou durante um salvamento? marca "sujo" e salva de novo logo depois do que está em curso.
 //  - `flush()` descarrega o que está pendente ANTES de trocar de compra/mês ou sair da página; false = não salvou (quem chama não troca).
-//  - 409 (outra pessoa salvou antes): para o autosave e espera a escolha — `carregarVersaoSalva()` (descarta as mudanças locais) ou
+//  - Nº da compra repetido (409 com `data.code` NUMERO_JA_EXISTE, que NÃO é o 409 de versão): o erro aparece no campo do número (`erroNumero`), o que a
+//    pessoa digitou fica na tela, e o autosave reenvia SEM esse número para o resto das mudanças não se perder; trocar o número (ou voltar ao que vale)
+//    limpa o erro. Enquanto o erro está na tela, `flush()` devolve false (não se sai deixando o número sem gravar).
+//  - 409 de versão (outra pessoa salvou antes): para o autosave e espera a escolha — `carregarVersaoSalva()` (descarta as mudanças locais) ou
 //    `manterMinhas()` (reenvia o estado local com a versão atual). Nada some sem a pessoa escolher. A compra é UMA por fornecedor, sem
 //    ordens nem trava de PO: o único conflito é o de versão (o 409 de `atualizadoEm`).
 //  - Erro de rede ou 5xx: o estado local fica; tenta de novo sozinho com recuo (3 tentativas); depois espera `tentarDeNovo()`. Erro 4xx
@@ -53,6 +57,10 @@ export interface CompraEditor {
   mensagemErro: Ref<string | null>;
   /** Acabaram as tentativas automáticas (ou o erro não se repete sozinho): só o clique salva de novo. */
   esperandoClique: Ref<boolean>;
+  /** O servidor recusou o Nº da compra (já existe no mês): a mensagem, para o campo do número. */
+  erroNumero: Ref<string | null>;
+  /** O número que vale no servidor (o do título): difere do digitado enquanto `erroNumero` está na tela. */
+  sequenciaExibida: ComputedRef<number>;
   /** Nenhum campo é editável (sem permissão, ou compra cancelada, ou nenhuma compra aberta). */
   somenteLeituraAgora: ComputedRef<boolean>;
   /** Há algo ainda não salvo (ou salvando, ou com falha): é o que o aviso de "sair da página" olha. */
@@ -75,6 +83,10 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
   const estado = ref<EstadoSalvamento>("ocioso");
   const mensagemErro = ref<string | null>(null);
   const esperandoClique = ref(false);
+  const erroNumero = ref<string | null>(null);
+  /** O número que o servidor guarda (o último lido ou gravado) e o que ele recusou (digitado, repetido): o autosave não o reenvia. */
+  const sequenciaNoServidor = ref(0);
+  let numeroRecusado: number | null = null;
   /** Mudou, não salvou? (contadores: `versao` sobe a cada mudança; `versaoSalva` é a do último PATCH que passou). */
   const versao = ref(0);
   const versaoSalva = ref(0);
@@ -90,8 +102,11 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
   const sujoPendente = computed(() => versao.value !== versaoSalva.value);
   const somenteLeituraAgora = computed(() => opcoes.somenteLeitura() || compra.value === null || compra.value.cancelada);
   const temPendencia = computed(
-    () => !somenteLeituraAgora.value && (sujoPendente.value || estado.value === "salvando" || estado.value === "erro" || estado.value === "conflito"),
+    () =>
+      !somenteLeituraAgora.value &&
+      (sujoPendente.value || estado.value === "salvando" || estado.value === "erro" || estado.value === "conflito" || erroNumero.value !== null),
   );
+  const sequenciaExibida = computed(() => (erroNumero.value !== null ? sequenciaNoServidor.value : (compra.value?.sequencia ?? 0)));
 
   // Direto da fonte (não do computed): a permissão pode mudar sem que um ref do editor mude.
   const podeSalvar = (): boolean => !opcoes.somenteLeitura() && compra.value !== null && !compra.value.cancelada;
@@ -157,8 +172,12 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
       sujo = false;
       estado.value = "salvando";
       try {
-        const salvo = await api.salvar(atual.id, corpoParaSalvar(atual, atualizadoEm));
+        const corpo = corpoParaSalvar(atual, atualizadoEm);
+        // O número que o servidor recusou não vai de novo (o resto das mudanças segue): só quando a pessoa digitar outro.
+        if (numeroRecusado !== null && atual.sequencia === numeroRecusado) delete corpo.sequencia;
+        const salvo = await api.salvar(atual.id, corpo);
         if (minhaGeracao !== geracao) return; // outra compra foi aberta no meio: este resultado não é desta tela
+        sequenciaNoServidor.value = salvo.sequencia;
         atualizadoEm = salvo.updatedAt;
         if (compra.value) compra.value = { ...compra.value, updatedAt: salvo.updatedAt, atualizadoPor: salvo.atualizadoPor };
         versaoSalva.value = instantaneo;
@@ -168,6 +187,12 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
         opcoes.aoSalvar?.(salvo);
       } catch (e) {
         if (minhaGeracao !== geracao) return;
+        if (e instanceof ApiError && e.status === 409 && codigoDoErro(e) === CODIGO_NUMERO_JA_EXISTE && numeroRecusado !== atual.sequencia) {
+          // Número repetido: o erro vai para o campo e o resto das mudanças é reenviado já, SEM o número recusado.
+          erroNumero.value = e.message;
+          numeroRecusado = atual.sequencia;
+          continue;
+        }
         aposFalha(e);
         return;
       }
@@ -195,6 +220,9 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
     tentativasAutomaticas = 0;
     esperandoClique.value = false;
     mensagemErro.value = null;
+    erroNumero.value = null;
+    numeroRecusado = null;
+    sequenciaNoServidor.value = nova?.sequencia ?? 0;
     estado.value = "ocioso";
     emVoo = null;
   }
@@ -207,6 +235,11 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
 
   function alterar(mudancas: MudancasCompra): void {
     if (!compra.value || !podeSalvar()) return;
+    // Outro número (ou o de volta ao que vale): o erro do número recusado sai. Digitar o MESMO número recusado de novo não limpa nada.
+    if (mudancas.sequencia !== undefined && mudancas.sequencia !== numeroRecusado) {
+      erroNumero.value = null;
+      numeroRecusado = null;
+    }
     const nova = { ...compra.value, ...mudancas };
     // A cia depende do modal: trocou o Envio e a cia atual não vale para o novo modal, ela some (a pessoa escolhe de novo).
     if (mudancas.envio !== undefined) nova.cia = ciaAposTrocaDeEnvio(nova.envio, nova.cia);
@@ -224,10 +257,10 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
     while (emVoo) await emVoo;
     if (!podeSalvar()) return true;
     if (estado.value === "conflito") return false;
-    if (versao.value === versaoSalva.value) return estado.value !== "erro";
+    if (versao.value === versaoSalva.value) return estado.value !== "erro" && erroNumero.value === null;
     await executar();
     const depois = estadoAtual(); // o estado pode ter mudado durante o salvamento
-    return versao.value === versaoSalva.value && depois !== "conflito" && depois !== "erro";
+    return versao.value === versaoSalva.value && depois !== "conflito" && depois !== "erro" && erroNumero.value === null;
   }
 
   async function tentarDeNovo(): Promise<void> {
@@ -261,6 +294,8 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
     estado,
     mensagemErro,
     esperandoClique,
+    erroNumero,
+    sequenciaExibida,
     somenteLeituraAgora,
     temPendencia,
     carregar,

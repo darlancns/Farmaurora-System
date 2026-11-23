@@ -8,6 +8,7 @@ import type { Compra, CompraSalvarDTO } from "../types/compra";
 export function corpoParaSalvar(compra: Compra, atualizadoEm: string): CompraSalvarDTO {
   return {
     atualizadoEm,
+    sequencia: compra.sequencia,
     fornecedor: compra.fornecedor,
     envio: compra.envio,
     cia: compra.cia,

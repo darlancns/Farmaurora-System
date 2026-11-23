@@ -6,6 +6,7 @@ import { ACOES_COMPRA_KEY, ACOES_VAZIAS, type AcoesCompra } from "../../utils/co
 import type { OpcoesFormulario } from "../../utils/comprasOpcoes";
 import CompraFaixaConflito from "./CompraFaixaConflito.vue";
 import CompraFormCabecalho from "./CompraFormCabecalho.vue";
+import CompraLinhaNumero from "./CompraLinhaNumero.vue";
 import CompraLinhaOrdens from "./CompraLinhaOrdens.vue";
 import CompraLinhasAvisos from "./CompraLinhasAvisos.vue";
 import CompraLinhasEnvio from "./CompraLinhasEnvio.vue";
@@ -17,7 +18,7 @@ import CompraLinhasResponsaveis from "./CompraLinhasResponsaveis.vue";
 import CompraLinhasValores from "./CompraLinhasValores.vue";
 
 // A coluna central: o cabeçalho, a faixa de conflito e UM ÚNICO BLOCO de campos (sem fieldsets nem títulos de seção): uma linha
-// (CompraCampo) por tópico, NA ORDEM EXATA do resumo (as linhas de montarResumo("modelo"), sem o título). A ordem do DOM é a do Tab
+// (CompraCampo) por tópico, NA ORDEM EXATA do resumo (as linhas de montarResumo("modelo"), a 1ª é o Nº da compra = o título do resumo). A ordem do DOM é a do Tab
 // (nenhum tabindex positivo). O teste de arquitetura de ordem confere `data-linha` contra o resumo.
 const props = defineProps<{
   compra: Compra;
@@ -25,6 +26,10 @@ const props = defineProps<{
   mensagemErro?: string | null;
   /** Acabaram as tentativas automáticas de salvar: só o clique salva de novo. */
   esperandoClique?: boolean;
+  /** O servidor recusou o Nº da compra (já existe no mês): aparece no campo, sem perder o que foi digitado. */
+  erroNumero?: string | null;
+  /** O número que vale no servidor (o do título): difere do digitado enquanto o número recusado está na tela. */
+  sequenciaExibida?: number;
   /** Quem pode escrever em Compras (a permissão). Compra cancelada é somente leitura de qualquer jeito. */
   podeEditar: boolean;
   opcoes: OpcoesFormulario;
@@ -68,7 +73,7 @@ const alterar = (m: MudancasCompra): void => emit("alterar", m);
   <section id="compra-formulario" aria-label="Formulário da compra" :data-salvamento="estado" class="flex flex-col gap-4">
     <CompraFormCabecalho
       :ano-mes="compra.anoMes"
-      :sequencia="compra.sequencia"
+      :sequencia="sequenciaExibida ?? compra.sequencia"
       :cancelada="compra.cancelada"
       :pode-editar="podeEditar"
       :estado="estado"
@@ -84,6 +89,7 @@ const alterar = (m: MudancasCompra): void => emit("alterar", m);
     <CompraFaixaConflito v-if="estado === 'conflito'" :ocupado="ocupado" @carregar="emit('carregarVersaoSalva')" @manter="emit('manterMinhas')" />
 
     <div id="compra-campos" :aria-disabled="desabilitado ? 'true' : undefined" class="rounded-lg border border-hairline bg-paper-raised px-4 lg:px-5">
+      <CompraLinhaNumero :compra="compra" :desabilitado="desabilitado" :erro-do-servidor="erroNumero" @alterar="alterar" />
       <CompraLinhasMedicamento :compra="compra" :desabilitado="desabilitado" @alterar="alterar" />
       <CompraLinhaOrdens :compra="compra" :desabilitado="desabilitado" @alterar="alterar" />
       <CompraLinhasValores :compra="compra" :desabilitado="desabilitado" :opcoes="opcoes" @alterar="alterar" />

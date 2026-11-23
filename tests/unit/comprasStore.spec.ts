@@ -14,17 +14,17 @@ vi.mock("../../server/utils/supabaseServerClient", () => ({
 const store = await import("../../server/utils/comprasStore");
 const { ComprasRegraError } = await import("../../server/utils/comprasErro");
 const {
-  MAX_TENTATIVAS_NUMERO,
   MENSAGEM_COMPRA_CANCELADA,
   MENSAGEM_CONFLITO_VERSAO,
   MENSAGEM_ID_DE_OUTRA_COMPRA,
-  MENSAGEM_NUMERO_ESGOTADO,
   MENSAGEM_REFERENCIA_INVALIDA,
   NOME_UNICO_SEQUENCIA,
   anoMesDeBrasilia,
   cancelarCompra,
-  criarCompra,
-  duplicarCompra,
+  criarCompra: criarCompraDoStore,
+  duplicarCompra: duplicarCompraDoStore,
+  listarComprasDoMes,
+  mensagemNumeroJaExiste,
   obterCompra,
   proximaVersao,
   salvarCompra,
@@ -33,12 +33,21 @@ const {
 
 const NOME_UNICO_ITEM = "compra_itens_compra_posicao_uq";
 
+// O Nº da compra é DIGITADO (o servidor nunca o escolhe). Os testes que não tratam do número usam estes ajudantes, que numeram 1, 2, 3... por conta do
+// TESTE; os testes do número passam o número e o mês de forma explícita.
+let proximoNumero = 1;
+const criarCompra = (usuario: string, sequencia?: number, extra: { anoMes?: string; agora?: Date } = {}): Promise<Compra> =>
+  criarCompraDoStore(usuario, { sequencia: sequencia ?? proximoNumero++, ...extra });
+const duplicarCompra = (id: string, usuario: string, sequencia?: number, extra: { anoMes?: string; agora?: Date } = {}): Promise<Compra | null> =>
+  duplicarCompraDoStore(id, usuario, { sequencia: sequencia ?? proximoNumero++, ...extra });
+
 function limparBanco(): void {
   for (const t of ["compras", "compra_itens", "cadastro_medicamentos", "pre_cadastro_medicamentos"]) fake.tabelas[t] = [];
   fake.chamadas.length = 0;
 }
 
 beforeEach(() => {
+  proximoNumero = 1;
   limparBanco();
   // O banco de verdade impõe estas duas unicidades.
   (fake as unknown as { unicos: unknown[] }).unicos = [];
@@ -182,44 +191,87 @@ describe("criarCompra — o número do mês", () => {
     for (const c of ["vendedor", "courier_simples", "local_declarado", "isencao_para"]) expect(colunas, c).not.toContain(c);
   });
 
-  it("sequencia = maior do mês + 1 (1, 2, 3...), e cada mês tem a sua contagem", async () => {
-    expect((await criarCompra("Cris")).sequencia).toBe(1);
-    expect((await criarCompra("Cris")).sequencia).toBe(2);
-    expect((await criarCompra("Cris")).sequencia).toBe(3);
-    vi.setSystemTime(new Date("2026-12-10T15:00:00.000Z"));
-    const dezembro = await criarCompra("Cris");
-    expect([dezembro.anoMes, dezembro.sequencia]).toEqual(["2026-12", 1]);
-    expect((await criarCompra("Cris")).sequencia).toBe(2);
+  it("o número é o DIGITADO, na ordem que o time combinou (14 antes do 3) — o servidor não gera nem preenche lacunas", async () => {
+    const quatorze = await criarCompraDoStore("Cris", { sequencia: 14 });
+    const tres = await criarCompraDoStore("Cris", { sequencia: 3 });
+    const nove = await criarCompraDoStore("Cris", { sequencia: 9999 });
+    expect([quatorze.sequencia, tres.sequencia, nove.sequencia]).toEqual([14, 3, 9999]);
+    expect(fake.linhas("compras").map((r) => r.sequencia)).toEqual([14, 3, 9999]);
   });
 
-  it("o maior é NUMÉRICO: com 11 compras no mês a próxima é 12 (não 10)", async () => {
-    for (let n = 1; n <= 11; n++) await criarCompra("Cris");
-    expect((await criarCompra("Cris")).sequencia).toBe(12);
+  it("o mesmo número em OUTRO mês é permitido (a unicidade é por mês)", async () => {
+    await criarCompraDoStore("Cris", { sequencia: 5 });
+    const outubro = await criarCompraDoStore("Cris", { sequencia: 5, anoMes: "2026-10" });
+    expect([outubro.anoMes, outubro.sequencia]).toEqual(["2026-10", 5]);
+    expect(fake.linhas("compras")).toHaveLength(2);
   });
 
-  it("cancelada continua ocupando o número (o número nunca é reaproveitado)", async () => {
-    const a = await criarCompra("Cris");
-    await cancelarCompra(a.id, "Cris");
-    expect((await criarCompra("Cris")).sequencia).toBe(2);
-  });
-
-  it("a virada do mês de Brasília (2026-12-01T01:30Z é 30/11 → 2026-11; 03:00Z → 2026-12)", async () => {
-    await criarCompra("Cris"); // 1 em novembro
+  it("o mês padrão é o de BRASÍLIA (a virada: 2026-12-01T01:30Z é 30/11 → 2026-11; 03:00Z → 2026-12)", async () => {
     vi.setSystemTime(new Date("2026-12-01T01:30:00.000Z"));
-    const antesDaVirada = await criarCompra("Cris");
-    expect([antesDaVirada.anoMes, antesDaVirada.sequencia]).toEqual(["2026-11", 2]);
+    expect((await criarCompraDoStore("Cris", { sequencia: 1 })).anoMes).toBe("2026-11");
     vi.setSystemTime(new Date("2026-12-01T03:00:00.000Z"));
-    const depoisDaVirada = await criarCompra("Cris");
-    expect([depoisDaVirada.anoMes, depoisDaVirada.sequencia]).toEqual(["2026-12", 1]);
+    expect((await criarCompraDoStore("Cris", { sequencia: 1 })).anoMes).toBe("2026-12");
+  });
+
+  it("um mês explícito vence o mês padrão", async () => {
+    const c = await criarCompraDoStore("Cris", { sequencia: 2, anoMes: "2026-09" });
+    expect(c.anoMes).toBe("2026-09");
   });
 });
 
-describe("criarCompra — disputa pelo número (23505 em compras_mes_sequencia_uq): recalcula e tenta de novo, até 5 vezes", () => {
+describe("criarCompra — número que já existe no mês: 409 amigável, nada é criado", () => {
+  async function ocupar(sequencia: number, consultor: string, fornecedor: string, anoMes = "2026-11"): Promise<Compra> {
+    const c = await criarCompraDoStore("Cris", { sequencia, anoMes });
+    await salvarCompra(c.id, estado(c, undefined, { consultor, fornecedor }), "Cris");
+    return (await obterCompra(c.id))!;
+  }
+
+  it("409 com a mensagem pedida (só consultor e fornecedor) e o código que a tela distingue do 409 de versão", async () => {
+    await ocupar(14, "Rebeca", "Can Pharma");
+    const e = await erroDe(criarCompraDoStore("Bruno", { sequencia: 14 }));
+    expect(e.statusCode).toBe(409);
+    expect(e.message).toBe("A Compra 14 de novembro já existe (Rebeca, Can Pharma). Escolha outro número.");
+    expect(e.data).toMatchObject({ code: "NUMERO_JA_EXISTE", anoMes: "2026-11", sequencia: 14 });
+    expect(e.data).not.toHaveProperty("atual"); // não é o 409 de versão
+    expect(fake.linhas("compras")).toHaveLength(1); // nada foi criado
+  });
+
+  it("a mensagem mostra só o que existe: só consultor, só fornecedor, ou nenhum dos dois", async () => {
+    expect(mensagemNumeroJaExiste("2026-11", 14, { consultor: "Rebeca", fornecedor: "" })).toBe("A Compra 14 de novembro já existe (Rebeca). Escolha outro número.");
+    expect(mensagemNumeroJaExiste("2026-11", 14, { consultor: "", fornecedor: "Can Pharma" })).toBe("A Compra 14 de novembro já existe (Can Pharma). Escolha outro número.");
+    expect(mensagemNumeroJaExiste("2026-11", 14, { consultor: "  ", fornecedor: "" })).toBe("A Compra 14 de novembro já existe. Escolha outro número.");
+    expect(mensagemNumeroJaExiste("2026-10", 3, null)).toBe("A Compra 03 de outubro já existe. Escolha outro número.");
+  });
+
+  it("compra CANCELADA continua ocupando o número", async () => {
+    const c = await ocupar(7, "Rebeca", "Can Pharma");
+    await cancelarCompra(c.id, "Cris");
+    const e = await erroDe(criarCompraDoStore("Bruno", { sequencia: 7 }));
+    expect(e.statusCode).toBe(409);
+    expect(e.message).toContain("A Compra 07 de novembro já existe");
+  });
+
+  it("não tenta de outro número, nem preenche: um só INSERT e nenhum outro número aparece", async () => {
+    await ocupar(14, "Rebeca", "Can Pharma");
+    const inserts = fake.chamadas.filter((x) => x.tabela === "compras" && x.op === "insert").length;
+    await erroDe(criarCompraDoStore("Bruno", { sequencia: 14 }));
+    expect(fake.chamadas.filter((x) => x.tabela === "compras" && x.op === "insert").length).toBe(inserts); // nenhum INSERT a mais
+    expect(fake.linhas("compras").map((r) => r.sequencia)).toEqual([14]);
+  });
+
+  it("o mesmo número em outro mês não conflita", async () => {
+    await ocupar(14, "Rebeca", "Can Pharma", "2026-10");
+    const c = await criarCompraDoStore("Bruno", { sequencia: 14 }); // novembro
+    expect([c.anoMes, c.sequencia]).toEqual(["2026-11", 14]);
+  });
+});
+
+describe("criarCompra — disputa pelo número (23505 em compras_mes_sequencia_uq): vira o MESMO 409, sem tentar outro número", () => {
   /**
-   * Faz os N primeiros INSERTs em compras falharem com 23505, como se outra pessoa tivesse pegado o mesmo número no mesmo instante:
-   * antes de falhar o stub grava a compra rival com o número disputado (então o recálculo enxerga um número a mais).
+   * Faz o INSERT em compras falhar com 23505, como se outra pessoa tivesse pegado o mesmo número no mesmo instante (depois da conferência):
+   * antes de falhar o stub grava a compra rival com o número disputado (e o consultor/fornecedor dela, que a mensagem mostra).
    */
-  function disputaNasPrimeiras(falhas: number, mensagem = `duplicate key value violates unique constraint "${NOME_UNICO_SEQUENCIA}"`): { tentativas: () => number } {
+  function disputa(mensagem = `duplicate key value violates unique constraint "${NOME_UNICO_SEQUENCIA}"`): { tentativas: () => number } {
     let tentativas = 0;
     const from = fake.from.bind(fake);
     vi.spyOn(fake, "from").mockImplementation(((tabela: string) => {
@@ -228,49 +280,32 @@ describe("criarCompra — disputa pelo número (23505 em compras_mes_sequencia_u
       return Object.assign(consulta, {
         insert: (row: Record<string, unknown>) => {
           tentativas += 1;
-          if (tentativas <= falhas) {
-            fake.semear("compras", [{ ...row, id: `rival_${tentativas}` }]); // a rival ficou com o número que íamos usar
-            return { select: () => Promise.resolve({ data: null, error: { message: mensagem, code: "23505" } }) };
-          }
-          return from(tabela).insert(row);
+          fake.semear("compras", [{ ...row, id: `rival_${tentativas}`, consultor: "Rebeca", fornecedor: "Can Pharma" }]);
+          return { select: () => Promise.resolve({ data: null, error: { message: mensagem, code: "23505" } }) };
         },
       });
     }) as unknown as typeof fake.from);
     return { tentativas: () => tentativas };
   }
 
-  it("perdeu 2 vezes, ganhou na 3ª: o número é o 3º livre", async () => {
-    const d = disputaNasPrimeiras(2);
-    const c = await criarCompra("Cris");
-    expect(d.tentativas()).toBe(3);
-    expect(c.sequencia).toBe(3); // 1 e 2 foram das rivais
-    expect(fake.linhas("compras").map((r) => r.sequencia)).toEqual([1, 2, 3]);
+  it("23505 no INSERT: 409 amigável com o dono do número, uma só tentativa (nada de 500 e nada de outro número)", async () => {
+    const d = disputa();
+    const e = await erroDe(criarCompraDoStore("Bruno", { sequencia: 14 }));
+    expect(e.statusCode).toBe(409);
+    expect(e.message).toBe("A Compra 14 de novembro já existe (Rebeca, Can Pharma). Escolha outro número.");
+    expect(e.data).toMatchObject({ code: "NUMERO_JA_EXISTE", sequencia: 14 });
+    expect(d.tentativas()).toBe(1);
+    expect(fake.linhas("compras").map((r) => r.sequencia)).toEqual([14]); // só a da rival
   });
 
-  it("perdeu 4 vezes, ganhou na 5ª (a última tentativa conta)", async () => {
-    const d = disputaNasPrimeiras(MAX_TENTATIVAS_NUMERO - 1);
-    const c = await criarCompra("Cris");
-    expect(d.tentativas()).toBe(MAX_TENTATIVAS_NUMERO);
-    expect(c.sequencia).toBe(MAX_TENTATIVAS_NUMERO);
-  });
-
-  it("perdeu todas as 5: 503 com mensagem clara, e a compra não foi criada", async () => {
-    const d = disputaNasPrimeiras(MAX_TENTATIVAS_NUMERO);
-    const e = await erroDe(criarCompra("Cris"));
-    expect(e.statusCode).toBe(503);
-    expect(e.message).toBe(MENSAGEM_NUMERO_ESGOTADO);
-    expect(d.tentativas()).toBe(MAX_TENTATIVAS_NUMERO);
-    expect(fake.linhas("compras").every((r) => String(r.id).startsWith("rival_"))).toBe(true);
-  });
-
-  it("23505 de OUTRA constraint (ou outro erro) não é disputa: sobe na hora, sem tentar de novo", async () => {
-    const d = disputaNasPrimeiras(10, 'duplicate key value violates unique constraint "compras_pkey"');
-    await expect(criarCompra("Cris")).rejects.not.toBeInstanceOf(ComprasRegraError);
+  it("23505 de OUTRA constraint (ou outro erro) não é disputa pelo número: sobe como erro comum", async () => {
+    const d = disputa('duplicate key value violates unique constraint "compras_pkey"');
+    await expect(criarCompraDoStore("Cris", { sequencia: 1 })).rejects.not.toBeInstanceOf(ComprasRegraError);
     expect(d.tentativas()).toBe(1);
 
     vi.restoreAllMocks();
     fake.falhar("compras", "insert", "falha injetada");
-    await expect(criarCompra("Cris")).rejects.toThrow(/falha ao criar a compra/);
+    await expect(criarCompraDoStore("Cris", { sequencia: 2 })).rejects.toThrow(/falha ao criar a compra/);
   });
 
   it("o unique do fake também recusa o número repetido (a disputa real: dois com o mesmo número)", async () => {
@@ -278,6 +313,115 @@ describe("criarCompra — disputa pelo número (23505 em compras_mes_sequencia_u
     const repetida = await fake.from("compras").insert({ id: "x", ano_mes: "2026-11", sequencia: 1 });
     expect(repetida.error).toMatchObject({ code: "23505" });
     expect(fake.linhas("compras")).toHaveLength(1);
+  });
+});
+
+describe("criarCompra — concorrência (várias pessoas criando ao mesmo tempo)", () => {
+  it("criações SIMULTÂNEAS de números diferentes passam todas", async () => {
+    const resultados = await Promise.all([14, 15, 16, 17].map((n) => criarCompraDoStore("Cris", { sequencia: n })));
+    expect(resultados.map((c) => c.sequencia).sort()).toEqual([14, 15, 16, 17]);
+    expect(fake.linhas("compras")).toHaveLength(4);
+  });
+
+  it("o MESMO número ao mesmo tempo: uma passa e a outra recebe o 409 amigável (nunca duas com o mesmo número)", async () => {
+    const [a, b] = await Promise.allSettled([criarCompraDoStore("Ana", { sequencia: 14 }), criarCompraDoStore("Bruno", { sequencia: 14 })]);
+    const status = [a, b].map((r) => r.status).sort();
+    expect(status).toEqual(["fulfilled", "rejected"]);
+    const recusada = [a, b].find((r) => r.status === "rejected") as PromiseRejectedResult;
+    expect(recusada.reason).toBeInstanceOf(ComprasRegraError);
+    expect(recusada.reason).toMatchObject({ statusCode: 409, data: { code: "NUMERO_JA_EXISTE" } });
+    expect(fake.linhas("compras")).toHaveLength(1);
+  });
+
+  it("criar e duplicar o mesmo número ao mesmo tempo: só um passa", async () => {
+    const o = await criarCompra("Cris", 1);
+    const resultados = await Promise.allSettled([criarCompraDoStore("Ana", { sequencia: 20 }), duplicarCompraDoStore(o.id, "Bruno", { sequencia: 20 })]);
+    expect(resultados.map((r) => r.status).sort()).toEqual(["fulfilled", "rejected"]);
+    expect(fake.linhas("compras").filter((r) => r.sequencia === 20)).toHaveLength(1);
+  });
+});
+
+describe("salvarCompra — o Nº da compra é editável (e não colide)", () => {
+  it("trocar para um número livre grava (e a versão sobe); trocar para o MESMO número não mexe em nada", async () => {
+    const c = await criarCompra("Cris", 5);
+    const salva = (await salvarCompra(c.id, estado(c, undefined, { sequencia: 12 }), "Cris"))!;
+    expect(salva.sequencia).toBe(12);
+    expect(fake.linhas("compras")[0]!.sequencia).toBe(12);
+    const igual = (await salvarCompra(c.id, estado(salva, undefined, { sequencia: 12 }), "Cris"))!;
+    expect(igual.sequencia).toBe(12);
+  });
+
+  it("trocar para um número que OUTRA compra tem: 409 amigável, e a compra fica com o número que tinha", async () => {
+    const a = await criarCompra("Cris", 5);
+    const b = await criarCompra("Cris", 6);
+    await salvarCompra(b.id, estado(b, undefined, { consultor: "Rebeca", fornecedor: "Can Pharma" }), "Cris");
+    const e = await erroDe(salvarCompra(a.id, estado(a, undefined, { sequencia: 6 }), "Cris"));
+    expect(e.statusCode).toBe(409);
+    expect(e.message).toBe("A Compra 06 de novembro já existe (Rebeca, Can Pharma). Escolha outro número.");
+    expect(e.data).toMatchObject({ code: "NUMERO_JA_EXISTE" });
+    expect(fake.linhas("compras").find((r) => r.id === a.id)!.sequencia).toBe(5);
+  });
+
+  it("23505 no UPDATE (a outra pessoa pegou o número no meio): o mesmo 409 amigável", async () => {
+    const a = await criarCompra("Cris", 5);
+    const from = fake.from.bind(fake);
+    vi.spyOn(fake, "from").mockImplementation(((tabela: string) => {
+      const consulta = from(tabela);
+      if (tabela !== "compras") return consulta;
+      return Object.assign(consulta, {
+        update: (...args: unknown[]) => {
+          fake.semear("compras", [{ id: "rival", ano_mes: "2026-11", sequencia: 6, consultor: "Rebeca", fornecedor: "Can Pharma" }]);
+          void args;
+          return { eq: () => ({ eq: () => ({ select: () => Promise.resolve({ data: null, error: { message: `duplicate key value violates unique constraint "${NOME_UNICO_SEQUENCIA}"`, code: "23505" } }) }) }) };
+        },
+      });
+    }) as unknown as typeof fake.from);
+    const e = await erroDe(salvarCompra(a.id, estado(a, undefined, { sequencia: 6 }), "Cris"));
+    expect(e.statusCode).toBe(409);
+    expect(e.data).toMatchObject({ code: "NUMERO_JA_EXISTE", sequencia: 6 });
+  });
+
+  it("o número de outro MÊS não conflita (trocar para o 5 de novembro quando só existe o 5 de outubro)", async () => {
+    await criarCompraDoStore("Cris", { sequencia: 5, anoMes: "2026-10" });
+    const a = await criarCompra("Cris", 8);
+    expect((await salvarCompra(a.id, estado(a, undefined, { sequencia: 5 }), "Cris"))!.sequencia).toBe(5);
+  });
+
+  it("edições de compras DIFERENTES ao mesmo tempo não se atrapalham", async () => {
+    const a = await criarCompra("Cris", 1);
+    const b = await criarCompra("Cris", 2);
+    const [sa, sb] = await Promise.all([
+      salvarCompra(a.id, estado(a, undefined, { fornecedor: "FORN A", sequencia: 11 }), "Ana"),
+      salvarCompra(b.id, estado(b, undefined, { fornecedor: "FORN B", sequencia: 12 }), "Bruno"),
+    ]);
+    expect([sa!.fornecedor, sa!.sequencia]).toEqual(["FORN A", 11]);
+    expect([sb!.fornecedor, sb!.sequencia]).toEqual(["FORN B", 12]);
+  });
+
+  it("duas edições da MESMA compra com a mesma versão: continua valendo o 409 de versão (com a compra atual)", async () => {
+    const a = await criarCompra("Cris", 1);
+    await salvarCompra(a.id, estado(a, undefined, { fornecedor: "DA ANA" }), "Ana");
+    const e = await erroDe(salvarCompra(a.id, estado(a, undefined, { fornecedor: "DO BRUNO", sequencia: 30 }), "Bruno"));
+    expect(e.statusCode).toBe(409);
+    expect(e.message).toBe(MENSAGEM_CONFLITO_VERSAO);
+    expect(e.data).toHaveProperty("atual");
+    expect(e.data).not.toHaveProperty("code");
+    expect(fake.linhas("compras")[0]!.sequencia).toBe(1); // nada do Bruno foi gravado
+  });
+});
+
+describe("listarComprasDoMes — maiorSequencia (a base da sugestão do \"+ Nova compra\")", () => {
+  it("o maior número do mês, contando as canceladas; 0 com o mês vazio; outro mês não conta", async () => {
+    expect((await listarComprasDoMes("2026-11", {})).maiorSequencia).toBe(0);
+    await criarCompra("Cris", 3);
+    const dezoito = await criarCompra("Cris", 18);
+    await criarCompra("Cris", 7);
+    await criarCompraDoStore("Cris", { sequencia: 50, anoMes: "2026-10" });
+    expect((await listarComprasDoMes("2026-11", {})).maiorSequencia).toBe(18);
+    await cancelarCompra(dezoito.id, "Cris");
+    expect((await listarComprasDoMes("2026-11", {})).maiorSequencia).toBe(18); // a cancelada continua ocupando
+    expect((await listarComprasDoMes("2026-11", { incluirCanceladas: false })).maiorSequencia).toBe(18);
+    expect((await listarComprasDoMes("2026-10", {})).maiorSequencia).toBe(50);
   });
 });
 
@@ -751,12 +895,13 @@ describe("duplicarCompra", () => {
     return (await obterCompra(salva.id))!;
   }
 
-  it("cria uma NOVA compra no próximo número do mês ATUAL de Brasília, com os mesmos dados da compra", async () => {
+  it("cria uma NOVA compra com o número DIGITADO (nunca o da original), no mês ATUAL de Brasília, com os mesmos dados da compra", async () => {
     const o = await original();
     vi.setSystemTime(new Date("2026-12-10T15:00:00.000Z"));
-    const copia = (await duplicarCompra(o.id, "Bruno"))!;
+    const copia = (await duplicarCompra(o.id, "Bruno", 7))!;
     expect(copia.id).not.toBe(o.id);
-    expect([copia.anoMes, copia.sequencia]).toEqual(["2026-12", 1]); // mês atual, não o da original
+    expect(o.sequencia).not.toBe(7);
+    expect([copia.anoMes, copia.sequencia]).toEqual(["2026-12", 7]); // mês atual e o número digitado, não os da original
     expect(copia).toMatchObject({
       cancelada: false,
       fornecedor: "FORNECEDOR A",
@@ -806,12 +951,47 @@ describe("duplicarCompra", () => {
     expect(ids(original2)).toEqual(["itm_a00001", "itm_a00002", "itm_a00003"]);
   });
 
-  it("duplicar duas vezes dá dois números seguidos; compra que não existe é null", async () => {
+  it("duplicar duas vezes com números diferentes cria duas cópias; compra que não existe é null", async () => {
     const o = await original();
-    const a = (await duplicarCompra(o.id, "Bruno"))!;
-    const b = (await duplicarCompra(o.id, "Bruno"))!;
-    expect([a.sequencia, b.sequencia]).toEqual([o.sequencia + 1, o.sequencia + 2]);
-    expect(await duplicarCompra("nao_existe", "Bruno")).toBeNull();
+    const a = (await duplicarCompra(o.id, "Bruno", 30))!;
+    const b = (await duplicarCompra(o.id, "Bruno", 31))!;
+    expect([a.sequencia, b.sequencia]).toEqual([30, 31]);
+    expect(await duplicarCompra("nao_existe", "Bruno", 32)).toBeNull();
+    expect(fake.linhas("compras").map((r) => r.sequencia)).not.toContain(32); // número de compra que não existe não é gravado
+  });
+
+  it("número que já existe no mês: 409 amigável e NADA é criado (nem itens); o número da própria original também conflita", async () => {
+    const o = await original();
+    const e = await erroDe(duplicarCompra(o.id, "Bruno", o.sequencia));
+    expect(e.statusCode).toBe(409);
+    expect(e.message).toContain(`A Compra ${String(o.sequencia).padStart(2, "0")} de novembro já existe (CONSULTOR TESTE, FORNECEDOR A)`);
+    expect(e.data).toMatchObject({ code: "NUMERO_JA_EXISTE" });
+    expect(fake.linhas("compras")).toHaveLength(1);
+    expect(fake.linhas("compra_itens")).toHaveLength(3);
+  });
+
+  it("23505 ao inserir a cópia (corrida): o mesmo 409 amigável", async () => {
+    const o = await original();
+    const from = fake.from.bind(fake);
+    vi.spyOn(fake, "from").mockImplementation(((tabela: string) => {
+      const consulta = from(tabela);
+      if (tabela !== "compras") return consulta;
+      return Object.assign(consulta, {
+        insert: (row: Record<string, unknown>) => {
+          fake.semear("compras", [{ ...row, id: "rival", consultor: "Rebeca", fornecedor: "Can Pharma" }]);
+          return { select: () => Promise.resolve({ data: null, error: { message: `duplicate key value violates unique constraint "${NOME_UNICO_SEQUENCIA}"`, code: "23505" } }) };
+        },
+      });
+    }) as unknown as typeof fake.from);
+    const e = await erroDe(duplicarCompra(o.id, "Bruno", 40));
+    expect(e.statusCode).toBe(409);
+    expect(e.message).toBe("A Compra 40 de novembro já existe (Rebeca, Can Pharma). Escolha outro número.");
+  });
+
+  it("um mês explícito: a cópia nasce nele (a mesma regra da criação)", async () => {
+    const o = await original();
+    const copia = (await duplicarCompra(o.id, "Bruno", 4, { anoMes: "2026-10" }))!;
+    expect([copia.anoMes, copia.sequencia]).toEqual(["2026-10", 4]);
   });
 
   it("compra sem itens também duplica", async () => {

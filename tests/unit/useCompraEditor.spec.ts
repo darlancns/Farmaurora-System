@@ -313,7 +313,7 @@ describe("409: alguém salvou antes (o único conflito é o de versão)", () => 
   it("o editor não expõe trava de PO/ordem nem estado de 'bloqueado': só as duas saídas do conflito de versão", () => {
     const e = editor(servidor());
     expect(Object.keys(e).sort()).toEqual(
-      ["alterar", "carregar", "carregarVersaoSalva", "compra", "definir", "esperandoClique", "estado", "flush", "manterMinhas", "mensagemErro", "somenteLeituraAgora", "temPendencia", "tentarDeNovo"].sort(),
+      ["alterar", "carregar", "carregarVersaoSalva", "compra", "definir", "erroNumero", "esperandoClique", "estado", "flush", "manterMinhas", "mensagemErro", "sequenciaExibida", "somenteLeituraAgora", "temPendencia", "tentarDeNovo"].sort(),
     );
   });
 
@@ -603,5 +603,115 @@ describe("a cia depende do envio: ao trocar o envio, a cia que não vale para o 
     await avancar(800);
     expect(e.compra.value).not.toHaveProperty("courierSimples");
     expect(s.salvamentos.at(-1)!.corpo).not.toHaveProperty("courierSimples");
+  });
+});
+
+// ── Nº da compra repetido (409 com data.code NUMERO_JA_EXISTE, que NÃO é o 409 de versão) ──────────────────────────
+
+describe("Nº da compra repetido: erro no campo, sem perder o digitado e sem virar 'conflito'", () => {
+  const repetido = () => new ApiError("A Compra 06 de novembro já existe (Rebeca, Can Pharma). Escolha outro número.", 409, { code: "NUMERO_JA_EXISTE", anoMes: "2026-11", sequencia: 6 });
+
+  it("o erro vai para `erroNumero` (a mensagem do servidor), o número digitado FICA na compra e o estado NÃO é 'conflito'", async () => {
+    const s = servidor(compraBase({ sequencia: 5 }));
+    const e = await abrir(s);
+    s.falharProximas(repetido());
+    e.alterar({ sequencia: 6 });
+    await avancar(800);
+    expect(e.erroNumero.value).toBe("A Compra 06 de novembro já existe (Rebeca, Can Pharma). Escolha outro número.");
+    expect(e.estado.value).not.toBe("conflito");
+    expect(e.compra.value!.sequencia).toBe(6); // o que foi digitado continua na tela
+    expect(e.sequenciaExibida.value).toBe(5); // o título segue com o número que vale
+  });
+
+  it("o resto das mudanças NÃO se perde: é reenviado já, SEM o número recusado", async () => {
+    const s = servidor(compraBase({ sequencia: 5 }));
+    const e = await abrir(s);
+    s.falharProximas(repetido());
+    e.alterar({ sequencia: 6, paciente: "PACIENTE TESTE" });
+    await avancar(800);
+    expect(s.salvamentos).toHaveLength(2);
+    expect(s.salvamentos[0]!.corpo).toMatchObject({ sequencia: 6, paciente: "PACIENTE TESTE" });
+    expect(s.salvamentos[1]!.corpo.paciente).toBe("PACIENTE TESTE");
+    expect(s.salvamentos[1]!.corpo).not.toHaveProperty("sequencia");
+    expect(s.atual.paciente).toBe("PACIENTE TESTE");
+    expect(s.atual.sequencia).toBe(5);
+  });
+
+  it("as próximas edições (outros campos) seguem salvando sem reenviar o número recusado", async () => {
+    const s = servidor(compraBase({ sequencia: 5 }));
+    const e = await abrir(s);
+    s.falharProximas(repetido());
+    e.alterar({ sequencia: 6 });
+    await avancar(800);
+    e.alterar({ medico: "Dr. Teste" });
+    await avancar(800);
+    expect(s.salvamentos.at(-1)!.corpo).not.toHaveProperty("sequencia");
+    expect(s.atual.medico).toBe("Dr. Teste");
+    expect(e.erroNumero.value).not.toBeNull(); // o erro continua até a pessoa trocar o número
+  });
+
+  it("digitar OUTRO número limpa o erro e tenta o novo; digitar o mesmo recusado de novo não limpa nada", async () => {
+    const s = servidor(compraBase({ sequencia: 5 }));
+    const e = await abrir(s);
+    s.falharProximas(repetido());
+    e.alterar({ sequencia: 6 });
+    await avancar(800);
+    e.alterar({ sequencia: 6 });
+    expect(e.erroNumero.value).not.toBeNull();
+    e.alterar({ sequencia: 8 });
+    expect(e.erroNumero.value).toBeNull();
+    await avancar(800);
+    expect(s.salvamentos.at(-1)!.corpo.sequencia).toBe(8);
+    expect(s.atual.sequencia).toBe(8);
+    expect(e.sequenciaExibida.value).toBe(8);
+  });
+
+  it("voltar ao número que vale também limpa o erro", async () => {
+    const s = servidor(compraBase({ sequencia: 5 }));
+    const e = await abrir(s);
+    s.falharProximas(repetido());
+    e.alterar({ sequencia: 6 });
+    await avancar(800);
+    e.alterar({ sequencia: 5 });
+    expect(e.erroNumero.value).toBeNull();
+  });
+
+  it("enquanto o erro está na tela, sair (flush) é barrado: o número não foi gravado", async () => {
+    const s = servidor(compraBase({ sequencia: 5 }));
+    const e = await abrir(s);
+    s.falharProximas(repetido());
+    e.alterar({ sequencia: 6 });
+    await avancar(800);
+    expect(await e.flush()).toBe(false);
+    expect(e.temPendencia.value).toBe(true);
+    e.alterar({ sequencia: 5 });
+    expect(await e.flush()).toBe(true);
+  });
+
+  it("o 409 de VERSÃO (sem o código do número) continua sendo 'conflito', e abrir outra compra limpa o erro do número", async () => {
+    const s = servidor(compraBase({ sequencia: 5 }));
+    const e = await abrir(s);
+    s.falharProximas(repetido());
+    e.alterar({ sequencia: 6 });
+    await avancar(800);
+    await e.carregar("cmp_1");
+    expect(e.erroNumero.value).toBeNull();
+    expect(e.sequenciaExibida.value).toBe(5);
+
+    s.outraPessoaSalva();
+    e.alterar({ paciente: "MEU" });
+    await avancar(800);
+    expect(e.estado.value).toBe("conflito");
+    expect(e.erroNumero.value).toBeNull();
+  });
+
+  it("número que o servidor aceitou: sem erro, o título acompanha", async () => {
+    const s = servidor(compraBase({ sequencia: 5 }));
+    const e = await abrir(s);
+    e.alterar({ sequencia: 12 });
+    await avancar(800);
+    expect(e.erroNumero.value).toBeNull();
+    expect(e.sequenciaExibida.value).toBe(12);
+    expect(s.atual.sequencia).toBe(12);
   });
 });

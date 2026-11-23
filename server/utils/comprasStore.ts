@@ -1,6 +1,7 @@
-import { COMPRA_LISTA_POR_PAGINA } from "../../shared/constants/compra";
+import { CODIGO_NUMERO_JA_EXISTE, COMPRA_LISTA_POR_PAGINA } from "../../shared/constants/compra";
 import { EMPRESAS_PROCESSO } from "../../shared/constants/processos";
 import type { Compra, CompraDaLista, CompraEstado, CamposCompraEditaveis, ItemCompraEstado, ListaCompras, StatusPreCadastro, TotaisDaLista } from "../../shared/types/compra";
+import { descricaoDaCompra } from "../../shared/utils/compraMes";
 import { dataBrasiliaDe } from "../../shared/utils/dataBrasilia";
 import {
   COLUNAS_LISTA_COMPRA,
@@ -26,10 +27,13 @@ import { erro, randomId } from "./storeKit";
  * por fornecedor, com os medicamentos como itens dela. Mesmo molde dos outros stores: cliente admin do servidor, mapeadores puros em compraMappers.ts.
  *
  * REGRAS
- *  - NÃO existe exclusão de COMPRA (o service_role nem tem DELETE na tabela): cancelar é `cancelada = true`.
- *  - O NÚMERO da compra é por MÊS DE BRASÍLIA: ano_mes = mês civil em America/Sao_Paulo (nunca o do fuso do servidor), sequencia =
- *    maior do mês + 1. O unique (ano_mes, sequencia) é a trava: se dois pedidos pegam o mesmo número, o segundo leva 23505 e o
- *    servidor recalcula e tenta de novo (até MAX_TENTATIVAS_NUMERO vezes; esgotou, 503).
+ *  - O NÚMERO da compra (`sequencia`) é DIGITADO pelo time (Bruno e Rebeca combinam; ele pode sair fora de ordem): o servidor NUNCA o gera. É
+ *    único dentro do mês (ano_mes): um número que já existe naquele mês (inclusive de compra CANCELADA, que continua ocupando o número) é 409
+ *    com mensagem amigável (`data.code` = CODIGO_NUMERO_JA_EXISTE), na criação, na duplicação e na troca do número de uma compra. O unique
+ *    (ano_mes, sequencia) do banco é a trava final: uma corrida entre dois usuários vira 23505 e é traduzida para o MESMO 409, SEM tentar
+ *    de novo com outro número.
+ *  - `ano_mes` é o mês civil de Brasília (America/Sao_Paulo, nunca o do fuso do servidor).
+ *  - APAGAR não existe aqui: cancelar é `cancelada = true`.
  *  - SALVAR (`salvarCompra`) é o salvamento automático: recebe o estado e sincroniza a compra e os itens. Concorrência
  *    OTIMISTA: o cliente devolve o `updatedAt` que viu; se mudou, 409 com a versão atual.
  *  - O estado da compra é só DERIVADO: ativa ou cancelada (não há coluna de estado).
@@ -52,11 +56,9 @@ const CODIGO_CHECK_VIOLADO = "23514";
 
 /** Nome da unique de (ano_mes, sequencia) na migration: é ele que identifica a disputa pelo número. */
 export const NOME_UNICO_SEQUENCIA = "compras_mes_sequencia_uq";
-export const MAX_TENTATIVAS_NUMERO = 5;
 /** Quantos ids vão num `in (...)` (a URL do PostgREST tem limite de tamanho). */
 const TAMANHO_BLOCO_IN = 100;
 
-export const MENSAGEM_NUMERO_ESGOTADO = "Não foi possível reservar o número da compra agora. Tente novamente em instantes.";
 export const MENSAGEM_CONFLITO_VERSAO = "Esta compra foi alterada por outra pessoa. Recarregue para ver a versão atual.";
 export const MENSAGEM_COMPRA_CANCELADA = "Esta compra foi cancelada e não pode mais ser editada.";
 export const MENSAGEM_ID_DE_OUTRA_COMPRA = "Identificador já usado em outra compra.";
@@ -79,30 +81,62 @@ function emBlocos<T>(lista: readonly T[], tamanho = TAMANHO_BLOCO_IN): T[][] {
   return blocos;
 }
 
-async function proximaSequencia(db: Db, anoMes: string): Promise<number> {
-  const { data, error } = await db.from(COMPRAS).select("sequencia").eq("ano_mes", anoMes).order("sequencia", { ascending: false }).limit(1);
-  if (error) throw erro("calcular o número da compra", error);
-  const maior = ((data ?? []) as Array<{ sequencia: number }>)[0]?.sequencia ?? 0;
-  return maior + 1;
-}
-
 const ehDisputaPeloNumero = (e: { message: string; code?: string; details?: string | null }): boolean =>
   e.code === CODIGO_UNICO_VIOLADO && `${e.message} ${e.details ?? ""}`.includes(NOME_UNICO_SEQUENCIA);
 
-/** Insere a compra com o próximo número do mês; se outro pedido pegou o mesmo número (23505), recalcula e tenta de novo. */
-async function inserirCompraNumerada(db: Db, base: Omit<CompraRow, "ano_mes" | "sequencia">, anoMes: string): Promise<CompraRow> {
-  for (let tentativa = 1; tentativa <= MAX_TENTATIVAS_NUMERO; tentativa++) {
-    const sequencia = await proximaSequencia(db, anoMes);
-    const { data, error } = await db.from(COMPRAS).insert({ ...base, ano_mes: anoMes, sequencia }).select("*");
-    if (!error) {
-      const row = ((data ?? []) as CompraRow[])[0];
-      if (!row) throw new Error("Supabase: a compra foi criada, mas não voltou na resposta.");
-      return row;
-    }
-    if (ehDisputaPeloNumero(error)) continue;
+/** Quem já ocupa o número naquele mês (qualquer compra, ativa ou cancelada): só o que a mensagem de conflito mostra. */
+interface DonoDoNumero {
+  id: string;
+  consultor: string | null;
+  fornecedor: string | null;
+}
+
+async function donoDoNumero(db: Db, anoMes: string, sequencia: number): Promise<DonoDoNumero | null> {
+  const { data, error } = await db.from(COMPRAS).select("id, consultor, fornecedor").eq("ano_mes", anoMes).eq("sequencia", sequencia);
+  if (error) throw erro("conferir o número da compra", error);
+  return ((data ?? []) as DonoDoNumero[])[0] ?? null;
+}
+
+/**
+ * "A Compra 14 de novembro já existe (Rebeca, Can Pharma). Escolha outro número.": do dono do número aparecem SÓ o consultor e o fornecedor
+ * (nada de paciente, medicamento nem valores); sem nenhum dos dois, sem parênteses.
+ */
+export function mensagemNumeroJaExiste(anoMes: string, sequencia: number, dono: Pick<DonoDoNumero, "consultor" | "fornecedor"> | null): string {
+  const detalhes = [dono?.consultor, dono?.fornecedor].map((t) => (t ?? "").trim()).filter((t) => t !== "");
+  return `A ${descricaoDaCompra(anoMes, sequencia)} já existe${detalhes.length > 0 ? ` (${detalhes.join(", ")})` : ""}. Escolha outro número.`;
+}
+
+/** O 409 do número repetido. `data` leva só o código (a tela o distingue do 409 de versão) e o número pedido. */
+function erroNumeroJaExiste(anoMes: string, sequencia: number, dono: DonoDoNumero | null): ComprasRegraError {
+  return new ComprasRegraError(mensagemNumeroJaExiste(anoMes, sequencia, dono), 409, { code: CODIGO_NUMERO_JA_EXISTE, anoMes, sequencia });
+}
+
+/** O número está livre naquele mês? Senão, 409. `exceto` é a própria compra (trocar o número dela não conflita com ela mesma). */
+async function conferirNumeroLivre(db: Db, anoMes: string, sequencia: number, exceto?: string): Promise<void> {
+  const dono = await donoDoNumero(db, anoMes, sequencia);
+  if (dono && dono.id !== exceto) throw erroNumeroJaExiste(anoMes, sequencia, dono);
+}
+
+/**
+ * Corrida entre dois usuários: a conferência passou, mas outro gravou o mesmo número antes e o banco devolveu 23505 em
+ * compras_mes_sequencia_uq. Vira o MESMO 409 amigável (sem tentar de novo com outro número). Outro erro: não faz nada (quem chama segue).
+ */
+async function traduzirDisputaPeloNumero(db: Db, e: { message: string; code?: string; details?: string | null }, anoMes: string, sequencia: number): Promise<void> {
+  if (!ehDisputaPeloNumero(e)) return;
+  throw erroNumeroJaExiste(anoMes, sequencia, await donoDoNumero(db, anoMes, sequencia));
+}
+
+/** Insere a compra com o número DIGITADO no mês dado: ocupado = 409 (conferido antes e, se houver corrida, pelo 23505 do banco). */
+async function inserirCompra(db: Db, base: Omit<CompraRow, "ano_mes" | "sequencia">, anoMes: string, sequencia: number): Promise<CompraRow> {
+  await conferirNumeroLivre(db, anoMes, sequencia);
+  const { data, error } = await db.from(COMPRAS).insert({ ...base, ano_mes: anoMes, sequencia }).select("*");
+  if (error) {
+    await traduzirDisputaPeloNumero(db, error, anoMes, sequencia);
     throw erro("criar a compra", error);
   }
-  throw new ComprasRegraError(MENSAGEM_NUMERO_ESGOTADO, 503);
+  const row = ((data ?? []) as CompraRow[])[0];
+  if (!row) throw new Error("Supabase: a compra foi criada, mas não voltou na resposta.");
+  return row;
 }
 
 // ── Leitura ──────────────────────────────────────────────────────────────────────────────────────────────────
@@ -199,6 +233,8 @@ export async function listarComprasDoMes(anoMes: string, opcoes: OpcoesLista = {
 
   const totais: TotaisDaLista = { ativas: 0, canceladas: 0 };
   const casam: CompraDaLista[] = [];
+  // O maior número do mês, contando TAMBÉM as canceladas (elas continuam ocupando o número): é de onde sai a sugestão do próximo.
+  const maiorSequencia = rows.reduce((maior, r) => Math.max(maior, r.sequencia), 0);
   for (const row of rows) {
     const item = montarCompraDaLista(row, itensDe.get(row.id) ?? []);
     if (item.cancelada) totais.canceladas += 1;
@@ -210,6 +246,7 @@ export async function listarComprasDoMes(anoMes: string, opcoes: OpcoesLista = {
   const de = (pagina - 1) * limite;
   return {
     anoMes,
+    maiorSequencia,
     compras: casam.slice(de, de + limite),
     pagina,
     limite,
@@ -258,30 +295,39 @@ function linhaNova(id: string, agora: string, por: string, responsavel: string):
   };
 }
 
+/** O número DIGITADO (e o mês, que sem `anoMes` é o corrente de Brasília) de uma compra nova ou duplicada. `agora` só existe para o teste escolher o instante. */
+export interface EntradaNovaCompra {
+  sequencia: number;
+  anoMes?: string;
+  agora?: Date;
+}
+
 /**
- * Cria uma compra VAZIA com o próximo número do mês de Brasília: empresa FARMAURORA, numeroOrdens 1, sem medicamentos.
- * `responsavel` começa com o nome de quem criou. `agora` só existe para o teste escolher o instante.
+ * Cria uma compra VAZIA com o número DIGITADO: empresa FARMAURORA, numeroOrdens 1, sem medicamentos. `responsavel` começa com o nome de quem criou.
+ * Número que já existe no mês (inclusive de compra cancelada) = 409; o servidor nunca escolhe outro número sozinho.
  */
-export async function criarCompra(usuario: string, opcoes: { agora?: Date } = {}): Promise<Compra> {
+export async function criarCompra(usuario: string, entrada: EntradaNovaCompra): Promise<Compra> {
   const db = createSupabaseAdminClient();
-  const agora = opcoes.agora ?? new Date();
-  const row = await inserirCompraNumerada(db, linhaNova(randomId("cmp_"), agora.toISOString(), usuario, usuario), anoMesDeBrasilia(agora));
+  const agora = entrada.agora ?? new Date();
+  const anoMes = entrada.anoMes ?? anoMesDeBrasilia(agora);
+  const row = await inserirCompra(db, linhaNova(randomId("cmp_"), agora.toISOString(), usuario, usuario), anoMes, entrada.sequencia);
   return montarCompra(row, []);
 }
 
 /**
- * Duplica a compra: uma NOVA compra com o próximo número do mês ATUAL de Brasília, com os mesmos dados e os mesmos medicamentos (ids
- * novos). Só `cancelada` volta a false; o resto fica. Se copiar os itens falhar, a cópia é cancelada (compra não se apaga) e o erro
- * sobe. null = a original não existe.
+ * Duplica a compra: uma NOVA compra com o número DIGITADO, com os mesmos dados e os mesmos medicamentos (ids novos). Só `cancelada` volta a
+ * false; o resto fica. O número da original NUNCA é copiado nem sugerido pelo servidor. Número que já existe no mês = 409 (nada é criado).
+ * Se copiar os itens falhar, a cópia é cancelada e o erro sobe. null = a original não existe.
  */
-export async function duplicarCompra(id: string, usuario: string, opcoes: { agora?: Date } = {}): Promise<Compra | null> {
+export async function duplicarCompra(id: string, usuario: string, entrada: EntradaNovaCompra): Promise<Compra | null> {
   const db = createSupabaseAdminClient();
   const original = await carregar(db, id);
   if (!original) return null;
 
-  const agora = opcoes.agora ?? new Date();
+  const agora = entrada.agora ?? new Date();
   const instante = agora.toISOString();
-  // O número (ano_mes e sequencia) NÃO é copiado: a cópia pega o próximo do mês atual de Brasília.
+  const anoMes = entrada.anoMes ?? anoMesDeBrasilia(agora);
+  // O número (ano_mes e sequencia) NÃO é copiado: a cópia leva o que foi digitado.
   const { ano_mes: _anoMesOriginal, sequencia: _sequenciaOriginal, ...dados } = original.row;
   const copia: Omit<CompraRow, "ano_mes" | "sequencia"> = {
     ...dados,
@@ -293,7 +339,7 @@ export async function duplicarCompra(id: string, usuario: string, opcoes: { agor
     created_at: instante,
     updated_at: instante,
   };
-  const nova = await inserirCompraNumerada(db, copia, anoMesDeBrasilia(agora));
+  const nova = await inserirCompra(db, copia, anoMes, entrada.sequencia);
 
   try {
     const itensNovos: ItemRow[] = [...original.itens]
@@ -343,6 +389,7 @@ export async function cancelarCompra(id: string, usuario: string): Promise<Compr
 // ── Salvar (o salvamento automático) ─────────────────────────────────────────────────────────────────────────
 
 const COLUNA_DO_CAMPO: Record<keyof CamposCompraEditaveis, string> = {
+  sequencia: "sequencia",
   fornecedor: "fornecedor",
   envio: "envio",
   cia: "cia",
@@ -516,13 +563,22 @@ export async function salvarCompra(id: string, estadoRecebido: CompraEstado, usu
   const estado = (await opcoes.antesDeGravar?.(compraAtual)) ?? estadoRecebido;
   if (estado.itens) await conferirIdsDoCorpo(db, atual, estado.itens);
 
+  // O Nº da compra só vai ao banco quando MUDA; o novo número não pode ser de outra compra do mesmo mês (409, inclusive de cancelada).
+  const campos = { ...estado.campos };
+  const novoNumero = campos.sequencia;
+  if (novoNumero === atual.row.sequencia) delete campos.sequencia;
+  else if (novoNumero !== undefined) await conferirNumeroLivre(db, atual.row.ano_mes, novoNumero, id);
+
   const { data, error } = await db
     .from(COMPRAS)
-    .update({ ...colunasDosCampos(estado.campos), atualizado_por: usuario, updated_at: proximaVersao(atual.row.updated_at) })
+    .update({ ...colunasDosCampos(campos), atualizado_por: usuario, updated_at: proximaVersao(atual.row.updated_at) })
     .eq("id", id)
     .eq("updated_at", atual.row.updated_at)
     .select("id");
-  if (error) throw erroDeEscrita("atualizar a compra", error);
+  if (error) {
+    if (novoNumero !== undefined) await traduzirDisputaPeloNumero(db, error, atual.row.ano_mes, novoNumero);
+    throw erroDeEscrita("atualizar a compra", error);
+  }
   if (((data ?? []) as unknown[]).length === 0) {
     // Entre a leitura e a gravação outra pessoa salvou: devolve a versão dela.
     const maisNova = await obterCompra(id);

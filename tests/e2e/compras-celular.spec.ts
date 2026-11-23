@@ -4,7 +4,7 @@ import { test, expect, type Page } from "@playwright/test";
 // único (rótulo acima do controle, Med. 1/Med. 2 empilhados), lista de sugestões sem corte e o parâmetro ?aba= (que o desktop ignora).
 //
 // ESCRITO, NÃO EXECUTADO. A e2e só roda no Supabase LOCAL (a guarda em tests/e2e/_guards aborta fora de loopback): estes testes CRIAM
-// compras de verdade (paciente "TESTE E2E ...") e o contador do mês avança a cada "+ Nova compra". Nunca rode contra produção.
+// compras de verdade (paciente "TESTE E2E ...") e cada "+ Nova compra" usa o número sugerido na caixinha (o maior do mês + 1). Nunca rode contra produção.
 // Credenciais por env (os mesmos nomes de rbac.spec.ts); sem elas o grupo é pulado. Ver tests/e2e/README.md.
 
 const cred = (prefixo: string) => ({
@@ -38,6 +38,8 @@ async function abrir(page: Page, viewport: { width: number; height: number }, qu
 /** Cria uma compra pelo botão (qualquer largura) e digita o paciente. No celular a criação já leva ao Formulário. */
 async function criarCompra(page: Page, paciente: string): Promise<void> {
   await page.locator("#btn-nova-compra").click();
+  await expect(page.locator("#compra-dialogo-numero")).not.toHaveValue(""); // a sugestão (o maior do mês + 1) chega
+  await page.locator("#btn-compra-dialogo-criar").click();
   await expect(primeiroMedicamento(page)).toBeFocused();
   await page.locator("#compra-paciente").fill(paciente);
   await expect(page.locator("#compra-formulario")).toHaveAttribute("data-salvamento", "salvo");
@@ -164,6 +166,8 @@ test.describe("Compras (celular, 375x667) — um painel por vez", () => {
   test("a aba Resumo mostra o resumo ao vivo (modelo) com os vazios tracejados; digitar no Formulário e voltar mostra o que foi digitado", async ({ page }) => {
     await abrir(page, CELULAR);
     await page.locator("#btn-nova-compra").click();
+    await expect(page.locator("#compra-dialogo-numero")).not.toHaveValue(""); // a sugestão (o maior do mês + 1) chega
+    await page.locator("#btn-compra-dialogo-criar").click();
     await expect(primeiroMedicamento(page)).toBeFocused();
     await page.locator("#compra-paciente").fill("TESTE E2E celular resumo");
     await page.getByRole("radio", { name: "Resumo" }).click();

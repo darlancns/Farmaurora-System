@@ -55,11 +55,27 @@ describe("o corpo e a versão", () => {
   it("campo desconhecido é recusado com o nome dele; numeração, auditoria e o que saiu do modelo NÃO são editáveis", () => {
     expect(erroDe(base({ xyz: 1 }))).toBe("Campo desconhecido: xyz.");
     const naoEditavel = [
-      "id", "anoMes", "sequencia", "cancelada", "criadoPor", "atualizadoPor", "createdAt", "updatedAt", "chavePix",
+      "id", "anoMes", "cancelada", "criadoPor", "atualizadoPor", "createdAt", "updatedAt", "chavePix",
       // saíram do modelo da compra:
       "ordens", "vendedor", "courierSimples", "localDeclarado", "isencaoPara", "po", "dirId", "encaminhadaEm",
     ];
     for (const campo of naoEditavel) expect(erroDe(base({ [campo]: "x" })), campo).toBe(`Campo desconhecido: ${campo}.`);
+  });
+});
+
+describe("Nº da compra (sequencia): inteiro de 1 a 9999, editável", () => {
+  it("aceita inteiros de 1 a 9999 e os põe em `campos`", () => {
+    for (const n of [1, 14, 100, 9999]) expect(valorDe(base({ sequencia: n })).campos).toEqual({ sequencia: n });
+  });
+
+  it("recusa 0, negativo, decimal, acima de 9999, texto, vazio, null, NaN e Infinity, com a mensagem do campo", () => {
+    for (const ruim of [0, -1, 1.5, 10000, "14", "", null, Number.NaN, Number.POSITIVE_INFINITY, true, [], {}]) {
+      expect(erroDe(base({ sequencia: ruim })), String(ruim)).toBe("Nº da compra: informe um número inteiro de 1 a 9999.");
+    }
+  });
+
+  it("ausente = não muda", () => {
+    expect(valorDe(base({})).campos).not.toHaveProperty("sequencia");
   });
 });
 

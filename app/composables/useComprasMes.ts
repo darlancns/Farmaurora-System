@@ -58,6 +58,10 @@ export interface ComprasMes {
   rotuloMes: ComputedRef<string>;
   /** "N compras" do mês: só as ATIVAS (as canceladas não contam). */
   totalDoMes: ComputedRef<number>;
+  /** O maior Nº de compra do mês da lista (as canceladas contam: o número delas continua ocupado); 0 = mês vazio. */
+  maiorSequencia: Ref<number>;
+  /** O maior Nº de compra de QUALQUER mês, lido na hora (a base da sugestão do "+ Nova compra"); null se não foi possível ler. */
+  consultarMaiorSequencia: (anoMes: string) => Promise<number | null>;
   carregar: () => Promise<void>;
   mostrarMais: () => Promise<void>;
   irParaMes: (anoMes: string) => Promise<void>;
@@ -80,6 +84,7 @@ export function useComprasMes(opcoes: OpcoesUseComprasMes = {}): ComprasMes {
   const carregandoMais = ref(false);
   const erro = ref<string | null>(null);
   const pagina = ref(1);
+  const maiorSequencia = ref(0);
 
   // Se cada compra está cancelada (das páginas lidas e das aplicadas): é de onde sai "de ativa para cancelada" nos totais.
   const canceladaConhecida = new Map<string, boolean>();
@@ -99,6 +104,7 @@ export function useComprasMes(opcoes: OpcoesUseComprasMes = {}): ComprasMes {
       totais.value = r.totais;
       total.value = r.total;
       temMais.value = r.temMais;
+      maiorSequencia.value = r.maiorSequencia;
       pagina.value = 1;
       canceladaConhecida.clear();
       for (const c of r.compras) canceladaConhecida.set(c.id, c.cancelada);
@@ -128,6 +134,16 @@ export function useComprasMes(opcoes: OpcoesUseComprasMes = {}): ComprasMes {
       if (minha === leitura) erro.value = e instanceof Error ? e.message : "Não foi possível carregar as compras.";
     } finally {
       carregandoMais.value = false;
+    }
+  }
+
+  /** Lê o maior número do mês pedido (a lista dele, sem filtro de canceladas: o número delas continua ocupado). Falhou: null. */
+  async function consultarMaiorSequencia(anoMes: string): Promise<number | null> {
+    try {
+      const r = await api.listar({ anoMes, incluirCanceladas: true, pagina: 1 });
+      return r.maiorSequencia;
+    } catch {
+      return anoMes === mes.value && !carregando.value && erro.value === null ? maiorSequencia.value : null;
     }
   }
 
@@ -166,6 +182,7 @@ export function useComprasMes(opcoes: OpcoesUseComprasMes = {}): ComprasMes {
     }
     totais.value = novosTotais;
     canceladaConhecida.set(compra.id, item.cancelada);
+    if (compra.sequencia > maiorSequencia.value) maiorSequencia.value = compra.sequencia;
 
     if (posicaoNaLista >= 0) {
       if (casaComOFiltro(item)) {
@@ -202,6 +219,8 @@ export function useComprasMes(opcoes: OpcoesUseComprasMes = {}): ComprasMes {
     erro,
     rotuloMes,
     totalDoMes,
+    maiorSequencia,
+    consultarMaiorSequencia,
     carregar,
     mostrarMais,
     irParaMes,
