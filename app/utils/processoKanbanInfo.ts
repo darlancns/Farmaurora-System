@@ -1,5 +1,7 @@
 import type { Processo } from "#shared/types/processo";
-import type { ChaveIconeCard } from "./processoIcones";
+import { formatarDataBR, formatarDiaMes } from "#shared/utils/dataBrasilia";
+import type { ChaveIconeCard, ChaveIconeEstado } from "./processoIcones";
+import { controlesEntregaParaTela } from "./processoControlesEntrega";
 import { nomeFornecedorCurto } from "./nomeFornecedorCurto";
 import { previsaoParaCard } from "./processoPrevisaoCard";
 
@@ -9,11 +11,15 @@ import { previsaoParaCard } from "./processoPrevisaoCard";
 // - linha "origem": Fornecedor (nome curto, sem o país) e Despachante;
 // - linha "aereo": a célula "Cia · AWB" (só a cia, só a AWB, ou as duas) e, à direita dela, a célula da previsão de
 //   entrega (sempre só DD/MM, sem ícone — ver processoPrevisaoCard.ts). Sem Cia e sem AWB mas com previsão: a linha
-//   existe só com a data. Sem previsão (vazia ou sem data reconhecível): nenhuma célula de data, nada muda;
+//   existe só com a data. Sem previsão (vazia ou sem data reconhecível): nenhuma célula de data, nada muda.
+//   Em ENTREGUE com data de entrega válida, a célula mostra a DATA DE ENTREGA (mesmo visual, só DD/MM, title "Entregue em
+//   DD/MM/AAAA") no lugar da previsão; Entregue antigo (sem data de entrega) e os outros status seguem com a previsão;
+// - linha "controles" (depois da aérea): SÓ em Entregue e só com ao menos um controle aplicável com valor — Pagamento da
+//   transportadora ("AJC pendente") e DIR ("Pegar DIR e Protocolo"), lado a lado. Ver processoControlesEntrega.ts;
 // - célula vazia (ausente ou só espaços) não existe; linha sem células não existe.
 
-export type ChaveCelulaKanban = ChaveIconeCard | "previsao";
-export type ChaveLinhaKanban = "pessoas" | "origem" | "aereo";
+export type ChaveCelulaKanban = ChaveIconeCard | "previsao" | "entrega" | "controle-pagamento" | "controle-dir";
+export type ChaveLinhaKanban = "pessoas" | "origem" | "aereo" | "controles";
 
 export interface CelulaInfoKanban {
   chave: ChaveCelulaKanban;
@@ -34,6 +40,8 @@ export interface CelulaInfoKanban {
   prioritaria?: boolean;
   // Célula da data: nunca encolhe nem corta (são sempre 5 caracteres, "DD/MM"). Não tem ícone.
   fixa?: boolean;
+  // Só nas células de controle do Entregue: pendente (âmbar, relógio) ou concluído (verde, check em círculo).
+  estado?: ChaveIconeEstado;
 }
 
 export interface LinhaInfoKanban {
@@ -49,6 +57,9 @@ export const ROTULOS_INFO_KANBAN: Record<ChaveCelulaKanban, string> = {
   despachante: "Despachante",
   aereo: "Cia. aérea · AWB",
   previsao: "Previsão de entrega",
+  entrega: "Data de entrega",
+  "controle-pagamento": "Pagamento da transportadora",
+  "controle-dir": "DIR e Protocolo",
 };
 
 function limpo(valor: string | null | undefined): string {
@@ -99,6 +110,33 @@ function celulaPrevisao(texto: string | undefined): CelulaInfoKanban | null {
   };
 }
 
+function celulaEntrega(dataIso: string | undefined): CelulaInfoKanban | null {
+  const iso = limpo(dataIso);
+  const curto = formatarDiaMes(iso);
+  if (!curto) return null;
+  return {
+    chave: "entrega",
+    rotulo: ROTULOS_INFO_KANBAN.entrega,
+    texto: curto,
+    titulo: `Entregue em ${formatarDataBR(iso)}`,
+    fixa: true,
+  };
+}
+
+function celulasControles(processo: ProcessoInfoKanban): CelulaInfoKanban[] {
+  if (!processo.status) return [];
+  return controlesEntregaParaTela({
+    status: processo.status,
+    modalEnvio: processo.modalEnvio,
+    transportadoraNacional: processo.transportadoraNacional,
+    pagamentoTransportadora: processo.pagamentoTransportadora,
+    dirProtocolo: processo.dirProtocolo,
+  }).map((c) => {
+    const chave = c.chave === "pagamento" ? "controle-pagamento" : "controle-dir";
+    return { chave, rotulo: c.rotulo, texto: c.texto, titulo: `${c.rotulo}: ${c.texto}`, estado: c.estado } satisfies CelulaInfoKanban;
+  });
+}
+
 function linha(chave: ChaveLinhaKanban, celulas: Array<CelulaInfoKanban | null>): LinhaInfoKanban | null {
   const presentes = celulas.filter((c): c is CelulaInfoKanban => c !== null);
   return presentes.length ? { chave, celulas: presentes } : null;
@@ -107,7 +145,15 @@ function linha(chave: ChaveLinhaKanban, celulas: Array<CelulaInfoKanban | null>)
 export type ProcessoInfoKanban = Pick<
   Processo,
   "responsavelOperacional" | "consultor" | "pendencias" | "fornecedor" | "despachante" | "companhiaAerea" | "numeroAwb"
-> & { datas?: Pick<NonNullable<Processo["datas"]>, "previsaoEntrega"> };
+> & {
+  datas?: Partial<Pick<NonNullable<Processo["datas"]>, "previsaoEntrega" | "dataEntrega">>;
+  // Os campos do Entregue são opcionais: sem `status` (ou fora de Entregue) o card é o de sempre.
+  status?: Processo["status"];
+  modalEnvio?: Processo["modalEnvio"];
+  transportadoraNacional?: Processo["transportadoraNacional"];
+  pagamentoTransportadora?: Processo["pagamentoTransportadora"];
+  dirProtocolo?: Processo["dirProtocolo"];
+};
 
 export function linhasInfoKanban(processo: ProcessoInfoKanban): LinhaInfoKanban[] {
   const aereo = celulaAereo(limpo(processo.companhiaAerea), limpo(processo.numeroAwb));
@@ -122,6 +168,12 @@ export function linhasInfoKanban(processo: ProcessoInfoKanban): LinhaInfoKanban[
       celulaTexto("fornecedor", nomeFornecedorCurto(processo.fornecedor)),
       celulaTexto("despachante", limpo(processo.despachante)),
     ]),
-    linha("aereo", [aereo, celulaPrevisao(processo.datas?.previsaoEntrega)]),
+    linha("aereo", [
+      aereo,
+      // Entregue com data de entrega válida mostra ela; senão (Entregue antigo, outros status) a previsão, como sempre.
+      (processo.status === "entregue" ? celulaEntrega(processo.datas?.dataEntrega) : null) ??
+        celulaPrevisao(processo.datas?.previsaoEntrega),
+    ]),
+    linha("controles", celulasControles(processo)),
   ].filter((l): l is LinhaInfoKanban => l !== null);
 }

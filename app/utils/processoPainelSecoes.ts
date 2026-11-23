@@ -1,5 +1,6 @@
 import type { Processo } from "#shared/types/processo";
-import type { ChaveIconePainel } from "./processoIcones";
+import type { ChaveIconeEstado, ChaveIconePainel } from "./processoIcones";
+import { controlesEntregaParaTela, type ControleEntrega, type ProcessoControlesEntrega } from "./processoControlesEntrega";
 import { nomeFornecedorCurto } from "./nomeFornecedorCurto";
 import { linhaTransportadora, mostraDespachanteTransportadora } from "./processoPainel";
 
@@ -19,6 +20,8 @@ export interface CelulaPainel {
   titulo: string;
   /** Fonte de código (AWB, nº do processo). */
   mono?: boolean;
+  /** Só nos controles do Entregue: pendente (âmbar, relógio) ou concluído (verde, check); troca o ícone e a cor do valor. */
+  estado?: ChaveIconeEstado;
 }
 
 export interface SecaoPainel {
@@ -37,10 +40,22 @@ function celula(
   chave: ChaveIconePainel,
   rotulo: string,
   valor: string,
-  extra: { mono?: boolean } = {},
+  extra: { mono?: boolean; estado?: ChaveIconeEstado } = {},
 ): CelulaPainel | null {
   if (!valor) return null;
   return { id: `painel-${id}`, chave, rotulo, valor, titulo: valor, ...extra };
+}
+
+// Sem `status` (ou fora de Entregue) não há controle: o painel é o de sempre.
+function controlesDoPainel(processo: Partial<ProcessoControlesEntrega>): ControleEntrega[] {
+  if (!processo.status) return [];
+  return controlesEntregaParaTela({
+    status: processo.status,
+    modalEnvio: processo.modalEnvio,
+    transportadoraNacional: processo.transportadoraNacional,
+    pagamentoTransportadora: processo.pagamentoTransportadora,
+    dirProtocolo: processo.dirProtocolo,
+  });
 }
 
 function presentes(celulas: Array<CelulaPainel | null>): CelulaPainel[] {
@@ -58,9 +73,21 @@ export function celulasPessoas(
   ]);
 }
 
-/** "Envio e desembaraço": Envio | Cia. aérea; Nº AWB | Despachante. Sem nenhum campo, null (o título some junto). */
+// A célula de um controle do Entregue (valor = "AJC pendente", "Pegar DIR e Protocolo"...), ou null se ele não aparece.
+function celulaControle(controles: ControleEntrega[], chave: ControleEntrega["chave"]): CelulaPainel | null {
+  const c = controles.find((x) => x.chave === chave);
+  if (!c) return null;
+  return chave === "pagamento"
+    ? celula("pagamento-transportadora", "transportadora", c.rotulo, c.texto, { estado: c.estado })
+    : celula("dir-protocolo", "envio", c.rotulo, c.texto, { estado: c.estado });
+}
+
+/**
+ * "Envio e desembaraço": Envio | Cia. aérea; Nº AWB | Despachante; e, SÓ em Entregue com valor (Courier Simples/Formal), o DIR
+ * e Protocolo numa LINHA NOVA (a linha do AWB continua com 2 células). Sem nenhum campo, null (o título some junto).
+ */
 export function secaoEnvio(
-  processo: Pick<Processo, "modalEnvio" | "companhiaAerea" | "numeroAwb" | "despachante">,
+  processo: Pick<Processo, "modalEnvio" | "companhiaAerea" | "numeroAwb" | "despachante"> & Partial<ProcessoControlesEntrega>,
 ): SecaoPainel | null {
   const mostraDespachante = mostraDespachanteTransportadora(processo);
   const linhas = [
@@ -72,15 +99,19 @@ export function secaoEnvio(
       celula("awb", "awb", "Nº AWB", limpo(processo.numeroAwb), { mono: true }),
       mostraDespachante ? celula("despachante", "despachante", "Despachante", limpo(processo.despachante)) : null,
     ]),
+    presentes([celulaControle(controlesDoPainel(processo), "dir")]),
   ].filter((l) => l.length > 0);
   return linhas.length ? { titulo: "Envio e desembaraço", linhas } : null;
 }
 
-/** "Entrega": Transportadora (nome · cotação · valor; some no Courier Simples) e Local de entrega, cada um numa linha. */
-export function secaoEntrega(processo: Pick<Processo, "modalEnvio" | "transportadoraNacional" | "localEntrega">): SecaoPainel | null {
+/** "Entrega": Transportadora (nome · cotação · valor; some no Courier Simples), o Pagamento da transportadora (só em Entregue com valor) e Local de entrega, cada um numa linha. */
+export function secaoEntrega(
+  processo: Pick<Processo, "modalEnvio" | "transportadoraNacional" | "localEntrega"> & Partial<ProcessoControlesEntrega>,
+): SecaoPainel | null {
   const transportadora = mostraDespachanteTransportadora(processo) ? linhaTransportadora(processo) : "";
   const linhas = [
     presentes([celula("transportadora", "transportadora", "Transportadora", transportadora)]),
+    presentes([celulaControle(controlesDoPainel(processo), "pagamento")]),
     presentes([celula("local-entrega", "local", "Local de entrega", limpo(processo.localEntrega))]),
   ].filter((l) => l.length > 0);
   return linhas.length ? { titulo: "Entrega", linhas } : null;

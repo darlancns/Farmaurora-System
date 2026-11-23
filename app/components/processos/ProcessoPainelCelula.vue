@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ICONES_PROCESSO } from "../../utils/processoIcones";
+import { ICONES_ESTADO, ICONES_PROCESSO } from "../../utils/processoIcones";
 import type { CelulaPainel } from "../../utils/processoPainelSecoes";
 
 // Bloquinho da barra lateral do processo (continuação do card do Kanban): ícone (16px, traço 1.75) + rótulo pequeno em
@@ -7,7 +7,10 @@ import type { CelulaPainel } from "../../utils/processoPainelSecoes";
 // no cinza do projeto (ink-soft, #4c6069: 6:1 sobre o fundo do bloquinho). O id do valor vem da célula (ids `painel-*`
 // fixos). `truncar`: valor numa linha com "…" (title com o texto completo) — usado nas Pessoas; sem ele o valor quebra
 // de linha (o nº do processo e a AWB, em fonte de código, quebram em qualquer ponto).
+// Controles do Entregue (celula.estado): ícone de estado (relógio = pendente, check = concluído) e valor em âmbar (#7a5a12) ou
+// verde (#1d6234); o texto ("AJC pendente") também diz o estado, a cor nunca é a única pista.
 const props = withDefaults(defineProps<{ celula: CelulaPainel; truncar?: boolean }>(), { truncar: false });
+const COR_ESTADO = { pendente: "text-[#7a5a12]", concluido: "text-[#1d6234]" } as const;
 </script>
 
 <template>
@@ -17,7 +20,8 @@ const props = withDefaults(defineProps<{ celula: CelulaPainel; truncar?: boolean
   >
     <svg
       viewBox="0 0 24 24"
-      class="h-4 w-4 shrink-0 text-[#6b7f87]"
+      class="h-4 w-4 shrink-0"
+      :class="celula.estado ? COR_ESTADO[celula.estado] : 'text-[#6b7f87]'"
       fill="none"
       stroke="currentColor"
       stroke-width="1.75"
@@ -25,14 +29,14 @@ const props = withDefaults(defineProps<{ celula: CelulaPainel; truncar?: boolean
       stroke-linejoin="round"
       aria-hidden="true"
     >
-      <path v-for="(d, i) in ICONES_PROCESSO[props.celula.chave]" :key="i" :d="d" />
+      <path v-for="(d, i) in celula.estado ? ICONES_ESTADO[celula.estado] : ICONES_PROCESSO[props.celula.chave]" :key="i" :d="d" />
     </svg>
     <div class="min-w-0 flex-1">
       <p class="mb-[3px] text-[10.5px] leading-none font-semibold tracking-[0.04em] text-ink-soft uppercase">{{ celula.rotulo }}</p>
       <p
         :id="celula.id"
-        class="text-[13px] leading-snug font-medium text-ink"
-        :class="[celula.mono ? 'font-mono' : '', truncar ? 'truncate' : celula.mono ? 'break-all' : 'break-words']"
+        class="text-[13px] leading-snug font-medium"
+        :class="[celula.estado ? COR_ESTADO[celula.estado] : 'text-ink', celula.mono ? 'font-mono' : '', truncar ? 'truncate' : celula.mono ? 'break-all' : 'break-words']"
       >
         {{ celula.valor }}
       </p>

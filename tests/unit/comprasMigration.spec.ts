@@ -33,9 +33,13 @@ describe("migration de Compras", () => {
       .filter((n) => n !== arquivo && /^\d{14}_/.test(n))
       .map((n) => n.slice(0, 14));
     // Tudo o que existe é anterior a ela, EXCETO a função que levou o renomear de consultor a `compras` (que só faz sentido depois da tabela)
-    // e a migration que transformou as compras em "uma por fornecedor" (20261121130000, testada no bloco do fim deste arquivo).
+    // e a migration que transformou as compras em "uma por fornecedor" (20261121130000, testada no bloco do fim deste arquivo), e as
+    // migrations que NÃO são de Compras e vieram depois (ex.: 20261123120000_follow_up_entrega, do Follow-Up): a regra vale para as de Compras.
     const posteriores = anteriores.filter((ts) => ts > "20261119190000");
-    expect(posteriores).toEqual(["20261120120000", "20261121130000"]);
+    const posterioresDeCompras = readdirSync(MIGRATIONS_DIR)
+      .filter((n) => /^\d{14}_/.test(n) && n.slice(0, 14) > "20261119190000" && /compra/.test(n))
+      .map((n) => n.slice(0, 14));
+    expect(posterioresDeCompras).toEqual(["20261120120000", "20261121130000"]);
     expect(readdirSync(MIGRATIONS_DIR).some((n) => n === "20261120120000_renomear_consultor_compras.sql")).toBe(true);
     for (const ts of anteriores.filter((t) => !posteriores.includes(t))) expect(ts < "20261119190000", ts).toBe(true);
     expect(anteriores).toContain("20261119160000");
@@ -292,7 +296,7 @@ describe("migration de Compras: uma compra por fornecedor", () => {
     expect(nomes).toContain(ARQUIVO_NOVO);
     expect(ARQUIVO_NOVO > "20261119190000_compras.sql").toBe(true);
     expect(ARQUIVO_NOVO > ARQUIVO_FUNCAO_ANTERIOR).toBe(true);
-    expect(nomes.filter((n) => /^\d{14}_/.test(n) && n > ARQUIVO_NOVO)).toEqual([]); // é a última
+    expect(nomes.filter((n) => /^\d{14}_/.test(n) && n > ARQUIVO_NOVO && /compra/.test(n))).toEqual([]); // é a última DE COMPRAS (migrations de outras áreas podem vir depois)
     expect(brutoNovo.split(/\r?\n/)[0]).toBe("-- JÁ APLICADA EM PRODUÇÃO EM 21/11/2026; NÃO REAPLICAR.");
   });
 

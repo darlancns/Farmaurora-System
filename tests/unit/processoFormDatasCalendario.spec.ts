@@ -94,14 +94,14 @@ afterEach(() => {
 });
 
 describe("ProcessoFormDatas com o calendário", () => {
-  it("são 9 campos, com os MESMOS ids de antes, na mesma ordem: digitáveis (o texto antigo segue como botão)", () => {
+  it("os 9 campos de texto, com os MESMOS ids de antes e na mesma ordem, mais as 3 datas completas: digitáveis (o texto antigo segue como botão)", () => {
     const { el } = abrirFormulario();
     const ids = Array.from(el.querySelectorAll<HTMLElement>("input[id^='pf-'], button[id^='pf-'][aria-haspopup]"))
       .map((e) => e.id)
       .filter((id) => !id.endsWith("-abrir-calendario"));
-    // As 9 de texto + MS Anexado em e Prazo da ANVISA (logo depois do Registro Lpco).
+    // As 9 de texto + Data de entrega, MS Anexado em e Prazo da ANVISA (as 3 `date`, logo depois do Registro Lpco).
     const nove = IDS.map((i) => i[0] as string);
-    expect(ids).toEqual([...nove.slice(0, 7), "pf-ms-anexado", "pf-prazo-anvisa", ...nove.slice(7)]);
+    expect(ids).toEqual([...nove.slice(0, 7), "pf-data-entrega", "pf-ms-anexado", "pf-prazo-anvisa", ...nove.slice(7)]);
     for (const [id, , , valor] of IDS) {
       const c = campo(id);
       if (id === "pf-suposta-estimativa") {

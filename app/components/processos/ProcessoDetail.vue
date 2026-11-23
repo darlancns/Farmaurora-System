@@ -5,6 +5,8 @@ import { formatCurrency } from "../../utils/formatters";
 import { quebrarNumeroProcesso } from "../../utils/quebrarNumeroProcesso";
 import { pastaLimpa, temPasta } from "#shared/utils/rotuloPasta";
 import { camposDatasPreenchidos } from "../../utils/processoPainel";
+import { controlesEntregaParaTela, type ControleEntrega } from "../../utils/processoControlesEntrega";
+import { ICONES_ESTADO } from "../../utils/processoIcones";
 import ProcessoAtualizacoes from "./ProcessoAtualizacoes.vue";
 
 withDefaults(
@@ -45,6 +47,18 @@ interface DetailField {
   quebrar?: boolean;
   // Só a Transportadora: nome + valor em R$ (renderizados juntos, como sempre).
   transportadora?: NonNullable<Processo["transportadoraNacional"]>;
+  // Só os controles do Entregue (Pagamento da transportadora, DIR e Protocolo): relógio âmbar (pendente) ou check verde (concluído).
+  estado?: ControleEntrega["estado"];
+  id?: string;
+}
+
+const COR_ESTADO = { pendente: "text-[#7a5a12]", concluido: "text-[#1d6234]" } as const;
+
+// Controles do Entregue como campos do detalhe: só em Entregue, só os que se aplicam e têm valor (processoControlesEntrega.ts).
+function campoControle(processo: Processo, chave: ControleEntrega["chave"]): DetailField[] {
+  const c = controlesEntregaParaTela(processo).find((x) => x.chave === chave);
+  if (!c) return [];
+  return [{ label: c.rotulo, value: c.texto, estado: c.estado, id: `detalhe-${chave === "pagamento" ? "pagamento-transportadora" : "dir-protocolo"}-${processo.id}` }];
 }
 
 // Os campos são preenchidos por COLUNA: cada coluna é um empilhado independente (um wrapper por coluna no
@@ -66,13 +80,14 @@ function colunas(processo: Processo): DetailField[][] {
       { label: "Envio", value: processo.modalEnvio },
       { label: "Cia. aérea", value: processo.companhiaAerea },
       { label: "Nº AWB", value: processo.numeroAwb, mono: true },
+      ...campoControle(processo, "dir"),
     ],
     [
       { label: "Fornecedor", value: processo.fornecedor },
       { label: "Despachante", value: processo.despachante },
       { label: "Nº do processo", value: processo.numeroProcesso, mono: true, quebrar: true },
     ],
-    [...transportadora, { label: "Local de entrega", value: processo.localEntrega }],
+    [...transportadora, ...campoControle(processo, "pagamento"), { label: "Local de entrega", value: processo.localEntrega }],
   ];
 }
 
@@ -130,6 +145,12 @@ function datasFields(processo: Processo): DetailField[] {
             <span v-if="field.transportadora.valor !== undefined" class="block font-semibold lg:inline lg:font-normal"
               ><span class="hidden lg:inline">— </span>R$ {{ formatCurrency(field.transportadora.valor) }}</span
             >
+          </span>
+          <span v-else-if="field.estado" :id="field.id" class="flex min-w-0 items-center gap-1.5 break-words font-medium" :class="COR_ESTADO[field.estado]">
+            <svg viewBox="0 0 24 24" class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path v-for="(d, i) in ICONES_ESTADO[field.estado]" :key="i" :d="d" />
+            </svg>
+            {{ field.value }}
           </span>
           <template v-else-if="field.quebrar && field.value">
             <span class="font-mono text-ink lg:hidden">

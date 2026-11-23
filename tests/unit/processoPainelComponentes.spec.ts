@@ -300,7 +300,7 @@ describe("funções puras do painel", () => {
     expect(linhaTransportadora({})).toBe("");
   });
 
-  it("datas: as 11, na ordem da tela (MS Anexado em e Prazo da ANVISA depois do Registro Lpco)", () => {
+  it("datas: as 12, na ordem da tela (Data de entrega, MS Anexado em e Prazo da ANVISA depois do Registro Lpco)", () => {
     expect(camposDatas({ datas: {} }).map((c) => c.rotulo)).toEqual([
       "Compra (PO)",
       "Embarque",
@@ -309,6 +309,7 @@ describe("funções puras do painel", () => {
       "Registro Radar",
       "Registro Duimp",
       "Registro Lpco",
+      "Data de entrega",
       "MS Anexado em",
       "Prazo da ANVISA",
       "Previsão entrega",
@@ -482,6 +483,7 @@ describe("datas vazias escondidas no painel", () => {
     registroRadar: "21/08",
     registroDuimp: "22/08",
     registroLpco: "09/10 - agd. análise",
+    dataEntrega: "2026-11-20",
     msAnexadoEm: "2026-11-10",
     prazoAnvisa: "2026-11-25",
     previsaoEntrega: "28/08",
@@ -490,7 +492,7 @@ describe("datas vazias escondidas no painel", () => {
   const rotulos = () =>
     [...document.querySelectorAll("#painel-bloco-datas [id^='painel-']")].map((n) => n.previousElementSibling?.textContent?.trim());
 
-  it("todas preenchidas: as 11, na ordem da tela, as ISO com o ano", () => {
+  it("todas preenchidas: as 12, na ordem da tela, as ISO com o ano", () => {
     painel(proc({ datas: TODAS }));
     expect(rotulos()).toEqual([
       "Compra (PO)",
@@ -500,11 +502,13 @@ describe("datas vazias escondidas no painel", () => {
       "Registro Radar",
       "Registro Duimp",
       "Registro Lpco",
+      "Data de entrega",
       "MS Anexado em",
       "Prazo da ANVISA",
       "Previsão entrega",
       "Suposta estimativa",
     ]);
+    expect(texto(document.querySelector("#painel-data-entrega"))).toBe("20/11/2026");
     expect(texto(document.querySelector("#painel-ms-anexado"))).toBe("10/11/2026");
     expect(texto(document.querySelector("#painel-prazo-anvisa"))).toBe("25/11/2026");
   });

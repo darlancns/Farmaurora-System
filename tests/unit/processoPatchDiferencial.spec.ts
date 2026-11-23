@@ -270,10 +270,10 @@ describe("datas", () => {
   it("colunasDeDTO: parcial só monta as colunas das chaves presentes", () => {
     expect(colunasDeDTO({ datas: { dataEmbarque: "10/10" } }, { parcial: true })).toEqual({ data_embarque: "10/10" });
     expect(colunasDeDTO({ datas: { dataEmbarque: null } }, { parcial: true })).toEqual({ data_embarque: null });
-    // sem parcial (criação / formato antigo): as 11 colunas (as 2 `date` novas vazias = NULL, nunca "")
+    // sem parcial (criação / formato antigo): as 12 colunas (as 3 `date` vazias = NULL, nunca "")
     const todas = colunasDeDTO({ datas: { dataEmbarque: "10/10" } });
-    expect(Object.keys(todas)).toHaveLength(11);
-    expect(todas).toMatchObject({ ms_anexado_em: null, prazo_anvisa: null });
+    expect(Object.keys(todas)).toHaveLength(12);
+    expect(todas).toMatchObject({ ms_anexado_em: null, prazo_anvisa: null, data_entrega: null });
   });
 });
 
@@ -368,13 +368,14 @@ describe("status: vai só quando muda; o antigo 'Outro' (statusOutro) saiu do fo
     const inicial = estadoCompleto();
     inicial.form.status = "desembaraco";
     const atual = estadoCompleto();
-    atual.form.status = "entregue";
+    // "liberado" e não "entregue": virar Entregue passou a exigir a Data de entrega (o teste é só sobre status_outro).
+    atual.form.status = "liberado";
 
     const patch = montarPatchDiferencial(inicial, atual);
-    expect(patch).toEqual({ status: "entregue", parcial: true });
+    expect(patch).toEqual({ status: "liberado", parcial: true });
 
     await enviar(patch);
-    expect(row().status).toBe("entregue");
+    expect(row().status).toBe("liberado");
     expect(row().status_outro).toBe("Aguardando X");
   });
 

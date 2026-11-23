@@ -3,8 +3,8 @@ import { computed } from "vue";
 import type { Processo } from "#shared/types/processo";
 import { rotuloPastaPo } from "#shared/utils/rotuloPasta";
 import { resumoMedicamentos } from "../../utils/processoFormatters";
-import { ICONES_CARD } from "../../utils/processoIcones";
-import { linhasInfoKanban } from "../../utils/processoKanbanInfo";
+import { ICONES_CARD, ICONES_ESTADO, type ChaveIconeCard } from "../../utils/processoIcones";
+import { linhasInfoKanban, type CelulaInfoKanban } from "../../utils/processoKanbanInfo";
 import { etiquetaPagamentoDe } from "../../utils/processoPagamento";
 
 // Card de um processo no Kanban do Follow-Up. O <article> INTEIRO é o controle que abre o painel: role="button",
@@ -17,7 +17,8 @@ import { etiquetaPagamentoDe } from "../../utils/processoPagamento";
 //
 // Linhas: (1) Pasta · PO e, à direita, Pago/Pendente (só com valor); (2) paciente (até 2 linhas); (3) medicamento
 // (até 2 linhas); (4) bloquinhos (ver app/utils/processoKanbanInfo.ts): [Responsável][Consultor][Pendências],
-// [Fornecedor][Despachante] e [Cia. aérea · AWB | previsão de entrega]. Só a ALTURA do card cresce: os bloquinhos cabem na largura dele.
+// [Fornecedor][Despachante] e [Cia. aérea · AWB | previsão de entrega] (em Entregue, a DATA DE ENTREGA no lugar da previsão
+// e, com valor, uma linha a mais com os controles: [AJC pendente | Pegar DIR e Protocolo]). Só a ALTURA do card cresce: os bloquinhos cabem na largura dele.
 // Hierarquia: o NOME DO PACIENTE é o texto maior (16px/600, cor ink; peso igual ao das pendências — o destaque
 // vem do tamanho e da cor); topo, medicamento e bloquinhos ficam abaixo (≤ 12px, peso ≤ 600). Bloquinhos discretos: fundo #f6f8f8, borda #e0e7e5, ícones #6b7f87 (gráficos, 3:1),
 // texto #44585f (7:1). O topo usa #5c6d74 — o #6b7f87 do mockup dá 4,2:1 como texto; #5c6d74 é o mínimo para 4,5:1
@@ -48,6 +49,16 @@ const etiquetaPagamento = computed(() => etiquetaPagamentoDe(props.processo.stat
 
 const medicamento = computed(() => resumoMedicamentos(props.processo.medicamentos));
 const linhasInfo = computed(() => linhasInfoKanban(props.processo));
+
+// Ícone da célula: o de estado (relógio/check) nos controles do Entregue; nos demais, o do registro do card. As células da data
+// (fixas) não têm ícone.
+function caminhosIcone(celula: CelulaInfoKanban): string[] {
+  if (celula.estado) return ICONES_ESTADO[celula.estado];
+  return ICONES_CARD[celula.chave as ChaveIconeCard] ?? [];
+}
+
+// Cor do controle do Entregue: pendente = âmbar (#7a5a12), concluído = verde (#1d6234). O estado também vai pelo ícone e pelo texto.
+const COR_ESTADO = { pendente: "text-[#7a5a12]", concluido: "text-[#1d6234]" } as const;
 
 function abrir(): void {
   if (props.movendo) return;
@@ -133,15 +144,15 @@ function onKeydown(event: KeyboardEvent): void {
           :class="[
             celula.estreita || celula.fixa ? 'flex-none' : 'flex-auto',
             celula.prioritaria ? 'max-w-[45%] shrink-0' : '',
-            celula.perigo ? 'text-danger' : 'text-[#44585f]',
+            celula.estado ? COR_ESTADO[celula.estado] : celula.perigo ? 'text-danger' : 'text-[#44585f]',
           ]"
           :title="celula.titulo"
         >
           <svg
-            v-if="celula.chave !== 'previsao'"
+            v-if="!celula.fixa"
             viewBox="0 0 24 24"
             class="h-3.5 w-3.5 shrink-0"
-            :class="celula.perigo ? undefined : 'text-[#6b7f87]'"
+            :class="celula.perigo || celula.estado ? undefined : 'text-[#6b7f87]'"
             fill="none"
             stroke="currentColor"
             stroke-width="1.6"
@@ -149,10 +160,10 @@ function onKeydown(event: KeyboardEvent): void {
             stroke-linejoin="round"
             aria-hidden="true"
           >
-            <path v-for="(d, i) in ICONES_CARD[celula.chave]" :key="i" :d="d" />
+            <path v-for="(d, i) in caminhosIcone(celula)" :key="i" :d="d" />
           </svg>
           <span class="sr-only">{{ celula.rotulo }}: </span>
-          <!-- A célula da previsão (fixa) é sempre "DD/MM", sem ícone, e nunca encolhe nem corta: quem corta é a Cia · AWB. -->
+          <!-- A célula da previsão ou da data de entrega (fixa) é sempre "DD/MM", sem ícone, e nunca encolhe nem corta: quem corta é a Cia · AWB. -->
           <!-- Na célula aérea, só a cia corta com "…": a AWB fica inteira (só corta se sozinha passar da célula). -->
           <span
             class="flex min-h-4 min-w-0 items-baseline overflow-hidden text-[12px] leading-4"

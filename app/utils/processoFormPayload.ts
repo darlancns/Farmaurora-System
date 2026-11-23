@@ -1,6 +1,8 @@
 import type {
+  DirProtocoloProcesso,
   EmpresaProcesso,
   Medicamento,
+  PagamentoTransportadoraProcesso,
   ProcessoDatas,
   ProcessoFormPatchPayload,
   ProcessoFormUpdatePayload,
@@ -15,6 +17,7 @@ import {
   LIMITE_LABORATORIO,
   precisaDespachanteTransportadora,
 } from "#shared/constants/processos";
+import { controleDirDoModal, transportadoraDoPagamento } from "#shared/utils/entregaPadroes";
 import { normalizarLaboratorio, tamanhoLaboratorio } from "#shared/utils/laboratorio";
 import { NUMERO_PO_ERRO, normalizarNumeroPo, numeroPoValido } from "#shared/utils/numeroPo";
 import { NUMERO_REMESSA_ERRO, NUMERO_REMESSA_PADRAO, normalizarNumeroRemessa } from "#shared/utils/numeroRemessa";
@@ -54,9 +57,32 @@ export interface ProcessoFormState {
   supostaEstimativa: string;
   msAnexadoEm: string; // "AAAA-MM-DD" ou ""
   prazoAnvisa: string; // "AAAA-MM-DD" ou ""
+  // Data de entrega ("AAAA-MM-DD" ou ""): campo "Data de entrega" do bloco Datas. O modal "Confirme a data de entrega" (ao SALVAR
+  // quando o status vira Entregue, ver precisaConfirmarEntrega) a usa como data inicial e a preenche.
+  dataEntrega: string;
   localEntrega: string;
   numeroProcesso: string;
   statusPagamento: StatusPagamentoProcesso | "";
+  // Controles do status Entregue ("" = não informado; vazio no select = limpar). Só aparecem com status Entregue e só valem
+  // quando o envio/transportadora os comportam (ver controleEntregaAplicavel).
+  pagamentoTransportadora: PagamentoTransportadoraProcesso | "";
+  dirProtocolo: DirProtocoloProcesso | "";
+}
+
+export type ControleEntrega = "pagamentoTransportadora" | "dirProtocolo";
+
+/**
+ * O controle SE APLICA ao envio/transportadora atuais? (não olha o status)
+ *  - dirProtocolo: o envio é Courier Simples ou Courier Formal;
+ *  - pagamentoTransportadora: o envio mostra a transportadora (Courier Simples a esconde) E o nome é AJC ou Doctor.
+ * Controle que não se aplica NUNCA vai no payload: o servidor o recusaria (400) e o valor gravado só fica oculto.
+ */
+export function controleEntregaAplicavel(
+  form: Pick<ProcessoFormState, "modalEnvio" | "transportadoraNome">,
+  controle: ControleEntrega,
+): boolean {
+  if (controle === "dirProtocolo") return controleDirDoModal(form.modalEnvio) !== null;
+  return precisaDespachanteTransportadora(form.modalEnvio) && transportadoraDoPagamento(form.transportadoraNome) !== null;
 }
 
 // Air Cargo e Courier Formal exigem Despachante e Transportadora; Courier Simples esconde os dois (regra em
@@ -76,7 +102,20 @@ export function buildDatas(form: ProcessoFormState): ProcessoDatas {
     supostaEstimativa: form.supostaEstimativa.trim() || undefined,
     msAnexadoEm: form.msAnexadoEm.trim() || undefined,
     prazoAnvisa: form.prazoAnvisa.trim() || undefined,
+    dataEntrega: form.dataEntrega.trim() || undefined,
   };
+}
+
+/**
+ * O Salvar precisa abrir o modal "Confirme a data de entrega"? Só na TRANSIÇÃO para Entregue: editando um processo cujo status
+ * original não era entregue, ou criando um já Entregue (`statusOriginal` null/undefined). Se o status original já era Entregue
+ * (inclusive Entregue antigo, sem data), nunca abre.
+ */
+export function precisaConfirmarEntrega(
+  statusOriginal: StatusProcesso | null | undefined,
+  statusAtual: StatusProcesso,
+): boolean {
+  return statusAtual === "entregue" && statusOriginal !== "entregue";
 }
 
 export function buildTransportadoraNacional(form: ProcessoFormState): TransportadoraNacional | undefined {
@@ -134,6 +173,9 @@ export function buildBasePayload(
     numeroProcesso: form.numeroProcesso.trim() || undefined,
     pendencias: pendencias.map((p) => p.trim()).filter((p) => p !== ""),
     statusPagamento: form.statusPagamento || undefined,
+    // Valor cru (vazio = ausente): quem decide se vai ao servidor é controleEntregaAplicavel (criação e patch).
+    pagamentoTransportadora: form.pagamentoTransportadora || undefined,
+    dirProtocolo: form.dirProtocolo || undefined,
   };
 }
 
@@ -158,6 +200,7 @@ const CAMPOS_DATA: ReadonlyArray<keyof ProcessoDatas> = [
   "supostaEstimativa",
   "msAnexadoEm",
   "prazoAnvisa",
+  "dataEntrega",
 ];
 
 // Obrigatórios e opcionais de valor único: vão no patch SÓ se o valor mudou. A pasta é opcional, mas
@@ -180,6 +223,8 @@ const CAMPOS_ESCALARES = [
   "localEntrega",
   "numeroProcesso",
   "statusPagamento",
+  "pagamentoTransportadora",
+  "dirProtocolo",
 ] as const;
 
 const LIMPAVEIS = new Set<string>(CAMPOS_PROCESSO_LIMPAVEIS);
@@ -220,6 +265,15 @@ export function montarPatchDiferencial(
     const antes = p0[campo];
     const depois = p1[campo];
     if (antes === depois) continue;
+    // Controle do Entregue que não se aplica ao envio/transportadora atuais: um VALOR não vai (o servidor o recusaria e o valor
+    // gravado só fica oculto). Limpar (vazio = null) sempre pode ir: foi a pessoa que esvaziou o select.
+    if (
+      (campo === "pagamentoTransportadora" || campo === "dirProtocolo") &&
+      depois !== undefined &&
+      !controleEntregaAplicavel(atual.form, campo)
+    ) {
+      continue;
+    }
     patch[campo] = depois === undefined && LIMPAVEIS.has(campo) ? null : depois;
   }
 
@@ -340,5 +394,9 @@ export function validarProcessoForm(
     return { valido: false, erro: "Informe o nome da transportadora ou limpe a cotação e o valor." };
   }
 
-  return { valido: true, payload: buildBasePayload(form, medicamentos, pendencias, fornecedor) };
+  const payload = buildBasePayload(form, medicamentos, pendencias, fornecedor);
+  // Criação: controle que não se aplica ao envio/transportadora não vai (o servidor devolveria 400).
+  if (!controleEntregaAplicavel(form, "pagamentoTransportadora")) delete payload.pagamentoTransportadora;
+  if (!controleEntregaAplicavel(form, "dirProtocolo")) delete payload.dirProtocolo;
+  return { valido: true, payload };
 }

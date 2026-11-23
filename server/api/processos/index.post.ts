@@ -6,10 +6,15 @@ import {
   erroModalCiaNoPost,
   erroNumeroPo,
   erroNumeroRemessa,
+  erroCombinacaoEntrega,
+  erroDataEntregaFutura,
   erroDatasIso,
   erroIdProcesso,
   erroStatusLegado,
+  erroValoresEntrega,
+  dataEntregaDoCorpo,
   isValidProcessoPayload,
+  MENSAGEM_VERSAO_AUSENTE,
   medicamentosCanonicos,
   numeroPoCanonico,
   numeroRemessaCanonico,
@@ -18,6 +23,7 @@ import {
 import { avisarConsultorDeItensNovos } from "../../utils/notificacoesProcesso";
 import { erroDoConsultorEnviado } from "../../utils/consultoresCadastro";
 import { NUMERO_REMESSA_PADRAO } from "../../../shared/utils/numeroRemessa";
+import { padroesAoEntregar } from "../../../shared/utils/entregaPadroes";
 import type { AuthUser } from "../../../shared/types/auth";
 import type { Processo } from "../../../shared/types/processo";
 
@@ -80,6 +86,17 @@ export default defineEventHandler(async (event): Promise<Processo> => {
     throw createError({ statusCode: 400, statusMessage: erroRemessa });
   }
 
+  // Pagamento da transportadora / DIR e Protocolo fora da lista, Data de entrega no futuro, ou controle que não combina com o
+  // envio/transportadora: 400 aqui, nunca 500 da CHECK. Criar já Entregue exige a Data de entrega (sem ela, a mensagem padrão
+  // de aba antiga). Na criação não há valor gravado: a combinação vem só do corpo.
+  const erroEntrega = erroValoresEntrega(body) ?? erroDataEntregaFutura(body) ?? erroCombinacaoEntrega(body, null);
+  if (erroEntrega) {
+    throw createError({ statusCode: 400, statusMessage: erroEntrega });
+  }
+  if (body.status === "entregue" && !dataEntregaDoCorpo(body)) {
+    throw createError({ statusCode: 400, statusMessage: MENSAGEM_VERSAO_AUSENTE });
+  }
+
   // Pasta opcional: sempre gravada (sem espaços nas pontas; ausente ou vazia = ""), nunca null.
   const pasta = pastaCanonica(body.pasta) ?? "";
 
@@ -95,8 +112,14 @@ export default defineEventHandler(async (event): Promise<Processo> => {
     numeroRemessa: _remessaBruta,
     ordem: _ordemLegada,
     statusDesde: _statusDesdeDoCliente, // do gatilho do banco: valor vindo do cliente é descartado
+    pagamentoTransportadora: pagamentoBruto,
+    dirProtocolo: dirBruto,
     ...resto
   } = body as typeof body & { ordem?: unknown; statusDesde?: unknown };
+  // Os dois controles: o do corpo (null = vazio) e, ao criar já Entregue, o padrão no que está vazio — antes do INSERT.
+  const padroes = body.status === "entregue" ? padroesAoEntregar({ ...body, pagamentoTransportadora: pagamentoBruto ?? undefined, dirProtocolo: dirBruto ?? undefined }) : {};
+  const pagamentoTransportadora = pagamentoBruto ?? padroes.pagamentoTransportadora;
+  const dirProtocolo = dirBruto ?? padroes.dirProtocolo;
   const criado = await createProcesso({
     ...resto,
     consultor,
@@ -106,6 +129,8 @@ export default defineEventHandler(async (event): Promise<Processo> => {
     numeroRemessa,
     ...(cia ? { companhiaAerea: cia } : {}),
     ...(po ? { numeroPo: po } : {}),
+    ...(pagamentoTransportadora ? { pagamentoTransportadora } : {}),
+    ...(dirProtocolo ? { dirProtocolo } : {}),
   });
 
   // Pendências e atualizações iniciais são todas novas (lista de antes vazia): avisa o consultor do processo,

@@ -84,9 +84,12 @@ export function formCompleto(): ProcessoFormState {
     supostaEstimativa: "fim de setembro",
     msAnexadoEm: "",
     prazoAnvisa: "",
+    dataEntrega: "",
     localEntrega: "Clínica X",
     numeroProcesso: "123456",
     statusPagamento: "pendente",
+    pagamentoTransportadora: "",
+    dirProtocolo: "",
   };
 }
 

@@ -177,16 +177,64 @@ describe("formulário", () => {
     await nextTick();
   }
 
-  it("os dois campos vêm logo depois do Registro Lpco; o MS começa uma linha da grade (lado a lado com o Prazo)", () => {
+  it("os dois campos vêm depois do Registro Lpco e da Data de entrega; o MS começa uma linha da grade (lado a lado com o Prazo)", () => {
     const { el } = abrir();
     const ids = Array.from(el.querySelectorAll<HTMLElement>("label[for]")).map((l) => l.getAttribute("for"));
-    expect(ids.slice(6, 10)).toEqual(["pf-lpco", "pf-ms-anexado", "pf-prazo-anvisa", "pf-previsao"]);
+    expect(ids.slice(6, 11)).toEqual(["pf-lpco", "pf-data-entrega", "pf-ms-anexado", "pf-prazo-anvisa", "pf-previsao"]);
     expect(el.querySelector("label[for='pf-ms-anexado']")!.textContent).toBe("MS Anexado em");
     expect(el.querySelector("label[for='pf-prazo-anvisa']")!.textContent).toBe("Prazo da ANVISA");
     const celulaMs = campo("pf-ms-anexado").closest("[data-campo-digitavel]")!.parentElement!.parentElement!;
     expect(celulaMs.className).toContain("col-start-1");
     expect(celulaMs.className).toContain("sm:col-start-auto");
     expect(celulaMs.className).toContain("lg:col-start-1");
+  });
+
+  it("Data de entrega: 4º espaço da 2ª linha (Radar | Duimp | Lpco | Data de entrega), sem col-span/col-start/largura própria", () => {
+    const { el } = abrir();
+    const ids = Array.from(el.querySelectorAll<HTMLElement>("label[for]")).map((l) => l.getAttribute("for"));
+    // Na grade de 4 colunas: itens 0-3 = 1ª linha; 4-7 = 2ª linha, e a Data de entrega é o 8º (índice 7).
+    expect(ids.slice(4, 8)).toEqual(["pf-radar", "pf-duimp", "pf-lpco", "pf-data-entrega"]);
+    expect(el.querySelector("label[for='pf-data-entrega']")!.textContent).toBe("Data de entrega");
+    const grade = el.querySelector("fieldset > div")!;
+    expect(grade.className).toContain("lg:grid-cols-4");
+    const celula = campo("pf-data-entrega").closest("[data-campo-digitavel]")!.parentElement!.parentElement!;
+    expect(celula.parentElement).toBe(grade); // filha DIRETA da grade
+    const tokens = celula.className.split(/\s+/).filter(Boolean);
+    expect(tokens.filter((c) => /col-span|col-start|(^|:)w-|min-w/.test(c))).toEqual([]);
+    // mesmo visual dos demais campos de data (INPUT_DATA_CLASS)
+    const caixa = campo("pf-data-entrega").closest("[data-campo-digitavel]")!.className;
+    for (const c of ["font-mono", "min-h-11", "text-[16px]", "lg:text-[12.5px]", "w-full", "border-hairline"]) {
+      expect(caixa, c).toContain(c);
+    }
+  });
+
+  it("Data de entrega aparece SEMPRE, vazia antes de Entregue; gravada AAAA-MM-DD aparece como DD/MM/AAAA", () => {
+    expect(abrir().el && campo("pf-data-entrega").value).toBe("");
+    document.body.innerHTML = "";
+    abrir({ status: "entregue", data_entrega: "2026-11-03" });
+    expect(campo("pf-data-entrega").value).toBe("03/11/2026");
+  });
+
+  it("Data de entrega: dia/mês completa o ano ('proximo'); futura (acima de hoje) é recusada; o patch leva ISO; limpar = null", async () => {
+    const { f } = abrir();
+    await digitar("pf-data-entrega", "1011"); // hoje 17/11/2026: "proximo" = 10/11/2026
+    expect(campo("pf-data-entrega").value).toBe("10/11/2026");
+    expect(f.form.dataEntrega).toBe("2026-11-10");
+    expect(f.validarEdicao()).toEqual({ valido: true, patch: { datas: { dataEntrega: "2026-11-10" }, parcial: true } });
+
+    await digitar("pf-data-entrega", "18/11/2026"); // futura: max = hoje
+    expect(document.getElementById("pf-data-entrega-erro")?.textContent ?? "").toContain("Use até 17/11/2026");
+    expect(f.form.dataEntrega).toBe("2026-11-10"); // o valor anterior continua
+
+    await digitar("pf-data-entrega", "");
+    expect(f.form.dataEntrega).toBe("");
+    expect(f.validarEdicao()).toEqual({ valido: true, patch: null }); // voltou ao que estava gravado (vazio)
+  });
+
+  it("limpar uma Data de entrega gravada vai como null no patch", async () => {
+    const { f } = abrir({ status: "entregue", data_entrega: "2026-11-03" });
+    await digitar("pf-data-entrega", "");
+    expect(f.validarEdicao()).toEqual({ valido: true, patch: { datas: { dataEntrega: null }, parcial: true } });
   });
 
   it("valor gravado AAAA-MM-DD aparece como DD/MM/AAAA", () => {

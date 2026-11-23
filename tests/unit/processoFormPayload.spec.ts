@@ -41,9 +41,12 @@ function emptyForm(): ProcessoFormState {
     supostaEstimativa: "",
     msAnexadoEm: "",
     prazoAnvisa: "",
+    dataEntrega: "",
     localEntrega: "",
     numeroProcesso: "",
     statusPagamento: "",
+    pagamentoTransportadora: "",
+    dirProtocolo: "",
   };
 }
 

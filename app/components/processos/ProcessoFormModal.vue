@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { NewProcessoDTO, Processo, ProcessoFormPatchPayload } from "#shared/types/processo";
 import type { ItemConsultor } from "#shared/utils/consultorRegra";
-import { computed } from "vue";
+import { computed, nextTick, ref } from "vue";
 import { MENSAGEM_CONFLITO_EDICAO } from "../../composables/useConflitoEdicaoProcesso";
 import { useProcessoForm } from "../../composables/useProcessoForm";
 import { BOTAO_FECHAR_HOVER_CLASS, BOTAO_ICONE_CLASS } from "../../utils/botaoIcone";
@@ -10,6 +10,7 @@ import { useProverBloqueioDatas } from "../../composables/useBloqueioDatas";
 import { montarConsultorOptions } from "../../utils/consultorOptions";
 import AppSelect from "../AppSelect.vue";
 import BaseModal from "../BaseModal.vue";
+import ProcessoEntregaModal from "./ProcessoEntregaModal.vue";
 import ProcessoFormDatas from "./ProcessoFormDatas.vue";
 import ProcessoFormMedicamentos from "./ProcessoFormMedicamentos.vue";
 import ProcessoRemessaStepper from "./ProcessoRemessaStepper.vue";
@@ -84,6 +85,16 @@ const {
   onMedicamentoLaboratorioBlur,
   onMedicamentoBrandChange,
   onDataFieldChange,
+  mostrarPagamentoTransportadora,
+  pagamentoTransportadoraOptions,
+  mostrarDirProtocolo,
+  dirProtocoloRotulo,
+  dirProtocoloOptions,
+  onStatusChange,
+  garantirPadroesEntrega,
+  precisaConfirmarEntrega,
+  dataEntregaParaConfirmar,
+  definirDataEntrega,
   validar,
   validarEdicao,
 } = useProcessoForm(() => props.editingProcesso);
@@ -96,12 +107,31 @@ const consultorOptions = computed(() => montarConsultorOptions(form.consultor, p
 const bloqueioDatas = useProverBloqueioDatas();
 
 // Nome do botão principal (cabeçalho). Abaixo de sm a tela mostra a forma curta, mas o nome acessível é este.
+// Bloco "Envio e desembaraço" no Courier Formal com o DIR visível, em lg+: 6 colunas; Envio e Cia. (os 2 primeiros filhos) com 3 colunas
+// cada e AWB, Despachante e DIR (os demais) com 2 cada. Os spans ficam no contêiner (nenhuma célula tem col-span).
+const CLASSES_GRADE_ENVIO_DIR_FORMAL =
+  "lg:grid-cols-6 lg:[&>*:nth-child(-n+2)]:col-span-3 lg:[&>*:nth-child(n+3)]:col-span-2";
+
 const textoSalvarCompleto = computed(() => (props.editingProcesso ? "Salvar alterações" : "+ Adicionar processo"));
 
+// Modal "Confirme a data de entrega" (ProcessoEntregaModal): o Salvar o abre SÓ quando o status passa a Entregue (edição de um
+// processo que não era Entregue) ou ao criar já Entregue. Escolher o status no select NÃO abre nada. Confirmar preenche a data
+// e só então envia; Cancelar volta ao formulário intacto, sem enviar. Já era Entregue: o Salvar nunca o abre.
+const confirmandoEntrega = ref(false);
+
 function handleSubmit(): void {
-  // Já está salvando: ignora Enter, Enter duplo e clique + Enter (a trava síncrona está em processos.vue).
-  if (props.salvando) return;
+  // Já está salvando (ou o modal da data está aberto): ignora Enter, Enter duplo e clique + Enter (a trava síncrona do envio
+  // está em processos.vue; o modal da data tem a sua guarda).
+  if (props.salvando || confirmandoEntrega.value) return;
   if (!bloqueioDatas.liberado()) return;
+  enviar(false);
+}
+
+// Valida e envia. `entregaConfirmada`: a data de entrega já foi confirmada no modal (não pergunta de novo).
+function enviar(entregaConfirmada: boolean): void {
+  // Transição para Entregue: os controles que se aplicam e seguem vazios ganham o padrão (o servidor faria o mesmo), para o
+  // que é enviado ser o que a tela mostra.
+  if (!entregaConfirmada && precisaConfirmarEntrega()) garantirPadroesEntrega();
   if (props.editingProcesso) {
     // Edição: só vai o que o usuário alterou (patch diferencial, ver montarPatchDiferencial).
     const edicao = validarEdicao();
@@ -113,6 +143,10 @@ function handleSubmit(): void {
       emit("unchanged");
       return;
     }
+    if (!entregaConfirmada && precisaConfirmarEntrega()) {
+      confirmandoEntrega.value = true;
+      return;
+    }
     emit("update", props.editingProcesso.id, edicao.patch);
     return;
   }
@@ -122,8 +156,25 @@ function handleSubmit(): void {
     emit("invalid", resultado.erro);
     return;
   }
+  if (!entregaConfirmada && precisaConfirmarEntrega()) {
+    confirmandoEntrega.value = true;
+    return;
+  }
 
   emit("submit", { ...resultado.payload, atualizacoes: [] });
+}
+
+function aoConfirmarEntrega(dataEntrega: string): void {
+  confirmandoEntrega.value = false;
+  if (props.salvando) return;
+  definirDataEntrega(dataEntrega);
+  enviar(true);
+}
+
+// Cancelar (ou Esc): nada é enviado; o foco volta ao botão Salvar.
+function aoCancelarEntrega(): void {
+  confirmandoEntrega.value = false;
+  void nextTick(() => document.getElementById("btn-save-processo")?.focus());
 }
 </script>
 
@@ -326,7 +377,7 @@ function handleSubmit(): void {
           <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             <div :class="SELECT_CAMPO_CLASS">
               <label for="pf-status" :class="LABEL_CLASS">Status</label>
-              <AppSelect id="pf-status" v-model="form.status" :options="STATUS_OPTIONS" />
+              <AppSelect id="pf-status" :model-value="form.status" :options="STATUS_OPTIONS" @update:model-value="onStatusChange" />
             </div>
             <div :class="SELECT_CAMPO_CLASS">
               <label for="pf-status-pagamento" :class="LABEL_CLASS">Pagamento</label>
@@ -337,10 +388,14 @@ function handleSubmit(): void {
           <!-- Envio e desembaraço: Envio (campo pf-modal) / Cia. aérea / Nº AWB / Despachante, nessa ordem (a do DOM é a do Tab).
                A Cia. depende do Envio (opções e desabilitada sem Envio). O Despachante some no Courier Simples (mesma condição
                de sempre). Grade de 2 colunas: abaixo de sm, Envio e Despachante em linha inteira e Cia. | AWB lado a lado; de sm
-               em diante, Envio | Cia. e AWB | Despachante. Sem Despachante, o AWB fica sozinho na linha (sem largura forçada). -->
+               em diante, Envio | Cia. e AWB | Despachante. Sem Despachante, o AWB fica sozinho na linha (sem largura forçada).
+               Courier FORMAL com o DIR visível (Entregue), em lg+: grade de 6 colunas; os 2 primeiros filhos (Envio e Cia.) ocupam
+               3 colunas cada (metades, como sempre) e os demais (AWB, Despachante, DIR) 2 cada (terços). Os spans vêm do
+               CONTÊINER (CLASSES_GRADE_ENVIO_DIR_FORMAL, seletor nth-child): nenhuma célula tem col-span nem largura. Em todos
+               os outros casos a grade é a de sempre (2 colunas). -->
           <fieldset :class="FIELDSET_CLASS">
             <legend :class="LEGEND_CLASS">Envio e desembaraço</legend>
-            <div class="grid grid-cols-2 gap-2.5">
+            <div class="grid grid-cols-2 gap-2.5" :class="mostrarDirProtocolo && showDespachanteTransportadora ? CLASSES_GRADE_ENVIO_DIR_FORMAL : undefined">
               <div class="col-span-2 sm:col-span-1" :class="SELECT_CAMPO_CLASS">
                 <label for="pf-modal" :class="LABEL_CLASS">Envio</label>
                 <AppSelect
@@ -368,12 +423,31 @@ function handleSubmit(): void {
                 <label for="pf-despachante" :class="LABEL_CLASS">Despachante</label>
                 <AppSelect id="pf-despachante" v-model="form.despachante" :options="DESPACHANTE_OPTIONS" />
               </div>
+              <!-- DIR e Protocolo: só com status Entregue e envio Courier. DEPOIS do Despachante no DOM: no Courier Simples
+                   (sem Despachante) cai à direita do Nº AWB; no Courier Formal fica na terceira coluna da linha do AWB/Despachante
+                   em lg+ (grade de 6 colunas, ver acima) e, abaixo de lg, na linha de baixo. Sem col-span nem largura própria. -->
+              <div v-if="mostrarDirProtocolo" :class="SELECT_CAMPO_CLASS">
+                <label for="pf-dir-protocolo" :class="LABEL_CLASS">{{ dirProtocoloRotulo }}</label>
+                <AppSelect
+                  id="pf-dir-protocolo"
+                  v-model="form.dirProtocolo"
+                  :options="dirProtocoloOptions"
+                  aria-label="DIR e Protocolo"
+                />
+              </div>
             </div>
           </fieldset>
 
           <fieldset v-if="showDespachanteTransportadora" :class="FIELDSET_CLASS">
             <legend :class="LEGEND_CLASS">Transportadora nacional</legend>
-            <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+            <!-- Com o select de Pagamento visível (Entregue + AJC/Doctor), em lg+ a grade vira 4 colunas iguais (Nome | Cotação |
+                 Valor | Pagamento), tudo numa linha. O gap segue o de sempre (10px): com os 16px do mockup a coluna ficava 4,5px
+                 mais estreita e "Doctor pendente" (o texto mais longo) virava "Doctor penden…". Sem o select, a grade é a de
+                 sempre (3 colunas). -->
+            <div
+              class="grid grid-cols-2 gap-2.5 sm:grid-cols-3"
+              :class="mostrarPagamentoTransportadora ? 'lg:grid-cols-4' : undefined"
+            >
               <div class="col-span-2 sm:col-span-1">
                 <label for="pf-transp-nome" :class="LABEL_CLASS">Nome</label>
                 <input id="pf-transp-nome" v-model="form.transportadoraNome" type="text" :class="INPUT_CLASS" />
@@ -391,6 +465,18 @@ function handleSubmit(): void {
                   step="0.01"
                   min="0"
                   :class="INPUT_MONO_CLASS"
+                />
+              </div>
+              <!-- Pagamento da TRANSPORTADORA (não confundir com o Pagamento do fornecedor): só com status Entregue, envio que
+                   mostra a transportadora e nome AJC ou Doctor. 4º item da grade (em lg+ a 4ª coluna da mesma linha; abaixo de lg quebra
+                   para a linha de baixo, como os demais). -->
+              <div v-if="mostrarPagamentoTransportadora" :class="SELECT_CAMPO_CLASS">
+                <label for="pf-transp-pagamento" :class="LABEL_CLASS">Pagamento</label>
+                <AppSelect
+                  id="pf-transp-pagamento"
+                  v-model="form.pagamentoTransportadora"
+                  :options="pagamentoTransportadoraOptions"
+                  aria-label="Pagamento da transportadora"
                 />
               </div>
             </div>
@@ -444,5 +530,16 @@ function handleSubmit(): void {
            não ocupa espaço; o ancestral posicionado é o overlay do BaseModal (fixed), então não estica a página. -->
       <p id="processo-salvando-anuncio" class="sr-only" role="status" aria-live="polite">{{ salvando ? "Salvando…" : "" }}</p>
     </div>
+
+    <!-- Confirmação da data de entrega: FORA do cartão e do <form> (irmã do cartão dentro do overlay), z-950 — acima do
+         formulário (z-900) e abaixo do calendário (z-970). Só existe entre o Salvar e o Confirmar/Cancelar. -->
+    <ProcessoEntregaModal
+      v-if="confirmandoEntrega"
+      :paciente="form.paciente"
+      :pasta="form.pasta"
+      :data-inicial="dataEntregaParaConfirmar()"
+      @confirm="aoConfirmarEntrega"
+      @close="aoCancelarEntrega"
+    />
   </BaseModal>
 </template>

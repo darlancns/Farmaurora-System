@@ -147,6 +147,40 @@ export async function patchProcessoVersionado(
   return (await getProcesso(id)) ? { tipo: "versao_desatualizada" } : { tipo: "nao_encontrado" };
 }
 
+export type ResultadoPatchComLeitura = ResultadoPatchVersionado | { tipo: "conflito" };
+
+// Quantas vezes relê e tenta de novo quando só o updated_at mudou entre a leitura e a gravação (mesmo número da chegada).
+const TENTATIVAS_PATCH_COM_LEITURA = 3;
+
+// PATCH cujo conteúdo depende da linha lida (ex.: padrões ao virar Entregue): lê a linha, `montar(lida)` devolve o patch (e pode
+// lançar o 400/409 da regra) e UM UPDATE ... WHERE id = ? AND updated_at = <versão lida> o grava — sem janela de corrida. Se só
+// a versão mudou, relê e tenta de novo (até 3 vezes); depois disso, "conflito". Modelo: gravarChegadaProcesso.
+export async function patchProcessoComLeitura(
+  id: string,
+  montar: (lido: Processo) => ProcessoPatchDTO,
+  opcoes: { parcial?: boolean } = {},
+): Promise<ResultadoPatchComLeitura> {
+  const db = createSupabaseAdminClient();
+
+  for (let tentativa = 0; tentativa < TENTATIVAS_PATCH_COM_LEITURA; tentativa++) {
+    const lido = await getProcesso(id);
+    if (!lido) return { tipo: "nao_encontrado" };
+
+    const { data, error } = await db
+      .from(TABELA)
+      .update({ ...colunasDeDTO(montar(lido), opcoes), updated_at: proximoUpdatedAt(lido.updatedAt) })
+      .eq("id", id)
+      .eq("updated_at", lido.updatedAt)
+      .select("*");
+    if (error) throw erro("atualizar processo", error);
+
+    const row = (data ?? [])[0] as FollowUpRow | undefined;
+    if (row) return { tipo: "ok", processo: montarProcesso(row) };
+  }
+
+  return { tipo: "conflito" };
+}
+
 export type ResultadoChegada =
   | { tipo: "ok"; processo: Processo }
   | { tipo: "nao_encontrado" }

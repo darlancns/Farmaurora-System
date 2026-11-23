@@ -8,6 +8,7 @@ import type { AppSelectOption } from "../../types/appSelect";
 import { ordenarPorPrevisaoEntrega } from "../../utils/ordenarPorPrevisao";
 import { remessaVisivelNaLinha, type ContagemPorPasta } from "../../utils/remessaNaLinha";
 import { resumoMedicamentos } from "../../utils/processoFormatters";
+import { dataEntregaOuPrevisao } from "../../utils/processoDataEntregaLista";
 import ConfirmDialog from "../ConfirmDialog.vue";
 import ProcessoDetail from "./ProcessoDetail.vue";
 
@@ -145,8 +146,16 @@ function confirmDelete(): void {
         </span>
 
         <div class="flex flex-wrap items-center gap-x-4 gap-y-1 @[760px]:flex-nowrap @[760px]:gap-3">
-          <span class="shrink-0 text-right font-mono text-[12px] text-ink-soft @[760px]:w-[92px] @[1400px]:w-[110px]">
-            {{ processo.datas.previsaoEntrega || "—" }}
+          <!-- Entregue com data de entrega mostra ELA (title "Entregue em DD/MM/AAAA"); sem ela (os antigos), a previsão
+               de sempre (title "Previsão de entrega: ..."). A ordem da lista continua por previsão. -->
+          <span
+            :id="`entregue-data-${processo.id}`"
+            class="shrink-0 text-right font-mono text-[12px] text-ink-soft @[760px]:w-[92px] @[1400px]:w-[110px]"
+            :title="dataEntregaOuPrevisao(processo).titulo"
+            :data-tipo="dataEntregaOuPrevisao(processo).tipo"
+          >
+            <span class="sr-only">{{ dataEntregaOuPrevisao(processo).tipo === "entrega" ? "Entregue em " : "Previsão de entrega: " }}</span
+            >{{ dataEntregaOuPrevisao(processo).texto }}
           </span>
 
           <div class="w-[130px] shrink-0">

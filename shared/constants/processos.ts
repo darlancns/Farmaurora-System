@@ -3,9 +3,11 @@ import type {
   CampoProcessoLimpavel,
   ProcessoDatas,
   DespachanteProcesso,
+  DirProtocoloProcesso,
   EmpresaProcesso,
   FornecedorProcesso,
   ModalEnvio,
+  PagamentoTransportadoraProcesso,
   StatusPagamentoProcesso,
   StatusProcesso,
   StatusProcessoLegado,
@@ -97,6 +99,20 @@ export function ciaAereaValidaParaModal(modal: string | null | undefined, cia: s
   return ciasAereasDoModal(modal).includes(texto);
 }
 
+// Opções do DIR e Protocolo por envio, na ordem do select (a 1ª é o padrão ao entregar). SÓ o Courier tem o controle: Courier
+// Simples vê os 3 com protocolo; Courier Formal só "Pegar DIR" e "DIR no Drive" (o protocolo é fornecido pela AJC). Qualquer
+// outro envio (Air Cargo, vazio, o legado "Courier") não tem opções.
+export const DIRS_POR_MODAL = {
+  [MODAL_COURIER_SIMPLES]: ["pegar_dir_protocolo", "dir_no_drive", "dir_protocolo"],
+  [MODAL_COURIER_FORMAL]: ["pegar_dir", "dir_no_drive"],
+} as const satisfies Record<string, readonly DirProtocoloProcesso[]>;
+
+// Opções de DIR do envio; lista vazia se o envio não for Courier Simples/Formal (comparação exata, como ciasAereasDoModal).
+export function dirsDoModal(modal: string | null | undefined): readonly DirProtocoloProcesso[] {
+  if (typeof modal !== "string" || !Object.prototype.hasOwnProperty.call(DIRS_POR_MODAL, modal)) return [];
+  return DIRS_POR_MODAL[modal as keyof typeof DIRS_POR_MODAL];
+}
+
 // Ordem alfabética.
 export const DESPACHANTES_PROCESSO: DespachanteProcesso[] = ["Andreza Faconi", "Bruno Lopes", "Marcelo Lima"];
 
@@ -114,6 +130,43 @@ export const FORNECEDORES_PROCESSO: FornecedorProcesso[] = [
 export const RESPONSAVEIS_PROCESSO: string[] = ["Bruno", "Rebeca"];
 
 export const STATUS_PAGAMENTO_PROCESSO: StatusPagamentoProcesso[] = ["pago", "pendente"];
+
+// ── Controles do status Entregue ───────────────────────────────────────────────────────────────────
+// Pagamento da transportadora (AJC/Doctor): 'pendente' | 'pago'. Os valores são os da CHECK do banco
+// (follow_up_pagamento_transportadora_valores). Os rótulos de tela ("AJC pendente") vêm do nome da transportadora.
+export const PAGAMENTOS_TRANSPORTADORA: readonly PagamentoTransportadoraProcesso[] = ["pendente", "pago"];
+
+export const ROTULOS_PAGAMENTO_TRANSPORTADORA: Record<PagamentoTransportadoraProcesso, string> = {
+  pendente: "Pendente",
+  pago: "Pago",
+};
+
+export function isPagamentoTransportadora(valor: unknown): valor is PagamentoTransportadoraProcesso {
+  return typeof valor === "string" && (PAGAMENTOS_TRANSPORTADORA as readonly string[]).includes(valor);
+}
+
+// DIR e Protocolo: os 4 valores da CHECK do banco (follow_up_dir_protocolo_valores). O Record é exaustivo: um valor novo no
+// tipo obriga o rótulo.
+export const ROTULOS_DIR_PROTOCOLO: Record<DirProtocoloProcesso, string> = {
+  pegar_dir_protocolo: "Pegar DIR e Protocolo",
+  pegar_dir: "Pegar DIR",
+  dir_no_drive: "DIR no Drive",
+  dir_protocolo: "DIR e Protocolo",
+};
+
+export const DIRS_PROTOCOLO: readonly DirProtocoloProcesso[] = [
+  "pegar_dir_protocolo",
+  "pegar_dir",
+  "dir_no_drive",
+  "dir_protocolo",
+];
+
+/** Concluídos (verde); os demais (pegar_*) são pendentes (âmbar). */
+export const DIRS_PROTOCOLO_CONCLUIDOS: readonly DirProtocoloProcesso[] = ["dir_no_drive", "dir_protocolo"];
+
+export function isDirProtocolo(valor: unknown): valor is DirProtocoloProcesso {
+  return typeof valor === "string" && (DIRS_PROTOCOLO as readonly string[]).includes(valor);
+}
 
 // Os 5 status, na ordem do fluxo (é também a ordem das colunas do Kanban e das opções dos selects).
 export const STATUS_PROCESSO_ORDER: StatusProcesso[] = [
@@ -190,11 +243,14 @@ export const CAMPOS_PROCESSO_LIMPAVEIS: readonly CampoProcessoLimpavel[] = [
   "localEntrega",
   "numeroProcesso",
   "statusPagamento",
+  "pagamentoTransportadora",
+  "dirProtocolo",
 ];
 
 // Datas do processo guardadas como DATA COMPLETA (colunas `date`, valor "AAAA-MM-DD"), com o rótulo da tela. As outras 9
-// datas são texto livre. Vazio vira NULL no banco; qualquer outro valor que não seja uma data ISO real é recusado (400).
+// datas são texto livre. (A Data de entrega também não pode ser futura: ver erroDataEntregaFutura no servidor.) Vazio vira NULL no banco; qualquer outro valor que não seja uma data ISO real é recusado (400).
 export const DATAS_ISO_PROCESSO: ReadonlyArray<{ chave: keyof ProcessoDatas; rotulo: string }> = [
   { chave: "msAnexadoEm", rotulo: "MS Anexado em" },
   { chave: "prazoAnvisa", rotulo: "Prazo da ANVISA" },
+  { chave: "dataEntrega", rotulo: "Data de entrega" },
 ];
