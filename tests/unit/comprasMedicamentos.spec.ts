@@ -70,7 +70,7 @@ describe("1 medicamento: um controle por linha, com <label for>", () => {
   it("digitar no campo Medicamento grava o texto do 1º item e só dele", async () => {
     montado = montarFormulario(compraComUmMedicamento());
     await digitar(med(ID1, "medicamento"), "KEYTRUDA 100mg - 2 vials per box");
-    expect(ultimoItens(montado)[0]!.medicamento).toBe("KEYTRUDA 100mg - 2 vials per box");
+    expect(ultimoItens(montado)[0]!.medicamento).toBe("KEYTRUDA 100MG - 2 VIALS PER BOX"); // o valor digitado vira MAIÚSCULAS (como no Follow-Up)
     expect(montado.mudancas.at(-1)).toHaveProperty("itens");
   });
 });
@@ -230,7 +230,7 @@ describe("Opção A: o vínculo com o Cadastro e o limite de palavra", () => {
   it("enquanto o nome para o cadastro não é editado, ele acompanha o texto digitado", async () => {
     montado = montarFormulario(compraComUmMedicamento({ itens: [itemDeTeste(1, { medicamento: "Novo" })] }));
     await digitar(med(ID1, "medicamento"), "Novo Teste");
-    expect(q<HTMLInputElement>(`#compra-item-${ID1}-nome-cadastro`)!.value).toBe("Novo Teste");
+    expect(q<HTMLInputElement>(`#compra-item-${ID1}-nome-cadastro`)!.value).toBe("NOVO TESTE"); // acompanha o texto, que já é maiúsculo
   });
 });
 
@@ -416,7 +416,7 @@ describe("casos portados da tela antiga (Cadastro, temperatura e pré-cadastro)"
     await digitar(med(ID1, "medicamento"), "dipi");
     await esperar(320);
     expect(buscarMedicamentos).toHaveBeenCalledTimes(1);
-    expect(buscarMedicamentos.mock.calls[0]![0]).toBe("dipi");
+    expect(buscarMedicamentos.mock.calls[0]![0]).toBe("DIPI"); // a busca recebe o texto já em maiúsculas (o servidor busca sem caixa)
     expect(qa("[role=option]").map((o) => texto(o))).toEqual(["DIPIRONA TESTE", "DIPIRONA OUTRA"]);
   });
 
@@ -440,7 +440,7 @@ describe("casos portados da tela antiga (Cadastro, temperatura e pré-cadastro)"
     await digitar(med(ID1, "medicamento"), "Outro Med Totalmente Diferente");
     responder({ tipo: "pre-cadastro", id: "pre_tarde" });
     await esperar(5);
-    expect(ultimoItens(montado)[0]).toMatchObject({ medicamento: "Outro Med Totalmente Diferente", preCadastroId: null });
+    expect(ultimoItens(montado)[0]).toMatchObject({ medicamento: "OUTRO MED TOTALMENTE DIFERENTE", preCadastroId: null });
   });
 
   it("'Tentar de novo' depois de uma falha de rede pede outra vez", async () => {

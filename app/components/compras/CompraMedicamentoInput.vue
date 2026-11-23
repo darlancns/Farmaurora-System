@@ -19,7 +19,11 @@ import { BOTAO_SECUNDARIO_CLASS } from "../../utils/comprasEstilos";
 import { BOTAO_REMOVER_CLASS, INPUT_CLASS } from "../../utils/processoFormClasses";
 import AppSearchSelect, { type OpcaoBusca } from "../AppSearchSelect.vue";
 
-// UM medicamento: um input só (o nome já com a apresentação: "KEYTRUDA 100mg - 2 vials per box"). Escolher uma sugestão do Cadastro põe o
+// O texto digitado (ou colado) vira MAIÚSCULAS no próprio campo, como o medicamento do Follow-Up (prop `maiusculas` do AppSearchSelect: o valor
+// é transformado, com o cursor onde estava; um valor antigo em minúsculas fica como está até a pessoa editar). A busca e o vínculo com o Cadastro
+// usam chaveCadastro (sem caixa) e não mudam; o campo "nome para o cadastro" (abaixo) não é afetado.
+//
+// UM medicamento: um input só (o nome já com a apresentação: "KEYTRUDA 100MG - 2 VIALS PER BOX"). Escolher uma sugestão do Cadastro põe o
 // nome do Cadastro no campo, com o cursor no FIM para complementar, liga o medicamento (medicamentoCadastroId) e traz a temperatura.
 //
 // VÍNCULO (Opção A, funções puras de shared/utils/compraMedicamento.ts): continua enquanto o texto COMEÇA com o nome do Cadastro (com limite
@@ -151,8 +155,9 @@ async function pedirCadastro(): Promise<void> {
           :model-value="item.medicamento"
           :buscar="acoes.buscarMedicamentos"
           :aria-label="nomeAcessivel"
-          placeholder="ex.: KEYTRUDA 100mg - 2 vials per box"
+          placeholder="ex.: KEYTRUDA 100MG - 2 VIALS PER BOX"
           :disabled="desabilitado"
+          maiusculas
           @digitar="aoDigitar"
           @escolher="aoEscolher"
           @limpar="aoLimpar"

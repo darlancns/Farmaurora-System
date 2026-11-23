@@ -28,7 +28,10 @@ interface Eventos {
   digitar: string[];
 }
 
-function montar(buscar: Buscar, extra: { modelValue?: string; permitirNovo?: boolean; disabled?: boolean; rotuloNovo?: (t: string) => string } = {}) {
+function montar(
+  buscar: Buscar,
+  extra: { modelValue?: string; permitirNovo?: boolean; disabled?: boolean; maiusculas?: boolean; rotuloNovo?: (t: string) => string } = {},
+) {
   const ev: Eventos = { escolher: [], novo: [], limpar: 0, digitar: [] };
   const valor = ref(extra.modelValue ?? "");
   const el = document.createElement("div");
@@ -42,6 +45,7 @@ function montar(buscar: Buscar, extra: { modelValue?: string; permitirNovo?: boo
           buscar,
           permitirNovo: extra.permitirNovo ?? false,
           disabled: extra.disabled ?? false,
+          ...(extra.maiusculas === undefined ? {} : { maiusculas: extra.maiusculas }),
           ...(extra.rotuloNovo ? { rotuloNovo: extra.rotuloNovo } : {}),
           onEscolher: (o: OpcaoBusca) => {
             ev.escolher.push(o);
@@ -375,5 +379,71 @@ describe("acessibilidade e desabilitado", () => {
     valor.value = "B";
     await nextTick();
     expect(input().value).toBe("B");
+  });
+});
+
+describe("prop `maiusculas` (o texto digitado vira MAIÚSCULAS no campo)", () => {
+  it("SEM a prop (padrão), o texto fica como foi digitado: nada muda para quem já usa o componente", async () => {
+    const buscar = buscaSimples();
+    const { ev } = montar(buscar);
+    await digitar("dipi Teste");
+    expect(input().value).toBe("dipi Teste");
+    expect(ev.digitar).toEqual(["dipi Teste"]);
+    await avancar(250);
+    expect(buscar.mock.calls[0]![0]).toBe("dipi Teste");
+  });
+
+  it("COM a prop, o campo, o evento `digitar` e a busca recebem o texto em MAIÚSCULAS", async () => {
+    const buscar = buscaSimples();
+    const { ev } = montar(buscar, { maiusculas: true });
+    await digitar("dipi Teste");
+    expect(input().value).toBe("DIPI TESTE");
+    expect(ev.digitar).toEqual(["DIPI TESTE"]);
+    await avancar(250);
+    expect(buscar).toHaveBeenCalledTimes(1);
+    expect(buscar.mock.calls[0]![0]).toBe("DIPI TESTE");
+  });
+
+  it("colar em minúsculas também vira maiúsculas (é o mesmo evento 'input')", async () => {
+    const { ev } = montar(buscaSimples(), { maiusculas: true });
+    await digitar("keytruda 100mg");
+    expect(input().value).toBe("KEYTRUDA 100MG");
+    expect(ev.digitar.at(-1)).toBe("KEYTRUDA 100MG");
+  });
+
+  it("editar no MEIO do texto não faz o cursor pular para o fim", async () => {
+    montar(buscaSimples(), { maiusculas: true });
+    input().focus();
+    input().value = "keytruda";
+    input().setSelectionRange(3, 3);
+    input().dispatchEvent(new Event("input", { bubbles: true }));
+    await nextTick();
+    expect(input().value).toBe("KEYTRUDA");
+    expect(input().selectionStart).toBe(3);
+    expect(input().selectionEnd).toBe(3);
+  });
+
+  it("um valor que já vem em minúsculas (modelValue) fica como está até a pessoa editar o campo", async () => {
+    const { ev, valor } = montar(buscaSimples(), { maiusculas: true, modelValue: "keytruda 100mg", permitirNovo: true });
+    expect(input().value).toBe("keytruda 100mg");
+    input().focus();
+    input().dispatchEvent(new Event("blur"));
+    await nextTick();
+    expect(input().value).toBe("keytruda 100mg");
+    expect(ev.novo).toEqual([]);
+    expect(valor.value).toBe("keytruda 100mg");
+    await digitar("keytruda 100mg x");
+    expect(input().value).toBe("KEYTRUDA 100MG X");
+  });
+
+  it("escolher uma sugestão do Cadastro põe o nome do Cadastro, como está", async () => {
+    const buscar = buscaSimples();
+    const { ev } = montar(buscar, { maiusculas: true });
+    await digitar("dipi");
+    await avancar(250);
+    await tecla("ArrowDown");
+    await tecla("Enter");
+    expect(ev.escolher.map((o) => o.rotulo)).toEqual(["DIPIRONA TESTE"]);
+    expect(input().value).toBe("DIPIRONA TESTE");
   });
 });

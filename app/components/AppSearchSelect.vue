@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { aplicarMaiusculasNoCampo } from "../utils/aplicarMaiusculasNoCampo";
 import { telaLargaAgora } from "../utils/telaLarga";
 import { INPUT_CLASS } from "../utils/processoFormClasses";
 
@@ -36,10 +37,13 @@ const props = withDefaults(
     debounceMs?: number;
     minimo?: number;
     ariaLabel?: string;
+    /** O texto digitado (ou colado) vira MAIÚSCULAS no próprio campo, com o cursor onde estava (o medicamento de Compras, como no Follow-Up). */
+    maiusculas?: boolean;
   }>(),
   {
     placeholder: "",
     disabled: false,
+    maiusculas: false,
     permitirNovo: false,
     rotuloNovo: (texto: string) => `Usar “${texto}”`,
     debounceMs: 250,
@@ -162,7 +166,10 @@ async function executarBusca(q: string): Promise<void> {
 
 function aoDigitar(event: Event): void {
   if (props.disabled) return;
-  texto.value = (event.target as HTMLInputElement).value;
+  const campo = event.target as HTMLInputElement;
+  // Com `maiusculas`, o valor é transformado ANTES de tudo (o que sai em `digitar` e o que vai à busca já são maiúsculos). Só mexe no
+  // que a pessoa edita: um valor antigo, em minúsculas, fica como está até ela editar o campo.
+  texto.value = props.maiusculas ? aplicarMaiusculasNoCampo(campo) : campo.value;
   emit("digitar", texto.value);
   cancelarBusca();
   destaque.value = -1;
