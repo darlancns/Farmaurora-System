@@ -202,7 +202,7 @@ describe("botões só de ícone têm nome acessível em português", () => {
     }
   });
 
-  it("o menu '…' do celular e o botão de voltar têm nome acessível", () => {
+  it("os botões de ação têm o texto como nome (o ícone é só enfeite, aria-hidden) e o botão de voltar tem nome acessível", () => {
     const el = document.createElement("div");
     document.body.appendChild(el);
     const app = createApp(defineComponent({ render: () => h(CompraFormCabecalho, { anoMes: "2026-11", sequencia: 1, cancelada: false, podeEditar: true, estado: "ocioso" }) }));
@@ -211,7 +211,10 @@ describe("botões só de ícone têm nome acessível em português", () => {
       app.unmount();
       el.remove();
     });
-    expect(q("#btn-menu-compra")!.getAttribute("aria-label")).toBe("Mais ações da compra");
+    for (const [id, nome] of [["#btn-duplicar-compra", "Duplicar compra"], ["#btn-cancelar-compra", "Cancelar compra"], ["#btn-apagar-compra", "Apagar compra"]] as const) {
+      expect((q(id)!.textContent ?? "").trim(), id).toBe(nome);
+      expect(q(`${id} svg`)!.getAttribute("aria-hidden"), id).toBe("true");
+    }
     expect(q("#btn-voltar-lista")!.getAttribute("aria-label")).toBe("Voltar para a lista de compras");
   });
 });

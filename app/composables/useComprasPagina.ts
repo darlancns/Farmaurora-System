@@ -3,7 +3,7 @@ import { CODIGO_NUMERO_JA_EXISTE } from "#shared/constants/compra";
 import type { Compra, NovaCompraDTO } from "#shared/types/compra";
 import { itemVazio } from "#shared/utils/compraForm";
 import type { OrdemDaLista } from "#shared/utils/compraLista";
-import { rotuloDoMes, tituloDaCompra } from "#shared/utils/compraMes";
+import { descricaoDaCompra, rotuloDoMes, tituloDaCompra } from "#shared/utils/compraMes";
 import { ApiError, apiFetch, codigoDoErro } from "../utils/apiFetch";
 import { abaInicial, type AbaCompras } from "../utils/comprasAbas";
 import { gravarOrdem, lerOrdemSalva, type ArmazenamentoDaOrdem } from "../utils/comprasOrdem";
@@ -26,6 +26,8 @@ export interface ApiAcoesCompra {
   criar: (corpo: NovaCompraDTO) => Promise<Compra>;
   duplicar: (id: string, corpo: NovaCompraDTO) => Promise<Compra>;
   cancelar: (id: string) => Promise<Compra>;
+  /** APAGA a compra (e os itens; o número fica livre). 404 = outra pessoa já tinha apagado. */
+  apagar: (id: string) => Promise<void>;
 }
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
@@ -35,6 +37,9 @@ const apiAcoesPadrao: ApiAcoesCompra = {
   duplicar: (id, corpo) =>
     apiFetch<Compra>(`/api/compras/${encodeURIComponent(id)}/duplicar`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(corpo) }, "Não foi possível duplicar a compra."),
   cancelar: (id) => apiFetch<Compra>(`/api/compras/${encodeURIComponent(id)}/cancelar`, { method: "POST", headers: JSON_HEADERS }, "Não foi possível cancelar a compra."),
+  apagar: async (id) => {
+    await apiFetch<{ id: string }>(`/api/compras/${encodeURIComponent(id)}`, { method: "DELETE" }, "Não foi possível apagar a compra.");
+  },
 };
 
 export const MENSAGEM_NAO_SALVOU = "Não foi possível salvar as alterações desta compra. Tente salvar de novo antes de continuar.";
@@ -98,6 +103,10 @@ export interface ComprasPagina {
   tituloParaDialogo: () => string;
   /** O texto do diálogo de cancelar. */
   mensagemCancelar: () => string;
+  /** O diálogo de "Apagar compra" está aberto. */
+  confirmandoApagar: Ref<boolean>;
+  /** O texto do diálogo de apagar: "Apagar a Compra 14 de novembro? Essa ação não pode ser desfeita." */
+  mensagemApagar: () => string;
   iniciar: () => Promise<void>;
   selecionar: (id: string) => Promise<void>;
   mesAnterior: () => Promise<void>;
@@ -118,6 +127,12 @@ export interface ComprasPagina {
   cancelarDialogo: () => void;
   pedirCancelar: () => void;
   confirmarCancelar: () => Promise<void>;
+  /** "Apagar compra": abre a confirmação (nada é apagado ainda). */
+  pedirApagar: () => void;
+  /** "Apagar compra" na confirmação: apaga de verdade, tira a compra da lista e do formulário e volta para a lista. */
+  confirmarApagar: () => Promise<void>;
+  /** Fecha o formulário de uma compra que outra pessoa apagou (a faixa "Voltar para a lista"). */
+  fecharApagada: () => void;
   /** Para sair da página (onBeforeRouteLeave): descarrega o pendente; false = não saia. */
   antesDeSair: () => Promise<boolean>;
 }
@@ -130,6 +145,7 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
   const aba = ref<AbaCompras>(abaInicial(inicial.aba, inicial.id !== null));
   const ocupado = ref(false);
   const confirmandoCancelar = ref(false);
+  const confirmandoApagar = ref(false);
   const dialogo = ref<DialogoNumeroCompra | null>(null);
   const pedidoDeFocoMedicamento = ref(0);
 
@@ -137,6 +153,8 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
     api: opcoes.apiCompra,
     somenteLeitura: () => !opcoes.podeEditar(),
     aoSalvar: (compra) => lista.aplicarCompra(compra),
+    // Outra pessoa apagou a compra aberta: o cartão sai da lista; o formulário fica na tela (com a faixa) até a pessoa voltar.
+    aoApagada: (compra) => lista.removerCompra(compra.id, compra.cancelada),
   });
 
   // A URL acompanha o mês, a compra aberta e o filtro.
@@ -337,6 +355,49 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
     }, "Não foi possível cancelar a compra.");
   }
 
+  function pedirApagar(): void {
+    const atual = editor.compra.value;
+    if (!opcoes.podeEditar() || !atual || editor.apagada.value) return;
+    confirmandoApagar.value = true;
+  }
+
+  /** Volta para a lista sem compra aberta (depois de apagar, ou de fechar a faixa de uma compra que outra pessoa apagou). */
+  function sairDaCompra(id: string, cancelada: boolean): void {
+    lista.removerCompra(id, cancelada);
+    editor.definir(null);
+    selecionadaId.value = null;
+    aba.value = "lista";
+  }
+
+  async function confirmarApagar(): Promise<void> {
+    const atual = editor.compra.value;
+    if (!atual) {
+      confirmandoApagar.value = false;
+      return;
+    }
+    await comOcupado(async () => {
+      try {
+        const descricao = descricaoDaCompra(atual.anoMes, editor.sequenciaExibida.value);
+        // Não descarrega o salvamento pendente: a compra vai embora, o que estava por salvar não tem mais para onde ir.
+        try {
+          await acoes.apagar(atual.id);
+          opcoes.avisar(`${descricao} apagada`);
+        } catch (e) {
+          if (!(e instanceof ApiError && e.status === 404)) throw e;
+          opcoes.avisar("Esta compra já tinha sido apagada por outra pessoa.");
+        }
+        sairDaCompra(atual.id, atual.cancelada);
+      } finally {
+        confirmandoApagar.value = false;
+      }
+    }, "Não foi possível apagar a compra.");
+  }
+
+  function fecharApagada(): void {
+    const atual = editor.compra.value;
+    if (atual) sairDaCompra(atual.id, atual.cancelada);
+  }
+
   function irParaAba(destino: AbaCompras): void {
     aba.value = destino;
   }
@@ -353,12 +414,17 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
     irParaAba,
     ocupado,
     confirmandoCancelar,
+    confirmandoApagar,
     pedidoDeFocoMedicamento,
     dialogo,
     tituloParaDialogo: () => (editor.compra.value ? tituloDaCompra(editor.compra.value.anoMes, editor.compra.value.sequencia) : ""),
     mensagemCancelar: () => {
       const c = editor.compra.value;
       return `Cancelar a ${c ? tituloDaCompra(c.anoMes, c.sequencia) : ""}? Ela continua na lista como cancelada e não poderá mais ser editada.`;
+    },
+    mensagemApagar: () => {
+      const c = editor.compra.value;
+      return `Apagar a ${c ? descricaoDaCompra(c.anoMes, editor.sequenciaExibida.value) : "compra"}? Essa ação não pode ser desfeita.`;
     },
     iniciar,
     selecionar,
@@ -374,6 +440,9 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
     cancelarDialogo,
     pedirCancelar,
     confirmarCancelar,
+    pedirApagar,
+    confirmarApagar,
+    fecharApagada,
     antesDeSair,
   };
 }

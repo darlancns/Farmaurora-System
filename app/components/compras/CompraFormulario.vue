@@ -4,6 +4,7 @@ import type { Compra, MudancasCompra } from "#shared/types/compra";
 import type { EstadoSalvamento } from "../../composables/useCompraEditor";
 import { ACOES_COMPRA_KEY, ACOES_VAZIAS, type AcoesCompra } from "../../utils/comprasContexto";
 import type { OpcoesFormulario } from "../../utils/comprasOpcoes";
+import CompraFaixaApagada from "./CompraFaixaApagada.vue";
 import CompraFaixaConflito from "./CompraFaixaConflito.vue";
 import CompraFormCabecalho from "./CompraFormCabecalho.vue";
 import CompraLinhaNumero from "./CompraLinhaNumero.vue";
@@ -47,6 +48,8 @@ const emit = defineEmits<{
   alterar: [mudancas: MudancasCompra];
   duplicar: [];
   cancelar: [];
+  apagar: [];
+  fecharApagada: [];
   tentarDeNovo: [];
   carregarVersaoSalva: [];
   manterMinhas: [];
@@ -82,9 +85,12 @@ const alterar = (m: MudancasCompra): void => emit("alterar", m);
       :ocupado="ocupado"
       @duplicar="emit('duplicar')"
       @cancelar="emit('cancelar')"
+      @apagar="emit('apagar')"
       @tentar-de-novo="emit('tentarDeNovo')"
       @voltar="emit('voltar')"
     />
+
+    <CompraFaixaApagada v-if="estado === 'apagada'" @fechar="emit('fecharApagada')" />
 
     <CompraFaixaConflito v-if="estado === 'conflito'" :ocupado="ocupado" @carregar="emit('carregarVersaoSalva')" @manter="emit('manterMinhas')" />
 

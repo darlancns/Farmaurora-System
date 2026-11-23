@@ -34,7 +34,8 @@ import { erro, randomId } from "./storeKit";
  *    (ano_mes, sequencia) do banco é a trava final: uma corrida entre dois usuários vira 23505 e é traduzida para o MESMO 409, SEM tentar
  *    de novo com outro número.
  *  - `ano_mes` é o mês civil de Brasília (America/Sao_Paulo, nunca o do fuso do servidor).
- *  - APAGAR não existe aqui: cancelar é `cancelada = true`.
+ *  - CANCELAR é `cancelada = true` (a compra continua na lista, só para leitura). APAGAR (`apagarCompra`) é um DELETE de verdade: leva os itens
+ *    (ON DELETE CASCADE), libera o número e NÃO leva os pré-cadastros de medicamento pedidos a partir dela (eles só perdem o vínculo com a compra).
  *  - SALVAR (`salvarCompra`) é o salvamento automático: recebe o estado e sincroniza a compra e os itens. Concorrência
  *    OTIMISTA: o cliente devolve o `updatedAt` que viu; se mudou, 409 com a versão atual.
  *  - O estado da compra é só DERIVADO: ativa ou cancelada (não há coluna de estado).
@@ -376,7 +377,7 @@ export async function duplicarCompra(id: string, usuario: string, entrada: Entra
   return obterCompra(nova.id);
 }
 
-/** Cancela a compra (cancelada = true; NUNCA um DELETE). Idempotente. null = não existe. */
+/** Cancela a compra (cancelada = true; não apaga nada). Idempotente. null = não existe. */
 export async function cancelarCompra(id: string, usuario: string): Promise<Compra | null> {
   const db = createSupabaseAdminClient();
   const { data: lidas, error: erroLeitura } = await db.from(COMPRAS).select("*").eq("id", id);
@@ -391,6 +392,40 @@ export async function cancelarCompra(id: string, usuario: string): Promise<Compr
     if (error) throw erro("cancelar a compra", error);
   }
   return obterCompra(id);
+}
+
+export const MENSAGEM_APAGAR_SEM_PERMISSAO_NO_BANCO =
+  "Apagar compras ainda não está liberado no banco de dados. Peça ao administrador do sistema para liberar e tente de novo.";
+export const MENSAGEM_APAGAR_COMPRA_EM_USO = "Não foi possível apagar a compra: ela ainda é usada por outro registro.";
+const CODIGO_SEM_PERMISSAO = "42501";
+
+/**
+ * APAGA a compra de verdade (DELETE): ela e os itens dela (ON DELETE CASCADE) somem e o número fica livre para outra compra do mês.
+ * Os pré-cadastros de medicamento que foram pedidos a partir dela (pre_cadastro_medicamentos.compra_id, FK SEM ação) NÃO são apagados: se a FK
+ * barrar (23503), eles só perdem o vínculo (compra_id = null) e o DELETE é tentado de novo UMA vez; com `ON DELETE SET NULL` no banco o 1º DELETE já passa.
+ * Sem o privilégio DELETE em `compras` (42501), erro claro (503) e NADA muda. true = apagou; false = a compra não existe (ou outra pessoa já a apagou).
+ */
+export async function apagarCompra(id: string): Promise<boolean> {
+  const db = createSupabaseAdminClient();
+  const { data: lidas, error: erroLeitura } = await db.from(COMPRAS).select("id").eq("id", id);
+  if (erroLeitura) throw erro("buscar a compra", erroLeitura);
+  if (((lidas ?? []) as unknown[]).length === 0) return false;
+
+  const apagar = () => db.from(COMPRAS).delete().eq("id", id).select("id");
+  let resultado = await apagar();
+  if (resultado.error?.code === CODIGO_CHAVE_ESTRANGEIRA) {
+    // Os pré-cadastros pedidos por esta compra seguem existindo (o Cadastro ainda decide); só deixam de apontar para ela.
+    const { error: erroVinculo } = await db.from(PRE_CADASTROS).update({ compra_id: null }).eq("compra_id", id);
+    if (erroVinculo) throw erro("soltar os pré-cadastros da compra", erroVinculo);
+    resultado = await apagar();
+  }
+  const { data, error } = resultado;
+  if (error) {
+    if (error.code === CODIGO_SEM_PERMISSAO) throw new ComprasRegraError(MENSAGEM_APAGAR_SEM_PERMISSAO_NO_BANCO, 503);
+    if (error.code === CODIGO_CHAVE_ESTRANGEIRA) throw new ComprasRegraError(MENSAGEM_APAGAR_COMPRA_EM_USO, 409);
+    throw erro("apagar a compra", error);
+  }
+  return ((data ?? []) as unknown[]).length > 0;
 }
 
 // ── Salvar (o salvamento automático) ─────────────────────────────────────────────────────────────────────────

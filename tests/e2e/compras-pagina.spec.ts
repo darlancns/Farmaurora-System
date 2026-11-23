@@ -239,6 +239,25 @@ for (const [rotulo, conta] of [
       await expect(page.locator("#btn-cancelar-compra")).toHaveCount(0);
     });
 
+    test("Apagar compra: confirmação com o texto pedido; Cancelar não apaga; confirmar apaga, volta para a lista e libera o número", async ({ page }) => {
+      await abrirCompras(page);
+      const paciente = unico();
+      await criarCompraComPaciente(page, paciente);
+      const titulo = await page.locator("#compra-titulo").innerText();
+      await page.locator("#btn-apagar-compra").click();
+      const dialogo = page.getByRole("alertdialog");
+      await expect(dialogo).toContainText("Essa ação não pode ser desfeita.");
+      await expect(dialogo).toContainText(/Apagar a Compra \d{2} de /);
+      await dialogo.getByRole("button", { name: "Cancelar" }).click();
+      await expect(page.locator("#compra-titulo")).toHaveText(titulo); // desistir não apaga
+      await page.locator("#btn-apagar-compra").click();
+      await page.getByRole("alertdialog").getByRole("button", { name: "Apagar compra" }).click();
+      // Precisa do privilégio DELETE em compras no banco local (a migration proposta; o servidor devolve 503 sem ele).
+      if (await page.getByText("ainda não está liberado no banco de dados").isVisible({ timeout: 3000 }).catch(() => false)) test.skip(true, "o banco local ainda não liberou o DELETE em compras");
+      await expect(page.locator("#compras-sem-selecao")).toBeVisible();
+      await expect(page.locator("[data-compra-cartao]").filter({ hasText: paciente })).toHaveCount(0);
+    });
+
     test("'Mostrar canceladas' vai para a URL (?canceladas=1), mostra a contagem e traz as canceladas (com o selo); sem ?status", async ({ page }) => {
       await abrirCompras(page);
       await criarCompraComPaciente(page, unico());

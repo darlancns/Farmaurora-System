@@ -63,11 +63,12 @@ describe("CompraCampo: a linha [rótulo | controle]", () => {
 });
 
 describe("cabeçalho do formulário", () => {
-  it("'Compra NN - Mês/Ano', 'salvo automaticamente' e Duplicar/Cancelar para quem edita", () => {
+  it("'Compra NN - Mês/Ano' e Duplicar/Cancelar/Apagar para quem edita", () => {
     montado = montarFormulario(compraComUmMedicamento({ anoMes: "2026-11", sequencia: 13 }));
     expect(texto(q("#compra-titulo"))).toBe("Compra 13 - Novembro/2026");
     expect(q("#btn-duplicar-compra")).not.toBeNull();
     expect(q("#btn-cancelar-compra")).not.toBeNull();
+    expect(q("#btn-apagar-compra")).not.toBeNull();
     expect(q("[data-selo-cancelada]")).toBeNull();
   });
 
@@ -79,17 +80,19 @@ describe("cabeçalho do formulário", () => {
     expect(q("#compra-pendencias")).toBeNull();
   });
 
-  it("compra cancelada: selo 'Cancelada', sem Duplicar nem Cancelar", () => {
+  it("compra cancelada: selo 'Cancelada', sem Duplicar nem Cancelar (mas pode ser apagada)", () => {
     montado = montarFormulario(compraComUmMedicamento({ cancelada: true }));
     expect(texto(q("[data-selo-cancelada]"))).toBe("Cancelada");
     expect(q("#btn-duplicar-compra")).toBeNull();
     expect(q("#btn-cancelar-compra")).toBeNull();
+    expect(q("#btn-apagar-compra")).not.toBeNull();
   });
 
-  it("sócio (só leitura): sem Duplicar nem Cancelar", () => {
+  it("sócio (só leitura): sem Duplicar, Cancelar nem Apagar", () => {
     montado = montarFormulario(compraComUmMedicamento(), { podeEditar: false });
     expect(q("#btn-duplicar-compra")).toBeNull();
     expect(q("#btn-cancelar-compra")).toBeNull();
+    expect(q("#btn-apagar-compra")).toBeNull();
   });
 });
 
@@ -175,22 +178,24 @@ describe("faixa de conflito e estados do formulário", () => {
     expect(q("#compra-cabecalho-bloco")!.contains(alerta)).toBe(true);
   });
 
-  it("o título nunca quebra e Duplicar/Cancelar ficam na mesma linha (nowrap/truncate), em qualquer largura de desktop", () => {
+  it("o título nunca quebra no meio; as três ações ficam juntas (nowrap em lg+) e descem para a 2ª linha, à direita, se a coluna for estreita", () => {
     formularioDireto("ocioso");
     expect(q("#compra-titulo")!.className).toContain("whitespace-nowrap");
     expect(q("#compra-titulo")!.className).toContain("truncate");
-    expect(q("#compra-cabecalho")!.className).toContain("lg:flex-nowrap");
+    expect(q("#compra-cabecalho")!.className).toContain("lg:flex-wrap");
     expect(q("#btn-duplicar-compra")!.parentElement).toBe(q("#btn-cancelar-compra")!.parentElement);
-    expect(q("#btn-duplicar-compra")!.parentElement!.className).toContain("flex-nowrap");
-    expect(q("#btn-duplicar-compra")!.parentElement!.className).toContain("shrink-0");
+    expect(q("#btn-duplicar-compra")!.parentElement).toBe(q("#btn-apagar-compra")!.parentElement);
+    expect(q("#btn-duplicar-compra")!.parentElement!.className).toContain("lg:flex-nowrap");
+    expect(q("#btn-duplicar-compra")!.parentElement!.className).toContain("lg:shrink-0");
   });
 
-  it("Duplicar e Cancelar avisam (só para quem edita)", () => {
+  it("Duplicar, Cancelar e Apagar avisam (só para quem edita)", () => {
     const eventos: string[] = [];
-    formularioDireto("ocioso", { onDuplicar: () => eventos.push("duplicar"), onCancelar: () => eventos.push("cancelar") });
+    formularioDireto("ocioso", { onDuplicar: () => eventos.push("duplicar"), onCancelar: () => eventos.push("cancelar"), onApagar: () => eventos.push("apagar") });
     q<HTMLButtonElement>("#btn-duplicar-compra")!.click();
     q<HTMLButtonElement>("#btn-cancelar-compra")!.click();
-    expect(eventos).toEqual(["duplicar", "cancelar"]);
+    q<HTMLButtonElement>("#btn-apagar-compra")!.click();
+    expect(eventos).toEqual(["duplicar", "cancelar", "apagar"]);
   });
 
   it("somente leitura: campos desabilitados (aria-disabled no bloco), sem botões de escrita", () => {

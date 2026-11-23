@@ -7,7 +7,7 @@ import { exigirEscritaCompras } from "../../../utils/comprasAcesso";
 import { cancelarCompra } from "../../../utils/comprasStore";
 import { responderErroDeCompra } from "../../../utils/comprasErro";
 
-// Cancela a compra (cancelada = true; compra NUNCA é apagada). Idempotente. Só quem ESCREVE em Compras. 404 se não existe.
+// Cancela a compra (cancelada = true; não apaga nada: apagar é DELETE /api/compras/:id). Idempotente. Só quem ESCREVE em Compras. 404 se não existe.
 export default defineEventHandler(async (event): Promise<Compra> => {
   const user: AuthUser | null | undefined = event.context.user;
   exigirEscritaCompras(user);

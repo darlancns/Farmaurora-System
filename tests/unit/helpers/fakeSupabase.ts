@@ -37,6 +37,11 @@ export class FakeSupabase {
   // DEFERRABLE em autocommit (ou uma imediata sem trocas no meio do comando). Violou: o comando inteiro é desfeito e o erro é 23505.
   private unicos: Array<{ tabela: string; colunas: string[]; nome: string }> = [];
 
+  // Chaves estrangeiras opt-in, conferidas no DELETE do pai: "restrict" (NO ACTION: 23503), "cascade" (apaga as filhas) ou "set null" (zera a coluna delas).
+  private fks: Array<{ filha: string; coluna: string; pai: string; colunaPai: string; acao: "restrict" | "cascade" | "set null"; nome: string }> = [];
+  // Operações SEM privilégio na tabela (42501), como um GRANT que falta: vale para sempre (ao contrário de `falhar`, que vale uma vez).
+  private negadas: Array<{ tabela: string; op: Op }> = [];
+
   // Ganchos de teste: `antes(tabela, op, fn)` roda `fn` UMA vez, logo antes da próxima operação dessa tabela (simula outra requisição que chegou no meio).
   private ganchos: Array<{ tabela: string; op: Op; fn: () => void }> = [];
 
@@ -64,6 +69,36 @@ export class FakeSupabase {
   /** Injeta um erro na próxima operação da tabela; `code` (ex.: "23505") vai junto no erro devolvido, como o PostgREST. */
   falhar(tabela: string, op: Op, mensagem = "falha injetada", code?: string): void {
     this.falhas.push({ tabela, op, mensagem, ...(code ? { code } : {}) });
+  }
+
+  /** Liga uma chave estrangeira (`filha.coluna` -> `pai.colunaPai`) com a ação do DELETE do pai. Religar a mesma não duplica. */
+  chaveEstrangeira(filha: string, coluna: string, pai: string, colunaPai: string, acao: "restrict" | "cascade" | "set null", nome = `${filha}_${coluna}_fkey`): void {
+    this.fks = this.fks.filter((f) => f.nome !== nome);
+    this.fks.push({ filha, coluna, pai, colunaPai, acao, nome });
+  }
+
+  /** Tira todas as chaves estrangeiras e permissões negadas (para o `beforeEach` dos testes que as usam). */
+  limparRestricoes(): void {
+    this.fks = [];
+    this.negadas = [];
+  }
+
+  /** `op` na `tabela` passa a dar 42501 (permission denied), até `liberar`. */
+  negarPermissao(tabela: string, op: Op): void {
+    if (!this.negadas.some((n) => n.tabela === tabela && n.op === op)) this.negadas.push({ tabela, op });
+  }
+
+  liberar(tabela: string, op: Op): void {
+    this.negadas = this.negadas.filter((n) => !(n.tabela === tabela && n.op === op));
+  }
+
+  permissaoNegada(tabela: string, op: Op): boolean {
+    return this.negadas.some((n) => n.tabela === tabela && n.op === op);
+  }
+
+  /** As FKs que apontam para `pai` (usado pelo DELETE). */
+  fksDoPai(pai: string): Array<{ filha: string; coluna: string; pai: string; colunaPai: string; acao: "restrict" | "cascade" | "set null"; nome: string }> {
+    return this.fks.filter((f) => f.pai === pai);
   }
 
   // Liga um gatilho BEFORE INSERT OR UPDATE na `tabela` (ex.: gatilhoStatusDesde, helpers/gatilhoStatusDesde.ts).
@@ -230,6 +265,7 @@ class Consulta implements PromiseLike<Resultado> {
   private executar(): Resultado {
     this.db.chamadas.push({ tabela: this.tabela, op: this.op });
     this.db.tirarGancho(this.tabela, this.op)?.();
+    if (this.db.permissaoNegada(this.tabela, this.op)) return { data: null, error: { message: `permission denied for table ${this.tabela}`, code: "42501" } };
     const falha = this.db.tirarFalha(this.tabela, this.op);
     if (falha) return { data: null, error: { message: falha.mensagem, ...(falha.code ? { code: falha.code } : {}) } };
 
@@ -281,8 +317,24 @@ class Consulta implements PromiseLike<Resultado> {
       });
     }
     if (this.op === "delete") {
+      const apagadas = todas.filter(casa);
+      // Chaves estrangeiras opt-in: "restrict" barra o comando todo (23503); "cascade" e "set null" mexem nas filhas.
+      for (const fk of this.db.fksDoPai(this.tabela)) {
+        const filhas = (this.db.tabelas[fk.filha] ?? []).filter((f) => apagadas.some((a) => a[fk.colunaPai] === f[fk.coluna]));
+        if (fk.acao === "restrict" && filhas.length > 0) {
+          return {
+            data: null,
+            error: { message: `update or delete on table "${this.tabela}" violates foreign key constraint "${fk.nome}" on table "${fk.filha}"`, code: "23503" },
+          };
+        }
+      }
+      for (const fk of this.db.fksDoPai(this.tabela)) {
+        const pertence = (f: Row) => apagadas.some((a) => a[fk.colunaPai] === f[fk.coluna]);
+        if (fk.acao === "cascade") this.db.tabelas[fk.filha] = (this.db.tabelas[fk.filha] ?? []).filter((f) => !pertence(f));
+        if (fk.acao === "set null") for (const f of this.db.tabelas[fk.filha] ?? []) if (pertence(f)) f[fk.coluna] = null;
+      }
       this.db.tabelas[this.tabela] = todas.filter((r) => !casa(r));
-      return { data: null, error: null };
+      return { data: this.retorna ? apagadas.map((r) => ({ ...r })) : null, error: null };
     }
 
     let achadas = todas.filter(casa).map((r) => ({ ...r }));

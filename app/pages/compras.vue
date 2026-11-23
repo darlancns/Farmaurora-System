@@ -143,6 +143,8 @@ onBeforeUnmount(() => {
           @alterar="(m) => editor.alterar(m)"
           @duplicar="pagina.duplicar()"
           @cancelar="pagina.pedirCancelar()"
+          @apagar="pagina.pedirApagar()"
+          @fechar-apagada="pagina.fecharApagada()"
           @tentar-de-novo="editor.tentarDeNovo()"
           @carregar-versao-salva="editor.carregarVersaoSalva()"
           @manter-minhas="editor.manterMinhas()"
@@ -188,6 +190,19 @@ onBeforeUnmount(() => {
       :loading="pagina.ocupado.value"
       @confirm="pagina.confirmarCancelar()"
       @close="pagina.confirmandoCancelar.value = false"
+    />
+
+    <ConfirmDialog
+      v-if="pagina.confirmandoApagar.value"
+      title="Apagar compra"
+      :message="pagina.mensagemApagar()"
+      confirm-label="Apagar compra"
+      cancel-label="Cancelar"
+      danger
+      reforcado
+      :loading="pagina.ocupado.value"
+      @confirm="pagina.confirmarApagar()"
+      @close="pagina.confirmandoApagar.value = false"
     />
   </div>
 </template>

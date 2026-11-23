@@ -20,6 +20,9 @@ const {
   MENSAGEM_REFERENCIA_INVALIDA,
   NOME_UNICO_SEQUENCIA,
   anoMesDeBrasilia,
+  MENSAGEM_APAGAR_COMPRA_EM_USO,
+  MENSAGEM_APAGAR_SEM_PERMISSAO_NO_BANCO,
+  apagarCompra,
   cancelarCompra,
   criarCompra: criarCompraDoStore,
   duplicarCompra: duplicarCompraDoStore,
@@ -48,6 +51,7 @@ function limparBanco(): void {
 
 beforeEach(() => {
   proximoNumero = 1;
+  fake.limparRestricoes();
   limparBanco();
   // O banco de verdade impõe estas duas unicidades.
   (fake as unknown as { unicos: unknown[] }).unicos = [];
@@ -1096,5 +1100,167 @@ describe("listarComprasDoMes — a visão da lista (ordem e inverter)", () => {
     const b = await listarComprasDoMes("2026-11", { ordem: "recentes", inverter: true });
     expect([b.totais, b.maiorSequencia]).toEqual([a.totais, a.maiorSequencia]);
     expect(a.maiorSequencia).toBe(18);
+  });
+});
+
+// ── Apagar ────────────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("apagarCompra — apaga de verdade, leva os itens, libera o número e deixa os pré-cadastros vivos", () => {
+  /** As FKs do banco de verdade (supabase/migrations): os itens em CASCADE; o pré-cadastro SEM ação (restrict) — o que existe hoje em produção. */
+  function fksDeHoje(): void {
+    fake.chaveEstrangeira("compra_itens", "compra_id", "compras", "id", "cascade", "compra_itens_compra_id_fkey");
+    fake.chaveEstrangeira("pre_cadastro_medicamentos", "compra_id", "compras", "id", "restrict", "pre_cadastro_medicamentos_compra_id_fkey");
+  }
+  const pre = (id: string, compraId: string | null, status = "pendente") => ({ id, nome: `TESTE ${id}`, nome_chave: `teste ${id}`, temperatura: "", status, compra_id: compraId, cadastro_id: null });
+
+  async function comItens(sequencia: number): Promise<Compra> {
+    const c = await criarCompra("Cris", sequencia);
+    await salvarCompra(c.id, estado(c, [item(`itm_${sequencia}a`), item(`itm_${sequencia}b`)], { fornecedor: "FORN" }), "Cris");
+    return (await obterCompra(c.id))!;
+  }
+
+  it("apaga a compra e os itens dela (cascata); as outras compras e os itens delas ficam intactos", async () => {
+    fksDeHoje();
+    const a = await comItens(1);
+    const b = await comItens(2);
+    expect(await apagarCompra(a.id)).toBe(true);
+    expect(await obterCompra(a.id)).toBeNull();
+    expect(fake.linhas("compras").map((r) => r.id)).toEqual([b.id]);
+    expect(fake.linhas("compra_itens").map((r) => r.compra_id)).toEqual([b.id, b.id]);
+    expect((await obterCompra(b.id))!.itens).toHaveLength(2);
+  });
+
+  it("o número FICA LIVRE: dá para criar outra compra com o número da apagada (o mesmo mês)", async () => {
+    fksDeHoje();
+    const c = await comItens(14);
+    await erroDe(criarCompraDoStore("Bruno", { sequencia: 14 })); // ocupado
+    await apagarCompra(c.id);
+    const nova = await criarCompraDoStore("Bruno", { sequencia: 14 });
+    expect([nova.anoMes, nova.sequencia]).toEqual(["2026-11", 14]);
+    expect(nova.id).not.toBe(c.id);
+  });
+
+  it("compra que não existe: false, e nada muda", async () => {
+    fksDeHoje();
+    const a = await comItens(1);
+    expect(await apagarCompra("cmp_nao_existe")).toBe(false);
+    expect(fake.linhas("compras")).toHaveLength(1);
+    expect(await obterCompra(a.id)).not.toBeNull();
+    expect(fake.chamadas.filter((x) => x.tabela === "compras" && x.op === "delete")).toEqual([]);
+  });
+
+  it("compra CANCELADA também pode ser apagada", async () => {
+    fksDeHoje();
+    const a = await comItens(1);
+    await cancelarCompra(a.id, "Cris");
+    expect(await apagarCompra(a.id)).toBe(true);
+    expect(fake.linhas("compras")).toHaveLength(0);
+  });
+
+  it("os PRÉ-CADASTROS pedidos a partir da compra SOBREVIVEM (pendente, aprovado e rejeitado), só sem o vínculo; os itens dela somem", async () => {
+    fksDeHoje();
+    const a = await comItens(1);
+    const outra = await comItens(2);
+    fake.semear("pre_cadastro_medicamentos", [pre("p1", a.id, "pendente"), pre("p2", a.id, "aprovado"), pre("p3", a.id, "rejeitado"), pre("p4", outra.id), pre("p5", null)]);
+    fake.linhas("compra_itens")[0]!.pre_cadastro_id = "p1"; // um item da compra apontava para o pré-cadastro
+    expect(await apagarCompra(a.id)).toBe(true);
+    const pres = fake.linhas("pre_cadastro_medicamentos");
+    expect(pres.map((r) => [r.id, r.status, r.compra_id])).toEqual([
+      ["p1", "pendente", null],
+      ["p2", "aprovado", null],
+      ["p3", "rejeitado", null],
+      ["p4", "pendente", outra.id], // o de OUTRA compra não é tocado
+      ["p5", "pendente", null],
+    ]);
+    expect(fake.linhas("compra_itens").every((i) => i.compra_id === outra.id)).toBe(true);
+  });
+
+  it("o 1º DELETE barrado pela FK (23503) → solta os pré-cadastros e tenta UMA vez de novo (2 DELETEs e 1 UPDATE no pré-cadastro)", async () => {
+    fksDeHoje();
+    const a = await comItens(1);
+    fake.semear("pre_cadastro_medicamentos", [pre("p1", a.id)]);
+    fake.chamadas.length = 0;
+    await apagarCompra(a.id);
+    expect(fake.chamadas.filter((x) => x.tabela === "compras" && x.op === "delete")).toHaveLength(2);
+    expect(fake.chamadas.filter((x) => x.tabela === "pre_cadastro_medicamentos" && x.op === "update")).toHaveLength(1);
+  });
+
+  it("com ON DELETE SET NULL no banco (a migration proposta) o 1º DELETE já passa, sem mexer nos pré-cadastros por fora", async () => {
+    fake.chaveEstrangeira("compra_itens", "compra_id", "compras", "id", "cascade");
+    fake.chaveEstrangeira("pre_cadastro_medicamentos", "compra_id", "compras", "id", "set null");
+    const a = await comItens(1);
+    fake.semear("pre_cadastro_medicamentos", [pre("p1", a.id)]);
+    fake.chamadas.length = 0;
+    expect(await apagarCompra(a.id)).toBe(true);
+    expect(fake.chamadas.filter((x) => x.tabela === "compras" && x.op === "delete")).toHaveLength(1);
+    expect(fake.chamadas.filter((x) => x.tabela === "pre_cadastro_medicamentos")).toEqual([]);
+    expect(fake.linhas("pre_cadastro_medicamentos")[0]).toMatchObject({ id: "p1", compra_id: null });
+  });
+
+  it("SEM o privilégio DELETE em compras (como em produção hoje): 503 com mensagem clara e NADA muda", async () => {
+    fksDeHoje();
+    fake.negarPermissao("compras", "delete");
+    const a = await comItens(1);
+    fake.semear("pre_cadastro_medicamentos", [pre("p1", a.id)]);
+    const e = await erroDe(apagarCompra(a.id));
+    expect(e.statusCode).toBe(503);
+    expect(e.message).toBe(MENSAGEM_APAGAR_SEM_PERMISSAO_NO_BANCO);
+    expect(fake.linhas("compras")).toHaveLength(1);
+    expect(fake.linhas("compra_itens")).toHaveLength(2);
+    expect(fake.linhas("pre_cadastro_medicamentos")[0]).toMatchObject({ compra_id: a.id }); // o vínculo também ficou como estava
+  });
+
+  it("a FK segue barrando mesmo depois de soltar os pré-cadastros (outra tabela usa a compra): 409 claro, nada é apagado", async () => {
+    fksDeHoje();
+    fake.chaveEstrangeira("outra_tabela", "compra_id", "compras", "id", "restrict");
+    const a = await comItens(1);
+    fake.semear("outra_tabela", [{ id: "x", compra_id: a.id }]);
+    const e = await erroDe(apagarCompra(a.id));
+    expect(e.statusCode).toBe(409);
+    expect(e.message).toBe(MENSAGEM_APAGAR_COMPRA_EM_USO);
+    expect(fake.linhas("compras")).toHaveLength(1);
+  });
+
+  it("erro comum do banco sobe como erro (500), não como regra", async () => {
+    fksDeHoje();
+    const a = await comItens(1);
+    fake.falhar("compras", "delete", "falha injetada");
+    await expect(apagarCompra(a.id)).rejects.toThrow(/falha ao apagar a compra/);
+    expect(await obterCompra(a.id)).not.toBeNull();
+  });
+
+  it("outra pessoa apagou entre a leitura e o DELETE: false (a rota devolve 404), sem erro", async () => {
+    fksDeHoje();
+    const a = await comItens(1);
+    fake.antes("compras", "delete", () => {
+      fake.tabelas.compras = [];
+    });
+    expect(await apagarCompra(a.id)).toBe(false);
+  });
+
+  it("duas pessoas apagando a MESMA compra ao mesmo tempo: uma apaga, a outra recebe 'não existe'", async () => {
+    fksDeHoje();
+    const a = await comItens(1);
+    const r = await Promise.all([apagarCompra(a.id), apagarCompra(a.id)]);
+    expect([...r].sort()).toEqual([false, true]);
+    expect(fake.linhas("compras")).toHaveLength(0);
+  });
+
+  it("apagar uma compra não atrapalha a edição de outra ao mesmo tempo", async () => {
+    fksDeHoje();
+    const a = await comItens(1);
+    const b = await comItens(2);
+    const [apagou, salva] = await Promise.all([apagarCompra(a.id), salvarCompra(b.id, estado(b, undefined, { paciente: "EDITADO" }), "Cris")]);
+    expect(apagou).toBe(true);
+    expect(salva!.paciente).toBe("EDITADO");
+  });
+
+  it("o FakeSupabase de verdade simula a FK: sem a ação, 'restrict' barra o DELETE do pai com 23503", async () => {
+    fksDeHoje();
+    const a = await criarCompra("Cris");
+    fake.semear("pre_cadastro_medicamentos", [pre("p1", a.id)]);
+    const r = await fake.from("compras").delete().eq("id", a.id);
+    expect(r.error).toMatchObject({ code: "23503" });
+    expect(fake.linhas("compras")).toHaveLength(1);
   });
 });

@@ -1,6 +1,6 @@
 import { readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Compra } from "../../shared/types/compra";
 import type { AuthUser } from "../../shared/types/auth";
 import { MODAIS_ENVIO } from "../../shared/constants/processos";
@@ -44,6 +44,7 @@ import listaGet from "../../server/api/compras/index.get";
 import criarPost from "../../server/api/compras/index.post";
 import detalheGet from "../../server/api/compras/[id].get";
 import salvarPatch from "../../server/api/compras/[id].patch";
+import apagarDelete from "../../server/api/compras/[id].delete";
 import duplicarPost from "../../server/api/compras/[id]/duplicar.post";
 import cancelarPost from "../../server/api/compras/[id]/cancelar.post";
 import opcoesGet from "../../server/api/compras/opcoes.get";
@@ -56,7 +57,7 @@ type Handler = (e: never) => Promise<unknown>;
 interface Rota {
   /** Caminho como o app chama (para o middleware). */
   caminho: string;
-  metodo: "GET" | "POST" | "PATCH";
+  metodo: "GET" | "POST" | "PATCH" | "DELETE";
   handler: Handler;
   /** Arquivo em server/api/compras/ (para o scanner). */
   arquivo: string;
@@ -69,6 +70,7 @@ const ROTAS: Rota[] = [
   { caminho: "/api/compras", metodo: "POST", handler: criarPost as Handler, arquivo: "index.post.ts", escrita: true },
   { caminho: `/api/compras/${ID}`, metodo: "GET", handler: detalheGet as Handler, arquivo: "[id].get.ts", escrita: false },
   { caminho: `/api/compras/${ID}`, metodo: "PATCH", handler: salvarPatch as Handler, arquivo: "[id].patch.ts", escrita: true },
+  { caminho: `/api/compras/${ID}`, metodo: "DELETE", handler: apagarDelete as Handler, arquivo: "[id].delete.ts", escrita: true },
   { caminho: `/api/compras/${ID}/duplicar`, metodo: "POST", handler: duplicarPost as Handler, arquivo: "[id]/duplicar.post.ts", escrita: true },
   { caminho: `/api/compras/${ID}/cancelar`, metodo: "POST", handler: cancelarPost as Handler, arquivo: "[id]/cancelar.post.ts", escrita: true },
   { caminho: "/api/compras/opcoes", metodo: "GET", handler: opcoesGet as Handler, arquivo: "opcoes.get.ts", escrita: false },
@@ -132,13 +134,21 @@ function semear(): void {
   fake.tabelas.cadastro_fornecedores = [cadastro("f1", "Fornecedor Teste"), cadastro("f2", "Fornecedor Velho", false)];
 }
 
+// O relógio (só o Date) é FIXO em novembro/2026 de Brasília: o mês corrente e o teto do mês que vem (que o servidor valida) não dependem de quando o teste roda.
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-11-19T15:00:00.000Z"));
+  fake.limparRestricoes();
   semear();
   fake.chamadas.length = 0;
   h.body = {};
   h.params = { id: ID };
   h.query = {};
   h.status = 0;
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 // ── Permissões ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -804,9 +814,13 @@ describe("nenhuma rota de Compras devolve chave PIX", () => {
 
 describe("GET /api/compras — ?ordem= e ?inverter=", () => {
   it("sem ordem: do maior Nº para o menor; ?ordem=recentes e ?inverter=1 mudam; ordem inventada é 400", async () => {
+    // Cada passo acontece num minuto diferente (sem empate de milissegundos).
+    vi.setSystemTime(new Date("2026-11-19T15:00:00.000Z"));
     const a = await criarCompraDireta(3);
+    vi.setSystemTime(new Date("2026-11-19T15:01:00.000Z"));
     await criarCompraDireta(18);
     // mexe na 3 depois: ela vira a mais recente
+    vi.setSystemTime(new Date("2026-11-19T15:02:00.000Z"));
     h.params = { id: a.id };
     h.body = { atualizadoEm: a.updatedAt, paciente: "MEXIDA" };
     await chamar(salvarPatch, adm);
@@ -828,5 +842,88 @@ describe("GET /api/compras — ?ordem= e ?inverter=", () => {
     await criarCompraDireta(3);
     h.query = { ordem: "recentes", inverter: "1" };
     expect((await chamar<{ compras: unknown[] }>(listaGet, usuario("socio"))).compras).toHaveLength(1);
+  });
+});
+
+describe("DELETE /api/compras/:id", () => {
+  /** As FKs de hoje em produção: itens em cascata; pré-cadastro sem ação. */
+  function fksDeHoje(): void {
+    fake.chaveEstrangeira("compra_itens", "compra_id", "compras", "id", "cascade");
+    fake.chaveEstrangeira("pre_cadastro_medicamentos", "compra_id", "compras", "id", "restrict");
+  }
+  const apagar = async (id: string, user: AuthUser | null | undefined = adm): Promise<{ id: string }> => {
+    h.params = { id };
+    return chamar<{ id: string }>(apagarDelete, user);
+  };
+
+  it("200 { id }: a compra e os itens somem (GET dá 404), o número fica livre e as outras compras seguem", async () => {
+    fksDeHoje();
+    const a = await criarCompraDireta(14);
+    const b = await criarCompraDireta(15);
+    h.params = { id: a.id };
+    h.body = { atualizadoEm: a.updatedAt, itens: [{ id: "itm_teste_01", medicamento: "MED TESTE" }] };
+    await chamar(salvarPatch, adm);
+    expect(await apagar(a.id)).toEqual({ id: a.id });
+    h.params = { id: a.id };
+    expect((await erroDe(chamar(detalheGet, adm))).status).toBe(404);
+    expect(fake.tabelas.compra_itens ?? []).toHaveLength(0);
+    h.params = { id: b.id };
+    expect((await chamar<Compra>(detalheGet, adm)).sequencia).toBe(15);
+    await criarCompraDireta(14); // o número voltou
+  });
+
+  it("404 se a compra não existe (inclusive depois de apagada); 400 para id inválido", async () => {
+    expect((await erroDe(apagar("cmp_nao_existe"))).status).toBe(404);
+    const a = await criarCompraDireta();
+    await apagar(a.id);
+    expect((await erroDe(apagar(a.id))).status).toBe(404);
+    for (const ruim of ["../x", "a b", "a/b", ""]) expect((await erroDe(apagar(ruim))).status, ruim).toBe(400);
+  });
+
+  it("quem pode apagar: administrador e operacional (e quem tem compras=editar); sócio, consultor, 'ver', 'nenhum' e sem sessão NÃO, e a compra segue lá", async () => {
+    fksDeHoje();
+    const casos: Array<[string, AuthUser | null, number]> = [
+      ["administrador", usuario("administrador"), 200],
+      ["operacional", usuario("operacional"), 200],
+      ["sócio com compras=editar", usuario("socio", mapa("editar")), 200],
+      ["sócio sem mapa", usuario("socio"), 403],
+      ["consultor", usuario("consultor"), 403],
+      ["operacional com compras=ver", usuario("operacional", mapa("ver")), 403],
+      ["operacional com compras=nenhum", usuario("operacional", mapa("nenhum")), 403],
+      ["sem sessão", null, 401],
+    ];
+    for (const [nome, user, esperado] of casos) {
+      const c = await criarCompraDireta();
+      expect(await statusDe(apagar(c.id, user)), nome).toBe(esperado);
+      const existe = fake.tabelas.compras!.some((r) => r.id === c.id);
+      expect(existe, `${nome}: a compra ${esperado === 200 ? "sumiu" : "continua"}`).toBe(esperado !== 200);
+    }
+  });
+
+  it("os pré-cadastros pedidos a partir da compra continuam existindo (sem o vínculo)", async () => {
+    fksDeHoje();
+    const a = await criarCompraDireta();
+    fake.semear("pre_cadastro_medicamentos", [{ id: "p1", nome: "TESTE", nome_chave: "teste", temperatura: "", status: "pendente", compra_id: a.id, cadastro_id: null }]);
+    await apagar(a.id);
+    expect(fake.tabelas.pre_cadastro_medicamentos).toEqual([expect.objectContaining({ id: "p1", status: "pendente", compra_id: null })]);
+  });
+
+  it("banco sem o privilégio DELETE (hoje em produção): 503 com a mensagem clara e a compra continua", async () => {
+    fksDeHoje();
+    fake.negarPermissao("compras", "delete");
+    const a = await criarCompraDireta();
+    const e = await erroDe(apagar(a.id));
+    expect(e.status).toBe(503);
+    expect(e.msg).toMatch(/Apagar compras ainda não está liberado no banco/);
+    expect(fake.tabelas.compras).toHaveLength(1);
+  });
+
+  it("depois de apagada, salvar a compra (autosave de quem a tinha aberta) dá 404, não 500", async () => {
+    fksDeHoje();
+    const a = await criarCompraDireta();
+    await apagar(a.id);
+    h.params = { id: a.id };
+    h.body = { atualizadoEm: a.updatedAt, paciente: "DIGITADO DEPOIS" };
+    expect((await erroDe(chamar(salvarPatch, adm))).status).toBe(404);
   });
 });

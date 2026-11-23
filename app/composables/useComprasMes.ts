@@ -91,6 +91,11 @@ export interface ComprasMes {
    */
   atualizar: () => Promise<void>;
   aplicarCompra: (compra: Compra, opcoes?: { nova?: boolean }) => void;
+  /**
+   * A compra foi APAGADA (por esta pessoa ou por outra): sai do cartão e dos totais do mês. `cancelada` (se a compra estava cancelada) ajuda quando ela não está na
+   * lista (aberta por link, ou cancelada com "Mostrar canceladas" desligado). Id que a lista não conhece e sem essa dica: não faz nada.
+   */
+  removerCompra: (id: string, cancelada?: boolean) => void;
 }
 
 export function useComprasMes(opcoes: OpcoesUseComprasMes = {}): ComprasMes {
@@ -279,6 +284,22 @@ export function useComprasMes(opcoes: OpcoesUseComprasMes = {}): ComprasMes {
     }
   }
 
+  function removerCompra(id: string, dica?: boolean): void {
+    const cancelada = canceladaConhecida.get(id) ?? compras.value.find((c) => c.id === id)?.cancelada ?? dica;
+    const estavaNaLista = compras.value.some((c) => c.id === id);
+    if (!estavaNaLista && cancelada === undefined) return;
+    mudancasLocais += 1;
+    if (cancelada !== undefined) {
+      const chave: keyof TotaisDaLista = cancelada ? "canceladas" : "ativas";
+      totais.value = { ...totais.value, [chave]: Math.max(0, totais.value[chave] - 1) };
+    }
+    canceladaConhecida.delete(id);
+    if (estavaNaLista) {
+      compras.value = compras.value.filter((c) => c.id !== id);
+      total.value = Math.max(0, total.value - 1);
+    }
+  }
+
   const rotuloMes = computed(() => rotuloDoMes(mes.value));
   const totalDoMes = computed(() => totais.value.ativas);
 
@@ -308,5 +329,6 @@ export function useComprasMes(opcoes: OpcoesUseComprasMes = {}): ComprasMes {
     alternarSentido,
     atualizar,
     aplicarCompra,
+    removerCompra,
   };
 }

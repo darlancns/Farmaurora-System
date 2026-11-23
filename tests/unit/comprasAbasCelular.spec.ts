@@ -121,6 +121,7 @@ describe("cabeçalho do formulário no celular", () => {
             estado: "salvo",
             onDuplicar: () => ev.push("duplicar"),
             onCancelar: () => ev.push("cancelar"),
+            onApagar: () => ev.push("apagar"),
             onVoltar: () => ev.push("voltar"),
           }),
       }),
@@ -139,7 +140,7 @@ describe("cabeçalho do formulário no celular", () => {
     expect(ev).toEqual(["voltar"]);
   });
 
-  it("duas linhas: título (e selo Cancelada, se for) e o menu '…' (sem texto de salvamento); sem contador de pendências nem chips", () => {
+  it("título (e selo Cancelada, se for) e as ações (sem texto de salvamento); sem contador de pendências nem chips", () => {
     cabecalho();
     expect(texto(q("#compra-titulo"))).toBe("Compra 13 - Novembro/2026");
     expect(q("#compra-pendencias-celular")).toBeNull();
@@ -147,7 +148,7 @@ describe("cabeçalho do formulário no celular", () => {
     expect(q("[data-status]")).toBeNull();
     expect(q("#compra-salvamento")).toBeNull();
     expect(texto(q("#compra-cabecalho"))).not.toMatch(/Salvo|autom/i);
-    expect(q("#btn-menu-compra")).not.toBeNull();
+    expect(q("#compra-acoes")).not.toBeNull();
   });
 
   it("compra cancelada: o selo 'Cancelada' aparece ao lado do título", () => {
@@ -155,39 +156,38 @@ describe("cabeçalho do formulário no celular", () => {
     expect(texto(q("[data-selo-cancelada]"))).toBe("Cancelada");
   });
 
-  it("Duplicar e Cancelar viram o menu '…' (padrão ActionsMenu) no celular, e os botões comuns só em lg+", () => {
+  it("no celular as três ações aparecem (sem o menu '…'), com alvo de toque de 44px, e QUEBRAM de linha se não couberem (nada vai para fora da tela)", () => {
     cabecalho();
-    expect(q("#btn-duplicar-compra")!.className).toContain("max-lg:hidden");
-    expect(q("#btn-cancelar-compra")!.className).toContain("max-lg:hidden");
-    const gatilho = q<HTMLButtonElement>("#btn-menu-compra")!;
-    expect(gatilho.getAttribute("aria-label")).toBe("Mais ações da compra");
-    expect(gatilho.getAttribute("aria-haspopup")).toBe("true");
-    expect(gatilho.parentElement!.className).toContain("lg:hidden");
-  });
-
-  it("abrir o menu mostra Duplicar compra e Cancelar compra (perigo); cada um avisa", async () => {
-    const ev = cabecalho();
-    q<HTMLButtonElement>("#btn-menu-compra")!.click();
-    await nextTick();
-    const itens = qa<HTMLButtonElement>("[role=menuitem]");
-    expect(itens.map((i) => texto(i))).toEqual(["Duplicar compra", "Cancelar compra"]);
-    expect(itens[1]!.className).toContain("text-danger");
-    expect(itens[0]!.className).toContain("max-lg:min-h-11"); // alvo de toque
-    itens[0]!.click();
-    await nextTick();
-    q<HTMLButtonElement>("#btn-menu-compra")!.click();
-    await nextTick();
-    qa<HTMLButtonElement>("[role=menuitem]")[1]!.click();
-    expect(ev).toEqual(["duplicar", "cancelar"]);
-  });
-
-  it("quem só lê e a compra cancelada não têm o menu (nem os botões)", () => {
-    cabecalho({ podeEditar: false });
     expect(q("#btn-menu-compra")).toBeNull();
-    expect(q("#btn-duplicar-compra")).toBeNull();
+    expect(q("#menu-compra")).toBeNull();
+    const acoes = q("#compra-acoes")!;
+    expect(acoes.className).toContain("flex-wrap"); // abaixo de lg quebra; em lg+ vira nowrap
+    expect(acoes.className).toContain("lg:flex-nowrap");
+    for (const id of ["#btn-duplicar-compra", "#btn-cancelar-compra", "#btn-apagar-compra"]) {
+      const b = q<HTMLButtonElement>(id)!;
+      expect(b.className, id).toContain("min-h-11");
+      expect(b.className, id).not.toContain("max-lg:hidden"); // nenhuma some no celular
+      expect(b.className, id).toContain("whitespace-nowrap"); // o texto de um botão não parte no meio
+    }
+  });
+
+  it("cada ação avisa: Duplicar, Cancelar e Apagar", () => {
+    const ev = cabecalho();
+    q<HTMLButtonElement>("#btn-duplicar-compra")!.click();
+    q<HTMLButtonElement>("#btn-cancelar-compra")!.click();
+    q<HTMLButtonElement>("#btn-apagar-compra")!.click();
+    expect(ev).toEqual(["duplicar", "cancelar", "apagar"]);
+  });
+
+  it("quem só lê (sócio) não tem nenhuma ação; a compra cancelada só pode ser apagada", () => {
+    cabecalho({ podeEditar: false });
+    expect(q("#compra-acoes")).toBeNull();
+    expect(q("#btn-apagar-compra")).toBeNull();
     document.body.innerHTML = "";
     cabecalho({ cancelada: true });
-    expect(q("#btn-menu-compra")).toBeNull();
+    expect(q("#btn-duplicar-compra")).toBeNull();
+    expect(q("#btn-cancelar-compra")).toBeNull();
+    expect(q("#btn-apagar-compra")).not.toBeNull();
   });
 });
 

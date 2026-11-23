@@ -313,7 +313,7 @@ describe("409: alguém salvou antes (o único conflito é o de versão)", () => 
   it("o editor não expõe trava de PO/ordem nem estado de 'bloqueado': só as duas saídas do conflito de versão", () => {
     const e = editor(servidor());
     expect(Object.keys(e).sort()).toEqual(
-      ["alterar", "carregar", "carregarVersaoSalva", "compra", "definir", "erroNumero", "esperandoClique", "estado", "flush", "manterMinhas", "mensagemErro", "sequenciaExibida", "somenteLeituraAgora", "temPendencia", "tentarDeNovo"].sort(),
+      ["alterar", "apagada", "carregar", "carregarVersaoSalva", "compra", "definir", "erroNumero", "esperandoClique", "estado", "flush", "manterMinhas", "mensagemErro", "sequenciaExibida", "somenteLeituraAgora", "temPendencia", "tentarDeNovo"].sort(),
     );
   });
 

@@ -109,18 +109,25 @@ test.describe("Compras (celular, 375x667) — um painel por vez", () => {
     expect(Math.abs(copiar.y - encaminhar.y)).toBeLessThan(4);
   });
 
-  test("o cabeçalho do formulário tem duas linhas e Duplicar/Cancelar ficam no menu '…'", async ({ page }) => {
+  test("o cabeçalho do formulário: o título numa linha e as três ações (ícone + texto) logo abaixo, dentro da tela", async ({ page }) => {
     await abrir(page, CELULAR);
     await criarCompra(page, unico());
-    await expect(page.locator("#btn-duplicar-compra")).toBeHidden();
-    await expect(page.locator("#btn-cancelar-compra")).toBeHidden();
-    await page.getByRole("button", { name: "Mais ações da compra" }).click();
-    await expect(page.getByRole("menuitem", { name: "Duplicar compra" })).toBeVisible();
-    await expect(page.getByRole("menuitem", { name: "Cancelar compra" })).toBeVisible();
+    const botoes = ["#btn-duplicar-compra", "#btn-cancelar-compra", "#btn-apagar-compra"];
+    for (const id of botoes) {
+      await expect(page.locator(id)).toBeVisible();
+      const caixa = (await page.locator(id).boundingBox())!;
+      expect(caixa.x).toBeGreaterThanOrEqual(0);
+      expect(caixa.x + caixa.width).toBeLessThanOrEqual(CELULAR.width); // nada vai para fora da tela
+      expect(caixa.height).toBeGreaterThanOrEqual(43); // alvo de toque
+    }
     const tituloTopo = (await page.locator("#compra-titulo").boundingBox())!.y;
-    const menuTopo = (await page.getByRole("button", { name: "Mais ações da compra" }).boundingBox())!.y;
-    expect(menuTopo).toBeGreaterThan(tituloTopo + 10); // o menu está na 2ª linha
-    await page.getByRole("menuitem", { name: "Duplicar compra" }).click();
+    const acoesTopo = (await page.locator("#btn-duplicar-compra").boundingBox())!.y;
+    expect(acoesTopo).toBeGreaterThan(tituloTopo + 10); // as ações estão abaixo do título
+    // Duplicar abre a caixinha do número; Esc fecha sem criar nada.
+    await page.locator("#btn-duplicar-compra").click();
+    await expect(page.locator("#compra-dialogo")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#compra-dialogo")).toHaveCount(0);
     await expect(page.locator("#compra-titulo")).toBeVisible();
   });
 

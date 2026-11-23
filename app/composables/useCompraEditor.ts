@@ -14,6 +14,8 @@ import { ApiError, apiFetch, codigoDoErro } from "../utils/apiFetch";
 //  - Nº da compra repetido (409 com `data.code` NUMERO_JA_EXISTE, que NÃO é o 409 de versão): o erro aparece no campo do número (`erroNumero`), o que a
 //    pessoa digitou fica na tela, e o autosave reenvia SEM esse número para o resto das mudanças não se perder; trocar o número (ou voltar ao que vale)
 //    limpa o erro. Enquanto o erro está na tela, `flush()` devolve false (não se sai deixando o número sem gravar).
+//  - 404 ao salvar (outra pessoa APAGOU a compra): estado "apagada" — o autosave para, o que foi digitado FICA na tela (e continua editável, para quem
+//    quiser copiar), nada é salvo e a tela mostra o aviso (CompraFaixaApagada). `aoApagada` avisa a página, que tira o cartão da lista. Sair não é barrado.
 //  - 409 de versão (outra pessoa salvou antes): para o autosave e espera a escolha — `carregarVersaoSalva()` (descarta as mudanças locais) ou
 //    `manterMinhas()` (reenvia o estado local com a versão atual). Nada some sem a pessoa escolher. A compra é UMA por fornecedor, sem
 //    ordens nem trava de PO: o único conflito é o de versão (o 409 de `atualizadoEm`).
@@ -21,7 +23,7 @@ import { ApiError, apiFetch, codigoDoErro } from "../utils/apiFetch";
 //    (dado recusado) não repete sozinho: espera o clique, com a mensagem do servidor.
 //  - Somente leitura (sem permissão de escrita, ou compra cancelada): nenhum campo muda, nenhum timer, nenhuma chamada.
 
-export type EstadoSalvamento = "ocioso" | "pendente" | "salvando" | "salvo" | "erro" | "conflito";
+export type EstadoSalvamento = "ocioso" | "pendente" | "salvando" | "salvo" | "erro" | "conflito" | "apagada";
 
 export interface ApiCompra {
   obter: (id: string) => Promise<Compra>;
@@ -46,6 +48,8 @@ export interface OpcoesCompraEditor {
   somenteLeitura: () => boolean;
   /** Chamado com a compra que o servidor devolveu depois de cada salvamento bem-sucedido (a lista do mês se atualiza com ela). */
   aoSalvar?: (compra: Compra) => void;
+  /** Chamado quando outra pessoa APAGOU a compra aberta (o salvamento levou 404): a lista tira o cartão dela. */
+  aoApagada?: (compra: Compra) => void;
   debounceMs?: number;
   recuoMs?: readonly number[];
 }
@@ -61,6 +65,8 @@ export interface CompraEditor {
   erroNumero: Ref<string | null>;
   /** O número que vale no servidor (o do título): difere do digitado enquanto `erroNumero` está na tela. */
   sequenciaExibida: ComputedRef<number>;
+  /** Outra pessoa apagou esta compra (o autosave levou 404): nada mais é salvo e o que foi digitado fica na tela. */
+  apagada: ComputedRef<boolean>;
   /** Nenhum campo é editável (sem permissão, ou compra cancelada, ou nenhuma compra aberta). */
   somenteLeituraAgora: ComputedRef<boolean>;
   /** Há algo ainda não salvo (ou salvando, ou com falha): é o que o aviso de "sair da página" olha. */
@@ -104,8 +110,9 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
   const temPendencia = computed(
     () =>
       !somenteLeituraAgora.value &&
-      (sujoPendente.value || estado.value === "salvando" || estado.value === "erro" || estado.value === "conflito" || erroNumero.value !== null),
+      (sujoPendente.value || estado.value === "salvando" || estado.value === "erro" || estado.value === "conflito" || estado.value === "apagada" || erroNumero.value !== null),
   );
+  const apagada = computed(() => estado.value === "apagada");
   const sequenciaExibida = computed(() => (erroNumero.value !== null ? sequenciaNoServidor.value : (compra.value?.sequencia ?? 0)));
 
   // Direto da fonte (não do computed): a permissão pode mudar sem que um ref do editor mude.
@@ -187,6 +194,13 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
         opcoes.aoSalvar?.(salvo);
       } catch (e) {
         if (minhaGeracao !== geracao) return;
+        if (e instanceof ApiError && e.status === 404) {
+          // A compra não existe mais (outra pessoa a apagou): para tudo, sem perder o que está na tela.
+          limparTimer();
+          estado.value = "apagada";
+          opcoes.aoApagada?.(atual);
+          return;
+        }
         if (e instanceof ApiError && e.status === 409 && codigoDoErro(e) === CODIGO_NUMERO_JA_EXISTE && numeroRecusado !== atual.sequencia) {
           // Número repetido: o erro vai para o campo e o resto das mudanças é reenviado já, SEM o número recusado.
           erroNumero.value = e.message;
@@ -247,7 +261,7 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
     versao.value += 1;
     tentativasAutomaticas = 0;
     esperandoClique.value = false;
-    if (estado.value === "conflito") return; // o estado local muda, mas nada é salvo até a pessoa escolher
+    if (estado.value === "conflito" || estado.value === "apagada") return; // o estado local muda, mas nada é salvo (conflito: até a pessoa escolher; apagada: nunca)
     estado.value = emVoo ? "salvando" : "pendente";
     agendar(debounceMs);
   }
@@ -256,6 +270,7 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
     limparTimer();
     while (emVoo) await emVoo;
     if (!podeSalvar()) return true;
+    if (estado.value === "apagada") return true; // não há mais onde salvar: sair não é barrado (a pessoa já foi avisada na tela)
     if (estado.value === "conflito") return false;
     if (versao.value === versaoSalva.value) return estado.value !== "erro" && erroNumero.value === null;
     await executar();
@@ -264,7 +279,7 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
   }
 
   async function tentarDeNovo(): Promise<void> {
-    if (!compra.value || !podeSalvar() || estado.value === "conflito") return;
+    if (!compra.value || !podeSalvar() || estado.value === "conflito" || estado.value === "apagada") return;
     limparTimer();
     tentativasAutomaticas = 0;
     esperandoClique.value = false;
@@ -296,6 +311,7 @@ export function useCompraEditor(opcoes: OpcoesCompraEditor): CompraEditor {
     esperandoClique,
     erroNumero,
     sequenciaExibida,
+    apagada,
     somenteLeituraAgora,
     temPendencia,
     carregar,

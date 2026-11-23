@@ -2,13 +2,14 @@
 import { computed } from "vue";
 import { tituloDaCompra } from "#shared/utils/compraMes";
 import type { EstadoSalvamento } from "../../composables/useCompraEditor";
-import { BOTAO_SECUNDARIO_CLASS } from "../../utils/comprasEstilos";
-import ActionsMenu, { type ActionsMenuItem } from "../ActionsMenu.vue";
+import CompraBotaoAcao from "./CompraBotaoAcao.vue";
 import CompraSeloCancelada from "./CompraSeloCancelada.vue";
 
-// O cabeçalho do formulário: "Compra 13 - Novembro/2026" (o mesmo texto do título do resumo) e o selo "Cancelada" (só quando é), numa linha SÓ
-// que nunca quebra, com Duplicar e Cancelar lado a lado à direita (só quem edita; a compra cancelada não duplica nem cancela). Abaixo de lg o
-// cabeçalho empilha ("‹ Compras" + título; e o menu "…" com Duplicar e Cancelar).
+// O cabeçalho do formulário: "Compra 13 - Novembro/2026" (o mesmo texto do título do resumo, com o mês da PRÓPRIA compra) e o selo "Cancelada" (só quando é),
+// e à direita as três ações, nesta ordem, cada uma com o ícone à esquerda do texto (CompraBotaoAcao, o molde do "Excluir processo" do Follow-Up):
+// [Duplicar compra] [Cancelar compra] [Apagar compra]. Só quem edita as vê (o sócio não); a compra cancelada não duplica nem cancela, mas pode ser apagada;
+// quando outra pessoa apagou a compra aberta, nenhuma delas aparece. Em lg+ ficam na linha do título (e descem para uma 2ª linha, alinhadas à direita, se a
+// coluna estiver estreita); abaixo de lg o cabeçalho empilha ("‹ Compras" + título; depois as ações, que quebram de linha se não couberem).
 //
 // NÃO há texto de "salvo automaticamente": o estado normal não mostra nada. SÓ quando há problema aparece uma linha ABAIXO do cabeçalho (fora do
 // flex do título), numa região aria-live="polite": "Tentando salvar de novo…" enquanto as tentativas automáticas correm; e, quando elas acabam
@@ -27,24 +28,21 @@ const props = defineProps<{
   ocupado?: boolean;
 }>();
 
-const emit = defineEmits<{ duplicar: []; cancelar: []; tentarDeNovo: []; voltar: [] }>();
+const emit = defineEmits<{ duplicar: []; cancelar: []; apagar: []; tentarDeNovo: []; voltar: [] }>();
 
 const titulo = computed(() => tituloDaCompra(props.anoMes, props.sequencia));
-const mostrarAcoes = computed(() => props.podeEditar && !props.cancelada);
+/** Alguma ação: só quem edita, e não quando outra pessoa já apagou a compra. */
+const mostrarAcoes = computed(() => props.podeEditar && props.estado !== "apagada");
+/** Duplicar e Cancelar: a compra cancelada não faz nenhuma das duas. */
+const mostrarDuplicarECancelar = computed(() => mostrarAcoes.value && !props.cancelada);
 const falhouDeVez = computed(() => props.estado === "erro" && props.esperandoClique === true);
 const tentandoDeNovo = computed(() => props.estado === "erro" && props.esperandoClique !== true);
-
-// O menu "…" do celular (o padrão de menu do app: ActionsMenu).
-const itensDoMenu = computed<ActionsMenuItem[]>(() => [
-  { id: "menu-duplicar-compra", label: "Duplicar compra", onClick: () => emit("duplicar") },
-  { id: "menu-cancelar-compra", label: "Cancelar compra", danger: true, onClick: () => emit("cancelar") },
-]);
 </script>
 
 <template>
   <div id="compra-cabecalho-bloco" class="flex flex-col gap-1.5">
-    <header id="compra-cabecalho" class="flex flex-col gap-1.5 lg:flex-row lg:flex-nowrap lg:items-center lg:justify-between lg:gap-3">
-      <div class="flex min-w-0 items-center gap-x-2 lg:flex-1">
+    <header id="compra-cabecalho" class="flex flex-col gap-1.5 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:gap-x-3 lg:gap-y-2">
+      <div class="flex min-w-0 items-center gap-x-2 lg:flex-1 lg:basis-60">
         <button
           id="btn-voltar-lista"
           type="button"
@@ -58,10 +56,10 @@ const itensDoMenu = computed<ActionsMenuItem[]>(() => [
         <CompraSeloCancelada v-if="cancelada" />
       </div>
 
-      <div v-if="mostrarAcoes" class="flex shrink-0 flex-nowrap items-center gap-2">
-        <button id="btn-duplicar-compra" type="button" :class="[BOTAO_SECUNDARIO_CLASS, 'whitespace-nowrap max-lg:hidden']" :disabled="ocupado" @click="emit('duplicar')">Duplicar compra</button>
-        <button id="btn-cancelar-compra" type="button" :class="[BOTAO_SECUNDARIO_CLASS, 'whitespace-nowrap max-lg:hidden']" :disabled="ocupado" @click="emit('cancelar')">Cancelar compra</button>
-        <ActionsMenu :items="itensDoMenu" trigger-id="btn-menu-compra" menu-id="menu-compra" aria-label="Mais ações da compra" :disabled="ocupado" itens-toque class="ml-auto lg:hidden" />
+      <div v-if="mostrarAcoes" id="compra-acoes" class="flex flex-wrap items-center gap-2 lg:ml-auto lg:shrink-0 lg:flex-nowrap">
+        <CompraBotaoAcao v-if="mostrarDuplicarECancelar" id="btn-duplicar-compra" icone="duplicar" rotulo="Duplicar compra" :disabled="ocupado" @click="emit('duplicar')" />
+        <CompraBotaoAcao v-if="mostrarDuplicarECancelar" id="btn-cancelar-compra" icone="cancelar" rotulo="Cancelar compra" :disabled="ocupado" @click="emit('cancelar')" />
+        <CompraBotaoAcao id="btn-apagar-compra" icone="apagar" rotulo="Apagar compra" perigo :disabled="ocupado" @click="emit('apagar')" />
       </div>
     </header>
 
