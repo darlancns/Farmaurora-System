@@ -1,10 +1,10 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
 import type { Compra, CompraDaLista, ListaCompras, TotaisDaLista } from "#shared/types/compra";
-import { itemDaLista } from "#shared/utils/compraLista";
+import { compararDaLista, itemDaLista, ORDEM_PADRAO_DA_LISTA, type OrdemDaLista } from "#shared/utils/compraLista";
 import { anoMesAtualBrasilia, anoMesValido, rotuloDoMes, somarMeses } from "#shared/utils/compraMes";
 import { apiFetch } from "../utils/apiFetch";
 
-// A lista de compras do mês (painel esquerdo): o mês (de BRASÍLIA), o filtro "Mostrar canceladas", os totais {ativas, canceladas}, o
+// A lista de compras do mês (painel esquerdo): o mês (de BRASÍLIA), a visão ("Mais recentes" ou "Por número"), o filtro "Mostrar canceladas", os totais {ativas, canceladas}, o
 // "mostrar mais" de 50 em 50 e a atualização do cartão logo depois de salvar. Não há filtro por status: a compra é ATIVA ou CANCELADA
 // (derivado de `cancelada`). O mês e o filtro são do estado daqui; a página os põe na URL (comprasUrl.ts).
 //
@@ -16,6 +16,9 @@ export interface ParametrosLista {
   anoMes: string;
   incluirCanceladas: boolean;
   pagina: number;
+  /** A visão da lista (sem ela, o servidor usa "numero"). */
+  ordem?: OrdemDaLista;
+  inverter?: boolean;
 }
 
 export interface ApiListaCompras {
@@ -26,6 +29,8 @@ export function montarUrlLista(p: ParametrosLista): string {
   const q = new URLSearchParams({ ano_mes: p.anoMes });
   if (p.incluirCanceladas) q.set("incluir_canceladas", "1");
   if (p.pagina > 1) q.set("pagina", String(p.pagina));
+  if (p.ordem !== undefined) q.set("ordem", p.ordem);
+  if (p.inverter === true) q.set("inverter", "1");
   return `/api/compras?${q.toString()}`;
 }
 
@@ -37,6 +42,9 @@ export interface OpcoesUseComprasMes {
   /** O mês inicial ("AAAA-MM"); sem ele, o mês corrente de BRASÍLIA. */
   mes?: string;
   mostrarCanceladas?: boolean;
+  /** A visão inicial (a preferência salva); sem ela, "Mais recentes". */
+  ordem?: OrdemDaLista;
+  inverter?: boolean;
   /** Relógio (testes). */
   agora?: () => Date;
   api?: ApiListaCompras;
@@ -47,6 +55,10 @@ const totaisZerados = (): TotaisDaLista => ({ ativas: 0, canceladas: 0 });
 export interface ComprasMes {
   mes: Ref<string>;
   mostrarCanceladas: Ref<boolean>;
+  /** A visão da lista: "recentes" (a versão mais nova primeiro) ou "numero" (do maior para o menor). */
+  ordem: Ref<OrdemDaLista>;
+  /** Só com "numero": do menor para o maior. */
+  inverter: Ref<boolean>;
   compras: Ref<CompraDaLista[]>;
   totais: Ref<TotaisDaLista>;
   /** Quantas compras casam com o filtro (todas as páginas). */
@@ -68,6 +80,16 @@ export interface ComprasMes {
   mesAnterior: () => Promise<void>;
   mesSeguinte: () => Promise<void>;
   definirMostrarCanceladas: (valor: boolean) => Promise<void>;
+  /** Troca a visão e relê a lista. */
+  definirOrdem: (ordem: OrdemDaLista) => Promise<void>;
+  /** "Por número": do maior para o menor <-> do menor para o maior. */
+  alternarSentido: () => Promise<void>;
+  /**
+   * Relê a lista EM SILÊNCIO (a aba voltou a ficar à vista, ou passaram 60 s): sem "Carregando…", sem fechar nada e sem tocar na compra aberta. Uma versão
+   * local MAIS NOVA (`atualizadoEm`) que a do servidor é mantida; se algo mudou na lista durante a leitura (salvou, criou, trocou de mês...), a leitura
+   * velha é descartada. Erro de rede: fica a lista de antes.
+   */
+  atualizar: () => Promise<void>;
   aplicarCompra: (compra: Compra, opcoes?: { nova?: boolean }) => void;
 }
 
@@ -75,6 +97,8 @@ export function useComprasMes(opcoes: OpcoesUseComprasMes = {}): ComprasMes {
   const api = opcoes.api ?? apiPadrao;
   const mes = ref<string>(anoMesValido(opcoes.mes) ? opcoes.mes : anoMesAtualBrasilia(opcoes.agora?.()));
   const mostrarCanceladas = ref<boolean>(opcoes.mostrarCanceladas === true);
+  const ordem = ref<OrdemDaLista>(opcoes.ordem ?? ORDEM_PADRAO_DA_LISTA);
+  const inverter = ref<boolean>(opcoes.inverter === true);
 
   const compras = ref<CompraDaLista[]>([]);
   const totais = ref<TotaisDaLista>(totaisZerados());
@@ -90,8 +114,12 @@ export function useComprasMes(opcoes: OpcoesUseComprasMes = {}): ComprasMes {
   const canceladaConhecida = new Map<string, boolean>();
   // Cada leitura leva um número: a resposta de uma leitura que já foi superada (outro mês ou filtro no meio) é descartada.
   let leitura = 0;
+  // Quantas vezes a lista mudou por AÇÃO LOCAL (salvou, criou, cancelou): uma releitura em silêncio que começou antes disso está velha e é descartada.
+  let mudancasLocais = 0;
+  let atualizando = false;
 
-  const parametros = (p: number): ParametrosLista => ({ anoMes: mes.value, incluirCanceladas: mostrarCanceladas.value, pagina: p });
+  const parametros = (p: number): ParametrosLista => ({ anoMes: mes.value, incluirCanceladas: mostrarCanceladas.value, pagina: p, ordem: ordem.value, inverter: inverter.value });
+  const comparador = (): ((a: CompraDaLista, b: CompraDaLista) => number) => compararDaLista(ordem.value, inverter.value);
 
   async function carregar(): Promise<void> {
     const minha = ++leitura;
@@ -117,7 +145,7 @@ export function useComprasMes(opcoes: OpcoesUseComprasMes = {}): ComprasMes {
   }
 
   async function mostrarMais(): Promise<void> {
-    if (!temMais.value || carregandoMais.value || carregando.value) return;
+    if (!temMais.value || carregandoMais.value || carregando.value || atualizando) return;
     const minha = leitura;
     carregandoMais.value = true;
     try {
@@ -147,6 +175,54 @@ export function useComprasMes(opcoes: OpcoesUseComprasMes = {}): ComprasMes {
     }
   }
 
+  async function atualizar(): Promise<void> {
+    if (carregando.value || carregandoMais.value || atualizando) return;
+    atualizando = true;
+    const minha = leitura;
+    const local = mudancasLocais;
+    const paginas = pagina.value;
+    try {
+      const lidas: CompraDaLista[] = [];
+      let ultima: ListaCompras | null = null;
+      for (let n = 1; n <= paginas; n += 1) {
+        ultima = await api.listar(parametros(n));
+        lidas.push(...ultima.compras);
+      }
+      if (ultima === null || minha !== leitura || local !== mudancasLocais || paginas !== pagina.value) return; // a lista mudou no meio: esta leitura está velha
+      const daTela = new Map(compras.value.map((c) => [c.id, c]));
+      const mescladas = new Map<string, CompraDaLista>();
+      for (const lida of lidas) {
+        const aqui = daTela.get(lida.id);
+        // A versão daqui mais nova que a do servidor (uma gravação que ainda não apareceu na leitura) NÃO é pisada.
+        mescladas.set(lida.id, aqui && Date.parse(aqui.atualizadoEm) > Date.parse(lida.atualizadoEm) ? aqui : lida);
+      }
+      compras.value = [...mescladas.values()].sort(comparador());
+      totais.value = ultima.totais;
+      total.value = ultima.total;
+      temMais.value = ultima.temMais;
+      maiorSequencia.value = ultima.maiorSequencia;
+      canceladaConhecida.clear();
+      for (const c of compras.value) canceladaConhecida.set(c.id, c.cancelada);
+    } catch {
+      // sem rede ou erro do servidor: fica a lista de antes, sem aviso (a próxima rodada tenta de novo)
+    } finally {
+      atualizando = false;
+    }
+  }
+
+  async function definirOrdem(nova: OrdemDaLista): Promise<void> {
+    if (ordem.value === nova) return;
+    ordem.value = nova;
+    if (nova !== "numero") inverter.value = false; // o sentido só existe em "Por número"
+    await carregar();
+  }
+
+  async function alternarSentido(): Promise<void> {
+    if (ordem.value !== "numero") return;
+    inverter.value = !inverter.value;
+    await carregar();
+  }
+
   async function irParaMes(anoMes: string): Promise<void> {
     if (!anoMesValido(anoMes)) return;
     mes.value = anoMes;
@@ -167,6 +243,7 @@ export function useComprasMes(opcoes: OpcoesUseComprasMes = {}): ComprasMes {
 
   function aplicarCompra(compra: Compra, aplicacao: { nova?: boolean } = {}): void {
     if (compra.anoMes !== mes.value) return;
+    mudancasLocais += 1;
     const item = itemDaLista({ ...compra, atualizadoEm: compra.updatedAt });
     const antes = canceladaConhecida.get(compra.id);
     const posicaoNaLista = compras.value.findIndex((c) => c.id === compra.id);
@@ -186,7 +263,8 @@ export function useComprasMes(opcoes: OpcoesUseComprasMes = {}): ComprasMes {
 
     if (posicaoNaLista >= 0) {
       if (casaComOFiltro(item)) {
-        compras.value = compras.value.map((c) => (c.id === compra.id ? item : c));
+        // Salvou: o cartão se atualiza e, em "Mais recentes", sobe para o topo (a versão dele é a mais nova).
+        compras.value = compras.value.map((c) => (c.id === compra.id ? item : c)).sort(comparador());
       } else {
         compras.value = compras.value.filter((c) => c.id !== compra.id);
         total.value = Math.max(0, total.value - 1);
@@ -196,10 +274,7 @@ export function useComprasMes(opcoes: OpcoesUseComprasMes = {}): ComprasMes {
 
     // Não estava na lista: só entra se for nova (as outras estão em páginas ainda não lidas ou não casam com o filtro).
     if (aplicacao.nova === true && casaComOFiltro(item)) {
-      const antesDe = compras.value.findIndex((c) => c.sequencia < item.sequencia);
-      const lista = [...compras.value];
-      lista.splice(antesDe === -1 ? lista.length : antesDe, 0, item);
-      compras.value = lista;
+      compras.value = [...compras.value, item].sort(comparador());
       total.value += 1;
     }
   }
@@ -210,6 +285,8 @@ export function useComprasMes(opcoes: OpcoesUseComprasMes = {}): ComprasMes {
   return {
     mes,
     mostrarCanceladas,
+    ordem,
+    inverter,
     compras,
     totais,
     total,
@@ -227,6 +304,9 @@ export function useComprasMes(opcoes: OpcoesUseComprasMes = {}): ComprasMes {
     mesAnterior,
     mesSeguinte,
     definirMostrarCanceladas,
+    definirOrdem,
+    alternarSentido,
+    atualizar,
     aplicarCompra,
   };
 }

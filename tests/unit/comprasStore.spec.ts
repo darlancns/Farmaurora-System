@@ -1043,3 +1043,58 @@ describe("recorrente: nasce false, salvarCompra grava, duplicarCompra copia, obt
     expect((await duplicarCompra(outra.id, "Bruno"))!.recorrente).toBe(false);
   });
 });
+
+describe("listarComprasDoMes — a visão da lista (ordem e inverter)", () => {
+  async function tres(): Promise<{ tres: Compra; dezoito: Compra; sete: Compra }> {
+    vi.setSystemTime(new Date("2026-11-19T15:00:00.000Z"));
+    const a = await criarCompraDoStore("Cris", { sequencia: 3 });
+    vi.setSystemTime(new Date("2026-11-19T15:01:00.000Z"));
+    const b = await criarCompraDoStore("Cris", { sequencia: 18 });
+    vi.setSystemTime(new Date("2026-11-19T15:02:00.000Z"));
+    const c = await criarCompraDoStore("Cris", { sequencia: 7 });
+    return { tres: a, dezoito: b, sete: c };
+  }
+  const nums = (r: { compras: Array<{ sequencia: number }> }): number[] => r.compras.map((c) => c.sequencia);
+
+  it("sem ordem: do maior Nº para o menor (como sempre foi); 'numero' é o mesmo", async () => {
+    await tres();
+    expect(nums(await listarComprasDoMes("2026-11", {}))).toEqual([18, 7, 3]);
+    expect(nums(await listarComprasDoMes("2026-11", { ordem: "numero" }))).toEqual([18, 7, 3]);
+  });
+
+  it("'recentes': a versão mais nova primeiro (quem acabou de ser salva sobe)", async () => {
+    const { tres: c3 } = await tres();
+    expect(nums(await listarComprasDoMes("2026-11", { ordem: "recentes" }))).toEqual([7, 18, 3]);
+    vi.setSystemTime(new Date("2026-11-19T16:00:00.000Z"));
+    await salvarCompra(c3.id, estado(c3, undefined, { paciente: "MEXIDA AGORA" }), "Cris");
+    expect(nums(await listarComprasDoMes("2026-11", { ordem: "recentes" }))).toEqual([3, 7, 18]);
+    expect(nums(await listarComprasDoMes("2026-11", { ordem: "numero" }))).toEqual([18, 7, 3]); // por número não muda
+  });
+
+  it("'inverter': de cabeça para baixo, nas duas visões", async () => {
+    await tres();
+    expect(nums(await listarComprasDoMes("2026-11", { ordem: "numero", inverter: true }))).toEqual([3, 7, 18]);
+    expect(nums(await listarComprasDoMes("2026-11", { ordem: "recentes", inverter: true }))).toEqual([3, 18, 7]);
+  });
+
+  it("a ordem vale ANTES de fatiar a página (a página 2 continua de onde a 1 parou) e as canceladas só entram se pedidas", async () => {
+    const { dezoito } = await tres();
+    vi.setSystemTime(new Date("2026-11-19T16:00:00.000Z"));
+    await cancelarCompra(dezoito.id, "Cris");
+    const p1 = await listarComprasDoMes("2026-11", { ordem: "recentes", incluirCanceladas: true, limite: 2, pagina: 1 });
+    const p2 = await listarComprasDoMes("2026-11", { ordem: "recentes", incluirCanceladas: true, limite: 2, pagina: 2 });
+    expect([...nums(p1), ...nums(p2)]).toEqual([18, 7, 3]); // a 18 foi cancelada agora: é a mais recente
+    expect(p1.temMais).toBe(true);
+    expect(p2.temMais).toBe(false);
+    expect(nums(await listarComprasDoMes("2026-11", { ordem: "recentes" }))).toEqual([7, 3]);
+  });
+
+  it("a visão não muda os totais nem o maior número", async () => {
+    const { dezoito } = await tres();
+    await cancelarCompra(dezoito.id, "Cris");
+    const a = await listarComprasDoMes("2026-11", { ordem: "numero" });
+    const b = await listarComprasDoMes("2026-11", { ordem: "recentes", inverter: true });
+    expect([b.totais, b.maiorSequencia]).toEqual([a.totais, a.maiorSequencia]);
+    expect(a.maiorSequencia).toBe(18);
+  });
+});

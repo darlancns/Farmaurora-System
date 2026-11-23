@@ -10,7 +10,8 @@ import { responderErroDeCompra } from "../../utils/comprasErro";
 // canceladas junto das outras, `?incluir_canceladas=1`. Sem ele, as canceladas ficam de fora. O `?status=` que existia deixou de existir
 // (o estado é só ativa ou cancelada) e, se vier, é ignorado como qualquer parâmetro desconhecido. Quem LÊ Compras (administrador,
 // operacional, sócio; o mapa da conta decide). Cada compra vem só com o necessário para a linha (sem valores, contatos nem endereços;
-// o detalhe é GET /api/compras/:id) e a resposta traz os `totais` { ativas, canceladas } do mês inteiro. Mais recente primeiro.
+// o detalhe é GET /api/compras/:id) e a resposta traz os `totais` { ativas, canceladas } do mês inteiro. A ordem: `?ordem=numero` (o padrão: maior Nº primeiro)
+// ou `?ordem=recentes` (a versão mais nova primeiro), e `?inverter=1` vira de cabeça para baixo.
 export default defineEventHandler(async (event): Promise<ListaCompras> => {
   const user: AuthUser | null | undefined = event.context.user;
   exigirLeituraCompras(user);
@@ -22,6 +23,8 @@ export default defineEventHandler(async (event): Promise<ListaCompras> => {
     return await listarComprasDoMes(consulta.valor.anoMes, {
       incluirCanceladas: consulta.valor.incluirCanceladas,
       pagina: consulta.valor.pagina,
+      ordem: consulta.valor.ordem,
+      inverter: consulta.valor.inverter,
     });
   } catch (e) {
     return responderErroDeCompra(e);

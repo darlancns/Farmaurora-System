@@ -2,9 +2,11 @@ import { nextTick, ref, watch, type Ref } from "vue";
 import { CODIGO_NUMERO_JA_EXISTE } from "#shared/constants/compra";
 import type { Compra, NovaCompraDTO } from "#shared/types/compra";
 import { itemVazio } from "#shared/utils/compraForm";
+import type { OrdemDaLista } from "#shared/utils/compraLista";
 import { rotuloDoMes, tituloDaCompra } from "#shared/utils/compraMes";
 import { ApiError, apiFetch, codigoDoErro } from "../utils/apiFetch";
 import { abaInicial, type AbaCompras } from "../utils/comprasAbas";
+import { gravarOrdem, lerOrdemSalva, type ArmazenamentoDaOrdem } from "../utils/comprasOrdem";
 import { lerQueryCompras, montarQueryCompras } from "../utils/comprasUrl";
 import { getErrorMessage } from "../utils/errorMessages";
 import { useCompraEditor, type ApiCompra, type CompraEditor } from "./useCompraEditor";
@@ -66,6 +68,9 @@ export interface OpcoesComprasPagina {
   avisar: (mensagem: string) => void;
   /** Grava a nova query na URL. */
   gravarUrl: (query: Record<string, string>) => void;
+  /** Onde a visão da lista ("Mais recentes" / "Por número") fica lembrada (o localStorage) e com que chave (uma por conta). Sem isso, não lembra. */
+  armazenamento?: ArmazenamentoDaOrdem | null;
+  chaveDaOrdem?: () => string;
   apiLista?: ApiListaCompras;
   apiCompra?: ApiCompra;
   apiAcoes?: ApiAcoesCompra;
@@ -98,6 +103,12 @@ export interface ComprasPagina {
   mesAnterior: () => Promise<void>;
   mesSeguinte: () => Promise<void>;
   definirMostrarCanceladas: (valor: boolean) => Promise<void>;
+  /** "Mais recentes" / "Por número": troca a visão, lembra a escolha no navegador e relê a lista (a compra aberta não é tocada). */
+  definirOrdem: (ordem: OrdemDaLista) => Promise<void>;
+  /** "Por número": inverte o sentido (e lembra). */
+  alternarSentido: () => Promise<void>;
+  /** Relê a lista em silêncio (a aba voltou, ou passaram 60 s). Parada enquanto uma ação (criar, duplicar, cancelar, trocar) está em andamento. */
+  atualizarLista: () => Promise<void>;
   /** "+ Nova compra": abre a caixinha do número (nada é criado ainda). */
   criarNova: () => Promise<void>;
   /** "Duplicar compra": abre a caixinha do número da cópia (o número da original nunca é copiado). */
@@ -160,6 +171,12 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
   }
 
   async function iniciar(): Promise<void> {
+    // A visão que esta pessoa deixou escolhida (lida AQUI, no cliente, depois de montar: o HTML do servidor não tem como saber).
+    const salva = lerOrdemSalva(opcoes.armazenamento, opcoes.chaveDaOrdem?.() ?? "");
+    if (salva) {
+      lista.ordem.value = salva.ordem;
+      lista.inverter.value = salva.inverter;
+    }
     if (inicial.id !== null) {
       try {
         const compra = await editor.carregar(inicial.id);
@@ -201,6 +218,23 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
 
   async function definirMostrarCanceladas(valor: boolean): Promise<void> {
     await lista.definirMostrarCanceladas(valor);
+  }
+
+  const lembrarOrdem = (): void => gravarOrdem(opcoes.armazenamento, opcoes.chaveDaOrdem?.() ?? "", { ordem: lista.ordem.value, inverter: lista.inverter.value });
+
+  async function definirOrdem(ordem: OrdemDaLista): Promise<void> {
+    await lista.definirOrdem(ordem);
+    lembrarOrdem();
+  }
+
+  async function alternarSentido(): Promise<void> {
+    await lista.alternarSentido();
+    lembrarOrdem();
+  }
+
+  async function atualizarLista(): Promise<void> {
+    if (ocupado.value) return;
+    await lista.atualizar();
   }
 
   /** Mostra a compra recém-criada ou duplicada: no mês dela (que pode não ser o da tela), no topo da lista, aberta no formulário. */
@@ -331,6 +365,9 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
     mesAnterior,
     mesSeguinte,
     definirMostrarCanceladas,
+    definirOrdem,
+    alternarSentido,
+    atualizarLista,
     criarNova,
     duplicar,
     confirmarDialogo,

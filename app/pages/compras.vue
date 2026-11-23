@@ -12,9 +12,11 @@ import GlobalHeader from "../components/GlobalHeader.vue";
 import { useAuth } from "../composables/useAuth";
 import { useCompraAcoes } from "../composables/useCompraAcoes";
 import { useCompraOpcoes } from "../composables/useCompraOpcoes";
+import { useComprasAtualizacao } from "../composables/useComprasAtualizacao";
 import { useComprasPagina } from "../composables/useComprasPagina";
 import { useToast } from "../composables/useToast";
 import { classeDaColuna } from "../utils/comprasAbas";
+import { armazenamentoDoNavegador, chaveDaOrdem } from "../utils/comprasOrdem";
 import { mesmaQuery } from "../utils/comprasUrl";
 
 // A página Compras em três colunas: a lista do mês (esquerda), o formulário único (centro) e o resumo ao vivo (direita). A lógica (trocar de
@@ -24,7 +26,7 @@ import { mesmaQuery } from "../utils/comprasUrl";
 // botões de escrita e com os campos desabilitados; a decisão é `canWrite("compras")`, a mesma função do servidor.
 const route = useRoute();
 const router = useRouter();
-const { canWrite } = useAuth();
+const { canWrite, user } = useAuth();
 const { showToast } = useToast();
 
 const podeEditar = computed<boolean>(() => canWrite("compras"));
@@ -34,6 +36,9 @@ const pagina = useComprasPagina({
   query: route.query,
   podeEditar: () => podeEditar.value,
   avisar: (mensagem) => showToast(mensagem),
+  // A visão da lista fica lembrada neste navegador, uma por conta (lida só no cliente, no iniciar).
+  armazenamento: armazenamentoDoNavegador(),
+  chaveDaOrdem: () => chaveDaOrdem(user.value?.id),
   gravarUrl: (query) => {
     if (!mesmaQuery(route.query, query)) void router.replace({ query });
   },
@@ -61,12 +66,20 @@ function antesDeFecharAAba(event: BeforeUnloadEvent): void {
   event.returnValue = "";
 }
 
+// A lista se atualiza sozinha: quando a aba volta a ficar à vista e a cada 60 s enquanto está visível. Só a LISTA é relida; a compra aberta e o que
+// está sendo digitado não são tocados.
+const atualizacao = useComprasAtualizacao({ atualizar: () => pagina.atualizarLista() });
+
 onMounted(async () => {
   window.addEventListener("beforeunload", antesDeFecharAAba);
   await opcoes.carregar();
   await pagina.iniciar();
+  atualizacao.iniciar();
 });
-onBeforeUnmount(() => window.removeEventListener("beforeunload", antesDeFecharAAba));
+onBeforeUnmount(() => {
+  window.removeEventListener("beforeunload", antesDeFecharAAba);
+  atualizacao.parar();
+});
 </script>
 
 <template>
@@ -93,10 +106,14 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", antesDeFecharAA
           :carregando="lista.carregando.value"
           :carregando-mais="lista.carregandoMais.value"
           :erro="lista.erro.value"
+          :ordem="lista.ordem.value"
+          :inverter="lista.inverter.value"
           :pode-editar="podeEditar"
           @anterior="pagina.mesAnterior()"
           @proximo="pagina.mesSeguinte()"
           @mostrar-canceladas="(v) => pagina.definirMostrarCanceladas(v)"
+          @ordem="(o) => pagina.definirOrdem(o)"
+          @inverter="pagina.alternarSentido()"
           @selecionar="(id) => pagina.selecionar(id)"
           @nova="pagina.criarNova()"
           @mostrar-mais="lista.mostrarMais()"

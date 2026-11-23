@@ -21,6 +21,7 @@ import type { CamposCompraEditaveis, CompraEstado, ItemCompraEstado, NovaCompraD
 import type { MomentoPagamentoResumo } from "../types/compraResumo";
 import { chaveCadastro } from "./cadastroNome";
 import { validarNovoCadastro } from "./cadastroValidacao";
+import { isOrdemDaLista, type OrdemDaLista } from "./compraLista";
 import { somarMeses } from "./compraMes";
 import { NUMERO_REMESSA_ERRO } from "./numeroRemessa";
 
@@ -446,10 +447,13 @@ export interface ConsultaListaCompras {
   anoMes: string;
   incluirCanceladas: boolean;
   pagina: number;
+  ordem: OrdemDaLista;
+  /** Vira a ordem de cabeça para baixo (`?inverter=1`). */
+  inverter: boolean;
 }
 
 /**
- * A consulta de GET /api/compras: `?ano_mes=AAAA-MM`, `?pagina=` (a partir de 1) e `?incluir_canceladas=1`. Parâmetro desconhecido é IGNORADO
+ * A consulta de GET /api/compras: `?ano_mes=AAAA-MM`, `?pagina=` (a partir de 1), `?incluir_canceladas=1`, `?ordem=recentes|numero` e `?inverter=1`. Parâmetro desconhecido é IGNORADO
  * (como sempre): o `?status=` que existia antes deixou de existir (o estado da compra é só ativa ou cancelada) e, se vier, não muda nada.
  */
 export function validarConsultaListaCompras(consulta: Record<string, unknown>, anoMesPadrao: string): ResultadoCompra<ConsultaListaCompras> {
@@ -459,7 +463,11 @@ export function validarConsultaListaCompras(consulta: Record<string, unknown>, a
   const pagina = inteiroDaConsulta(consulta.pagina, 1, 1, 100000, "Página");
   if (!pagina.ok) return pagina;
 
-  return ok({ anoMes: mes.valor, incluirCanceladas: consulta.incluir_canceladas === "1", pagina: pagina.valor });
+  // `?ordem=recentes|numero` (sem ele, "numero": a lista sempre foi do maior número para o menor) e `?inverter=1`.
+  if (consulta.ordem !== undefined && consulta.ordem !== "" && !isOrdemDaLista(consulta.ordem)) return falha("Ordem inválida: use recentes ou numero.");
+  const ordem: OrdemDaLista = isOrdemDaLista(consulta.ordem) ? consulta.ordem : "numero";
+
+  return ok({ anoMes: mes.valor, incluirCanceladas: consulta.incluir_canceladas === "1", pagina: pagina.valor, ordem, inverter: consulta.inverter === "1" });
 }
 
 /** O id da compra na rota. */

@@ -318,13 +318,13 @@ describe("consulta e rota", () => {
   });
 
   it("a lista: padrão (mês atual, página 1, sem canceladas); ?pagina e ?incluir_canceladas=1; o ?status= que saiu é IGNORADO", () => {
-    expect(validarConsultaListaCompras({}, "2026-11")).toEqual({ ok: true, valor: { anoMes: "2026-11", incluirCanceladas: false, pagina: 1 } });
+    expect(validarConsultaListaCompras({}, "2026-11")).toEqual({ ok: true, valor: { anoMes: "2026-11", incluirCanceladas: false, pagina: 1, ordem: "numero", inverter: false } });
     expect(validarConsultaListaCompras({ ano_mes: "2026-10", pagina: "3", incluir_canceladas: "1" }, "2026-11")).toEqual({
       ok: true,
-      valor: { anoMes: "2026-10", incluirCanceladas: true, pagina: 3 },
+      valor: { anoMes: "2026-10", incluirCanceladas: true, pagina: 3, ordem: "numero", inverter: false },
     });
     for (const status of ["pronta", "rascunho", "parcial", "encaminhada", "cancelada", "lixo", ["a", "b"], 1]) {
-      expect(validarConsultaListaCompras({ status }, "2026-11"), String(status)).toEqual({ ok: true, valor: { anoMes: "2026-11", incluirCanceladas: false, pagina: 1 } });
+      expect(validarConsultaListaCompras({ status }, "2026-11"), String(status)).toEqual({ ok: true, valor: { anoMes: "2026-11", incluirCanceladas: false, pagina: 1, ordem: "numero", inverter: false } });
     }
     for (const ruim of [{ pagina: "0" }, { pagina: "-1" }, { pagina: "1.5" }, { pagina: "x" }, { pagina: ["1", "2"] }, { ano_mes: "2026-13" }]) {
       expect(validarConsultaListaCompras(ruim, "2026-11").ok, JSON.stringify(ruim)).toBe(false);
@@ -378,5 +378,23 @@ describe("o corpo de criar/duplicar: Nº da compra e o mês em que ela nasce", (
     expect(erro({ sequencia: 3, ano_mes: "2026-11" })).toBe("Campo desconhecido: ano_mes.");
     expect(erro({ sequencia: 3, cancelada: true })).toBe("Campo desconhecido: cancelada.");
     expect(erro(null)).toMatch(/^Nº da compra/);
+  });
+});
+
+describe("a visão da lista: ?ordem= e ?inverter=", () => {
+  const v = (q: Record<string, unknown>) => (validarConsultaListaCompras(q, "2026-11") as { ok: true; valor: { ordem: string; inverter: boolean } }).valor;
+
+  it("sem ?ordem= vale 'numero' (como a lista sempre foi); recentes e numero valem; ?inverter=1 inverte, qualquer outra coisa não", () => {
+    expect(v({})).toMatchObject({ ordem: "numero", inverter: false });
+    expect(v({ ordem: "" })).toMatchObject({ ordem: "numero" });
+    expect(v({ ordem: "recentes" })).toMatchObject({ ordem: "recentes", inverter: false });
+    expect(v({ ordem: "numero", inverter: "1" })).toMatchObject({ ordem: "numero", inverter: true });
+    for (const lixo of ["0", "true", "sim", 1, ["1"]]) expect(v({ inverter: lixo }).inverter, String(lixo)).toBe(false);
+  });
+
+  it("ordem desconhecida: 400 com a mensagem", () => {
+    for (const ruim of ["data", "NUMERO", "recente", "numero,recentes", ["numero"], 1]) {
+      expect(validarConsultaListaCompras({ ordem: ruim }, "2026-11"), String(ruim)).toEqual({ ok: false, erro: "Ordem inválida: use recentes ou numero." });
+    }
   });
 });

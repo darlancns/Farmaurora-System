@@ -801,3 +801,32 @@ describe("nenhuma rota de Compras devolve chave PIX", () => {
     // As colunas lidas dos Cadastros (só `nome`, nunca chave_pix nem `*`) são travadas por cadastrosPixNenhumaOutraRota.spec.ts.
   });
 });
+
+describe("GET /api/compras — ?ordem= e ?inverter=", () => {
+  it("sem ordem: do maior Nº para o menor; ?ordem=recentes e ?inverter=1 mudam; ordem inventada é 400", async () => {
+    const a = await criarCompraDireta(3);
+    await criarCompraDireta(18);
+    // mexe na 3 depois: ela vira a mais recente
+    h.params = { id: a.id };
+    h.body = { atualizadoEm: a.updatedAt, paciente: "MEXIDA" };
+    await chamar(salvarPatch, adm);
+    const lista = async (q: Record<string, unknown>): Promise<number[]> => {
+      h.query = { ano_mes: a.anoMes, ...q };
+      return (await chamar<{ compras: Array<{ sequencia: number }> }>(listaGet, adm)).compras.map((c) => c.sequencia);
+    };
+    expect(await lista({})).toEqual([18, 3]);
+    expect(await lista({ ordem: "numero" })).toEqual([18, 3]);
+    expect(await lista({ ordem: "numero", inverter: "1" })).toEqual([3, 18]);
+    expect(await lista({ ordem: "recentes" })).toEqual([3, 18]);
+    h.query = { ano_mes: a.anoMes, ordem: "data" };
+    const e = await erroDe(chamar(listaGet, adm));
+    expect(e.status).toBe(400);
+    expect(e.msg).toBe("Ordem inválida: use recentes ou numero.");
+  });
+
+  it("o sócio (só lê) também escolhe a visão", async () => {
+    await criarCompraDireta(3);
+    h.query = { ordem: "recentes", inverter: "1" };
+    expect((await chamar<{ compras: unknown[] }>(listaGet, usuario("socio"))).compras).toHaveLength(1);
+  });
+});

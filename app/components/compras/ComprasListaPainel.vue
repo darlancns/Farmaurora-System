@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import type { CompraDaLista, TotaisDaLista } from "#shared/types/compra";
+import type { OrdemDaLista } from "#shared/utils/compraLista";
+import type { AppSelectOption } from "../../types/appSelect";
 import { BOTAO_PRIMARIO_CLASS } from "../../utils/comprasEstilos";
+import SegmentedControl from "../SegmentedControl.vue";
 import CadastroSwitch from "../configuracoes/CadastroSwitch.vue";
 import CompraCartao from "./CompraCartao.vue";
 import ComprasMesSeletor from "./ComprasMesSeletor.vue";
@@ -24,6 +27,9 @@ const props = defineProps<{
   carregando: boolean;
   carregandoMais?: boolean;
   erro: string | null;
+  /** A visão da lista: "Mais recentes" ou "Por número" (e, nesta, o sentido). */
+  ordem: OrdemDaLista;
+  inverter: boolean;
   /** Quem pode escrever em Compras: só ele vê "+ Nova compra". */
   podeEditar: boolean;
 }>();
@@ -32,11 +38,20 @@ const emit = defineEmits<{
   anterior: [];
   proximo: [];
   mostrarCanceladas: [valor: boolean];
+  ordem: [ordem: OrdemDaLista];
+  inverter: [];
   selecionar: [id: string];
   nova: [];
   mostrarMais: [];
   recarregar: [];
 }>();
+
+const OPCOES_ORDEM: AppSelectOption<OrdemDaLista>[] = [
+  { value: "recentes", label: "Mais recentes" },
+  { value: "numero", label: "Por número" },
+];
+
+const descricaoDoSentido = computed(() => (props.inverter ? "do menor para o maior" : "do maior para o menor"));
 
 const listaRef = ref<HTMLElement | null>(null);
 
@@ -58,6 +73,33 @@ function moverFoco(event: KeyboardEvent): void {
     <ComprasMesSeletor :rotulo="rotuloMes" :total-do-mes="totalDoMes" @anterior="emit('anterior')" @proximo="emit('proximo')" />
 
     <button v-if="podeEditar" id="btn-nova-compra" type="button" :class="BOTAO_PRIMARIO_CLASS" @click="emit('nova')">+ Nova compra</button>
+
+    <!-- As duas visões da lista: "Mais recentes" (a que foi mexida por último primeiro; o padrão) e "Por número" (do maior para o menor, com o botão que inverte). -->
+    <div id="compras-ordem-barra" class="flex items-stretch gap-2">
+      <SegmentedControl
+        id="compras-ordem"
+        class="min-w-0 flex-1"
+        label="Ordem da lista"
+        :model-value="ordem"
+        :options="OPCOES_ORDEM"
+        @update:model-value="(valor: OrdemDaLista) => emit('ordem', valor)"
+      />
+      <button
+        v-if="ordem === 'numero'"
+        id="compras-ordem-inverter"
+        type="button"
+        :aria-label="`Inverter a ordem (agora ${descricaoDoSentido})`"
+        :title="`Agora ${descricaoDoSentido}. Clique para inverter.`"
+        :aria-pressed="inverter ? 'true' : 'false'"
+        class="inline-flex min-h-11 w-11 shrink-0 items-center justify-center rounded-md border border-hairline bg-paper-raised text-ink-soft transition-colors hover:bg-white lg:min-h-9 lg:w-9"
+        @click="emit('inverter')"
+      >
+        <svg viewBox="0 0 24 24" class="h-4 w-4 shrink-0 transition-transform" :class="inverter ? 'rotate-180' : ''" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 5v14" />
+          <path d="M6 13l6 6 6-6" />
+        </svg>
+      </button>
+    </div>
 
     <label class="flex items-center gap-1 text-[12px] text-ink-soft">
       <CadastroSwitch

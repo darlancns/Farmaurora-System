@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CompraDaLista, ListaCompras, TotaisDaLista } from "../../shared/types/compra";
-import { itemDaLista } from "../../shared/utils/compraLista";
+import { compararDaLista, itemDaLista } from "../../shared/utils/compraLista";
 import { montarCompraDaLista } from "../../server/utils/compraMappers";
 import { montarUrlLista, useComprasMes, type ApiListaCompras, type ParametrosLista } from "../../app/composables/useComprasMes";
 import { compraVaziaDeTeste, itemDeTeste } from "./helpers/compraFixtures";
@@ -31,7 +31,7 @@ function servidor(porMes: Record<string, CompraDaLista[]>, tamanhoPagina = 50) {
   const api: ApiListaCompras = {
     listar: async (p) => {
       chamadas.push(p);
-      const todas = [...(porMes[p.anoMes] ?? [])].sort((a, b) => b.sequencia - a.sequencia);
+      const todas = [...(porMes[p.anoMes] ?? [])].sort(compararDaLista(p.ordem ?? "numero", p.inverter === true));
       const casam = todas.filter((c) => p.incluirCanceladas || !c.cancelada);
       const de = (p.pagina - 1) * tamanhoPagina;
       const r: ListaCompras = {
@@ -42,6 +42,7 @@ function servidor(porMes: Record<string, CompraDaLista[]>, tamanhoPagina = 50) {
         temMais: casam.length > de + tamanhoPagina,
         total: casam.length,
         totais: totaisDe(todas),
+        maiorSequencia: todas.reduce((m, c) => Math.max(m, c.sequencia), 0),
       };
       return r;
     },
@@ -49,7 +50,7 @@ function servidor(porMes: Record<string, CompraDaLista[]>, tamanhoPagina = 50) {
   return { api, chamadas };
 }
 
-const vazia = (): ListaCompras => ({ anoMes: "2026-11", compras: [], pagina: 1, limite: 50, temMais: false, total: 0, totais: { ativas: 0, canceladas: 0 } });
+const vazia = (): ListaCompras => ({ anoMes: "2026-11", maiorSequencia: 0, compras: [], pagina: 1, limite: 50, temMais: false, total: 0, totais: { ativas: 0, canceladas: 0 } });
 
 const SEMPRE_NOVEMBRO = () => new Date("2026-11-19T15:00:00Z");
 
@@ -93,7 +94,7 @@ describe("carregar, totais e 'N compras'", () => {
     await m.carregar();
     expect("status" in m).toBe(false);
     expect("definirStatus" in m).toBe(false);
-    expect(Object.keys(s.chamadas[0]!).sort()).toEqual(["anoMes", "incluirCanceladas", "pagina"]);
+    expect(Object.keys(s.chamadas[0]!).sort()).toEqual(["anoMes", "incluirCanceladas", "inverter", "ordem", "pagina"]);
   });
 
   it("falha na leitura: erro com a mensagem, sem derrubar o que já estava", async () => {

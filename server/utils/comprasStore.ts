@@ -1,6 +1,7 @@
 import { CODIGO_NUMERO_JA_EXISTE, COMPRA_LISTA_POR_PAGINA } from "../../shared/constants/compra";
 import { EMPRESAS_PROCESSO } from "../../shared/constants/processos";
 import type { Compra, CompraDaLista, CompraEstado, CamposCompraEditaveis, ItemCompraEstado, ListaCompras, StatusPreCadastro, TotaisDaLista } from "../../shared/types/compra";
+import { compararDaLista, type OrdemDaLista } from "../../shared/utils/compraLista";
 import { descricaoDaCompra } from "../../shared/utils/compraMes";
 import { dataBrasiliaDe } from "../../shared/utils/dataBrasilia";
 import {
@@ -207,10 +208,14 @@ export interface OpcoesLista {
   /** A partir de 1. */
   pagina?: number;
   limite?: number;
+  /** A visão: "numero" (do maior Nº para o menor, o padrão) ou "recentes" (a versão mais nova primeiro). */
+  ordem?: OrdemDaLista;
+  /** Vira a ordem de cabeça para baixo. */
+  inverter?: boolean;
 }
 
 /**
- * As compras do mês (AAAA-MM de Brasília) para o painel esquerdo: da mais recente para a mais antiga (sequencia desc), 50 por vez
+ * As compras do mês (AAAA-MM de Brasília) para o painel esquerdo: do maior Nº para o menor (ou, com `ordem: "recentes"`, a mais mexida primeiro), 50 por vez
  * ("mostrar mais"). O estado é só derivado (ativa ou cancelada): o servidor lê o mês inteiro só das colunas que a linha usa (nada de
  * contatos, valores nem observações), conta os `totais` do mês TODO e devolve só a página pedida. A DIR não é consultada.
  */
@@ -242,7 +247,9 @@ export async function listarComprasDoMes(anoMes: string, opcoes: OpcoesLista = {
     if (!item.cancelada || opcoes.incluirCanceladas === true) casam.push(item);
   }
 
-  // Já vem em sequencia desc (a leitura ordenou); a página é uma fatia, e `temMais` diz se sobrou alguma depois dela.
+  // A leitura já veio em sequencia desc; a visão escolhida (e o sentido) reordena com o MESMO comparador do cliente. A página é uma fatia, e
+  // `temMais` diz se sobrou alguma depois dela.
+  casam.sort(compararDaLista(opcoes.ordem ?? "numero", opcoes.inverter === true));
   const de = (pagina - 1) * limite;
   return {
     anoMes,

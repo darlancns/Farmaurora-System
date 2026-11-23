@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { nextTick } from "vue";
 import type { Compra, CompraSalvarDTO, ListaCompras, NovaCompraDTO, TotaisDaLista } from "../../shared/types/compra";
-import { itemDaLista } from "../../shared/utils/compraLista";
+import { compararDaLista, itemDaLista, type OrdemDaLista } from "../../shared/utils/compraLista";
+
 import { descricaoDaCompra } from "../../shared/utils/compraMes";
 import { ApiError } from "../../app/utils/apiFetch";
 import { MENSAGEM_NAO_SALVOU, useComprasPagina } from "../../app/composables/useComprasPagina";
@@ -42,9 +43,9 @@ function mundo(inicial: Compra[], agora = "2026-11-19T15:00:00Z") {
   };
 
   const apiLista = {
-    listar: vi.fn(async (p: { anoMes: string; incluirCanceladas: boolean; pagina: number }): Promise<ListaCompras> => {
+    listar: vi.fn(async (p: { anoMes: string; incluirCanceladas: boolean; pagina: number; ordem?: OrdemDaLista; inverter?: boolean }): Promise<ListaCompras> => {
       chamadas.push(`lista:${p.anoMes}`);
-      const itens = [...banco.values()].filter((c) => c.anoMes === p.anoMes).map((c) => itemDaLista({ ...c, atualizadoEm: c.updatedAt })).sort((a, b) => b.sequencia - a.sequencia);
+      const itens = [...banco.values()].filter((c) => c.anoMes === p.anoMes).map((c) => itemDaLista({ ...c, atualizadoEm: c.updatedAt })).sort(compararDaLista(p.ordem ?? "numero", p.inverter === true));
       const totais: TotaisDaLista = { ativas: itens.filter((i) => !i.cancelada).length, canceladas: itens.filter((i) => i.cancelada).length };
       const casam = itens.filter((i) => p.incluirCanceladas || !i.cancelada);
       const maiorSequencia = itens.reduce((maior, i) => Math.max(maior, i.sequencia), 0);
@@ -150,7 +151,7 @@ describe("abrir a página", () => {
     const { p, urls } = pagina(m, { query: { mes: "2026-11", id: "cmp_1", status: "pronta" } });
     await p.iniciar();
     expect(p.lista.compras.value.map((c) => c.id)).toEqual(["cmp_2", "cmp_1"]); // nada foi filtrado por status
-    expect(m.apiLista.listar).toHaveBeenCalledWith({ anoMes: "2026-11", incluirCanceladas: false, pagina: 1 });
+    expect(m.apiLista.listar).toHaveBeenCalledWith({ anoMes: "2026-11", incluirCanceladas: false, pagina: 1, ordem: "recentes", inverter: false });
     expect(urls.at(-1)).toEqual({ mes: "2026-11", id: "cmp_1", aba: "formulario" });
     expect(urls.every((u) => !("status" in u))).toBe(true);
   });
@@ -486,6 +487,7 @@ describe("+ Nova compra: criar com o número digitado", () => {
     const m = mundo([compraBase(18), compraBase(3, { id: "cmp_out_3", anoMes: "2026-10" }), compraBase(9, { id: "cmp_out_9", anoMes: "2026-10" })]);
     const { p } = pagina(m);
     await p.iniciar();
+    await p.definirOrdem("numero");
     await p.mesAnterior();
     expect(p.lista.mes.value).toBe("2026-10");
     await p.criarNova();
