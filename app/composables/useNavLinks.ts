@@ -23,7 +23,7 @@ export const MAIN_LINKS: readonly NavLink[] = [
   // DIR só pra operacional e administrador (seção "dir").
   { label: "DIR", to: "/dir", icon: "document-check", section: "dir" },
   { label: "Follow-Up", to: "/processos", icon: "list", section: "processos" },
-  { label: "Compras", to: "/compras", icon: "cart", section: "compras" },
+  { label: "Compras", to: "/compras", icon: "capsule", section: "compras" },
   { label: "Pagamentos", to: "/pagamentos", icon: "cash", section: "pagamentos" },
   { label: "Prestações", to: "/prestacao", icon: "clipboard", section: "patients" },
   // Recados é aberto a todos os cargos; fica depois das páginas de trabalho (e antes de Configurações).

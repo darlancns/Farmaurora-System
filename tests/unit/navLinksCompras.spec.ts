@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { createApp, h } from "vue";
 import { describe, expect, it, vi } from "vitest";
@@ -24,7 +24,7 @@ const rotas = (role: Role, permissoes?: Permissoes | null) => links(role, permis
 
 describe("menu — o item Compras", () => {
   it("é o 3º dos itens principais (DIR, Follow-Up, Compras, Pagamentos, Prestações, Recados); Configurações vem depois, à parte", () => {
-    expect(MAIN_LINKS[2]).toMatchObject({ label: "Compras", to: "/compras", section: "compras", icon: "cart" });
+    expect(MAIN_LINKS[2]).toMatchObject({ label: "Compras", to: "/compras", section: "compras", icon: "capsule" });
     expect(MAIN_LINKS.map((l) => l.to)).toEqual(["/dir", "/processos", "/compras", "/pagamentos", "/prestacao", "/recados"]);
     expect(CONFIG_LINK.to).toBe("/configuracoes");
   });
@@ -108,17 +108,107 @@ describe("menu no celular (BottomNav, limite de 5 itens + 'Mais')", () => {
   });
 });
 
-describe("ícone do item", () => {
-  it("NavIcon desenha um carrinho próprio para 'cart' (não cai no ícone padrão de reserva)", () => {
-    const desenhar = (name: string): string => {
-      const el = document.createElement("div");
-      createApp({ render: () => h(NavIcon, { name }) }).mount(el);
-      return el.querySelector("path")?.getAttribute("d") ?? "";
+describe("ícone do item: uma cápsula de remédio (o carrinho saiu)", () => {
+  const raizDe = (name: string): SVGElement => {
+    const el = document.createElement("div");
+    createApp({ render: () => h(NavIcon, { name }) }).mount(el);
+    return el.querySelector("svg") as SVGElement;
+  };
+  const desenhar = (name: string): string => raizDe(name).querySelector("path")?.getAttribute("d") ?? "";
+  const RESERVA = desenhar("nome-que-nao-existe"); // o ícone de reserva do NavIcon
+
+  it("o link Compras usa o ícone 'capsule'", () => {
+    expect(MAIN_LINKS.find((l) => l.to === "/compras")!.icon).toBe("capsule");
+  });
+
+  it("NavIcon desenha uma cápsula própria para 'capsule' (não cai no ícone de reserva nem repete o de outro item)", () => {
+    const capsula = desenhar("capsule");
+    expect(capsula).not.toBe("");
+    expect(capsula).not.toBe(RESERVA);
+    for (const outro of ["home", "clipboard", "list", "cog", "cash", "chat", "document-check"]) expect(capsula, outro).not.toBe(desenhar(outro));
+  });
+
+  it("segue a convenção dos ícones vizinhos: viewBox 24, só contorno (fill none), stroke currentColor, traço 1,5, pontas e junções redondas, sem cor fixa", () => {
+    const capsula = raizDe("capsule");
+    for (const vizinho of ["list", "cash", "clipboard", "chat", "cog"]) {
+      const v = raizDe(vizinho);
+      for (const atributo of ["xmlns", "viewBox", "fill", "stroke", "stroke-width"]) {
+        expect(capsula.getAttribute(atributo), `${atributo} (como ${vizinho})`).toBe(v.getAttribute(atributo));
+      }
+    }
+    expect(capsula.getAttribute("viewBox")).toBe("0 0 24 24");
+    expect(capsula.getAttribute("fill")).toBe("none");
+    expect(capsula.getAttribute("stroke")).toBe("currentColor");
+    expect(capsula.getAttribute("stroke-width")).toBe("1.5");
+    const caminhos = [...capsula.querySelectorAll("path")];
+    expect(caminhos).toHaveLength(1);
+    expect(caminhos[0]!.getAttribute("stroke-linecap")).toBe("round");
+    expect(caminhos[0]!.getAttribute("stroke-linejoin")).toBe("round");
+    // Nenhuma cor nem preenchimento fixos em lugar nenhum do desenho (a cor vem do item: ativo, inativo, tema).
+    const html = capsula.outerHTML;
+    expect(html).not.toMatch(/#[0-9a-f]{3,8}\b|rgb\(|hsl\(/i);
+    expect(html).not.toMatch(/fill="(?!none)/);
+    expect(html).not.toMatch(/\sstyle=/);
+    expect(capsula.querySelector("image, foreignObject, text")).toBeNull(); // nada de imagem nem emoji: só SVG
+  });
+
+  it("o desenho: contorno de cápsula inclinada com duas pontas semicirculares (raio 4,5) e UMA linha divisória no meio, centrado em (12, 12)", () => {
+    const d = desenhar("capsule");
+    expect(d.match(/a4\.5 4\.5 0 0 1/g)).toHaveLength(2); // as duas pontas arredondadas
+    expect(d.match(/Z/g)).toHaveLength(1); // contorno fechado
+    const [contorno, divisoria] = d.split("Z");
+    expect(divisoria).toMatch(/^M[\d.]+ [\d.]+l[\d.]+ [\d.]+$/); // a linha do meio (um só traço)
+
+    const n = (re: RegExpMatchArray | null, i: number): number => Number(re![i]);
+    const m = /^M([\d.]+) ([\d.]+)a4\.5 4\.5 0 0 1 (-?[\d.]+) (-?[\d.]+)L([\d.]+) ([\d.]+)a4\.5 4\.5 0 0 1(-?[\d.]+)(-[\d.]+)L/.exec(contorno!); // o 2º arco vem sem espaço: "1-6.364-6.364"
+    expect(m).not.toBeNull();
+    // Os quatro pontos onde as pontas encontram o corpo.
+    const p1 = [n(m, 1), n(m, 2)] as const;
+    const p2 = [p1[0] + n(m, 3), p1[1] + n(m, 4)] as const;
+    const p3 = [n(m, 5), n(m, 6)] as const;
+    const p4 = [p3[0] + n(m, 7), p3[1] + n(m, 8)] as const;
+    // Centrado no meio do viewBox (a média dos 4 pontos é (12, 12)).
+    expect((p1[0] + p2[0] + p3[0] + p4[0]) / 4).toBeCloseTo(12, 2);
+    expect((p1[1] + p2[1] + p3[1] + p4[1]) / 4).toBeCloseTo(12, 2);
+    // Cada ponta é um semicírculo: a corda entre os dois pontos vale o diâmetro (9).
+    expect(Math.hypot(p2[0] - p1[0], p2[1] - p1[1])).toBeCloseTo(9, 2);
+    expect(Math.hypot(p4[0] - p3[0], p4[1] - p3[1])).toBeCloseTo(9, 2);
+    // Inclinada a 45°: o eixo (de uma ponta à outra) anda a mesma distância em x e em y.
+    const eixoX = (p1[0] + p2[0]) / 2 - (p3[0] + p4[0]) / 2;
+    const eixoY = (p1[1] + p2[1]) / 2 - (p3[1] + p4[1]) / 2;
+    expect(Math.abs(eixoX)).toBeCloseTo(Math.abs(eixoY), 2);
+    expect(eixoX * eixoY).toBeLessThan(0); // ponta de cima à direita, ponta de baixo à esquerda
+    // A divisória passa pelo centro e atravessa o corpo (do tamanho do diâmetro: 9).
+    const meio = /^M([\d.]+) ([\d.]+)l([\d.]+) ([\d.]+)$/.exec(divisoria!);
+    expect(n(meio, 1) + n(meio, 3) / 2).toBeCloseTo(12, 2);
+    expect(n(meio, 2) + n(meio, 4) / 2).toBeCloseTo(12, 2);
+    expect(Math.hypot(n(meio, 3), n(meio, 4))).toBeCloseTo(9, 2);
+  });
+
+  it("todo item do menu (inclusive Configurações) tem desenho próprio: nenhum cai no ícone de reserva", () => {
+    for (const link of [...MAIN_LINKS, CONFIG_LINK]) {
+      expect(desenhar(link.icon), `${link.label} (${link.icon})`).not.toBe(RESERVA);
+    }
+  });
+
+  it("o carrinho de compras NÃO é mais usado em lugar nenhum: nem o nome 'cart' nem o desenho antigo", () => {
+    expect(desenhar("cart")).toBe(RESERVA); // o nome antigo não existe mais (cai na reserva)
+    const raiz = join(__dirname, "..", "..");
+    const arquivos: string[] = [];
+    const andar = (dir: string): void => {
+      for (const nome of readdirSync(join(raiz, dir))) {
+        const rel = `${dir}/${nome}`;
+        if (statSync(join(raiz, rel)).isDirectory()) andar(rel);
+        else if (/\.(vue|ts)$/.test(nome)) arquivos.push(rel);
+      }
     };
-    const carrinho = desenhar("cart");
-    expect(carrinho).toMatch(/^M2\.25 3h1\.386/);
-    expect(carrinho).not.toBe(desenhar("desconhecido")); // o ícone de reserva é outro
-    expect(carrinho).not.toBe(desenhar("cash"));
+    for (const dir of ["app", "shared"]) andar(dir);
+    expect(arquivos.length).toBeGreaterThan(100);
+    for (const arquivo of arquivos) {
+      const texto = readFileSync(join(raiz, arquivo), "utf-8");
+      expect(/name === ['"]cart['"]|icon: ['"]cart['"]|['"]cart['"]/.test(texto), `${arquivo}: nome 'cart'`).toBe(false);
+      expect(texto.includes("M2.25 3h1.386"), `${arquivo}: desenho do carrinho`).toBe(false);
+    }
   });
 });
 
