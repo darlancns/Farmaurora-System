@@ -97,7 +97,7 @@ const activeTab = ref<Tab>("andamento");
 const searchQuery = ref("");
 // Lido por leitor de tela (aria-label) e no balão do mouse (title): o texto de ajuda da caixa é curto, a lista completa fica aqui.
 const BUSCA_DESCRICAO =
-  "Buscar em todos os campos: paciente, pasta, PO, medicamento, laboratório, brand, empresa, responsável, consultor, fornecedor, despachante, companhia aérea, AWB, transportadora, modal, nº do processo, local de entrega, status e pagamento. Várias palavras: todas precisam aparecer.";
+  "Buscar em todos os campos: paciente, pasta, PO, medicamento, laboratório, brand, empresa, responsável, consultor, fornecedor, despachante, companhia aérea, AWB, transportadora, modal, nº do processo, local de entrega, status, pagamento e, nos entregues, o pagamento da transportadora (ex.: AJC pendente) e o DIR (ex.: DIR no Drive). Várias palavras: todas precisam aparecer.";
 const statusFilter = ref<StatusProcesso | "">("");
 const empresaFilter = ref<EmpresaProcesso | "">("");
 const responsavelFilter = ref("");

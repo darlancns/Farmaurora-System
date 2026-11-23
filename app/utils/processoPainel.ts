@@ -71,8 +71,9 @@ export interface CampoData {
 }
 
 /**
- * As 11 datas, na ordem da tela (a mesma do detalhe da Lista e do formulário). As 9 de texto aparecem como estão
- * gravadas (inclusive texto antigo); MS Anexado em e Prazo da ANVISA ("AAAA-MM-DD") aparecem com o ano, DD/MM/AAAA.
+ * As 12 datas, na ordem da tela (a mesma do detalhe da Lista e do formulário). As 9 de texto aparecem como estão
+ * gravadas (inclusive texto antigo); Data de entrega, MS Anexado em e Prazo da ANVISA ("AAAA-MM-DD") aparecem com o ano,
+ * DD/MM/AAAA. A Data de entrega vem logo depois do Registro Lpco, como no formulário.
  */
 // "AAAA-MM-DD" -> "DD/MM/AAAA"; vazio -> ""; valor que não é ISO (não deveria existir) aparece como está.
 function dataIsoParaTela(valor: string | undefined): string {
@@ -90,6 +91,7 @@ export function camposDatas(processo: Pick<Processo, "datas">): CampoData[] {
     { id: "registro-radar", rotulo: "Registro Radar", valor: d.registroRadar ?? "" },
     { id: "registro-duimp", rotulo: "Registro Duimp", valor: d.registroDuimp ?? "" },
     { id: "registro-lpco", rotulo: "Registro Lpco", valor: d.registroLpco ?? "" },
+    { id: "data-entrega", rotulo: "Data de entrega", valor: dataIsoParaTela(d.dataEntrega) },
     { id: "ms-anexado", rotulo: "MS Anexado em", valor: dataIsoParaTela(d.msAnexadoEm) },
     { id: "prazo-anvisa", rotulo: "Prazo da ANVISA", valor: dataIsoParaTela(d.prazoAnvisa) },
     { id: "previsao-entrega", rotulo: "Previsão entrega", valor: d.previsaoEntrega ?? "", destaque: true },

@@ -1,5 +1,6 @@
 import { ROTULOS_BRAND_MEDICAMENTO, STATUS_PROCESSO_LABELS, isBrandMedicamento } from "#shared/constants/processos";
 import type { Processo } from "#shared/types/processo";
+import { controlesEntregaParaTela } from "./processoControlesEntrega";
 import { normalizeText } from "./search";
 
 // Busca da tela de Processos: o que casa com o termo e o que abrir sozinho (grupos e detalhes) quando há
@@ -79,7 +80,8 @@ interface IndiceProcesso {
 /**
  * Os campos da busca por palavras, já normalizados (sem acento, minúsculas). Para somar um campo basta acrescentar uma
  * linha aqui. NÃO entram: atualizações, pendências, datas. "Pago"/"Pendente" só quando há statusPagamento (como o card
- * do Kanban); o status e o brand entram pelo RÓTULO da tela ("Em trânsito", "Referência"), não pelo valor interno.
+ * do Kanban); os controles do Entregue entram pelo RÓTULO COMPLETO da tela ("AJC pendente", "Doctor pago", "Pegar DIR e
+ * Protocolo", "DIR no Drive"), só em Entregue, só se o controle se aplica e tem valor (processoControlesEntrega.ts); o status e o brand entram pelo RÓTULO da tela ("Em trânsito", "Referência"), não pelo valor interno.
  */
 export function camposPesquisaveis(processo: Processo): string[] {
   const campos = [
@@ -103,6 +105,7 @@ export function camposPesquisaveis(processo: Processo): string[] {
     campos.push(norm(medicamento?.nome), norm(medicamento?.laboratorio));
     campos.push(isBrandMedicamento(medicamento?.brand) ? norm(ROTULOS_BRAND_MEDICAMENTO[medicamento.brand]) : "");
   }
+  for (const controle of controlesEntregaParaTela(processo)) campos.push(norm(controle.texto));
   if (processo.statusPagamento === "pago") campos.push("pago");
   else if (processo.statusPagamento === "pendente") campos.push("pendente");
   return campos.filter(Boolean);

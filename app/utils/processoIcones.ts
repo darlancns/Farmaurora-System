@@ -69,3 +69,11 @@ const ICONES_SO_PAINEL: Record<Exclude<ChaveIconePainel, ChaveIconeCard>, string
 
 /** Todos os ícones (card + painel), por chave. */
 export const ICONES_PROCESSO: Record<ChaveIconePainel, string[]> = { ...ICONES_CARD, ...ICONES_SO_PAINEL };
+
+// Ícones de ESTADO dos controles do Entregue (card e painel): relógio = pendente, check em círculo = concluído (lucide: clock e
+// circle-check; os círculos viram arcos). Registro SEPARADO: ChaveIconeCard continua com os seis do card.
+export type ChaveIconeEstado = "pendente" | "concluido";
+export const ICONES_ESTADO: Record<ChaveIconeEstado, string[]> = {
+  pendente: ["M22 12A10 10 0 1 1 2 12a10 10 0 0 1 20 0Z", "M12 6v6l4 2"],
+  concluido: ["M21.801 10A10 10 0 1 1 17 3.335", "m9 11 3 3L22 4"],
+};
