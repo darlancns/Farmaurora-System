@@ -57,6 +57,7 @@ import ProcessoPainel from "../components/processos/ProcessoPainel.vue";
 import ProcessoDeliveredList from "../components/processos/ProcessoDeliveredList.vue";
 import ProcessoFiltrosSheet from "../components/processos/ProcessoFiltrosSheet.vue";
 import ProcessoFormModal from "../components/processos/ProcessoFormModal.vue";
+import ProcessoEntregaModal from "../components/processos/ProcessoEntregaModal.vue";
 
 const {
   processos,
@@ -642,9 +643,20 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
       @mover="pedirMover"
     />
 
-    <!-- Confirmação de mudança de coluna (arrastar e menu): BaseModal z-900, por cima do painel. -->
+    <!-- Destino Entregue (arrastar e menu): o modal "Confirme a data de entrega" NO LUGAR do ConfirmDialog. Só "Confirmar
+         entrega" move; Cancelar e Esc limpam o pedido (nada foi gravado). -->
+    <ProcessoEntregaModal
+      v-if="pedidoMover?.tipo === 'entrega'"
+      :key="pedidoMover.processo.id"
+      :paciente="pedidoMover.processo.paciente"
+      :pasta="pedidoMover.processo.pasta"
+      :data-inicial="pedidoMover.dataInicial"
+      @confirm="(dataEntrega) => confirmarMover(dataEntrega)"
+      @close="cancelarMover"
+    />
+    <!-- Confirmação de mudança de coluna (arrastar e menu) para os demais destinos: BaseModal z-900, por cima do painel. -->
     <ConfirmDialog
-      v-if="pedidoMover"
+      v-else-if="pedidoMover"
       title="Mover processo"
       :message="pedidoMover.mensagem"
       confirm-label="Mover"

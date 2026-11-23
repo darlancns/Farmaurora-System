@@ -120,13 +120,19 @@ export function useProcessos() {
   // grava o status e a atualização "Status alterado de …" num único UPDATE e devolve o processo. Sucesso substitui o
   // processo na lista (o card muda de coluna). Erros (inclusive o 409, como ApiError com status 409) vão para quem
   // chamou; nada é alterado aqui antes da resposta (sem atualização otimista).
-  async function moverProcesso(id: string, status: StatusProcesso, versao: string): Promise<Processo> {
+  // `dataEntrega` ("AAAA-MM-DD") vai só ao entregar: o servidor a exige para o status Entregue (400 sem ela, ou futura).
+  async function moverProcesso(
+    id: string,
+    status: StatusProcesso,
+    versao: string,
+    dataEntrega?: string,
+  ): Promise<Processo> {
     const atualizado = await apiFetch<Processo>(
       `/api/processos/${id}/mover`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, versao }),
+        body: JSON.stringify(dataEntrega ? { status, versao, dataEntrega } : { status, versao }),
       },
       "Erro ao mover processo."
     );

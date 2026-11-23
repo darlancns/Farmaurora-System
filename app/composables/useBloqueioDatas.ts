@@ -1,4 +1,4 @@
-import { inject, provide, type InjectionKey } from "vue";
+import { inject, provide, shallowReactive, type InjectionKey } from "vue";
 
 /**
  * Bloqueio do SALVAR enquanto algum campo de data (AppDatePicker com ano automático) está com erro ("Data
@@ -23,6 +23,11 @@ export interface BloqueioDatas {
   registrar: (campo: CampoDataBloqueavel) => () => void;
   /** true = pode salvar. false = há campo de data com erro (já avisado e com o primeiro focado). */
   liberado: () => boolean;
+  /**
+   * Há algum campo de data com erro? Só consulta (sem avisar nem focar) e é REATIVO: serve para desabilitar um botão
+   * (ex.: "Confirmar entrega") enquanto o texto digitado não é uma data válida.
+   */
+  haErro: () => boolean;
 }
 
 const CHAVE_BLOQUEIO_DATAS: InjectionKey<BloqueioDatas> = Symbol("bloqueioDatas");
@@ -37,7 +42,8 @@ function ordemNoDocumento(a: CampoDataBloqueavel, b: CampoDataBloqueavel): numbe
 
 /** Registro puro (sem provide), para testar e para quem prover. */
 export function criarBloqueioDatas(): BloqueioDatas {
-  const campos = new Set<CampoDataBloqueavel>();
+  // shallowReactive: `haErro` lido num computed/render reage a campos que se registram depois e ao `erro` de cada um.
+  const campos = shallowReactive(new Set<CampoDataBloqueavel>());
   return {
     registrar(campo) {
       campos.add(campo);
@@ -51,6 +57,9 @@ export function criarBloqueioDatas(): BloqueioDatas {
       for (const c of comErro) c.avisarBloqueio();
       comErro[0]!.focar();
       return false;
+    },
+    haErro() {
+      return [...campos].some((c) => c.temErro());
     },
   };
 }

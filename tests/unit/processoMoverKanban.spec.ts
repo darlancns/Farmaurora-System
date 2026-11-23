@@ -1,6 +1,9 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { createApp, defineComponent, h, nextTick } from "vue";
+import { hojeBrasilia, somarDiasISO } from "#shared/utils/dataBrasilia";
 import type { Processo, StatusProcesso } from "#shared/types/processo";
 import ProcessoKanban from "../../app/components/processos/ProcessoKanban.vue";
 import ProcessoMoverMenu from "../../app/components/processos/ProcessoMoverMenu.vue";
@@ -410,5 +413,206 @@ describe("useMoverProcesso", () => {
     expect(api.pedido.value).toBeNull(); // travado: ignora
     await p1;
     expect(ordem).toEqual(["inicio-liberado", "fim-liberado"]);
+  });
+});
+
+// ── Destino Entregue: pedido do tipo "entrega" (modal da data) ──────────────────────────────────────
+describe("useMoverProcesso — destino Entregue", () => {
+  function criar() {
+    const store = new Map<string, Processo>([["a", proc("a", { status: "liberado", updatedAt: "v1" })]]);
+    const deps = {
+      podeEditar: () => true,
+      obter: (id: string) => store.get(id),
+      mover: vi.fn(async (id: string, status: StatusProcesso, _versao: string, _dataEntrega?: string) => {
+        const novo = { ...store.get(id)!, status, updatedAt: "v2" };
+        store.set(id, novo);
+        return novo;
+      }),
+      recarregar: vi.fn(async () => {}),
+      toast: vi.fn(),
+    };
+    return { deps, store, api: useMoverProcesso(deps) };
+  }
+
+  it("pedir(Entregue): pedido do tipo 'entrega' com a data inicial = hoje de Brasília", () => {
+    const { api, store } = criar();
+    api.pedir(store.get("a")!, "entregue");
+    expect(api.pedido.value?.tipo).toBe("entrega");
+    expect(api.pedido.value?.para).toBe("entregue");
+    expect(api.pedido.value?.dataInicial).toBe(hojeBrasilia());
+  });
+
+  it("voltando a Entregue: a data inicial é a dataEntrega já gravada (inválida cai em hoje)", () => {
+    const { api, store } = criar();
+    api.pedir({ ...store.get("a")!, datas: { dataEntrega: "2026-11-03" } }, "entregue");
+    expect(api.pedido.value?.dataInicial).toBe("2026-11-03");
+    api.cancelar();
+    api.pedir({ ...store.get("a")!, datas: { dataEntrega: "lixo" } }, "entregue");
+    expect(api.pedido.value?.dataInicial).toBe(hojeBrasilia());
+  });
+
+  it("os outros destinos continuam com a confirmação de sempre (tipo 'confirmar', sem data)", () => {
+    const { api, store } = criar();
+    for (const destino of ["elaboracao_fornecedores", "em_transito", "desembaraco"] as const) {
+      api.pedir(store.get("a")!, destino);
+      expect(api.pedido.value?.tipo, destino).toBe("confirmar");
+      expect(api.pedido.value?.dataInicial).toBeUndefined();
+      expect(api.pedido.value?.mensagem).toContain("A mudança fica registrada");
+      api.cancelar();
+    }
+  });
+
+  it("confirmar(data): chama mover(id, 'entregue', versao, data) UMA vez; trava o card, toast e anúncio", async () => {
+    const { api, deps, store } = criar();
+    api.pedir(store.get("a")!, "entregue");
+    const promessa = api.confirmar("2026-11-10");
+    expect(api.pedido.value).toBeNull();
+    expect(api.movendo.has("a")).toBe(true);
+    await promessa;
+    expect(deps.mover).toHaveBeenCalledTimes(1);
+    expect(deps.mover).toHaveBeenCalledWith("a", "entregue", "v1", "2026-11-10");
+    expect(deps.toast).toHaveBeenCalledWith("Processo movido para Entregue");
+    expect(api.anuncio.value).toBe("Paciente a movido para Entregue.");
+    expect(api.movendo.has("a")).toBe(false);
+  });
+
+  it("clique duplo no Confirmar: o pedido zera de forma síncrona e o 2º confirmar não envia de novo", async () => {
+    const { api, deps, store } = criar();
+    api.pedir(store.get("a")!, "entregue");
+    const p1 = api.confirmar("2026-11-10");
+    const p2 = api.confirmar("2026-11-10");
+    await Promise.all([p1, p2]);
+    expect(deps.mover).toHaveBeenCalledTimes(1);
+  });
+
+  it("confirmar sem data (ou só espaços) em Entregue não envia e o pedido continua aberto", async () => {
+    const { api, deps, store } = criar();
+    api.pedir(store.get("a")!, "entregue");
+    await api.confirmar();
+    await api.confirmar("   ");
+    expect(deps.mover).not.toHaveBeenCalled();
+    expect(api.pedido.value?.tipo).toBe("entrega");
+  });
+
+  it("cancelar limpa o pedido, não chama o servidor e anuncia; o card nunca saiu do lugar", () => {
+    const { api, deps, store } = criar();
+    api.pedir(store.get("a")!, "entregue");
+    api.cancelar();
+    expect(api.pedido.value).toBeNull();
+    expect(deps.mover).not.toHaveBeenCalled();
+    expect(api.movendo.has("a")).toBe(false);
+    expect(store.get("a")!.status).toBe("liberado");
+    expect(api.anuncio.value).toBe("Entrega de Paciente a cancelada.");
+  });
+
+  it("erro do servidor (data futura/aba antiga = 400): toast com a mensagem; o card volta a destravar", async () => {
+    const store = new Map<string, Processo>([["a", proc("a", { status: "liberado", updatedAt: "v1" })]]);
+    const toast = vi.fn();
+    const api = useMoverProcesso({
+      podeEditar: () => true,
+      obter: (id) => store.get(id),
+      mover: vi.fn(async () => {
+        throw new ApiError("Atualize a página (Ctrl+Shift+R) e tente de novo.", 400);
+      }),
+      recarregar: vi.fn(async () => {}),
+      toast,
+    });
+    api.pedir(store.get("a")!, "entregue");
+    await api.confirmar("2026-11-10");
+    expect(toast).toHaveBeenCalledWith("Atualize a página (Ctrl+Shift+R) e tente de novo.");
+    expect(api.movendo.has("a")).toBe(false);
+    expect(store.get("a")!.status).toBe("liberado");
+  });
+});
+
+// ── Cola da página (processos.vue): o modal da data NO LUGAR do ConfirmDialog só para Entregue ───────
+describe("processos.vue — destino Entregue abre o modal da data; os demais, o ConfirmDialog", () => {
+  const pagina = readFileSync(resolve(__dirname, "../../app/pages/processos.vue"), "utf-8").replace(/\r\n/g, "\n");
+
+  it("a página renderiza o ProcessoEntregaModal para o pedido do tipo 'entrega' e o ConfirmDialog (v-else-if) para o resto", () => {
+    expect(pagina).toContain('import ProcessoEntregaModal from "../components/processos/ProcessoEntregaModal.vue"');
+    const modal = pagina.indexOf("<ProcessoEntregaModal");
+    const confirmacao = pagina.indexOf('<ConfirmDialog\n      v-else-if="pedidoMover"');
+    expect(modal).toBeGreaterThan(-1);
+    expect(confirmacao).toBeGreaterThan(modal);
+    const trecho = pagina.slice(modal, confirmacao);
+    expect(trecho).toContain(`v-if="pedidoMover?.tipo === 'entrega'"`);
+    expect(trecho).toContain('@close="cancelarMover"');
+    expect(trecho).toContain("confirmarMover(dataEntrega)");
+    // os dois caminhos (arrastar e "Mover para…") entram pelo MESMO pedirMover
+    expect(pagina.match(/@mover="pedirMover"/g)).toHaveLength(2);
+  });
+
+  // Mesma cola da página, com os componentes reais: Kanban (arrastar) + o par modal/diálogo.
+  it("harness: soltar no Entregue mostra o modal (não o ConfirmDialog); Confirmar envia a data; Cancelar não envia; outro destino usa o ConfirmDialog", async () => {
+    mockPonteiro(true);
+    const store = new Map<string, Processo>([["a", proc("a", { status: "liberado", updatedAt: "v1" })]]);
+    const mover = vi.fn(async (id: string, status: StatusProcesso, _v: string, _d?: string) => ({ ...store.get(id)!, status }));
+    const { default: ConfirmDialog } = await import("../../app/components/ConfirmDialog.vue");
+    const { default: ProcessoEntregaModal } = await import("../../app/components/processos/ProcessoEntregaModal.vue");
+    const api = useMoverProcesso({
+      podeEditar: () => true,
+      obter: (id) => store.get(id),
+      mover,
+      recarregar: vi.fn(async () => {}),
+      toast: vi.fn(),
+    });
+    const el = montar(
+      defineComponent({
+        setup: () => () => [
+          h(ProcessoKanban, { processos: [...store.values()], onMover: api.pedir }),
+          api.pedido.value?.tipo === "entrega"
+            ? h(ProcessoEntregaModal, {
+                paciente: api.pedido.value.processo.paciente,
+                pasta: api.pedido.value.processo.pasta,
+                dataInicial: api.pedido.value.dataInicial,
+                onConfirm: (d: string) => api.confirmar(d),
+                onClose: api.cancelar,
+              })
+            : api.pedido.value
+              ? h(ConfirmDialog, {
+                  title: "Mover processo",
+                  message: api.pedido.value.mensagem,
+                  onConfirm: () => api.confirmar(),
+                  onClose: api.cancelar,
+                })
+              : null,
+        ],
+      }),
+    );
+    await nextTick();
+    await nextTick();
+    const soltar = async (coluna: string) => {
+      const dt = fakeDataTransfer();
+      el.querySelector<HTMLElement>("#processo-card-a")!.dispatchEvent(evento("dragstart", dt));
+      const alvo = el.querySelector<HTMLElement>(`#kanban-coluna-${coluna}`)!;
+      alvo.dispatchEvent(evento("dragenter", dt));
+      alvo.dispatchEvent(evento("dragover", dt));
+      alvo.dispatchEvent(evento("drop", dt));
+      await nextTick();
+      await nextTick();
+    };
+
+    await soltar("entregue");
+    expect(document.querySelector("#entrega-modal")).not.toBeNull();
+    expect(document.querySelector("#confirm-dialog-overlay")).toBeNull();
+    document.querySelector<HTMLButtonElement>("#btn-entrega-cancelar")!.click();
+    await nextTick();
+    expect(document.querySelector("#entrega-modal")).toBeNull();
+    expect(mover).not.toHaveBeenCalled();
+
+    await soltar("desembaraco");
+    expect(document.querySelector("#confirm-dialog-overlay")).not.toBeNull();
+    expect(document.querySelector("#entrega-modal")).toBeNull();
+    document.querySelector<HTMLButtonElement>("#btn-confirm-dialog-cancel")!.click();
+    await nextTick();
+
+    await soltar("entregue");
+    document.querySelector<HTMLButtonElement>("#btn-entrega-ontem")!.click();
+    await nextTick();
+    document.querySelector<HTMLButtonElement>("#btn-entrega-confirmar")!.click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(mover).toHaveBeenCalledTimes(1);
+    expect(mover).toHaveBeenCalledWith("a", "entregue", "v1", somarDiasISO(hojeBrasilia(), -1));
   });
 });
