@@ -348,7 +348,11 @@ export interface RespostaMedicamentoJaCadastrado {
   medicamento: MedicamentoDoCadastro;
 }
 
-/** O corpo de POST /api/compras e de POST /api/compras/:id/duplicar: o Nº da compra, DIGITADO (o servidor nunca o gera). */
+/**
+ * O corpo de POST /api/compras e de POST /api/compras/:id/duplicar: o Nº da compra, DIGITADO (o servidor nunca o gera), e o mês em que ela nasce
+ * (`anoMes`, "AAAA-MM": o mês da lista que a pessoa estava vendo). Sem `anoMes`, o mês corrente de Brasília.
+ */
 export interface NovaCompraDTO {
   sequencia: number;
+  anoMes?: string;
 }

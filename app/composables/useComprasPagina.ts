@@ -2,7 +2,7 @@ import { nextTick, ref, watch, type Ref } from "vue";
 import { CODIGO_NUMERO_JA_EXISTE } from "#shared/constants/compra";
 import type { Compra, NovaCompraDTO } from "#shared/types/compra";
 import { itemVazio } from "#shared/utils/compraForm";
-import { anoMesAtualBrasilia, rotuloDoMes, tituloDaCompra } from "#shared/utils/compraMes";
+import { rotuloDoMes, tituloDaCompra } from "#shared/utils/compraMes";
 import { ApiError, apiFetch, codigoDoErro } from "../utils/apiFetch";
 import { abaInicial, type AbaCompras } from "../utils/comprasAbas";
 import { lerQueryCompras, montarQueryCompras } from "../utils/comprasUrl";
@@ -12,14 +12,15 @@ import { useComprasMes, type ApiListaCompras, type ComprasMes } from "./useCompr
 
 // A ORQUESTRAÇÃO da página Compras: liga a lista do mês (useComprasMes), o editor da compra aberta (useCompraEditor) e a URL.
 // A página (app/pages/compras.vue) só desenha. Aqui moram as regras de trocar de lugar:
-//  - "+ Nova compra" e "Duplicar compra" abrem a caixinha do Nº da compra (o time combina o número; nada é gerado sozinho); a compra só é criada em "Criar compra";
+//  - "+ Nova compra" e "Duplicar compra" abrem a caixinha do Nº da compra (o time combina o número; nada é gerado sozinho); a compra só é criada em "Criar compra"
+//    e nasce no MÊS DA LISTA (o seletor da esquerda): Outubro na tela, compra de outubro, com a sugestão e a unicidade de outubro;
 //  - ANTES de trocar de compra, de mês, criar, duplicar ou cancelar, o salvamento pendente é descarregado (flush); se falhar, a
 //    pessoa é avisada e NADA troca em silêncio;
 //  - mês e compra abertos vão na URL (?mes, ?id, ?canceladas; um ?status antigo é ignorado); id de uma compra de outro mês abre no mês dela;
 //  - depois de cada salvamento a lista é atualizada com o que o servidor devolveu (sem reler o mês).
 
 export interface ApiAcoesCompra {
-  /** Cria com o Nº da compra DIGITADO (o servidor nunca escolhe o número). */
+  /** Cria com o Nº da compra DIGITADO (o servidor nunca escolhe o número) e no mês da lista que a pessoa via (`anoMes`). */
   criar: (corpo: NovaCompraDTO) => Promise<Compra>;
   duplicar: (id: string, corpo: NovaCompraDTO) => Promise<Compra>;
   cancelar: (id: string) => Promise<Compra>;
@@ -211,9 +212,9 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
     aba.value = "formulario"; // a compra nova ou duplicada abre no formulário (no celular)
   }
 
-  /** O mês em que a compra nasce. (Hoje: o mês corrente de Brasília, o mesmo que o servidor usa.) */
+  /** O mês em que a compra nasce: o que a pessoa está vendo na lista (o seletor "Novembro/2026" com as setas), não o mês corrente. */
   function anoMesDaNovaCompra(): string {
-    return anoMesAtualBrasilia(opcoes.agora?.());
+    return lista.mes.value;
   }
 
   /** Abre a caixinha do número e busca a sugestão (o maior do mês + 1) sem travar a abertura. */
@@ -255,7 +256,7 @@ export function useComprasPagina(opcoes: OpcoesComprasPagina): ComprasPagina {
     ocupado.value = true;
     try {
       if (!(await descarregar())) return; // o aviso já foi dado; a caixinha continua aberta
-      const nova = aberto.tipo === "duplicar" && aberto.origemId !== null ? await acoes.duplicar(aberto.origemId, { sequencia: numero }) : await acoes.criar({ sequencia: numero });
+      const nova = aberto.tipo === "duplicar" && aberto.origemId !== null ? await acoes.duplicar(aberto.origemId, { sequencia: numero, anoMes: aberto.anoMes }) : await acoes.criar({ sequencia: numero, anoMes: aberto.anoMes });
       dialogo.value = null;
       await mostrarNova(nova);
       if (aberto.tipo === "duplicar") {

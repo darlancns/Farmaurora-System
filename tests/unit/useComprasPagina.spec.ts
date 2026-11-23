@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { nextTick } from "vue";
 import type { Compra, CompraSalvarDTO, ListaCompras, NovaCompraDTO, TotaisDaLista } from "../../shared/types/compra";
 import { itemDaLista } from "../../shared/utils/compraLista";
+import { descricaoDaCompra } from "../../shared/utils/compraMes";
 import { ApiError } from "../../app/utils/apiFetch";
 import { MENSAGEM_NAO_SALVOU, useComprasPagina } from "../../app/composables/useComprasPagina";
 import { compraVaziaDeTeste, itemDeTeste } from "./helpers/compraFixtures";
@@ -32,10 +33,12 @@ function mundo(inicial: Compra[], agora = "2026-11-19T15:00:00Z") {
   const chamadas: string[] = [];
   let falhaSalvar: unknown = null;
   const mesCorrente = () => agora.slice(0, 7).replace(/-(\d\d)$/, "-$1");
+  /** O id da compra nova: `cmp_14` no mês corrente; em outro mês leva o mês (o mesmo número pode existir em meses diferentes). */
+  const idNovo = (anoMes: string, sequencia: number): string => (anoMes === mesCorrente() ? `cmp_${sequencia}` : `cmp_${anoMes}_${sequencia}`);
   /** O unique do banco: o mesmo número no mesmo mês é o 409 amigável do servidor (e nada é criado). */
   const conferirNumero = (anoMes: string, sequencia: number): void => {
     const dono = [...banco.values()].find((c) => c.anoMes === anoMes && c.sequencia === sequencia);
-    if (dono) throw new ApiError(`A Compra ${String(sequencia).padStart(2, "0")} de novembro já existe. Escolha outro número.`, 409, { code: "NUMERO_JA_EXISTE", anoMes, sequencia });
+    if (dono) throw new ApiError(`A ${descricaoDaCompra(anoMes, sequencia)} já existe. Escolha outro número.`, 409, { code: "NUMERO_JA_EXISTE", anoMes, sequencia });
   };
 
   const apiLista = {
@@ -68,15 +71,17 @@ function mundo(inicial: Compra[], agora = "2026-11-19T15:00:00Z") {
   const apiAcoes = {
     criar: vi.fn(async (corpo: NovaCompraDTO): Promise<Compra> => {
       chamadas.push(`criar:${corpo.sequencia}`);
-      conferirNumero(mesCorrente(), corpo.sequencia);
-      const nova = compraBase(corpo.sequencia, { anoMes: mesCorrente(), paciente: "", responsavel: "Cris" });
+      const anoMes = corpo.anoMes ?? mesCorrente();
+      conferirNumero(anoMes, corpo.sequencia);
+      const nova = compraBase(corpo.sequencia, { id: idNovo(anoMes, corpo.sequencia), anoMes, paciente: "", responsavel: "Cris" });
       banco.set(nova.id, nova);
       return { ...nova };
     }),
     duplicar: vi.fn(async (id: string, corpo: NovaCompraDTO): Promise<Compra> => {
       chamadas.push(`duplicar:${id}:${corpo.sequencia}`);
-      conferirNumero(mesCorrente(), corpo.sequencia);
-      const copia = { ...banco.get(id)!, id: `cmp_${corpo.sequencia}`, sequencia: corpo.sequencia, anoMes: mesCorrente() };
+      const anoMes = corpo.anoMes ?? mesCorrente();
+      conferirNumero(anoMes, corpo.sequencia);
+      const copia = { ...banco.get(id)!, id: idNovo(anoMes, corpo.sequencia), sequencia: corpo.sequencia, anoMes };
       banco.set(copia.id, copia);
       return { ...copia };
     }),
@@ -336,23 +341,15 @@ describe("+ Nova compra: a caixinha do Nº da compra", () => {
     expect(p.dialogo.value).toMatchObject({ maior: 12, sugestao: 13 });
   });
 
-  it("não deu para ler a lista: usa o que a tela já tem (mesmo mês); em outro mês abre sem sugestão (a pessoa digita) e criar funciona", async () => {
+  it("não deu para ler a lista: usa o que a tela já tem (o mês da caixinha é o da lista); a caixinha abre, a pessoa digita e criar funciona", async () => {
     const m = mundo([compraBase(1)]);
-    const { p } = pagina(m);
+    const { p } = pagina(m, { query: { mes: "2026-08" } });
     await p.iniciar();
     m.apiLista.listar.mockRejectedValue(new TypeError("Failed to fetch"));
     await p.criarNova();
-    expect(p.dialogo.value).toMatchObject({ maior: 1, sugestao: 2 }); // o maior que a lista da tela já conhecia
-    p.cancelarDialogo();
-
-    const m2 = mundo([compraBase(1)]);
-    const { p: p2 } = pagina(m2, { query: { mes: "2026-08" } });
-    await p2.iniciar();
-    m2.apiLista.listar.mockRejectedValue(new TypeError("Failed to fetch"));
-    await p2.criarNova();
-    expect(p2.dialogo.value).toMatchObject({ maior: null, sugestao: null });
-    await p2.confirmarDialogo(5);
-    expect(p2.editor.compra.value!.sequencia).toBe(5);
+    expect(p.dialogo.value).toMatchObject({ anoMes: "2026-08", maior: 0, sugestao: 1 }); // a lista de agosto na tela está vazia
+    await p.confirmarDialogo(5);
+    expect(p.editor.compra.value).toMatchObject({ anoMes: "2026-08", sequencia: 5 });
   });
 
   it("cancelar a caixinha: nada é criado e a caixinha fecha", async () => {
@@ -385,7 +382,7 @@ describe("+ Nova compra: criar com o número digitado", () => {
     await p.iniciar();
     expect(p.pedidoDeFocoMedicamento.value).toBe(0);
     await criarCom(p, 14);
-    expect(m.apiAcoes.criar).toHaveBeenCalledWith({ sequencia: 14 });
+    expect(m.apiAcoes.criar).toHaveBeenCalledWith({ sequencia: 14, anoMes: "2026-11" });
     expect(p.dialogo.value).toBeNull();
     expect(p.editor.compra.value!.sequencia).toBe(14);
     expect(p.selecionadaId.value).toBe("cmp_14");
@@ -459,7 +456,7 @@ describe("+ Nova compra: criar com o número digitado", () => {
     await p.iniciar();
     await criarCom(p, 14);
     expect(m.apiAcoes.criar).toHaveBeenCalledTimes(1);
-    expect(m.apiAcoes.criar).toHaveBeenCalledWith({ sequencia: 14 });
+    expect(m.apiAcoes.criar).toHaveBeenCalledWith({ sequencia: 14, anoMes: "2026-11" });
   });
 
   it("falha na criação (503): a mensagem do servidor aparece na caixinha e nada abre", async () => {
@@ -472,15 +469,53 @@ describe("+ Nova compra: criar com o número digitado", () => {
     expect(p.editor.compra.value).toBeNull();
   });
 
-  it("estando em outro mês na tela, a compra nova (do mês corrente) abre no mês dela", async () => {
+  it("a compra nasce no MÊS DA LISTA (não no corrente): a lista fica nele e a compra aparece nele", async () => {
     const m = mundo([compraBase(1)]);
     const { p } = pagina(m, { query: { mes: "2026-08" } });
     await p.iniciar();
     expect(p.lista.mes.value).toBe("2026-08");
     await criarCom(p, 2);
-    expect(p.lista.mes.value).toBe("2026-11");
-    expect(p.lista.compras.value.map((c) => c.id)).toContain("cmp_2");
-    expect(p.selecionadaId.value).toBe("cmp_2");
+    expect(m.apiAcoes.criar).toHaveBeenCalledWith({ sequencia: 2, anoMes: "2026-08" });
+    expect(p.lista.mes.value).toBe("2026-08");
+    expect(p.editor.compra.value).toMatchObject({ anoMes: "2026-08", sequencia: 2 });
+    expect(p.lista.compras.value.map((c) => c.sequencia)).toEqual([2]);
+    expect(p.selecionadaId.value).toBe("cmp_2026-08_2");
+  });
+
+  it("escolher Outubro nas setas: a caixinha diz 'Outubro/2026', a sugestão é a de OUTUBRO (maior + 1) e a compra nasce em outubro", async () => {
+    const m = mundo([compraBase(18), compraBase(3, { id: "cmp_out_3", anoMes: "2026-10" }), compraBase(9, { id: "cmp_out_9", anoMes: "2026-10" })]);
+    const { p } = pagina(m);
+    await p.iniciar();
+    await p.mesAnterior();
+    expect(p.lista.mes.value).toBe("2026-10");
+    await p.criarNova();
+    expect(p.dialogo.value).toMatchObject({ anoMes: "2026-10", rotuloMes: "Outubro/2026", maior: 9, sugestao: 10 });
+    await p.confirmarDialogo(10);
+    expect(p.editor.compra.value).toMatchObject({ anoMes: "2026-10", sequencia: 10 });
+    expect(p.lista.compras.value.map((c) => c.sequencia)).toEqual([10, 9, 3]); // aparece na lista de outubro
+    expect(p.lista.mes.value).toBe("2026-10");
+    // a de novembro não ganhou nada
+    await p.mesSeguinte();
+    expect(p.lista.compras.value.map((c) => c.sequencia)).toEqual([18]);
+  });
+
+  it("a unicidade é por mês: o 18 de novembro não impede o 18 de outubro, mas o 9 de outubro impede o 9 de outubro", async () => {
+    const m = mundo([compraBase(18), compraBase(9, { id: "cmp_out_9", anoMes: "2026-10" })]);
+    const { p } = pagina(m, { query: { mes: "2026-10" } });
+    await p.iniciar();
+    await criarCom(p, 18); // existe em novembro, não em outubro
+    expect(p.editor.compra.value).toMatchObject({ anoMes: "2026-10", sequencia: 18 });
+    await p.criarNova();
+    await p.confirmarDialogo(9);
+    expect(p.dialogo.value!.erro).toBe("A Compra 09 de outubro já existe. Escolha outro número.");
+  });
+
+  it("o título da compra mostra o mês DELA (a de outubro aberta com a lista em novembro)", async () => {
+    const m = mundo([compraBase(5, { id: "cmp_out_5", anoMes: "2026-10" })]);
+    const { p } = pagina(m, { query: { id: "cmp_out_5" } });
+    await p.iniciar();
+    expect(p.lista.mes.value).toBe("2026-10"); // o id de outro mês abre no mês dele
+    expect(p.tituloParaDialogo()).toBe("Compra 05 - Outubro/2026");
   });
 
   it("clique duplo em 'Criar compra': só uma compra é criada (ocupado)", async () => {
@@ -505,7 +540,7 @@ describe("Duplicar e Cancelar", () => {
     expect(m.apiAcoes.duplicar).not.toHaveBeenCalled();
     await p.confirmarDialogo(7);
     expect(m.chamadas.filter((c) => !c.startsWith("lista"))).toEqual(["salvar:cmp_1:PACIENTE ORIGINAL", "duplicar:cmp_1:7"]);
-    expect(m.apiAcoes.duplicar).toHaveBeenCalledWith("cmp_1", { sequencia: 7 });
+    expect(m.apiAcoes.duplicar).toHaveBeenCalledWith("cmp_1", { sequencia: 7, anoMes: "2026-11" });
     expect(p.editor.compra.value!.sequencia).toBe(7);
     expect(p.editor.compra.value!.medico).toBe("Dr. Antes");
     expect(p.selecionadaId.value).toBe("cmp_7");
@@ -524,6 +559,18 @@ describe("Duplicar e Cancelar", () => {
     await p.confirmarDialogo(2);
     expect(p.dialogo.value!.erro).toBe("A Compra 02 de novembro já existe. Escolha outro número.");
     expect(p.lista.compras.value).toHaveLength(2);
+  });
+
+  it("duplicar nasce no mês da LISTA (normalmente o da original), com a sugestão desse mês", async () => {
+    const m = mundo([compraBase(1, { id: "cmp_out_1", anoMes: "2026-10" }), compraBase(40, { id: "cmp_nov_40" })]);
+    const { p } = pagina(m, { query: { id: "cmp_out_1" } });
+    await p.iniciar();
+    expect(p.lista.mes.value).toBe("2026-10");
+    await p.duplicar();
+    expect(p.dialogo.value).toMatchObject({ tipo: "duplicar", anoMes: "2026-10", rotuloMes: "Outubro/2026", maior: 1, sugestao: 2 });
+    await p.confirmarDialogo(2);
+    expect(m.apiAcoes.duplicar).toHaveBeenCalledWith("cmp_out_1", { sequencia: 2, anoMes: "2026-10" });
+    expect(p.editor.compra.value).toMatchObject({ anoMes: "2026-10", sequencia: 2 });
   });
 
   it("cancelar a caixinha do duplicar não copia nada", async () => {

@@ -16,6 +16,8 @@ import {
   validarCompraSalvar,
   validarConsultaListaCompras,
   validarDinheiroCompra,
+  validarMesDaNovaCompra,
+  validarNovaCompra,
 } from "../../shared/utils/compraValidacao";
 
 // A validação do corpo do salvamento da Compra (o servidor não confia no cliente). Só a FORMA: o que depende dos Cadastros e das
@@ -332,5 +334,49 @@ describe("consulta e rota", () => {
   it("o id da compra na rota: letras, números, _ e -, até 64", () => {
     for (const bom of ["cmp_1731000000_ab12cd", "a", "ABC-123_x"]) expect(idDaCompraValido(bom), bom).toBe(true);
     for (const ruim of ["", " ", "a b", "../x", "a/b", "a".repeat(65), undefined, null, 5, "x%20y", "x;y"]) expect(idDaCompraValido(ruim), String(ruim)).toBe(false);
+  });
+});
+
+describe("o corpo de criar/duplicar: Nº da compra e o mês em que ela nasce", () => {
+  const AGORA = "2026-11"; // o mês corrente de Brasília
+  const valor = (corpo: unknown) => {
+    const r = validarNovaCompra(corpo, AGORA);
+    if (!r.ok) throw new Error(`esperava passar: ${r.erro}`);
+    return r.valor;
+  };
+  const erro = (corpo: unknown): string => {
+    const r = validarNovaCompra(corpo, AGORA);
+    if (r.ok) throw new Error(`esperava erro, mas passou: ${JSON.stringify(r.valor)}`);
+    return r.erro;
+  };
+
+  it("só o número: o mês fica de fora (o servidor usa o corrente); com mês válido, ele vai junto", () => {
+    expect(valor({ sequencia: 14 })).toEqual({ sequencia: 14 });
+    expect(valor({ sequencia: 14, anoMes: "2026-10" })).toEqual({ sequencia: 14, anoMes: "2026-10" });
+  });
+
+  it("aceita do mês mais antigo permitido (2020-01) até o mês QUE VEM do corrente (2026-12), inclusive a virada de ano", () => {
+    for (const mes of ["2020-01", "2025-12", "2026-11", "2026-12"]) expect(valor({ sequencia: 1, anoMes: mes }).anoMes, mes).toBe(mes);
+    expect(validarMesDaNovaCompra("2027-01", "2026-12").ok).toBe(true); // em dezembro, janeiro que vem ainda vale
+    expect(validarMesDaNovaCompra("2027-02", "2026-12").ok).toBe(false);
+  });
+
+  it.each(["2026-13", "2026-00", "202611", "2026-1", "novembro", "2026-11-01", "", " 2026-11", "1900-01", "2019-12", "2027-01", "2031-05", "9999-12"])(
+    "mês absurdo ou fora da faixa (%s): 400 com a mensagem do mês",
+    (mes) => {
+      expect(erro({ sequencia: 1, anoMes: mes })).toBe("Mês da compra inválido: use AAAA-MM, de janeiro/2020 até o mês que vem.");
+    },
+  );
+
+  it.each([null, 202611, true, [], {}])("mês que não é texto (%s): 400", (mes) => {
+    expect(erro({ sequencia: 1, anoMes: mes })).toMatch(/^Mês da compra inválido/);
+  });
+
+  it("o número continua obrigatório e válido; chave desconhecida é recusada", () => {
+    expect(erro({ anoMes: "2026-11" })).toMatch(/^Nº da compra/);
+    expect(erro({ sequencia: 0, anoMes: "2026-11" })).toMatch(/^Nº da compra/);
+    expect(erro({ sequencia: 3, ano_mes: "2026-11" })).toBe("Campo desconhecido: ano_mes.");
+    expect(erro({ sequencia: 3, cancelada: true })).toBe("Campo desconhecido: cancelada.");
+    expect(erro(null)).toMatch(/^Nº da compra/);
   });
 });

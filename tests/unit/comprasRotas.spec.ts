@@ -305,6 +305,33 @@ describe("POST /api/compras", () => {
     expect(fake.tabelas.compras).toHaveLength(0);
   });
 
+  it("anoMes no corpo: a compra nasce NESSE mês (não no corrente) e o número vale dentro dele", async () => {
+    h.body = { sequencia: 14, anoMes: "2026-10" };
+    const c = await chamar<Compra>(criarPost, adm);
+    expect([c.anoMes, c.sequencia]).toEqual(["2026-10", 14]);
+    expect(fake.tabelas.compras[0]).toMatchObject({ ano_mes: "2026-10", sequencia: 14 });
+    // o mesmo número em novembro (sem anoMes = o mês corrente de Brasília) é outra compra
+    h.body = { sequencia: 14 };
+    const nov = await chamar<Compra>(criarPost, adm);
+    expect([nov.anoMes, nov.sequencia]).toEqual(["2026-11", 14]);
+    // e repetir o número no MESMO mês é 409, com o mês certo na mensagem
+    h.body = { sequencia: 14, anoMes: "2026-10" };
+    const e = await erroDe(chamar(criarPost, adm));
+    expect(e.status).toBe(409);
+    expect(e.msg).toBe("A Compra 14 de outubro já existe. Escolha outro número.");
+  });
+
+  it.each(["2026-13", "1900-01", "2019-12", "2027-01", "2031-05", "novembro", ""])("anoMes absurdo (%s): 400 e nada é criado", async (mes) => {
+    h.body = { sequencia: 3, anoMes: mes };
+    expect((await erroDe(chamar(criarPost, adm))).status).toBe(400);
+    expect(fake.tabelas.compras).toHaveLength(0);
+  });
+
+  it("o mês que vem ainda vale (dezembro, estando em novembro)", async () => {
+    h.body = { sequencia: 3, anoMes: "2026-12" };
+    expect((await chamar<Compra>(criarPost, adm)).anoMes).toBe("2026-12");
+  });
+
   it("os limites passam: 1 e 9999", async () => {
     expect((await criarCompraDireta(1)).sequencia).toBe(1);
     expect((await criarCompraDireta(9999)).sequencia).toBe(9999);
@@ -686,6 +713,18 @@ describe("POST /api/compras/:id/duplicar", () => {
     expect(e.msg).toBe("A Compra 05 de novembro já existe. Escolha outro número.");
     expect(e.data).toMatchObject({ code: "NUMERO_JA_EXISTE", sequencia: 5 });
     expect(fake.tabelas.compras).toHaveLength(1);
+  });
+
+  it("anoMes no corpo: a cópia nasce nesse mês; mês absurdo é 400 e nada é copiado", async () => {
+    const c = await criarCompraDireta(5);
+    h.params = { id: c.id };
+    h.body = { sequencia: 5, anoMes: "2026-10" }; // o mesmo número da original, mas em OUTRO mês: livre
+    const copia = await chamar<Compra>(duplicarPost, adm);
+    expect([copia.anoMes, copia.sequencia]).toEqual(["2026-10", 5]);
+    h.params = { id: c.id };
+    h.body = { sequencia: 6, anoMes: "2031-01" };
+    expect((await erroDe(chamar(duplicarPost, adm))).status).toBe(400);
+    expect(fake.tabelas.compras).toHaveLength(2);
   });
 
   it("sócio e consultor não duplicam (403)", async () => {

@@ -281,3 +281,15 @@ describe("CompraLinhaNumero: 'Nº da compra', a 1ª linha do formulário", () =>
     expect(numero().disabled).toBe(true);
   });
 });
+
+describe("o título do cabeçalho mostra o mês da PRÓPRIA compra", () => {
+  it("'Compra 05 - Outubro/2026' para uma compra de outubro, e o número que vale no servidor (não o digitado e recusado)", async () => {
+    const { montarFormulario, compraComUmMedicamento } = await import("./helpers/montarFormulario");
+    const montado = montarFormulario(compraComUmMedicamento({ anoMes: "2026-10", sequencia: 5 }));
+    try {
+      expect(texto(q("#compra-titulo"))).toBe("Compra 05 - Outubro/2026");
+    } finally {
+      montado.desmontar();
+    }
+  });
+});

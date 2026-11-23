@@ -1,4 +1,5 @@
 import {
+  COMPRA_ANO_MES_MINIMO,
   COMPRA_ANO_MES_RE,
   COMPRA_BUSCA_MAX,
   COMPRA_ID_RE,
@@ -20,6 +21,7 @@ import type { CamposCompraEditaveis, CompraEstado, ItemCompraEstado, NovaCompraD
 import type { MomentoPagamentoResumo } from "../types/compraResumo";
 import { chaveCadastro } from "./cadastroNome";
 import { validarNovoCadastro } from "./cadastroValidacao";
+import { somarMeses } from "./compraMes";
 import { NUMERO_REMESSA_ERRO } from "./numeroRemessa";
 
 // Validação PURA do salvamento da Compra: o servidor (handlers) a usa e o formulário poderá usar as mesmas regras. Devolve o
@@ -345,14 +347,32 @@ export function validarCompraSalvar(corpo: unknown): ResultadoCompra<CompraEstad
   return ok(estado);
 }
 
-/** O corpo de POST /api/compras e de /duplicar: o Nº da compra DIGITADO (obrigatório) → o corpo limpo, ou a mensagem do 400. */
-export function validarNovaCompra(corpo: unknown): ResultadoCompra<NovaCompraDTO> {
+export const MES_DA_COMPRA_ERRO = "Mês da compra inválido: use AAAA-MM, de janeiro/2020 até o mês que vem.";
+
+/**
+ * O mês em que a compra nasce (opcional): "AAAA-MM", do mais antigo permitido (COMPRA_ANO_MES_MINIMO) até o mês QUE VEM do corrente de Brasília
+ * (`anoMesAtual`): a lista deixa navegar para qualquer mês, mas ninguém abre compra em 2031 por engano.
+ */
+export function validarMesDaNovaCompra(v: unknown, anoMesAtual: string): ResultadoCompra<string> {
+  if (typeof v !== "string" || !COMPRA_ANO_MES_RE.test(v)) return falha(MES_DA_COMPRA_ERRO);
+  if (v < COMPRA_ANO_MES_MINIMO || v > somarMeses(anoMesAtual, 1)) return falha(MES_DA_COMPRA_ERRO);
+  return ok(v);
+}
+
+/**
+ * O corpo de POST /api/compras e de /duplicar: o Nº da compra DIGITADO (obrigatório) e, se vier, o mês em que ela nasce → o corpo limpo, ou a
+ * mensagem do 400. `anoMesAtual` é o mês corrente de Brasília (o servidor o passa; o teto do mês é o mês seguinte a ele).
+ */
+export function validarNovaCompra(corpo: unknown, anoMesAtual: string): ResultadoCompra<NovaCompraDTO> {
   const o = objeto(corpo);
   if (!o) return falha(NUMERO_DA_COMPRA_ERRO);
-  const desconhecida = chavesDesconhecidas(o, ["sequencia"], "");
+  const desconhecida = chavesDesconhecidas(o, ["sequencia", "anoMes"], "");
   if (desconhecida) return falha(desconhecida);
   const n = validarNumeroDaCompra(o.sequencia);
-  return n.ok ? ok({ sequencia: n.valor }) : n;
+  if (!n.ok) return n;
+  if (o.anoMes === undefined) return ok({ sequencia: n.valor });
+  const mes = validarMesDaNovaCompra(o.anoMes, anoMesAtual);
+  return mes.ok ? ok({ sequencia: n.valor, anoMes: mes.valor }) : mes;
 }
 
 /** O mês da lista (`?ano_mes=AAAA-MM`); ausente = o `padrao`. */

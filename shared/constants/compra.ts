@@ -31,6 +31,9 @@ export const COMPRA_NUMERO_MAX = 9999;
 export const CODIGO_NUMERO_JA_EXISTE = "NUMERO_JA_EXISTE";
 
 /** Mês da lista de compras: AAAA-MM. */
+/** O mês mais antigo em que uma compra pode nascer (um mês absurdo, como 1900-01, é recusado). O mais novo é o mês que vem (ver `validarNovaCompra`). */
+export const COMPRA_ANO_MES_MINIMO = "2020-01";
+
 export const COMPRA_ANO_MES_RE = /^[0-9]{4}-(0[1-9]|1[0-2])$/;
 
 export const COMPRA_MOMENTOS_PAGAMENTO = ["vamos_pagar", "apos_awb"] as const;
