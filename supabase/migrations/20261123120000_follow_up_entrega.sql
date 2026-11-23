@@ -1,4 +1,5 @@
--- A APLICAR MANUALMENTE (ainda NÃO aplicada). Aplicar ANTES do deploy do código.
+-- JÁ APLICADA MANUALMENTE EM PRODUÇÃO EM 23/11/2026; NÃO REAPLICAR.
+-- (Este arquivo existe só para o repositório ficar fiel ao banco. É idempotente, mas não há motivo para rodá-lo de novo em produção.)
 --
 -- Follow-Up: regra do status "Entregue". Três colunas novas, todas nulas:
 --  - data_entrega             date NULL: dia em que o processo foi entregue ("Data de entrega"). Coluna `date` como
@@ -13,9 +14,7 @@
 -- ADITIVA e idempotente (add column if not exists; as CHECK só são criadas se ainda não existirem, via pg_constraint):
 -- sem default, sem índice, SEM backfill. Os processos já Entregues ficam com NULL nos três e nada neles muda.
 --
--- ORDEM DE APLICAÇÃO: aplicar ESTA migração ANTES do deploy do código (e antes de qualquer teste local contra um banco
--- real). O código novo grava e lê estas colunas; sem elas, salvar um processo com Data de entrega ou entregar falha. A
--- leitura com select("*") continua funcionando sem as colunas.
+-- O código novo grava e lê estas colunas; a leitura com select("*") funciona mesmo sem elas.
 --
 -- Desfazer (só depois de reverter o código que lê/grava estas colunas; perde o que foi preenchido):
 --   alter table public.follow_up drop constraint if exists follow_up_pagamento_transportadora_valores;
