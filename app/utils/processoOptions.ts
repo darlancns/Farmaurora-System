@@ -3,21 +3,22 @@ import {
   ciasAereasDoModal,
   DESPACHANTES_PROCESSO,
   EMPRESAS_PROCESSO,
-  FORNECEDORES_PROCESSO,
+  FORNECEDOR_NACIONAL,
   MODAIS_ENVIO,
   RESPONSAVEIS_PROCESSO,
   ROTULOS_BRAND_MEDICAMENTO,
   STATUS_PAGAMENTO_PROCESSO,
   STATUS_PROCESSO_ORDER,
 } from "#shared/constants/processos";
+import type { ItemCadastroPagamento } from "#shared/types/Pagamento";
 import { STATUS_PROCESSO_META } from "./processoStatus";
+import { fornecedoresFixos, montarOpcoesFornecedor, type OpcoesFornecedorFixos } from "./pagamentoOptions";
 import type { FiltroCotacao, FiltroMandado } from "./processoListas";
 import type { AppSelectOption } from "../types/appSelect";
 import type {
   BrandMedicamento,
   DespachanteProcesso,
   EmpresaProcesso,
-  FornecedorProcesso,
   ModalEnvio,
   StatusPagamentoProcesso,
   StatusProcesso,
@@ -68,10 +69,22 @@ export const DESPACHANTE_OPTIONS: AppSelectOption<DespachanteProcesso | "">[] = 
   ...DESPACHANTES_PROCESSO.map((nome) => ({ value: nome, label: nome })),
 ];
 
-export const FORNECEDOR_OPTIONS: AppSelectOption<FornecedorProcesso | "">[] = [
-  { value: "", label: "Selecione" },
-  ...FORNECEDORES_PROCESSO.map((nome) => ({ value: nome, label: nome })),
-];
+// Fornecedor do formulário do Follow-Up: "Selecione" + os fornecedores ATIVOS do Cadastro em "Nome - País" + "Nacional" (fixo, não é do
+// Cadastro) + "Outro" (texto livre, como sempre). Só um ativo pode ser escolhido como valor NOVO. O valor que o processo já tem gravado e
+// que não é uma dessas opções continua aparecendo COMO ESTÁ GRAVADO, nunca vazio e sem sufixo: o legado sem país de um fornecedor do
+// Cadastro ("Can Pharma" para "Can Pharma - China") fica selecionado até a pessoa trocá-lo, então abrir e salvar não muda o fornecedor
+// (nada de PATCH falso). "(inativo)" só para o que existe no Cadastro como inativo. Texto que não está no Cadastro segue no "Outro".
+// Reaproveita os helpers de Pagamentos (pagamentoOptions.ts).
+export const OPCOES_FORNECEDOR_PROCESSO: OpcoesFornecedorFixos = { extras: [FORNECEDOR_NACIONAL], manterGravadoAtivo: true };
+
+/** Os valores fixos do select (sem "Outro"): o que o sentinela do formulário usa para decidir entre o select e o "Outro". */
+export function fornecedoresFixosDoProcesso(fornecedores: readonly ItemCadastroPagamento[], atual: string): string[] {
+  return fornecedoresFixos(fornecedores, atual, OPCOES_FORNECEDOR_PROCESSO);
+}
+
+export function montarFornecedorOptions(fornecedores: readonly ItemCadastroPagamento[], atual: string): AppSelectOption<string>[] {
+  return montarOpcoesFornecedor(fornecedores, atual, OPCOES_FORNECEDOR_PROCESSO);
+}
 
 export const RESPONSAVEL_OPTIONS: AppSelectOption<string>[] = [
   { value: "", label: "Selecione" },

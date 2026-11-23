@@ -5,7 +5,6 @@ import type {
   DespachanteProcesso,
   DirProtocoloProcesso,
   EmpresaProcesso,
-  FornecedorProcesso,
   ModalEnvio,
   PagamentoTransportadoraProcesso,
   StatusPagamentoProcesso,
@@ -116,15 +115,10 @@ export function dirsDoModal(modal: string | null | undefined): readonly DirProto
 // Ordem alfabética.
 export const DESPACHANTES_PROCESSO: DespachanteProcesso[] = ["Andreza Faconi", "Bruno Lopes", "Marcelo Lima"];
 
-// Ordem alfabética, com "Outro" sempre por último (fora da ordem alfabética,
-// é o padrão esperado desse tipo de campo).
-export const FORNECEDORES_PROCESSO: FornecedorProcesso[] = [
-  "Beldimed - Bélgica",
-  "Pharyx - China",
-  "Poros - Turquia",
-  "Speciality - Índia",
-  "Outro",
-];
+// "Nacional" = compra feita no Brasil. NÃO é um fornecedor do Cadastro: é uma opção FIXA do select de Fornecedor do Follow-Up (depois dos
+// fornecedores do Cadastro e antes de "Outro") e NUNCA gera alerta de prazo (app/utils/prazoFornecedor.ts). A lista de fornecedores do
+// formulário vem do Cadastro (Configurações → Cadastros), em "Nome - País", só ativos.
+export const FORNECEDOR_NACIONAL = "Nacional";
 
 // Ordem alfabética.
 export const RESPONSAVEIS_PROCESSO: string[] = ["Bruno", "Rebeca"];

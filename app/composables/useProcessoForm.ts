@@ -1,4 +1,4 @@
-import { computed, reactive, watch, type ComputedRef } from "vue";
+import { computed, reactive, ref, watch, type ComputedRef } from "vue";
 import type {
   BrandMedicamento,
   EmpresaProcesso,
@@ -10,11 +10,11 @@ import type {
   StatusPagamentoProcesso,
   StatusProcesso,
 } from "#shared/types/processo";
+import type { CadastrosFollowUp } from "#shared/types/Cadastro";
 import {
   ciaAereaValidaParaModal,
   dirsDoModal,
   EMPRESAS_PROCESSO,
-  FORNECEDORES_PROCESSO,
   ROTULOS_DIR_PROTOCOLO,
 } from "#shared/constants/processos";
 import {
@@ -37,7 +37,7 @@ import {
 } from "../utils/processoFormPayload";
 import { useOutroSentinel } from "./useOutroSentinel";
 import { useTitleCaseInput } from "./useTitleCaseInput";
-import { montarCiaAereaOptions, STATUS_OPTIONS } from "../utils/processoOptions";
+import { fornecedoresFixosDoProcesso, montarCiaAereaOptions, montarFornecedorOptions, STATUS_OPTIONS } from "../utils/processoOptions";
 import type { AppSelectOption } from "../types/appSelect";
 
 // Extraído de ProcessoFormModal.vue (Round 9, Parte 2) — todo o estado do
@@ -107,10 +107,6 @@ export type DataField =
   | "prazoAnvisa"
   | "dataEntrega";
 
-// Opções fixas do Fornecedor, sem o sentinela "Outro" — usado só pra decidir se
-// um valor existente bate com uma das 4 opções reais ao carregar o form.
-const FORNECEDORES_FIXOS = FORNECEDORES_PROCESSO.filter((f) => f !== "Outro");
-
 function emptyForm(): FormState {
   return {
     paciente: "",
@@ -164,6 +160,8 @@ export interface UseProcessoFormReturn {
   medicamentos: Medicamento[];
   pendencias: string[];
   fornecedor: ReturnType<typeof useOutroSentinel>;
+  // Opções do select de Fornecedor (Cadastro + "Nacional" + o valor gravado + "Outro"): ver montarFornecedorOptions.
+  fornecedorOptions: ComputedRef<AppSelectOption<string>[]>;
   showDespachanteTransportadora: ComputedRef<boolean>;
   // Cia. aérea depende do modal: opções, desabilitado sem modal e limpeza automática ao trocar o modal.
   ciaAereaOptions: ComputedRef<AppSelectOption<string>[]>;
@@ -201,11 +199,27 @@ export interface UseProcessoFormReturn {
   validarEdicao: () => ValidarEdicaoResult;
 }
 
-export function useProcessoForm(editingProcesso: () => Processo | null | undefined): UseProcessoFormReturn {
+// `cadastros`: as listas dos Cadastros que o formulário usa nos selects (ainda vazias enquanto carregam; ver useCadastrosFollowUp).
+export function useProcessoForm(
+  editingProcesso: () => Processo | null | undefined,
+  cadastros: () => Partial<CadastrosFollowUp> | undefined = () => undefined,
+): UseProcessoFormReturn {
   const form = reactive<FormState>(emptyForm());
   const medicamentos = reactive<Medicamento[]>([emptyMedicamento()]);
   const pendencias = reactive<string[]>([]);
-  const fornecedor = useOutroSentinel(FORNECEDORES_FIXOS);
+  // O fornecedor que o processo aberto tem GRAVADO ("" num processo novo): entra nas opções do select quando não é uma delas.
+  const fornecedorGravado = ref("");
+  const fornecedoresDoCadastro = () => cadastros()?.fornecedores ?? [];
+  const fornecedoresFixosDoForm = computed(() => fornecedoresFixosDoProcesso(fornecedoresDoCadastro(), fornecedorGravado.value));
+  const fornecedorOptions = computed(() => montarFornecedorOptions(fornecedoresDoCadastro(), fornecedorGravado.value));
+  const fornecedor = useOutroSentinel(() => fornecedoresFixosDoForm.value);
+  // A lista do Cadastro pode chegar DEPOIS de o formulário abrir: o valor gravado que caiu no "Outro" por ela ainda estar vazia volta a ser
+  // a opção que ele é. Só se a pessoa ainda não mexeu no campo (o texto montado é o gravado); o que será enviado não muda (nada de PATCH falso).
+  watch(fornecedoresFixosDoForm, () => {
+    const gravado = fornecedorGravado.value.trim();
+    if (gravado === "" || fornecedor.build() !== gravado) return;
+    fornecedor.load(fornecedorGravado.value);
+  });
   // Estado do formulário logo depois de carregar o processo (só na edição): base do patch diferencial.
   let inicial: EstadoEdicao | null = null;
   // updatedAt do processo no instante em que o formulário o carregou (abertura, ou "Recarregar dados atuais").
@@ -323,6 +337,7 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     Object.assign(form, emptyForm());
     medicamentos.splice(0, medicamentos.length, emptyMedicamento());
     pendencias.splice(0, pendencias.length);
+    fornecedorGravado.value = "";
     fornecedor.load(undefined);
     inicial = null;
     versaoAbertura = undefined;
@@ -339,6 +354,7 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     form.consultor = processo.consultor;
     form.responsavelOperacional = processo.responsavelOperacional ?? "";
     form.despachante = processo.despachante ?? "";
+    fornecedorGravado.value = processo.fornecedor ?? "";
     fornecedor.load(processo.fornecedor);
     form.transportadoraNome = processo.transportadoraNacional?.nome ?? "";
     form.transportadoraCotacao = processo.transportadoraNacional?.cotacao ?? "";
@@ -518,6 +534,7 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     medicamentos,
     pendencias,
     fornecedor,
+    fornecedorOptions,
     showDespachanteTransportadora,
     ciaAereaOptions,
     ciaAereaDesabilitada,

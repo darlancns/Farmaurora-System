@@ -16,6 +16,7 @@ import { useProcessos } from "../composables/useProcessos";
 import { useAuth } from "../composables/useAuth";
 import { useMoverProcesso } from "../composables/useMoverProcesso";
 import { useRecarregarAoVoltar } from "../composables/useRecarregarAoVoltar";
+import { useCadastrosFollowUp } from "../composables/useCadastrosFollowUp";
 import { useConsultores } from "../composables/useConsultores";
 import { useToast } from "../composables/useToast";
 import { useTravaEnvio } from "../composables/useTravaEnvio";
@@ -272,9 +273,21 @@ async function irParaProcesso(id: string): Promise<void> {
 // Consultores do Cadastro (formulário e ordem dos grupos). O cargo consultor vê lista plana e não edita: não precisa deles.
 const { consultores, carregarConsultores } = useConsultores();
 
+// Fornecedores (e, nas próximas etapas, transportadoras e despachantes) dos Cadastros, para os selects do formulário. Só leitura; o cargo
+// consultor, que não edita, não precisa deles.
+const { fornecedores: fornecedoresCadastro, despachantes: despachantesCadastro, transportadoras: transportadorasCadastro, carregar: carregarCadastros } = useCadastrosFollowUp();
+const cadastrosFollowUp = computed(() => ({
+  fornecedores: fornecedoresCadastro.value,
+  despachantes: despachantesCadastro.value,
+  transportadoras: transportadorasCadastro.value,
+}));
+
 onMounted(async () => {
   if (!flatList.value) {
     void carregarConsultores().then((falha) => {
+      if (falha) showToast(falha);
+    });
+    void carregarCadastros().then((falha) => {
       if (falha) showToast(falha);
     });
   }
@@ -695,6 +708,7 @@ async function handlePatch(id: string, patch: Partial<NewProcessoDTO>): Promise<
       v-if="showFormModal && canWriteProcessos"
       :editing-processo="editingProcesso"
       :consultores="consultores"
+      :cadastros="cadastrosFollowUp"
       :conflito="conflitoEdicao"
       :recarregando="recarregandoEdicao"
       :salvando="salvando"

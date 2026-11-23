@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { NewProcessoDTO, Processo, ProcessoFormPatchPayload } from "#shared/types/processo";
+import type { CadastrosFollowUp } from "#shared/types/Cadastro";
 import type { ItemConsultor } from "#shared/utils/consultorRegra";
 import { computed, nextTick, ref } from "vue";
 import { MENSAGEM_CONFLITO_EDICAO } from "../../composables/useConflitoEdicaoProcesso";
@@ -17,7 +18,6 @@ import ProcessoRemessaStepper from "./ProcessoRemessaStepper.vue";
 import {
   DESPACHANTE_OPTIONS,
   EMPRESA_OPTIONS,
-  FORNECEDOR_OPTIONS,
   MODAL_ENVIO_OPTIONS,
   RESPONSAVEL_OPTIONS,
   STATUS_OPTIONS,
@@ -43,6 +43,9 @@ const props = defineProps<{
   // Consultores do Cadastro (ativos e inativos): as opções do select são os ativos; o consultor atual do processo aparece
   // mesmo se já estiver inativo ou fora do Cadastro, sem apagar o dado.
   consultores?: ItemConsultor[];
+  // Fornecedores (e, nas próximas etapas, transportadoras e despachantes) dos Cadastros, ativos e inativos: o select de Fornecedor mostra os ativos
+  // + "Nacional" + o valor que o processo já tem gravado, sem apagar nem mudar nada (ver montarFornecedorOptions).
+  cadastros?: Partial<CadastrosFollowUp>;
   // Envio em andamento (criar ou salvar): desabilita o botão principal e ignora novos envios (Enter, clique).
   salvando?: boolean;
 }>();
@@ -67,6 +70,7 @@ const {
   medicamentos,
   pendencias,
   fornecedor,
+  fornecedorOptions,
   showDespachanteTransportadora,
   ciaAereaOptions,
   ciaAereaDesabilitada,
@@ -97,7 +101,10 @@ const {
   definirDataEntrega,
   validar,
   validarEdicao,
-} = useProcessoForm(() => props.editingProcesso);
+} = useProcessoForm(
+  () => props.editingProcesso,
+  () => props.cadastros,
+);
 
 // Consultor: os ATIVOS do Cadastro (+ o valor atual do processo, se inativo ou fora do Cadastro).
 const consultorOptions = computed(() => montarConsultorOptions(form.consultor, props.consultores ?? []));
@@ -363,7 +370,7 @@ function aoCancelarEntrega(): void {
             </div>
             <div :class="SELECT_CAMPO_CLASS">
               <label for="pf-fornecedor" :class="LABEL_CLASS">Fornecedor</label>
-              <AppSelect id="pf-fornecedor" v-model="fornecedor.state.select" :options="FORNECEDOR_OPTIONS" />
+              <AppSelect id="pf-fornecedor" v-model="fornecedor.state.select" :options="fornecedorOptions" />
             </div>
           </div>
 

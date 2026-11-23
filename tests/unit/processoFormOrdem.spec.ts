@@ -8,6 +8,7 @@ import ProcessoFormModal from "../../app/components/processos/ProcessoFormModal.
 import { BOTAO_FECHAR_HOVER_CLASS, BOTAO_ICONE_CLASS } from "../../app/utils/botaoIcone";
 import { ICONES_PROCESSO } from "../../app/utils/processoIcones";
 import { montarProcesso, type FollowUpRow } from "../../server/utils/processoMappers";
+import { CADASTROS_FOLLOWUP_FIXTURE } from "./helpers/cadastrosFollowUpFixtures";
 import { linhaCompleta } from "./helpers/processoEdicaoFixtures";
 
 // Item 11 — ORDEM dos campos do formulário de processo. Componente real (ProcessoFormModal) no happy-dom. A ordem do DOM
@@ -79,7 +80,7 @@ const texto = (el: Element | null) => (el?.textContent ?? "").replace(/\s+/g, " 
 
 function abrir(extra: Record<string, unknown> = {}): HTMLElement {
   const processo: Processo = montarProcesso(linhaCompleta(extra) as unknown as FollowUpRow);
-  return montar(defineComponent({ render: () => h(ProcessoFormModal, { editingProcesso: processo }) }));
+  return montar(defineComponent({ render: () => h(ProcessoFormModal, { editingProcesso: processo, cadastros: CADASTROS_FOLLOWUP_FIXTURE }) }));
 }
 
 // Os ids do conjunto que aparecem no formulário, na ORDEM do DOM.
@@ -388,6 +389,7 @@ describe("Botão principal no cabeçalho do modal", () => {
         render: () =>
           h(ProcessoFormModal, {
             editingProcesso,
+            cadastros: CADASTROS_FOLLOWUP_FIXTURE,
             onSubmit: (p: unknown) => eventos.submit.push(p),
             onUpdate: (...a: unknown[]) => eventos.update.push(a),
             onInvalid: (m: string) => eventos.invalid.push(m),

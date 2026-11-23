@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FORNECEDORES_PROCESSO } from "#shared/constants/processos";
+import { FORNECEDOR_NACIONAL } from "#shared/constants/processos";
 import { nomeFornecedorCurto } from "../../app/utils/nomeFornecedorCurto";
 
 describe("nomeFornecedorCurto (só exibição no card do Kanban)", () => {
@@ -30,12 +30,14 @@ describe("nomeFornecedorCurto (só exibição no card do Kanban)", () => {
     expect(nomeFornecedorCurto(undefined)).toBe("");
   });
 
-  it("lista fixa do formulário: todos viram só o nome", () => {
-    expect(FORNECEDORES_PROCESSO.map((f) => [f, nomeFornecedorCurto(f)])).toEqual([
+  it("os fornecedores no formato do Cadastro ('Nome - País'), 'Nacional' e 'Outro': só o nome", () => {
+    const valores = ["Beldimed - Bélgica", "Pharyx - China", "Poros - Turquia", "Speciality - Índia", FORNECEDOR_NACIONAL, "Outro"];
+    expect(valores.map((f) => [f, nomeFornecedorCurto(f)])).toEqual([
       ["Beldimed - Bélgica", "Beldimed"],
       ["Pharyx - China", "Pharyx"],
       ["Poros - Turquia", "Poros"],
       ["Speciality - Índia", "Speciality"],
+      ["Nacional", "Nacional"],
       ["Outro", "Outro"],
     ]);
   });
