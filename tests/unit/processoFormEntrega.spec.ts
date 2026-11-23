@@ -227,7 +227,8 @@ describe("edição: Salvar abre o modal só na transição para Entregue", () =>
     confirmarBtn().click();
     await esperar();
     expect(saida.update).toHaveLength(1);
-    expect(saida.update[0]![1]).toEqual({ status: "entregue", parcial: true }); // a data não mudou: o servidor usa a gravada
+    // a data não mudou (o servidor usa a gravada); o fixture é Air Cargo + AJC, então o padrão do pagamento da transportadora entra
+    expect(saida.update[0]![1]).toEqual({ status: "entregue", pagamentoTransportadora: "pendente", parcial: true });
   });
 
   it("status original já Entregue: o Salvar NÃO abre o modal (com ou sem data de entrega gravada)", async () => {

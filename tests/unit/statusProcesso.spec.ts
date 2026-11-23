@@ -259,6 +259,8 @@ describe("formulário", () => {
       localEntrega: "",
       numeroProcesso: "",
       statusPagamento: "",
+      pagamentoTransportadora: "",
+      dirProtocolo: "",
     } satisfies ProcessoFormState;
     const p = buildBasePayload(form, [], [], "");
     expect(p.status).toBe("em_transito");

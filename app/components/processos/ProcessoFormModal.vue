@@ -81,6 +81,13 @@ const {
   onMedicamentoLaboratorioBlur,
   onMedicamentoBrandChange,
   onDataFieldChange,
+  mostrarPagamentoTransportadora,
+  pagamentoTransportadoraOptions,
+  mostrarDirProtocolo,
+  dirProtocoloRotulo,
+  dirProtocoloOptions,
+  onStatusChange,
+  garantirPadroesEntrega,
   precisaConfirmarEntrega,
   dataEntregaParaConfirmar,
   definirDataEntrega,
@@ -110,6 +117,9 @@ function handleSubmit(): void {
 
 // Valida e envia. `entregaConfirmada`: a data de entrega já foi confirmada no modal (não pergunta de novo).
 function enviar(entregaConfirmada: boolean): void {
+  // Transição para Entregue: os controles que se aplicam e seguem vazios ganham o padrão (o servidor faria o mesmo), para o
+  // que é enviado ser o que a tela mostra.
+  if (!entregaConfirmada && precisaConfirmarEntrega()) garantirPadroesEntrega();
   if (props.editingProcesso) {
     // Edição: só vai o que o usuário alterou (patch diferencial, ver montarPatchDiferencial).
     const edicao = validarEdicao();
@@ -355,7 +365,7 @@ function aoCancelarEntrega(): void {
           <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             <div :class="SELECT_CAMPO_CLASS">
               <label for="pf-status" :class="LABEL_CLASS">Status</label>
-              <AppSelect id="pf-status" v-model="form.status" :options="STATUS_OPTIONS" />
+              <AppSelect id="pf-status" :model-value="form.status" :options="STATUS_OPTIONS" @update:model-value="onStatusChange" />
             </div>
             <div :class="SELECT_CAMPO_CLASS">
               <label for="pf-status-pagamento" :class="LABEL_CLASS">Pagamento</label>
@@ -397,6 +407,18 @@ function aoCancelarEntrega(): void {
                 <label for="pf-despachante" :class="LABEL_CLASS">Despachante</label>
                 <AppSelect id="pf-despachante" v-model="form.despachante" :options="DESPACHANTE_OPTIONS" />
               </div>
+              <!-- DIR e Protocolo: só com status Entregue e envio Courier. DEPOIS do Despachante no DOM: no Courier Simples
+                   (sem Despachante) cai à direita do Nº AWB; no Courier Formal, na linha de baixo (o Despachante não se mexe).
+                   Sem col-span nem largura própria, como o AWB. -->
+              <div v-if="mostrarDirProtocolo" :class="SELECT_CAMPO_CLASS">
+                <label for="pf-dir-protocolo" :class="LABEL_CLASS">{{ dirProtocoloRotulo }}</label>
+                <AppSelect
+                  id="pf-dir-protocolo"
+                  v-model="form.dirProtocolo"
+                  :options="dirProtocoloOptions"
+                  aria-label="DIR e Protocolo"
+                />
+              </div>
             </div>
           </fieldset>
 
@@ -420,6 +442,17 @@ function aoCancelarEntrega(): void {
                   step="0.01"
                   min="0"
                   :class="INPUT_MONO_CLASS"
+                />
+              </div>
+              <!-- Pagamento da TRANSPORTADORA (não confundir com o Pagamento do fornecedor): só com status Entregue, envio que
+                   mostra a transportadora e nome AJC ou Doctor. 4º item da grade (quebra para a linha de baixo, 1 coluna). -->
+              <div v-if="mostrarPagamentoTransportadora" :class="SELECT_CAMPO_CLASS">
+                <label for="pf-transp-pagamento" :class="LABEL_CLASS">Pagamento</label>
+                <AppSelect
+                  id="pf-transp-pagamento"
+                  v-model="form.pagamentoTransportadora"
+                  :options="pagamentoTransportadoraOptions"
+                  aria-label="Pagamento da transportadora"
                 />
               </div>
             </div>

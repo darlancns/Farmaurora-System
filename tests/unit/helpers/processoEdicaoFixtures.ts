@@ -88,6 +88,8 @@ export function formCompleto(): ProcessoFormState {
     localEntrega: "Clínica X",
     numeroProcesso: "123456",
     statusPagamento: "pendente",
+    pagamentoTransportadora: "",
+    dirProtocolo: "",
   };
 }
 

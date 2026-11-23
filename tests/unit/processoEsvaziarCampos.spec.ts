@@ -149,10 +149,18 @@ describe("esvaziar na edição persiste como NULL no banco", () => {
   });
 
   it("todos os campos limpáveis esvaziados de uma vez vão como null no corpo", () => {
+    // Estado inicial com os dois controles do Entregue preenchidos (o formulário os conhece desde a etapa 4).
+    const inicial = estadoCompleto();
+    inicial.form.pagamentoTransportadora = "pendente";
+    inicial.form.dirProtocolo = "dir_no_drive";
     const patch = montarPatchDiferencial(
-      estadoCompleto(),
+      inicial,
       editado((e) => {
+        e.form.pagamentoTransportadora = "pendente";
+        e.form.dirProtocolo = "dir_no_drive";
         Object.assign(e.form, {
+          pagamentoTransportadora: "",
+          dirProtocolo: "",
           numeroPo: "",
           responsavelOperacional: "",
           despachante: "",
@@ -169,11 +177,7 @@ describe("esvaziar na edição persiste como NULL no banco", () => {
     );
     const naRede = JSON.parse(JSON.stringify(patch)) as Record<string, unknown>;
 
-    // Pagamento da transportadora e DIR e Protocolo (regra do Entregue) já são limpáveis no servidor, mas só entram no
-    // formulário na etapa 4: até lá o patch do formulário não os conhece. Quem os cobre é entregaServidor.spec.ts.
-    const aindaForaDoFormulario = new Set<string>(["pagamentoTransportadora", "dirProtocolo"]);
     for (const campo of CAMPOS_PROCESSO_LIMPAVEIS) {
-      if (aindaForaDoFormulario.has(campo)) continue;
       expect(campo in naRede, campo).toBe(true);
       expect(naRede[campo], campo).toBeNull();
     }

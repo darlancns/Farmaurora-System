@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { hojeBrasilia } from "#shared/utils/dataBrasilia";
 import type { DataField, FormState } from "../../composables/useProcessoForm";
 import { FIELDSET_CLASS, INPUT_DATA_CLASS, LABEL_CLASS, LEGEND_CLASS } from "../../utils/processoFormClasses";
 import AppDatePicker from "../AppDatePicker.vue";
@@ -19,9 +20,12 @@ const emit = defineEmits<{
 // ano mais perto de hoje). Valor antigo "DD/MM" aparece como está até ser editado; texto antigo com anotação ("09/10
 // - agd. análise", "já tem"...) aparece como está, com um pontinho de atenção, e só é trocado depois de confirmar.
 //
-// MS Anexado em ("proximo") e Prazo da ANVISA ("futuro") são colunas `date`: formato "iso" (o campo mostra DD/MM/AAAA
-// e grava "AAAA-MM-DD"). Ficam logo depois do Registro Lpco e LADO A LADO: o MS sempre começa uma linha da grade
-// (col-start-1) nas grades de 2 e 4 colunas; na de 3 (sm) eles já caem juntos depois do Lpco.
+// Data de entrega, MS Anexado em ("proximo") e Prazo da ANVISA ("futuro") são colunas `date`: formato "iso" (o campo mostra
+// DD/MM/AAAA e grava "AAAA-MM-DD"). A Data de entrega vem logo DEPOIS do Registro Lpco (na grade de 4 colunas é o 4º espaço
+// da 2ª linha: Radar | Duimp | Lpco | Data de entrega) e `max` = hoje (entrega não é futura). MS e Prazo vêm depois, LADO A LADO:
+// o MS sempre começa uma linha da grade (col-start-1) nas grades de 2 e 4 colunas; na de 3 (sm) eles já caem juntos.
+const hoje = hojeBrasilia();
+
 const CAMPOS: ReadonlyArray<{
   id: string;
   campo: DataField;
@@ -30,6 +34,8 @@ const CAMPOS: ReadonlyArray<{
   formato?: FormatoData;
   larguraTotal?: boolean;
   classe?: string;
+  // Só até hoje (de Brasília): a data de entrega não pode ser futura.
+  ateHoje?: boolean;
 }> = [
   { id: "pf-data-po", campo: "dataCompraPO", rotulo: "Compra (PO)", sentido: "proximo" },
   { id: "pf-data-embarque", campo: "dataEmbarque", rotulo: "Embarque", sentido: "proximo" },
@@ -38,6 +44,7 @@ const CAMPOS: ReadonlyArray<{
   { id: "pf-radar", campo: "registroRadar", rotulo: "Registro Radar", sentido: "proximo" },
   { id: "pf-duimp", campo: "registroDuimp", rotulo: "Registro Duimp", sentido: "proximo" },
   { id: "pf-lpco", campo: "registroLpco", rotulo: "Registro Lpco", sentido: "proximo" },
+  { id: "pf-data-entrega", campo: "dataEntrega", rotulo: "Data de entrega", sentido: "proximo", formato: "iso", ateHoje: true },
   {
     id: "pf-ms-anexado",
     campo: "msAnexadoEm",
@@ -70,6 +77,7 @@ const CAMPOS: ReadonlyArray<{
           :formato="item.formato ?? 'dd/mm'"
           ano-automatico
           :sentido="item.sentido"
+          :max="item.ateHoje ? hoje : undefined"
           placeholder="DD/MM/AAAA"
           :label="item.rotulo"
           :classe-campo="INPUT_DATA_CLASS"

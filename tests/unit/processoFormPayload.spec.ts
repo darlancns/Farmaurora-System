@@ -45,6 +45,8 @@ function emptyForm(): ProcessoFormState {
     localEntrega: "",
     numeroProcesso: "",
     statusPagamento: "",
+    pagamentoTransportadora: "",
+    dirProtocolo: "",
   };
 }
 
