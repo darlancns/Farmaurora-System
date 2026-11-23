@@ -77,6 +77,16 @@ export type FornecedorProcesso =
 
 export type StatusPagamentoProcesso = "pago" | "pendente";
 
+// Pagamento da TRANSPORTADORA nacional (AJC ou Doctor) de um processo Entregue. Não confundir com StatusPagamentoProcesso (o
+// pagamento ao FORNECEDOR). O valor é o mesmo para as duas transportadoras: o rótulo "AJC pendente" / "Doctor pago" vem do
+// NOME da transportadora. Ver shared/utils/entregaPadroes.ts.
+export type PagamentoTransportadoraProcesso = "pendente" | "pago";
+
+// "DIR e Protocolo" de um processo Entregue com envio Courier. Courier Simples usa pegar_dir_protocolo / dir_no_drive /
+// dir_protocolo; Courier Formal usa SÓ pegar_dir / dir_no_drive (o protocolo vem da AJC). Pendente = pegar_*; concluído =
+// dir_no_drive e dir_protocolo. Ver DIRS_POR_MODAL (shared/constants/processos.ts).
+export type DirProtocoloProcesso = "pegar_dir_protocolo" | "pegar_dir" | "dir_no_drive" | "dir_protocolo";
+
 export interface ProcessoDatas {
   dataCompraPO?: string;
   dataEmbarque?: string;
@@ -87,10 +97,11 @@ export interface ProcessoDatas {
   registroLpco?: string;
   previsaoEntrega?: string;
   supostaEstimativa?: string;
-  // As duas datas do Mandado de Segurança / ANVISA são DATA COMPLETA ("AAAA-MM-DD", colunas `date`), diferente das 9
-  // acima (texto livre "DD/MM", "DD/MM/AAAA" ou com anotação). Ver DATAS_ISO_PROCESSO (shared/constants/processos.ts).
+  // As três datas abaixo são DATA COMPLETA ("AAAA-MM-DD", colunas `date`), diferente das 9 acima (texto livre "DD/MM",
+  // "DD/MM/AAAA" ou com anotação). Ver DATAS_ISO_PROCESSO (shared/constants/processos.ts).
   msAnexadoEm?: string; // dia em que o despachante anexou o Mandado de Segurança
   prazoAnvisa?: string; // prazo que a ANVISA tem para responder
+  dataEntrega?: string; // dia em que o processo foi entregue (nunca futuro; obrigatória ao virar Entregue)
 }
 
 export interface Processo {
@@ -125,6 +136,10 @@ export interface Processo {
   numeroProcesso?: string;
   pendencias: string[];
   statusPagamento?: StatusPagamentoProcesso;
+  // Controles do status Entregue (ver shared/utils/entregaPadroes.ts). Ausentes = não informado; Entregue antigo não os tem.
+  // Sair de Entregue NÃO os limpa. O servidor preenche o padrão ao virar Entregue, só em campo vazio.
+  pagamentoTransportadora?: PagamentoTransportadoraProcesso;
+  dirProtocolo?: DirProtocoloProcesso;
   // true = usuário marcou manualmente o alerta de prazo de fornecedor como
   // resolvido pra este processo, suprimindo a notificação mesmo que o prazo
   // já tenha passado (ver app/utils/prazoFornecedor.ts).
@@ -173,7 +188,9 @@ export type CampoProcessoLimpavel =
   | "numeroAwb"
   | "localEntrega"
   | "numeroProcesso"
-  | "statusPagamento";
+  | "statusPagamento"
+  | "pagamentoTransportadora"
+  | "dirProtocolo";
 
 // Datas do PATCH: cada chave opcional; `null` limpa a coluna. Com `parcial: true` só as chaves PRESENTES
 // são tocadas; sem `parcial` (formato antigo) a chave ausente também limpa.

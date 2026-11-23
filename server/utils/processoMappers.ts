@@ -13,7 +13,7 @@ import type {
   TransportadoraNacional,
   TransportadoraNacionalPatch,
 } from "../../shared/types/processo";
-import { normalizarStatusProcesso } from "../../shared/constants/processos";
+import { isDirProtocolo, isPagamentoTransportadora, normalizarStatusProcesso } from "../../shared/constants/processos";
 import { NUMERO_REMESSA_PADRAO, normalizarNumeroRemessa } from "../../shared/utils/numeroRemessa";
 import { lerMedicamento } from "../../shared/utils/laboratorio";
 import { num } from "./storeKit";
@@ -22,8 +22,8 @@ import { num } from "./storeKit";
 // sem Supabase/rede, testáveis isoladamente (ver tests/unit/processoMappers.spec.ts).
 //
 // Mapeamento:
-//  - `Processo.datas` (objeto parcial de 11 campos) ↔ 11 colunas soltas (9 de texto + 2 `date`: ms_anexado_em e
-//    prazo_anvisa, que gravam NULL quando vazias — `date` não aceita "")
+//  - `Processo.datas` (objeto parcial de 12 campos) ↔ 12 colunas soltas (9 de texto + 3 `date`: ms_anexado_em,
+//    prazo_anvisa e data_entrega, que gravam NULL quando vazias — `date` não aceita "")
 //    (`data_compra_po`, …). Na leitura, `datas` volta como objeto parcial com
 //    só as chaves cujas colunas não são NULL (mantém o formato atual).
 //  - `Processo.transportadoraNacional` (objeto opcional) ↔ 3 colunas soltas.
@@ -77,6 +77,11 @@ export interface FollowUpRow {
   ms_anexado_em?: string | null;
   prazo_anvisa?: string | null;
   alerta_anvisa_ciente_prazo?: string | null;
+  // Regra do status Entregue (migração 20261123120000): `date` (AAAA-MM-DD) e dois textos com CHECK. Opcionais: linhas de antes
+  // (e processos já Entregues) não as trazem / ficam NULL.
+  data_entrega?: string | null;
+  pagamento_transportadora?: string | null;
+  dir_protocolo?: string | null;
   // Instante em que entrou na coluna atual (timestamptz; gatilho follow_up_status_desde, migração 20261118212456). Opcional:
   // linha sem a coluna (ou NULL) vale created_at. Nunca é gravada pelo código (colunasDeDTO não a conhece).
   status_desde?: string | null;
@@ -91,7 +96,7 @@ export interface FollowUpRow {
   updated_at: string;
 }
 
-// As 11 datas do processo: chave do DTO → coluna. As 9 primeiras são texto livre; as 2 últimas, `date` (ISO).
+// As 12 datas do processo: chave do DTO → coluna. As 9 primeiras são texto livre; as 3 últimas, `date` (ISO).
 const COLUNA_DE_DATA: ReadonlyArray<readonly [keyof ProcessoDatas, string]> = [
   ["dataCompraPO", "data_compra_po"],
   ["dataEmbarque", "data_embarque"],
@@ -104,10 +109,11 @@ const COLUNA_DE_DATA: ReadonlyArray<readonly [keyof ProcessoDatas, string]> = [
   ["supostaEstimativa", "suposta_estimativa"],
   ["msAnexadoEm", "ms_anexado_em"],
   ["prazoAnvisa", "prazo_anvisa"],
+  ["dataEntrega", "data_entrega"],
 ];
 
 // Colunas `date`: não aceitam "" — vazio (ou só espaços) vira NULL. O formato já foi validado (erroDatasIso).
-const COLUNAS_DATE = new Set(["ms_anexado_em", "prazo_anvisa"]);
+const COLUNAS_DATE = new Set(["ms_anexado_em", "prazo_anvisa", "data_entrega"]);
 function valorDeData(coluna: string, valor: string | null | undefined): string | null {
   if (valor == null) return null;
   if (COLUNAS_DATE.has(coluna)) return valor.trim() || null;
@@ -149,6 +155,9 @@ export function colunasDeDTO(src: ProcessoPatchDTO, opcoes: { parcial?: boolean 
   if ("localEntrega" in src) col.local_entrega = src.localEntrega ?? null;
   if ("numeroProcesso" in src) col.numero_processo = src.numeroProcesso ?? null;
   if ("statusPagamento" in src) col.status_pagamento = src.statusPagamento ?? null;
+  // Controles do Entregue: vazio/null limpa a coluna. Os valores já foram conferidos (400 no endpoint, nunca 500 da CHECK).
+  if ("pagamentoTransportadora" in src) col.pagamento_transportadora = src.pagamentoTransportadora ?? null;
+  if ("dirProtocolo" in src) col.dir_protocolo = src.dirProtocolo ?? null;
   if ("alertaFornecedorResolvido" in src) {
     col.alerta_fornecedor_resolvido = src.alertaFornecedorResolvido ?? false;
   }
@@ -205,6 +214,7 @@ export function montarProcesso(row: FollowUpRow): Processo {
   if (row.suposta_estimativa != null) datas.supostaEstimativa = row.suposta_estimativa;
   if (row.ms_anexado_em != null) datas.msAnexadoEm = row.ms_anexado_em;
   if (row.prazo_anvisa != null) datas.prazoAnvisa = row.prazo_anvisa;
+  if (row.data_entrega != null) datas.dataEntrega = row.data_entrega;
 
   const processo: Processo = {
     id: row.id,
@@ -238,6 +248,11 @@ export function montarProcesso(row: FollowUpRow): Processo {
   if (row.alerta_fornecedor_resolvido === true) processo.alertaFornecedorResolvido = true;
   if (row.alerta_mandado_resolvido === true) processo.alertaMandadoResolvido = true;
   if (row.alerta_anvisa_ciente_prazo != null) processo.alertaAnvisaCientePrazo = row.alerta_anvisa_ciente_prazo;
+  // Só valores da lista (a CHECK do banco já garante); qualquer outra coisa não deveria existir e vira "não informado".
+  if (isPagamentoTransportadora(row.pagamento_transportadora)) {
+    processo.pagamentoTransportadora = row.pagamento_transportadora;
+  }
+  if (isDirProtocolo(row.dir_protocolo)) processo.dirProtocolo = row.dir_protocolo;
 
   if (row.transportadora_nacional_nome != null) {
     const tn: TransportadoraNacional = { nome: row.transportadora_nacional_nome };

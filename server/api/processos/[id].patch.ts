@@ -1,13 +1,22 @@
 import { defineEventHandler, readBody, getRouterParam, createError } from "h3";
-import { getProcesso, patchProcesso, patchProcessoVersionado } from "../../utils/processosStore";
+import {
+  getProcesso,
+  patchProcesso,
+  patchProcessoComLeitura,
+  patchProcessoVersionado,
+  type ResultadoPatchComLeitura,
+} from "../../utils/processosStore";
 import {
   ciaAereaCanonica,
   erroCamposMedicamento,
   erroModalCiaNoPatch,
   erroNumeroPo,
   erroNumeroRemessa,
+  erroCombinacaoEntrega,
+  erroDataEntregaFutura,
   erroDatasIso,
   erroStatusLegado,
+  erroValoresEntrega,
   isValidProcessoPatch,
   isVersaoValida,
   MENSAGEM_VERSAO_AUSENTE,
@@ -15,11 +24,13 @@ import {
   numeroPoCanonico,
   numeroRemessaCanonico,
   patchExigeVersao,
+  patchTocaControlesEntrega,
   patchTocaModalOuCia,
   pastaCanonica,
 } from "../../utils/processoValidation";
 import { normalizarNumeroPo } from "../../../shared/utils/numeroPo";
 import { assertPodeResolverMandado, patchTocaAlertaMandado } from "../../utils/processoMandadoAuth";
+import { aplicarEntregaNoPatch } from "../../utils/processoEntrega";
 import { avisarConsultorDeItensNovos } from "../../utils/notificacoesProcesso";
 import type { AuthUser } from "../../../shared/types/auth";
 import type { Processo, ProcessoPatchDTO } from "../../../shared/types/processo";
@@ -49,6 +60,12 @@ export default defineEventHandler(async (event): Promise<Processo> => {
   const erroDatas = erroDatasIso(body);
   if (erroDatas) {
     throw createError({ statusCode: 400, statusMessage: erroDatas });
+  }
+
+  // Pagamento da transportadora / DIR e Protocolo fora da lista, ou Data de entrega no futuro: 400 aqui, nunca 500 da CHECK.
+  const erroEntrega = erroValoresEntrega(body) ?? erroDataEntregaFutura(body);
+  if (erroEntrega) {
+    throw createError({ statusCode: 400, statusMessage: erroEntrega });
   }
 
   if (!isValidProcessoPatch(body)) {
@@ -110,6 +127,20 @@ export default defineEventHandler(async (event): Promise<Processo> => {
     }
   }
 
+  // Controles do Entregue × envio/transportadora: só confere se o patch toca o envio ou algum controle, com a combinação
+  // EFETIVA (corpo + valor gravado). Um patch que não mexe nisso nunca valida (dado antigo não impede editar outros campos).
+  if (patchTocaControlesEntrega(body)) {
+    const atual = await linhaArmazenada();
+    const erroCombinacao = erroCombinacaoEntrega(body, {
+      modalEnvio: atual.modalEnvio,
+      transportadoraNome: atual.transportadoraNacional?.nome,
+      dirProtocolo: atual.dirProtocolo,
+    });
+    if (erroCombinacao) {
+      throw createError({ statusCode: 400, statusMessage: erroCombinacao });
+    }
+  }
+
   // `versao` e `parcial` não são colunas: saem do patch antes de gravar.
   const { versao, parcial, ...patch } = body as ProcessoPatchDTO & { versao?: string };
 
@@ -161,6 +192,45 @@ export default defineEventHandler(async (event): Promise<Processo> => {
       atualizacoesAntes: patch.atualizacoes !== undefined ? antes.atualizacoes : undefined,
       atorId: user?.id ?? null,
     });
+  }
+
+  // Status -> Entregue (a linha ainda não estava Entregue): exige a Data de entrega (no corpo ou já gravada) e grava os padrões dos
+  // controles (só campo vazio) no MESMO UPDATE, condicionado ao updated_at lido — ver aplicarEntregaNoPatch.
+  //  - com `versao`: confere que a linha ainda é a que o cliente viu (senão 409) e grava condicionado a ela;
+  //  - sem `versao`: lê, calcula e grava condicionado ao updated_at lido, com até 3 tentativas (patchProcessoComLeitura).
+  // Já Entregue (editar um Entregue, inclusive antigo e sem data) segue o caminho comum abaixo.
+  if (patch.status === "entregue") {
+    const atual = await linhaArmazenada();
+    if (atual.status !== "entregue") {
+      const ehParcial = parcial === true;
+      const concluir = async (resultado: ResultadoPatchComLeitura): Promise<Processo> => {
+        if (resultado.tipo === "nao_encontrado") {
+          throw createError({ statusCode: 404, statusMessage: "Processo não encontrado." });
+        }
+        if (resultado.tipo === "versao_desatualizada") {
+          throw createError({
+            statusCode: 409,
+            statusMessage: "Este processo foi alterado por outra pessoa. Recarregue e tente de novo.",
+          });
+        }
+        if (resultado.tipo === "conflito") {
+          throw createError({
+            statusCode: 409,
+            statusMessage: "Este processo foi alterado por outra pessoa. Tente de novo.",
+          });
+        }
+        await avisarConsultor(resultado.processo);
+        return resultado.processo;
+      };
+      if (versao !== undefined) {
+        if (atual.updatedAt !== versao) return concluir({ tipo: "versao_desatualizada" });
+        const completo = aplicarEntregaNoPatch(patch, atual, ehParcial);
+        return concluir(await patchProcessoVersionado(id, completo, versao, { parcial: ehParcial }));
+      }
+      return concluir(
+        await patchProcessoComLeitura(id, (lido) => aplicarEntregaNoPatch(patch, lido, ehParcial), { parcial: ehParcial }),
+      );
+    }
   }
 
   // Com `versao` (obrigatória quando há `atualizacoes`, `pendencias` ou `medicamentos`; opcional nos demais): grava só

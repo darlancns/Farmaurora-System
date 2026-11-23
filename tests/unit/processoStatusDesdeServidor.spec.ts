@@ -103,7 +103,11 @@ describe("mover (Kanban)", () => {
     expect(agruparPorColuna(depois as never).desembaraco.map((p) => p.id)).toEqual(["a", "b", "mov"]);
 
     h.id = "mov";
-    const entregue = await post(admin, mover, { status: "entregue", versao: (movido as { updatedAt: string }).updatedAt });
+    const entregue = await post(admin, mover, {
+      status: "entregue",
+      versao: (movido as { updatedAt: string }).updatedAt,
+      dataEntrega: "2026-11-17",
+    });
     const depois2 = depois.map((p) => (p.id === "mov" ? { ...p, ...(entregue as object) } : p));
     expect(agruparPorColuna(depois2 as never).entregue.map((p) => p.id)).toEqual(["mov", "e1"]);
   });

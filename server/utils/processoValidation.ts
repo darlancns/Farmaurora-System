@@ -11,8 +11,13 @@ import {
   LIMITE_ATUALIZACAO_DATA,
   LIMITE_ATUALIZACAO_TEXTO,
   LIMITE_ATUALIZACOES_POR_PROCESSO,
+  ROTULOS_DIR_PROTOCOLO,
+  dirsDoModal,
+  isDirProtocolo,
+  isPagamentoTransportadora,
   isStatusProcessoLegado,
   mensagemStatusLegado,
+  precisaDespachanteTransportadora,
   STATUS_PROCESSO_ORDER,
 } from "../../shared/constants/processos";
 import type {
@@ -27,7 +32,8 @@ import type {
 import { NUMERO_PO_ERRO, normalizarNumeroPo, numeroPoValido } from "../../shared/utils/numeroPo";
 import { NUMERO_REMESSA_ERRO, normalizarNumeroRemessa, numeroRemessaValido } from "../../shared/utils/numeroRemessa";
 import { normalizarLaboratorio, tamanhoLaboratorio } from "../../shared/utils/laboratorio";
-import { parseDataISO } from "../../shared/utils/dataBrasilia";
+import { ehDataFutura, parseDataISO } from "../../shared/utils/dataBrasilia";
+import { controleDirDoModal, dirValidoParaModal, transportadoraDoPagamento } from "../../shared/utils/entregaPadroes";
 import { isIdNovoProcessoValido, MENSAGEM_ID_PROCESSO_INVALIDO } from "../../shared/utils/idNovoProcesso";
 
 function isNonEmptyString(value: unknown): value is string {
@@ -188,6 +194,107 @@ export function erroDatasIso(body: unknown): string | null {
     if (typeof valor !== "string") return `${rotulo}: data inválida. Use AAAA-MM-DD.`;
     const texto = valor.trim();
     if (texto !== "" && !parseDataISO(texto)) return `${rotulo}: data inválida ("${texto.slice(0, 20)}"). Use AAAA-MM-DD.`;
+  }
+  return null;
+}
+
+// ── Entrega: Data de entrega, Pagamento da transportadora e DIR e Protocolo ───────────────────────────
+// A Data de entrega é coluna `date` (formato conferido por erroDatasIso); aqui: nunca futura (hoje de Brasília). Os dois controles
+// são texto com CHECK no banco: valor fora da lista, ou combinação inválida com o envio/transportadora, vira 400 com mensagem
+// clara — nunca o 500 da CHECK. A combinação é a EFETIVA (valor do corpo, senão o gravado), como erroModalCiaNoPatch.
+
+export const MENSAGEM_DATA_ENTREGA_FUTURA = "Data de entrega: não pode ser uma data futura.";
+export const ERRO_PAGAMENTO_TRANSPORTADORA = "Pagamento da transportadora inválido. Opções: Pendente ou Pago.";
+export const ERRO_PAGAMENTO_SEM_TRANSPORTADORA =
+  "Pagamento da transportadora só vale com a transportadora AJC ou Doctor (e um envio que use transportadora).";
+export const ERRO_DIR_PROTOCOLO = `DIR e Protocolo inválido. Opções: ${Object.values(ROTULOS_DIR_PROTOCOLO).join(", ")}.`;
+export const ERRO_DIR_SEM_COURIER = "DIR e Protocolo só vale com o envio Courier Simples ou Courier Formal.";
+
+// Valores dos dois controles fora da lista (POST ou PATCH), ou null. Ausente, null e undefined sempre valem (limpar/não tocar).
+export function erroValoresEntrega(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+  const b = body as Record<string, unknown>;
+  const pagamento = b.pagamentoTransportadora;
+  if (pagamento !== undefined && pagamento !== null && !isPagamentoTransportadora(pagamento)) {
+    return ERRO_PAGAMENTO_TRANSPORTADORA;
+  }
+  const dir = b.dirProtocolo;
+  if (dir !== undefined && dir !== null && !isDirProtocolo(dir)) return ERRO_DIR_PROTOCOLO;
+  return null;
+}
+
+// `datas.dataEntrega` do corpo: undefined = chave ausente; null = vazia (limpa); texto = a data, sem espaços nas pontas.
+export function dataEntregaDoCorpo(body: unknown): string | null | undefined {
+  if (!body || typeof body !== "object") return undefined;
+  const datas = (body as Record<string, unknown>).datas;
+  if (!datas || typeof datas !== "object" || Array.isArray(datas)) return undefined;
+  if (!("dataEntrega" in datas)) return undefined;
+  const valor = (datas as Record<string, unknown>).dataEntrega;
+  if (typeof valor !== "string") return null;
+  return valor.trim() === "" ? null : valor.trim();
+}
+
+// Data de entrega no futuro (depois de hoje em Brasília) no corpo (POST ou PATCH), ou null. `erroDatasIso` já barrou formato inválido.
+export function erroDataEntregaFutura(body: unknown, agora: Date = new Date()): string | null {
+  const data = dataEntregaDoCorpo(body);
+  return typeof data === "string" && ehDataFutura(data, agora) ? MENSAGEM_DATA_ENTREGA_FUTURA : null;
+}
+
+// O corpo (POST ou PATCH) mexe no envio ou em algum dos controles? Só então a combinação é conferida (e a linha, lida).
+export function patchTocaControlesEntrega(body: unknown): boolean {
+  if (!body || typeof body !== "object") return false;
+  return "pagamentoTransportadora" in body || "dirProtocolo" in body || "modalEnvio" in body;
+}
+
+// Nome da transportadora EFETIVO: o do corpo, senão o gravado. `transportadoraNacional: null` limpa o nome; objeto com `nome`
+// grava esse nome; objeto sem `nome` só existe no formato `parcial` (mantém o gravado; sem `parcial` o bloco todo é
+// substituído e a ausência do nome o limpa), como colunasDeDTO.
+export function nomeTransportadoraEfetivo(
+  body: Record<string, unknown>,
+  gravado: string | null | undefined,
+  parcial: boolean = body.parcial === true,
+): string | null | undefined {
+  const t = body.transportadoraNacional;
+  if (t === undefined) return gravado;
+  if (t === null || typeof t !== "object") return null;
+  const objeto = t as Record<string, unknown>;
+  if ("nome" in objeto) return typeof objeto.nome === "string" ? objeto.nome : null;
+  return parcial ? gravado : null;
+}
+
+export interface EntregaArmazenada {
+  modalEnvio?: string | null;
+  transportadoraNome?: string | null;
+  dirProtocolo?: string | null;
+}
+
+// Combinação inválida entre os controles e o envio/transportadora EFETIVOS, ou null. `armazenado` = a linha gravada (null no POST).
+//  - Pagamento: só se o corpo o define (não nulo) e a transportadora se aplica (envio mostra a transportadora E nome AJC/Doctor).
+//    Trocar a transportadora/envio com um valor já gravado não dá erro (o dado só fica oculto, nada se apaga).
+//  - DIR: o valor efetivo precisa valer para o envio EFETIVO (Courier Formal rejeita pegar_dir_protocolo e dir_protocolo; Courier
+//    Simples rejeita pegar_dir). Sem Courier, só dá erro se o corpo o define; um valor gravado fica oculto.
+export function erroCombinacaoEntrega(body: unknown, armazenado: EntregaArmazenada | null): string | null {
+  if (!body || typeof body !== "object") return null;
+  const b = body as Record<string, unknown>;
+  const gravado = armazenado ?? {};
+  const modalBruto = "modalEnvio" in b ? b.modalEnvio : gravado.modalEnvio;
+  const modal = typeof modalBruto === "string" ? modalBruto : null;
+
+  if (b.pagamentoTransportadora !== undefined && b.pagamentoTransportadora !== null) {
+    const nome = nomeTransportadoraEfetivo(b, gravado.transportadoraNome);
+    if (!precisaDespachanteTransportadora(modal) || transportadoraDoPagamento(nome) === null) {
+      return ERRO_PAGAMENTO_SEM_TRANSPORTADORA;
+    }
+  }
+
+  const dir = "dirProtocolo" in b ? b.dirProtocolo : gravado.dirProtocolo;
+  if (dir !== undefined && dir !== null) {
+    if (controleDirDoModal(modal) === null) {
+      if (b.dirProtocolo !== undefined && b.dirProtocolo !== null) return ERRO_DIR_SEM_COURIER;
+    } else if (!dirValidoParaModal(modal, dir)) {
+      const opcoes = dirsDoModal(modal).map((v) => ROTULOS_DIR_PROTOCOLO[v]);
+      return `DIR e Protocolo inválido para o envio ${modal}. Opções: ${opcoes.join(", ")}.`;
+    }
   }
   return null;
 }

@@ -169,7 +169,11 @@ describe("esvaziar na edição persiste como NULL no banco", () => {
     );
     const naRede = JSON.parse(JSON.stringify(patch)) as Record<string, unknown>;
 
+    // Pagamento da transportadora e DIR e Protocolo (regra do Entregue) já são limpáveis no servidor, mas só entram no
+    // formulário na etapa 4: até lá o patch do formulário não os conhece. Quem os cobre é entregaServidor.spec.ts.
+    const aindaForaDoFormulario = new Set<string>(["pagamentoTransportadora", "dirProtocolo"]);
     for (const campo of CAMPOS_PROCESSO_LIMPAVEIS) {
+      if (aindaForaDoFormulario.has(campo)) continue;
       expect(campo in naRede, campo).toBe(true);
       expect(naRede[campo], campo).toBeNull();
     }

@@ -140,7 +140,7 @@ describe("sucesso", () => {
       throw new Error("sem rede");
     });
     vi.spyOn(console, "error").mockImplementation(() => {});
-    const res = await chamar(admin, { status: "entregue", versao: VERSAO });
+    const res = await chamar(admin, { status: "entregue", versao: VERSAO, dataEntrega: "2026-11-10" });
     expect(res.status).toBe("entregue");
     expect(noBanco().status).toBe("entregue");
   });
