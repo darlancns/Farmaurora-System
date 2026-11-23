@@ -4,6 +4,8 @@
 // Convenção (a mesma da DIR): no modelo, texto vazio é "" (nunca undefined); no banco é NULL.
 // "Remover" é desativar (`ativo: false`) — não existe exclusão. O NOME não muda depois de criado.
 
+import type { ItemCadastroPagamento } from "./Pagamento";
+
 export type ListaCadastro =
   | "fornecedores"
   | "despachantes"
@@ -30,6 +32,22 @@ export interface Fornecedor extends CadastroBase {
   prazoAlertaDias: number | null;
   /** Marcado de propósito: este fornecedor não gera alerta de prazo. */
   semAlerta: boolean;
+}
+
+/**
+ * O que o Follow-Up (e quem só LÊ os Cadastros) guarda de cada lista: nome, ativo e país (`ItemCadastroPagamento`, o mesmo formato que
+ * Pagamentos usa) e, no fornecedor, o prazo do alerta. NUNCA tem chave PIX (shared/utils/cadastroLeitura.ts).
+ */
+export interface FornecedorLido extends ItemCadastroPagamento {
+  /** Dias corridos a partir da compra, de 1 a 365; null quando `semAlerta`. */
+  prazoAlertaDias: number | null;
+  semAlerta: boolean;
+}
+
+export interface CadastrosFollowUp {
+  fornecedores: FornecedorLido[];
+  despachantes: ItemCadastroPagamento[];
+  transportadoras: ItemCadastroPagamento[];
 }
 
 /**

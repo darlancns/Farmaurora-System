@@ -47,23 +47,41 @@ export function rotulosFornecedoresAtivos(fornecedores: readonly ItemCadastroPag
 }
 
 /**
- * Valores fixos do select de fornecedor (sem o sentinela "Outro"): os rótulos dos ativos e, na edição, o valor gravado
- * quando ele é de um fornecedor que existe no Cadastro como INATIVO (assim ele continua selecionado, não vira "Outro").
+ * Variações do select de fornecedor para quem não é Pagamentos (o Follow-Up). Sem opções (o padrão), nada muda para Pagamentos.
+ * - `extras`: valores FIXOS que ficam depois dos ativos do Cadastro e antes de "Outro" (ex.: "Nacional", que não é um fornecedor do Cadastro);
+ * - `manterGravadoAtivo`: o valor gravado que casa com um fornecedor ATIVO do Cadastro, mas não é o rótulo exato (ex.: legado sem país,
+ *   "Can Pharma" para "Can Pharma - China"), também continua selecionado, COMO ESTÁ GRAVADO, em vez de cair em "Outro". Assim abrir e salvar
+ *   o processo não muda o fornecedor (nada de PATCH falso). Em Pagamentos só o INATIVO é mantido.
  */
-export function fornecedoresFixos(fornecedores: readonly ItemCadastroPagamento[], valorAtual = ""): string[] {
-  const fixos = rotulosFornecedoresAtivos(fornecedores);
+export interface OpcoesFornecedorFixos {
+  extras?: readonly string[];
+  manterGravadoAtivo?: boolean;
+}
+
+/**
+ * Valores fixos do select de fornecedor (sem o sentinela "Outro"): os rótulos dos ativos (+ `extras`) e, na edição, o valor gravado
+ * quando ele é de um fornecedor que existe no Cadastro como INATIVO (assim ele continua selecionado, não vira "Outro"); com
+ * `manterGravadoAtivo`, também quando casa com um ativo por outro texto.
+ */
+export function fornecedoresFixos(
+  fornecedores: readonly ItemCadastroPagamento[],
+  valorAtual = "",
+  opcoes: OpcoesFornecedorFixos = {},
+): string[] {
+  const fixos = [...rotulosFornecedoresAtivos(fornecedores), ...(opcoes.extras ?? [])];
   const atual = valorAtual.trim();
   if (atual === "" || fixos.includes(valorAtual)) return fixos;
   const doCadastro = acharFornecedorPorTexto(fornecedores, atual);
-  return doCadastro && !doCadastro.ativo ? [...fixos, valorAtual] : fixos;
+  return doCadastro && (!doCadastro.ativo || opcoes.manterGravadoAtivo === true) ? [...fixos, valorAtual] : fixos;
 }
 
 /** Select de fornecedor do lançamento: "Selecione" + fixos (ver `fornecedoresFixos`) + "Outro" (texto livre) por último. */
 export function montarOpcoesFornecedor(
   fornecedores: readonly ItemCadastroPagamento[],
   valorAtual = "",
+  opcoes: OpcoesFornecedorFixos = {},
 ): AppSelectOption<string>[] {
-  const fixos = fornecedoresFixos(fornecedores, valorAtual);
+  const fixos = fornecedoresFixos(fornecedores, valorAtual, opcoes);
   return [
     SELECIONE,
     ...fixos.map((valor) => ({
