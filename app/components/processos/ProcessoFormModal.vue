@@ -16,7 +16,6 @@ import ProcessoFormDatas from "./ProcessoFormDatas.vue";
 import ProcessoFormMedicamentos from "./ProcessoFormMedicamentos.vue";
 import ProcessoRemessaStepper from "./ProcessoRemessaStepper.vue";
 import {
-  DESPACHANTE_OPTIONS,
   EMPRESA_OPTIONS,
   MODAL_ENVIO_OPTIONS,
   RESPONSAVEL_OPTIONS,
@@ -43,8 +42,8 @@ const props = defineProps<{
   // Consultores do Cadastro (ativos e inativos): as opções do select são os ativos; o consultor atual do processo aparece
   // mesmo se já estiver inativo ou fora do Cadastro, sem apagar o dado.
   consultores?: ItemConsultor[];
-  // Fornecedores (e, nas próximas etapas, transportadoras e despachantes) dos Cadastros, ativos e inativos: o select de Fornecedor mostra os ativos
-  // + "Nacional" + o valor que o processo já tem gravado, sem apagar nem mudar nada (ver montarFornecedorOptions).
+  // Fornecedores, despachantes e transportadoras dos Cadastros, ativos e inativos: os selects mostram os ativos (Fornecedor ainda com "Nacional" e
+  // "Outro") + o valor que o processo já tem gravado, sem apagar nem mudar nada (ver montarFornecedorOptions, montarDespachanteOptions).
   cadastros?: Partial<CadastrosFollowUp>;
   // Envio em andamento (criar ou salvar): desabilita o botão principal e ignora novos envios (Enter, clique).
   salvando?: boolean;
@@ -71,6 +70,8 @@ const {
   pendencias,
   fornecedor,
   fornecedorOptions,
+  despachanteOptions,
+  transportadoraOptions,
   showDespachanteTransportadora,
   ciaAereaOptions,
   ciaAereaDesabilitada,
@@ -428,7 +429,7 @@ function aoCancelarEntrega(): void {
               </div>
               <div v-if="showDespachanteTransportadora" class="col-span-2 sm:col-span-1" :class="SELECT_CAMPO_CLASS">
                 <label for="pf-despachante" :class="LABEL_CLASS">Despachante</label>
-                <AppSelect id="pf-despachante" v-model="form.despachante" :options="DESPACHANTE_OPTIONS" />
+                <AppSelect id="pf-despachante" v-model="form.despachante" :options="despachanteOptions" />
               </div>
               <!-- DIR e Protocolo: só com status Entregue e envio Courier. DEPOIS do Despachante no DOM: no Courier Simples
                    (sem Despachante) cai à direita do Nº AWB; no Courier Formal fica na terceira coluna da linha do AWB/Despachante
@@ -455,9 +456,9 @@ function aoCancelarEntrega(): void {
               class="grid grid-cols-2 gap-2.5 sm:grid-cols-3"
               :class="mostrarPagamentoTransportadora ? 'lg:grid-cols-4' : undefined"
             >
-              <div class="col-span-2 sm:col-span-1">
+              <div class="col-span-2 sm:col-span-1" :class="SELECT_CAMPO_CLASS">
                 <label for="pf-transp-nome" :class="LABEL_CLASS">Nome</label>
-                <input id="pf-transp-nome" v-model="form.transportadoraNome" type="text" :class="INPUT_CLASS" />
+                <AppSelect id="pf-transp-nome" v-model="form.transportadoraNome" :options="transportadoraOptions" />
               </div>
               <div>
                 <label for="pf-transp-cotacao" :class="LABEL_CLASS">Cotação</label>

@@ -2,7 +2,6 @@ import type {
   BrandMedicamento,
   CampoProcessoLimpavel,
   ProcessoDatas,
-  DespachanteProcesso,
   DirProtocoloProcesso,
   EmpresaProcesso,
   ModalEnvio,
@@ -111,9 +110,6 @@ export function dirsDoModal(modal: string | null | undefined): readonly DirProto
   if (typeof modal !== "string" || !Object.prototype.hasOwnProperty.call(DIRS_POR_MODAL, modal)) return [];
   return DIRS_POR_MODAL[modal as keyof typeof DIRS_POR_MODAL];
 }
-
-// Ordem alfabética.
-export const DESPACHANTES_PROCESSO: DespachanteProcesso[] = ["Andreza Faconi", "Bruno Lopes", "Marcelo Lima"];
 
 // "Nacional" = compra feita no Brasil. NÃO é um fornecedor do Cadastro: é uma opção FIXA do select de Fornecedor do Follow-Up (depois dos
 // fornecedores do Cadastro e antes de "Outro") e NUNCA gera alerta de prazo (app/utils/prazoFornecedor.ts). A lista de fornecedores do

@@ -5,6 +5,7 @@ import type { NewProcessoDTO, Processo, ProcessoFormPatchPayload } from "#shared
 import ProcessoFormModal from "../../app/components/processos/ProcessoFormModal.vue";
 import { controleEntregaAplicavel } from "../../app/utils/processoFormPayload";
 import { montarProcesso, type FollowUpRow } from "../../server/utils/processoMappers";
+import { CADASTROS_FOLLOWUP_FIXTURE } from "./helpers/cadastrosFollowUpFixtures";
 import { CONSULTORES_FIXTURE } from "./helpers/consultoresFixtures";
 import { linhaCompleta } from "./helpers/processoEdicaoFixtures";
 
@@ -54,6 +55,7 @@ function abrir(editando: Processo | null): void {
         h(ProcessoFormModal, {
           editingProcesso: editando,
           consultores: CONSULTORES_FIXTURE,
+          cadastros: CADASTROS_FOLLOWUP_FIXTURE,
           onSubmit: (p: NewProcessoDTO) => saida.submit.push(p),
           onUpdate: (id: string, p: ProcessoFormPatchPayload) => saida.update.push([id, p]),
         }),
@@ -176,20 +178,28 @@ describe("visibilidade dos selects", () => {
     expect(existe("pf-dir-protocolo")).toBe(false);
   });
 
-  it("o Pagamento aparece/some conforme o NOME digitado (AJC, Doctor, 'Ajc Transportes', outro)", async () => {
+  it("o Pagamento aparece/some conforme a transportadora ESCOLHIDA no select do Cadastro (AJC, Doctor, outra)", async () => {
     abrir(processo({ status: "entregue", modal_envio: "Air Cargo", transportadora_nacional_nome: "Braspress" }));
     await esperar();
-    expect(existe("pf-transp-pagamento")).toBe(false);
-    digitar("pf-transp-nome", "Ajc Transportes");
+    expect(existe("pf-transp-pagamento")).toBe(false); // 'Braspress' (legado, fora do Cadastro) não é AJC nem Doctor
+    await escolher("pf-transp-nome", "AJC");
     await esperar();
     expect(existe("pf-transp-pagamento")).toBe(true);
     expect(await opcoes("pf-transp-pagamento")).toEqual(["—", "AJC pendente", "AJC pago"]);
-    digitar("pf-transp-nome", "doctor");
+    await escolher("pf-transp-nome", "Doctor");
     await esperar();
     expect(await opcoes("pf-transp-pagamento")).toEqual(["—", "Doctor pendente", "Doctor pago"]);
-    digitar("pf-transp-nome", "Outra");
+    await escolher("pf-transp-nome", "TESTE Transportadora Beta");
     await esperar();
     expect(existe("pf-transp-pagamento")).toBe(false);
+  });
+
+  it("transportadora GRAVADA antes do Cadastro ('Ajc Transportes'): aparece como está e o Pagamento aparece (a regra casa AJC pela palavra)", async () => {
+    abrir(processo({ status: "entregue", modal_envio: "Air Cargo", transportadora_nacional_nome: "Ajc Transportes" }));
+    await esperar();
+    expect(texto($("#pf-transp-nome"))).toBe("Ajc Transportes");
+    expect(existe("pf-transp-pagamento")).toBe(true);
+    expect(await opcoes("pf-transp-pagamento")).toEqual(["—", "AJC pendente", "AJC pago"]);
   });
 
   it("escolher o status no select mostra/esconde os selects na hora", async () => {
@@ -373,7 +383,7 @@ describe("trocar o envio Courier Simples <-> Formal mapeia o DIR salvo", () => {
     abrir(processo({ status: "entregue", modal_envio: "Air Cargo", transportadora_nacional_nome: "AJC", pagamento_transportadora: "pago" }));
     await esperar();
     expect(texto($("#pf-transp-pagamento"))).toContain("AJC pago");
-    digitar("pf-transp-nome", "Doctor");
+    await escolher("pf-transp-nome", "Doctor");
     await esperar();
     expect(texto($("#pf-transp-pagamento"))).toContain("Doctor pago");
     salvar();
@@ -424,11 +434,11 @@ describe("payload diferencial dos controles", () => {
     // pagamento gravado, transportadora trocada para outra: o pagamento não vai
     abrir(processo({ status: "entregue", modal_envio: "Air Cargo", transportadora_nacional_nome: "AJC", pagamento_transportadora: "pago" }));
     await esperar();
-    digitar("pf-transp-nome", "Braspress");
+    await escolher("pf-transp-nome", "TESTE Transportadora Beta");
     await esperar();
     salvar();
     await esperar();
-    expect(saida.update[0]![1]).toEqual({ transportadoraNacional: { nome: "Braspress" }, parcial: true });
+    expect(saida.update[0]![1]).toEqual({ transportadoraNacional: { nome: "TESTE Transportadora Beta" }, parcial: true });
   });
 
   it("padrão posto na tela e depois INAPLICÁVEL (envio ou transportadora trocados): o valor mudado não vai (senão 400)", async () => {
@@ -450,7 +460,7 @@ describe("payload diferencial dos controles", () => {
     abrir(processo({ status: "liberado", modal_envio: "Air Cargo", transportadora_nacional_nome: "AJC" }));
     await esperar();
     await escolher("pf-status", "Entregue");
-    digitar("pf-transp-nome", "Braspress");
+    await escolher("pf-transp-nome", "TESTE Transportadora Beta");
     await esperar();
     await salvarEConfirmarEntrega();
     expect(nafio(saida.update[0]![1])).not.toHaveProperty("pagamentoTransportadora");
@@ -472,11 +482,8 @@ describe("criação", () => {
     await nextTick();
     await escolher("pf-consultor", "Dani");
     await escolher("pf-modal", envio);
-    if (envio !== SIMPLES) await escolher("pf-despachante", "Marcelo Lima"); // Air Cargo e Formal exigem o Despachante
-    if (transportadora) {
-      digitar("pf-transp-nome", transportadora);
-      await nextTick();
-    }
+    if (envio !== SIMPLES) await escolher("pf-despachante", "STAR CUSTOMS"); // Air Cargo e Formal exigem o Despachante
+    if (transportadora) await escolher("pf-transp-nome", transportadora);
     await escolher("pf-status", status);
   }
 

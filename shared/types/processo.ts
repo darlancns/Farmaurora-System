@@ -44,11 +44,6 @@ export type EmpresaProcesso = "FARMAURORA" | "MAINZFARMA";
 // Processo.modalEnvio mais abaixo.
 export type ModalEnvio = "Air Cargo" | "Courier Formal" | "Courier Simples";
 
-// Idem: tipo usado só pras opções do select de Despachante. Processo.despachante
-// continua string livre pra não travar em registros com valor legado que não bate
-// com nenhum dos 3 nomes confirmados (ex.: "Marcelo Lopes", "Marcelo" sem sobrenome).
-export type DespachanteProcesso = "Andreza Faconi" | "Bruno Lopes" | "Marcelo Lima";
-
 // Idem: tipo usado só pras opções do select de Fornecedor. "Outro" é o valor
 // sentinela do select quando o usuário escolhe digitar um fornecedor fora da
 // lista fixa — o que é salvo em Processo.fornecedor nesse caso é o texto
@@ -102,7 +97,7 @@ export interface Processo {
   empresa: EmpresaProcesso;
   consultor: string;
   responsavelOperacional?: string; // Bruno, Rebeca
-  despachante?: string; // um dos DespachanteProcesso, ou valor legado não migrado (ver tipo)
+  despachante?: string; // a EMPRESA do Cadastro de despachantes (texto), ou o valor gravado antes dele (nome de pessoa, legado)
   fornecedor?: string; // um dos FornecedorProcesso, texto livre quando "Outro", ou valor legado
   transportadoraNacional?: TransportadoraNacional;
   // string livre (não ModalEnvio) pelo mesmo motivo de despachante/fornecedor:

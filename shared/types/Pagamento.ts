@@ -22,8 +22,7 @@ export type FornecedorPagamento =
   | "Speciality - Índia"
   | "Outro";
 
-// Mesmos despachantes do campo Despachante do Follow-Up (DespachanteProcesso em
-// shared/types/processo.ts), replicados aqui como tipo independente.
+// Os 3 despachantes (pessoas) que Pagamentos usava antes dos Cadastros, como tipo independente. A remover na etapa 3.
 export type DespachantePagamento = "Andreza Faconi" | "Bruno Lopes" | "Marcelo Lima";
 
 // Transportadoras disponíveis na aba Transportes.

@@ -37,7 +37,14 @@ import {
 } from "../utils/processoFormPayload";
 import { useOutroSentinel } from "./useOutroSentinel";
 import { useTitleCaseInput } from "./useTitleCaseInput";
-import { fornecedoresFixosDoProcesso, montarCiaAereaOptions, montarFornecedorOptions, STATUS_OPTIONS } from "../utils/processoOptions";
+import {
+  fornecedoresFixosDoProcesso,
+  montarCiaAereaOptions,
+  montarDespachanteOptions,
+  montarFornecedorOptions,
+  montarTransportadoraOptions,
+  STATUS_OPTIONS,
+} from "../utils/processoOptions";
 import type { AppSelectOption } from "../types/appSelect";
 
 // Extraído de ProcessoFormModal.vue (Round 9, Parte 2) — todo o estado do
@@ -162,6 +169,9 @@ export interface UseProcessoFormReturn {
   fornecedor: ReturnType<typeof useOutroSentinel>;
   // Opções do select de Fornecedor (Cadastro + "Nacional" + o valor gravado + "Outro"): ver montarFornecedorOptions.
   fornecedorOptions: ComputedRef<AppSelectOption<string>[]>;
+  // Despachante e Transportadora nacional pelo Cadastro (ativos + o valor gravado, sem "Outro"): ver montarDespachanteOptions.
+  despachanteOptions: ComputedRef<AppSelectOption<string>[]>;
+  transportadoraOptions: ComputedRef<AppSelectOption<string>[]>;
   showDespachanteTransportadora: ComputedRef<boolean>;
   // Cia. aérea depende do modal: opções, desabilitado sem modal e limpeza automática ao trocar o modal.
   ciaAereaOptions: ComputedRef<AppSelectOption<string>[]>;
@@ -213,6 +223,11 @@ export function useProcessoForm(
   const fornecedoresFixosDoForm = computed(() => fornecedoresFixosDoProcesso(fornecedoresDoCadastro(), fornecedorGravado.value));
   const fornecedorOptions = computed(() => montarFornecedorOptions(fornecedoresDoCadastro(), fornecedorGravado.value));
   const fornecedor = useOutroSentinel(() => fornecedoresFixosDoForm.value);
+  // Despachante e Transportadora: o valor que o processo aberto tem GRAVADO ("" num processo novo) entra nas opções quando não é um ativo do Cadastro.
+  const despachanteGravado = ref("");
+  const transportadoraGravada = ref("");
+  const despachanteOptions = computed(() => montarDespachanteOptions(cadastros()?.despachantes ?? [], despachanteGravado.value));
+  const transportadoraOptions = computed(() => montarTransportadoraOptions(cadastros()?.transportadoras ?? [], transportadoraGravada.value));
   // A lista do Cadastro pode chegar DEPOIS de o formulário abrir: o valor gravado que caiu no "Outro" por ela ainda estar vazia volta a ser
   // a opção que ele é. Só se a pessoa ainda não mexeu no campo (o texto montado é o gravado); o que será enviado não muda (nada de PATCH falso).
   watch(fornecedoresFixosDoForm, () => {
@@ -338,6 +353,8 @@ export function useProcessoForm(
     medicamentos.splice(0, medicamentos.length, emptyMedicamento());
     pendencias.splice(0, pendencias.length);
     fornecedorGravado.value = "";
+    despachanteGravado.value = "";
+    transportadoraGravada.value = "";
     fornecedor.load(undefined);
     inicial = null;
     versaoAbertura = undefined;
@@ -354,6 +371,8 @@ export function useProcessoForm(
     form.consultor = processo.consultor;
     form.responsavelOperacional = processo.responsavelOperacional ?? "";
     form.despachante = processo.despachante ?? "";
+    despachanteGravado.value = processo.despachante ?? "";
+    transportadoraGravada.value = processo.transportadoraNacional?.nome ?? "";
     fornecedorGravado.value = processo.fornecedor ?? "";
     fornecedor.load(processo.fornecedor);
     form.transportadoraNome = processo.transportadoraNacional?.nome ?? "";
@@ -535,6 +554,8 @@ export function useProcessoForm(
     pendencias,
     fornecedor,
     fornecedorOptions,
+    despachanteOptions,
+    transportadoraOptions,
     showDespachanteTransportadora,
     ciaAereaOptions,
     ciaAereaDesabilitada,

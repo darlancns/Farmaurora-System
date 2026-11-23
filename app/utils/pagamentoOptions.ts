@@ -31,14 +31,21 @@ const SELECIONE: AppSelectOption<string> = { value: "", label: "Selecione" };
  * opção extra, como está gravado ("(inativo)" só quando o item existe no Cadastro como inativo): continua visível e
  * selecionado, nunca vira vazio.
  */
-export function montarOpcoesNome(itens: readonly ItemCadastroPagamento[], valorAtual = ""): AppSelectOption<string>[] {
+export function montarOpcoesNome(
+  itens: readonly ItemCadastroPagamento[],
+  valorAtual = "",
+  // `gravadoExato` (o Follow-Up): o valor gravado entra como opção sempre que NÃO é EXATAMENTE o nome de um ativo. Sem isso (Pagamentos), um
+  // gravado que só casa por chaveCadastro ("ajc" para "AJC") não vira opção, e o select do Follow-Up ficaria sem nada selecionado.
+  opcoes: { gravadoExato?: boolean } = {},
+): AppSelectOption<string>[] {
   const ativos = itensAtivos(itens);
-  const opcoes: AppSelectOption<string>[] = [SELECIONE, ...ativos.map((i) => ({ value: i.nome, label: i.nome }))];
+  const resultado: AppSelectOption<string>[] = [SELECIONE, ...ativos.map((i) => ({ value: i.nome, label: i.nome }))];
   const atual = valorAtual.trim();
-  if (atual !== "" && !acharItemPorNome(ativos, atual)) {
-    opcoes.push({ value: valorAtual, label: rotuloValorGravado(valorAtual, acharItemPorNome(itens, atual)) });
+  const jaEhOpcao = opcoes.gravadoExato === true ? ativos.some((i) => i.nome === valorAtual) : acharItemPorNome(ativos, atual) !== undefined;
+  if (atual !== "" && !jaEhOpcao) {
+    resultado.push({ value: valorAtual, label: rotuloValorGravado(valorAtual, acharItemPorNome(itens, atual)) });
   }
-  return opcoes;
+  return resultado;
 }
 
 /** Os rótulos "Nome - País" dos fornecedores ATIVOS (o que se grava no lançamento), na ordem do Cadastro. */

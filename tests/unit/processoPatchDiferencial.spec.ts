@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Processo } from "#shared/types/processo";
 import { useProcessoForm } from "../../app/composables/useProcessoForm";
 import { montarPatchDiferencial, type EstadoEdicao } from "../../app/utils/processoFormPayload";
-import { DESPACHANTE_OPTIONS, MODAL_ENVIO_OPTIONS } from "../../app/utils/processoOptions";
+import { MODAL_ENVIO_OPTIONS } from "../../app/utils/processoOptions";
 import { colunasDeDTO, montarProcesso, type FollowUpRow } from "../../server/utils/processoMappers";
 import { FakeSupabase } from "./helpers/fakeSupabase";
 import {
@@ -108,10 +108,10 @@ describe("ida e volta: abrir e salvar sem alterar não envia nada", () => {
     if (r.valido) expect(r.patch).toBeNull();
   });
 
-  it("valores fora das listas continuam no estado do formulário (o select só mostra 'Selecione')", () => {
+  it("valores fora das listas continuam no estado do formulário (o despachante e a transportadora gravados aparecem como estão no select)", () => {
     const desp = abrir({ despachante: "Andreza Bernardes" });
-    expect(DESPACHANTE_OPTIONS.map((o) => o.value)).not.toContain("Andreza Bernardes");
     expect(desp.form.despachante).toBe("Andreza Bernardes");
+    expect(desp.despachanteOptions.value.map((o) => o.value)).toEqual(["", "Andreza Bernardes"]); // sem Cadastro carregado: só o gravado
 
     const modal = abrir({ modal_envio: "Courier" });
     expect(MODAL_ENVIO_OPTIONS.map((o) => o.value)).not.toContain("Courier");

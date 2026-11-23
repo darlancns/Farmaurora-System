@@ -46,9 +46,7 @@ export const FORNECEDORES_PAGAMENTO: FornecedorPagamento[] = [
   "Outro",
 ];
 
-// Mesma lista do campo Despachante do Follow-Up (DESPACHANTES_PROCESSO em
-// shared/constants/processos.ts), replicada aqui — Pagamento não importa nada de
-// Processo. Ordem alfabética. a remover na etapa 3.
+// Lista antiga de despachantes (pessoas) de Pagamentos, de antes dos Cadastros. Ordem alfabética. a remover na etapa 3.
 export const DESPACHANTES_PAGAMENTO: DespachantePagamento[] = [
   "Andreza Faconi",
   "Bruno Lopes",

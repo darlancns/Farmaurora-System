@@ -27,7 +27,7 @@ const item = (nome: string, ativo = true): ItemCadastroPagamento => ({ nome, ati
 
 export const DESPACHANTES_FIXTURE: ItemCadastroPagamento[] = [item("STAR CUSTOMS"), item("SOUTH AMERICA"), item("TESTE Despachante Antigo", false)];
 
-export const TRANSPORTADORAS_FIXTURE: ItemCadastroPagamento[] = [item("AJC"), item("Doctor"), item("TESTE Transportadora Antiga", false)];
+export const TRANSPORTADORAS_FIXTURE: ItemCadastroPagamento[] = [item("AJC"), item("Doctor"), item("TESTE Transportadora Beta"), item("TESTE Transportadora Antiga", false)];
 
 export const CADASTROS_FOLLOWUP_FIXTURE: CadastrosFollowUp = {
   fornecedores: FORNECEDORES_FIXTURE,

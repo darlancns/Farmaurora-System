@@ -1,7 +1,6 @@
 import {
   BRANDS_MEDICAMENTO,
   ciasAereasDoModal,
-  DESPACHANTES_PROCESSO,
   EMPRESAS_PROCESSO,
   FORNECEDOR_NACIONAL,
   MODAIS_ENVIO,
@@ -12,12 +11,11 @@ import {
 } from "#shared/constants/processos";
 import type { ItemCadastroPagamento } from "#shared/types/Pagamento";
 import { STATUS_PROCESSO_META } from "./processoStatus";
-import { fornecedoresFixos, montarOpcoesFornecedor, type OpcoesFornecedorFixos } from "./pagamentoOptions";
+import { fornecedoresFixos, montarOpcoesFornecedor, montarOpcoesNome, type OpcoesFornecedorFixos } from "./pagamentoOptions";
 import type { FiltroCotacao, FiltroMandado } from "./processoListas";
 import type { AppSelectOption } from "../types/appSelect";
 import type {
   BrandMedicamento,
-  DespachanteProcesso,
   EmpresaProcesso,
   ModalEnvio,
   StatusPagamentoProcesso,
@@ -64,10 +62,19 @@ export function montarCiaAereaOptions(modal: string, atual: string): AppSelectOp
   return opcoes;
 }
 
-export const DESPACHANTE_OPTIONS: AppSelectOption<DespachanteProcesso | "">[] = [
-  { value: "", label: "Selecione" },
-  ...DESPACHANTES_PROCESSO.map((nome) => ({ value: nome, label: nome })),
-];
+// Despachante e Transportadora nacional do formulário do Follow-Up: "Selecione" + os ATIVOS do Cadastro (a EMPRESA: STAR CUSTOMS, SOUTH
+// AMERICA...; AJC, Doctor...), SEM "Outro". Só um ativo pode ser escolhido como valor NOVO. O valor que o processo já tem gravado e que não é
+// um deles (nome de pessoa antigo, transportadora que não está no Cadastro) continua aparecendo COMO ESTÁ GRAVADO, sem sufixo, selecionado
+// até a pessoa trocar ("(inativo)" só para o que existe no Cadastro como inativo): abrir e salvar não muda nada (nada de PATCH falso). O valor
+// segue sendo o TEXTO do nome (transportadoraNacional.nome / despachante): entregaPadroes.ts casa AJC/Doctor por ele. Reaproveita
+// montarOpcoesNome de Pagamentos (pagamentoOptions.ts).
+export function montarDespachanteOptions(despachantes: readonly ItemCadastroPagamento[], atual: string): AppSelectOption<string>[] {
+  return montarOpcoesNome(despachantes, atual, { gravadoExato: true });
+}
+
+export function montarTransportadoraOptions(transportadoras: readonly ItemCadastroPagamento[], atual: string): AppSelectOption<string>[] {
+  return montarOpcoesNome(transportadoras, atual, { gravadoExato: true });
+}
 
 // Fornecedor do formulário do Follow-Up: "Selecione" + os fornecedores ATIVOS do Cadastro em "Nome - País" + "Nacional" (fixo, não é do
 // Cadastro) + "Outro" (texto livre, como sempre). Só um ativo pode ser escolhido como valor NOVO. O valor que o processo já tem gravado e
