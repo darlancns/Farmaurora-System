@@ -557,3 +557,90 @@ describe("ordem no DOM e regras do formulário (incidente da Etapa D)", () => {
     ]);
   });
 });
+
+// Correção de layout: Pagamento na linha dos 4 campos da Transportadora e DIR na linha do AWB/Despachante (Courier Formal), só
+// em lg+. O happy-dom não calcula layout: aqui ficam as CLASSES da grade (a geometria foi conferida no navegador, Playwright).
+describe("layout das grades (lg+): Pagamento na linha da Transportadora e DIR na linha do AWB/Despachante", () => {
+  const classes = (el: Element | null) => (el?.getAttribute("class") ?? "").split(/\s+/).filter(Boolean);
+  const gradeTransp = () => $("#pf-transp-nome")!.closest("fieldset")!.querySelector("div.grid")!;
+  const gradeEnvio = () => $("#pf-awb")!.closest("fieldset")!.querySelector("div.grid")!;
+  const AJC = { transportadora_nacional_nome: "AJC", companhia_aerea: "DHL" };
+
+  it("Transportadora: com o Pagamento visível a grade ganha lg:grid-cols-4 (e só isso a mais)", async () => {
+    abrir(processo({ status: "entregue", modal_envio: "Air Cargo", transportadora_nacional_nome: "AJC" }));
+    await esperar();
+    expect(classes(gradeTransp())).toEqual(["grid", "grid-cols-2", "gap-2.5", "sm:grid-cols-3", "lg:grid-cols-4"]);
+  });
+
+  it("Transportadora: SEM o Pagamento (outro status, outra transportadora, Entregue antigo sem controle visível) as classes são EXATAMENTE as de antes", async () => {
+    const de_antes = ["grid", "grid-cols-2", "gap-2.5", "sm:grid-cols-3"];
+    abrir(processo({ status: "liberado", modal_envio: "Air Cargo", transportadora_nacional_nome: "AJC" }));
+    await esperar();
+    expect(classes(gradeTransp())).toEqual(de_antes);
+    app!.unmount();
+    raiz!.remove();
+    abrir(processo({ status: "entregue", modal_envio: "Air Cargo", transportadora_nacional_nome: "Braspress" }));
+    await esperar();
+    expect(classes(gradeTransp())).toEqual(de_antes);
+  });
+
+  it("Transportadora: o Pagamento é o 4º filho da grade, depois de Nome, Cotação e Valor, sem classe de largura/col-span", async () => {
+    abrir(processo({ status: "entregue", modal_envio: "Air Cargo", transportadora_nacional_nome: "AJC" }));
+    await esperar();
+    expect([...gradeTransp().children].map((c) => c.querySelector("[id]")?.id)).toEqual([
+      "pf-transp-nome",
+      "pf-transp-cotacao",
+      "pf-transp-valor",
+      "pf-transp-pagamento",
+    ]);
+  });
+
+  it("Envio e desembaraço, Courier Formal + Entregue: a grade vira de 6 colunas, com os spans no CONTÊINER (Envio e Cia. 3 cada; AWB, Despachante e DIR 2 cada)", async () => {
+    abrir(processo({ status: "entregue", modal_envio: FORMAL, ...AJC }));
+    await esperar();
+    expect(classes(gradeEnvio())).toEqual([
+      "grid",
+      "grid-cols-2",
+      "gap-2.5",
+      "lg:grid-cols-6",
+      "lg:[&>*:nth-child(-n+2)]:col-span-3",
+      "lg:[&>*:nth-child(n+3)]:col-span-2",
+    ]);
+    // 5 filhos nesta ordem: os 2 primeiros (3 colunas) e os 3 seguintes (2 colunas) => linha 1: Envio|Cia.; linha 2: AWB|Despachante|DIR
+    expect([...gradeEnvio().children].map((c) => c.querySelector("[id]")?.id)).toEqual(["pf-modal", "pf-cia-aerea", "pf-awb", "pf-despachante", "pf-dir-protocolo"]);
+    // nenhuma célula carrega col-span próprio além dos que já existiam (Envio e Despachante abaixo de sm: col-span-2 sm:col-span-1)
+    for (const id of ["pf-cia-aerea", "pf-awb", "pf-dir-protocolo"]) {
+      expect(classes($(`label[for='${id}']`)!.parentElement).filter((c) => /col-span|(^|:)w-|min-w|order-/.test(c) && !c.includes("[&")), id).toEqual([]);
+    }
+  });
+
+  it("Envio e desembaraço: em TODOS os outros casos a grade é a de sempre (2 colunas): Formal sem DIR, Air Cargo, Courier Simples (DIR à direita do AWB)", async () => {
+    const de_sempre = ["grid", "grid-cols-2", "gap-2.5"];
+    const casos: Array<Record<string, unknown>> = [
+      { status: "liberado", modal_envio: FORMAL, ...AJC }, // Formal, mas não Entregue: sem DIR
+      { status: "entregue", modal_envio: "Air Cargo", transportadora_nacional_nome: "AJC" },
+      { status: "liberado", modal_envio: "Air Cargo", transportadora_nacional_nome: "AJC" },
+      { status: "entregue", modal_envio: SIMPLES, companhia_aerea: "DHL" }, // Simples com DIR: NÃO muda
+      { status: "liberado", modal_envio: SIMPLES, companhia_aerea: "DHL" },
+    ];
+    for (const caso of casos) {
+      abrir(processo(caso));
+      await esperar();
+      expect(classes(gradeEnvio()), JSON.stringify(caso)).toEqual(de_sempre);
+      app!.unmount();
+      raiz!.remove();
+    }
+  });
+
+  it("trocar o status/envio na tela liga e desliga as classes da grade na hora", async () => {
+    abrir(processo({ status: "liberado", modal_envio: FORMAL, ...AJC }));
+    await esperar();
+    expect(classes(gradeEnvio())).not.toContain("lg:grid-cols-6");
+    expect(classes(gradeTransp())).not.toContain("lg:grid-cols-4");
+    await escolher("pf-status", "Entregue");
+    expect(classes(gradeEnvio())).toContain("lg:grid-cols-6");
+    expect(classes(gradeTransp())).toContain("lg:grid-cols-4");
+    await escolher("pf-modal", "Courier Simples"); // sem Despachante nem Transportadora: volta à grade de sempre
+    expect(classes(gradeEnvio())).toEqual(["grid", "grid-cols-2", "gap-2.5"]);
+  });
+});
