@@ -5,9 +5,9 @@ import {
   NIVEIS_NA_TELA,
   ROTULO_NIVEL_PERMISSAO,
   ROTULO_SECAO_PERMISSAO,
-  SECOES_NA_TELA,
   TEXTO_AJUDA_PERMISSOES,
   estaTudoNenhum,
+  secoesNaTela,
   type ValoresPermissoes,
 } from "../../utils/contaPermissoesForm";
 
@@ -50,7 +50,7 @@ function aoEscolher(secao: SecaoComPermissao, nivel: NivelPermissao): void {
 
     <div class="flex min-w-0 flex-col gap-2.5 rounded-md border border-hairline p-3">
       <fieldset
-        v-for="secao in SECOES_NA_TELA"
+        v-for="secao in secoesNaTela()"
         :id="`perm-grupo-${secao}`"
         :key="secao"
         role="radiogroup"

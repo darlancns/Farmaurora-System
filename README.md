@@ -248,6 +248,7 @@ produção.
 | `NUXT_PUBLIC_SUPABASE_ANON_KEY` | server **e** browser | chave anon (login e envio de anexo com signed URL) |
 | `NUXT_SUPABASE_SERVICE_ROLE_KEY` | **só server** | sem prefixo público; gera as signed URLs de anexo e acessa o Postgres. Nunca vai pro bundle |
 | `NUXT_ADMIN_EMAILS` | só server | e-mails com fallback de administrador |
+| `NUXT_PUBLIC_DIR_HABILITADA` | server **e** browser | **opcional**; `true` liga a DIR. Sem ela (padrão) a DIR fica desligada: some do menu, `/dir` redireciona, `/api/dir*` responde 404 |
 
 O código de anexos não exige nenhuma variável além dessas quatro.
 

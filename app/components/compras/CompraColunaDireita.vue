@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import type { Compra, DespachanteCadastroResumo } from "#shared/types/compra";
 import { compraParaResumoEntrada, montarResumo, montarResumoCompra } from "#shared/utils/compraResumo";
+import { secaoDesligada } from "#shared/utils/secoesDesligadas";
 import { useCopiarTexto } from "../../composables/useCopiarTexto";
 import { useToast } from "../../composables/useToast";
 import { BOTAO_PRIMARIO_CLASS, BOTAO_SECUNDARIO_CLASS } from "../../utils/comprasEstilos";
@@ -23,6 +24,10 @@ const props = defineProps<{
 const { copiar } = useCopiarTexto();
 const { showToast } = useToast();
 
+// DIR desligada por configuração (sem NUXT_PUBLIC_DIR_HABILITADA=true): o botão "Encaminhar para a DIR" nem aparece e "Copiar resumo"
+// ocupa a barra inteira. O valor é definido antes do render (plugin) e não muda durante a sessão.
+const dirLigada = !secaoDesligada("dir");
+
 const entrada = computed(() => compraParaResumoEntrada(props.compra, props.despachanteCadastro));
 const modelo = computed(() => montarResumo(entrada.value, "modelo"));
 
@@ -41,7 +46,7 @@ async function copiarResumo(): Promise<void> {
       class="flex gap-2 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom,0px))] max-lg:z-30 max-lg:border-t max-lg:border-hairline max-lg:bg-paper-raised max-lg:px-4 max-lg:py-2.5"
     >
       <button id="btn-copiar-resumo" type="button" :class="[BOTAO_PRIMARIO_CLASS, 'flex-1']" @click="copiarResumo">Copiar resumo</button>
-      <button id="btn-encaminhar-dir" type="button" :class="[BOTAO_SECUNDARIO_CLASS, 'flex-1']" disabled title="Em breve: depende da migração da DIR">Encaminhar para a DIR</button>
+      <button v-if="dirLigada" id="btn-encaminhar-dir" type="button" :class="[BOTAO_SECUNDARIO_CLASS, 'flex-1']" disabled title="Em breve: depende da migração da DIR">Encaminhar para a DIR</button>
     </div>
 
     <CompraResumoPainel :blocos="modelo" />

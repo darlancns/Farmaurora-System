@@ -31,6 +31,7 @@ import {
   nomeComoGravado,
   type FormCadastro,
 } from "../../utils/cadastroForm";
+import { textoOndeRenomeiaConsultor } from "../../utils/cadastroConsultor";
 import { montarTemperaturaOptions } from "../../utils/cadastroTemperaturaOptions";
 import { SELECT_CAMPO_CLASS } from "../../utils/processoFormClasses";
 import AppSelect from "../AppSelect.vue";
@@ -262,7 +263,7 @@ const CLASSE_BOTAO_PIX =
               <span v-if="editando && !editando.ativo">{{ ROTULO_INATIVO_CADASTRO }}</span>
             </p>
             <p v-else-if="isEdit && nomeEditavel" id="cadastro-form-nome-dica" class="mt-1 text-[10.5px] text-ink-soft">
-              Renomear atualiza o consultor em todo o sistema (Follow-Up, Prestação, DIR e contas de login). Você confirma antes de salvar.
+              Renomear atualiza o consultor em todo o sistema ({{ textoOndeRenomeiaConsultor() }}). Você confirma antes de salvar.
               <span v-if="editando && !editando.ativo">{{ ROTULO_INATIVO_CADASTRO }}</span>
             </p>
             <p v-else-if="!isEdit && nomeEmMaiusculo" id="cadastro-form-nome-dica-maiusculo" class="mt-1 text-[10.5px] text-ink-soft">

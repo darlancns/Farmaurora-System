@@ -1,4 +1,5 @@
 import type { ImpactoRenomearConsultor, ResultadoContasConsultor } from "#shared/types/Cadastro";
+import { secaoDesligada } from "#shared/utils/secoesDesligadas";
 
 // Textos do renomear de consultor (Configurações → Cadastros → Consultores): a confirmação com as contagens e o aviso de contas de
 // login que não foram atualizadas. Funções PURAS (tests/unit/cadastroConsultor.spec.ts); a tela só mostra o resultado.
@@ -6,12 +7,20 @@ import type { ImpactoRenomearConsultor, ResultadoContasConsultor } from "#shared
 
 const plural = (n: number, singular: string, pluralTexto: string): string => `${n} ${n === 1 ? singular : pluralTexto}`;
 
-/** "3 processos do Follow-Up, 1 prestação, 0 POs da DIR, 4 compras e 2 contas de login". */
+/** Onde o renomear atualiza o consultor, para a dica do formulário: "Follow-Up, Prestação, DIR e contas de login" (sem a DIR quando desligada). */
+export function textoOndeRenomeiaConsultor(): string {
+  return secaoDesligada("dir") ? "Follow-Up, Prestação e contas de login" : "Follow-Up, Prestação, DIR e contas de login";
+}
+
+/**
+ * "3 processos do Follow-Up, 1 prestação, 0 POs da DIR, 4 compras e 2 contas de login". Com a DIR DESLIGADA por configuração
+ * (sem NUXT_PUBLIC_DIR_HABILITADA=true) a contagem "POs da DIR" é omitida: "3 processos do Follow-Up, 1 prestação, 4 compras e 2 contas de login".
+ */
 export function resumoImpactoRenomear(impacto: Omit<ImpactoRenomearConsultor, "nome">): string {
   return [
     plural(impacto.processos, "processo do Follow-Up", "processos do Follow-Up"),
     plural(impacto.pacientes, "prestação", "prestações"),
-    plural(impacto.dir, "PO da DIR", "POs da DIR"),
+    ...(secaoDesligada("dir") ? [] : [plural(impacto.dir, "PO da DIR", "POs da DIR")]),
     plural(impacto.compras, "compra", "compras"),
   ]
     .join(", ")

@@ -2,13 +2,12 @@ import {
   NIVEIS_PERMISSAO,
   ROLES_COM_PERMISSAO,
   SECOES_COM_PERMISSAO,
-  podeEscrever,
-  podeLer,
   type NivelPermissao,
   type Permissoes,
   type SecaoComPermissao,
 } from "#shared/utils/permissoesPagina";
-import type { Role } from "#shared/utils/rbac";
+import { canReadSection, canWriteSection, type Role } from "#shared/utils/rbac";
+import { secaoDesligada } from "#shared/utils/secoesDesligadas";
 
 // Regras PURAS da tabela de permissões por página do formulário de conta (ContaFormModal.vue). As seções e os níveis
 // vêm de shared/utils/permissoesPagina.ts — aqui só ficam os nomes da interface e a decisão do que enviar.
@@ -31,8 +30,14 @@ export const ROTULO_NIVEL_PERMISSAO: Record<NivelPermissao, string> = {
 /** Os 3 níveis, na ordem da tela: Nenhum, Ver, Editar. */
 export const NIVEIS_NA_TELA: readonly NivelPermissao[] = NIVEIS_PERMISSAO;
 
-/** As seções, na ordem da tela (a de SECOES_COM_PERMISSAO). */
-export const SECOES_NA_TELA: readonly SecaoComPermissao[] = SECOES_COM_PERMISSAO;
+/**
+ * As seções que a tela MOSTRA, na ordem de SECOES_COM_PERMISSAO. Uma seção desligada por configuração (a DIR sem NUXT_PUBLIC_DIR_HABILITADA=true)
+ * não tem linha na tela. O VALOR dela continua nos `valores`/no mapa (e o servidor continua aceitando a chave `dir`): nada se perde, e o que
+ * estava gravado volta a aparecer quando a DIR for ligada.
+ */
+export function secoesNaTela(): SecaoComPermissao[] {
+  return SECOES_COM_PERMISSAO.filter((secao) => !secaoDesligada(secao));
+}
 
 export const TEXTO_AJUDA_PERMISSOES =
   "Recados e Minha conta ficam sempre abertos. Configurações, Cadastros e Contas são só do administrador.";
@@ -54,8 +59,9 @@ export function valoresTudoNenhum(): ValoresPermissoes {
   return Object.fromEntries(SECOES_COM_PERMISSAO.map((secao) => [secao, "nenhum"])) as ValoresPermissoes;
 }
 
+/** Todas as seções que valem hoje estão em "nenhum"? (uma seção desligada por configuração não conta: a conta não a enxerga de qualquer jeito) */
 export function estaTudoNenhum(valores: ValoresPermissoes): boolean {
-  return SECOES_COM_PERMISSAO.every((secao) => valores[secao] === "nenhum");
+  return SECOES_COM_PERMISSAO.every((secao) => secaoDesligada(secao) || valores[secao] === "nenhum");
 }
 
 /** Mapa gravado (ou parcial) -> valores completos; seção ausente = "nenhum", como no servidor. */
@@ -67,14 +73,18 @@ export function valoresDoMapa(mapa: Permissoes | null | undefined): ValoresPermi
 }
 
 /**
- * O que o CARGO dá hoje (a regra de uma conta sem mapa), seção a seção, com as mesmas funções do servidor e do menu:
- * escreve = "editar"; só lê = "ver"; senão "nenhum". É o que a tabela mostra numa conta sem mapa gravado.
+ * O que o CARGO dá hoje (a regra de uma conta sem mapa), seção a seção, com as regras do cargo do servidor (`canWriteSection` e
+ * `canReadSection`): escreve = "editar"; só lê = "ver"; senão "nenhum". É o que a tabela mostra numa conta sem mapa gravado.
+ *
+ * De propósito NÃO passa por `podeLer`/`podeEscrever`: elas devolvem "nenhum" para uma seção desligada por configuração (a DIR), e
+ * o padrão gravado numa conta que o administrador editasse com a DIR desligada tiraria a DIR dela para sempre. Assim o padrão do cargo
+ * é o mesmo, ligada ou não.
  */
 export function padraoDoCargo(role: Role): ValoresPermissoes {
   const valores = valoresTudoNenhum();
   for (const secao of SECOES_COM_PERMISSAO) {
-    if (podeEscrever({ role }, secao)) valores[secao] = "editar";
-    else if (podeLer({ role }, secao)) valores[secao] = "ver";
+    if (canWriteSection(role, secao)) valores[secao] = "editar";
+    else if (canReadSection(role, secao)) valores[secao] = "ver";
   }
   return valores;
 }

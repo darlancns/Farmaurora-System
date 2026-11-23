@@ -4,7 +4,7 @@ import { useRuntimeConfig } from "#imports";
 import { createSupabaseServerClient } from "../utils/supabaseServerClient";
 import { resolveAuthUser, parseAdminEmails } from "../utils/authUser";
 import { conferirConsultorDaSessao } from "../utils/contaConsultor";
-import { autorizarApi } from "#shared/utils/permissoesPagina";
+import { apiDeSecaoDesligada, autorizarApi, MENSAGEM_API_SECAO_DESLIGADA } from "#shared/utils/permissoesPagina";
 import type { AuthUser } from "#shared/types/auth";
 
 // Prefixos de API acessíveis sem sessão válida. Hoje não há nenhum — o login
@@ -87,6 +87,11 @@ function cacheKeyFromCookies(event: H3Event): string | null {
  */
 export default defineEventHandler(async (event) => {
   const path = event.path || "";
+
+  // Seção DESLIGADA por configuração (hoje a DIR, sem NUXT_PUBLIC_DIR_HABILITADA=true): a rota "não existe". 404 ANTES de qualquer outra
+  // coisa — nem a sessão é consultada — e igual para quem tem ou não tem login. Ver shared/utils/secoesDesligadas.ts.
+  if (apiDeSecaoDesligada(path)) throw createError({ statusCode: 404, statusMessage: MENSAGEM_API_SECAO_DESLIGADA });
+
   const config = useRuntimeConfig(event);
   const url = String(config.public.supabaseUrl ?? "");
   const anonKey = String(config.public.supabaseAnonKey ?? "");

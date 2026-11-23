@@ -7,6 +7,7 @@ import {
   type Role,
   type Section,
 } from "./rbac";
+import { secaoDesligada } from "./secoesDesligadas";
 
 /**
  * Permissão por página (cargos operacional e sócio) — camada aditiva sobre shared/utils/rbac.ts.
@@ -134,8 +135,12 @@ export function validarPermissoesEstrito(bruto: unknown): ResultadoPermissoesEst
 /**
  * Nível do usuário na seção quando o MAPA decide; null quando quem decide é a regra do cargo (sem mapa,
  * cargo que não usa mapa, ou seção fora de SECOES_COM_PERMISSAO).
+ *
+ * Seção DESLIGADA por configuração (secoesDesligadas.ts; hoje a DIR sem `dirHabilitada`) vale "nenhum" para todos os cargos, com ou sem
+ * mapa: é daqui que `podeLer`, `podeEscrever` e `paginaInicial` (e, por eles, o menu, o guarda de rotas e a API) deixam de enxergá-la.
  */
 export function nivelDaSecao(user: UsuarioRbac, secao: Section): NivelPermissao | null {
+  if (secaoDesligada(secao)) return "nenhum";
   const mapa = user.permissoes;
   if (mapa === null || mapa === undefined) return null;
   if (!ROLES_COM_PERMISSAO.includes(user.role) || !secaoTemPermissao(secao)) return null;
@@ -174,14 +179,27 @@ export const MENSAGEM_API_NAO_AUTENTICADO = "Não autenticado.";
 export const MENSAGEM_API_ROTA_NAO_AUTORIZADA = "Rota não autorizada.";
 export const MENSAGEM_API_SEM_PERMISSAO = "Sem permissão para esta operação.";
 
+export const MENSAGEM_API_SECAO_DESLIGADA = "Não encontrado.";
+
 export type DecisaoApi =
   | { permitido: true }
-  | { permitido: false; status: 401 | 403; mensagem: string };
+  | { permitido: false; status: 401 | 403 | 404; mensagem: string };
+
+/**
+ * A rota de API pertence a uma seção DESLIGADA por configuração (hoje `/api/dir*` sem `dirHabilitada`)? Pura: o middleware usa para
+ * responder 404 ANTES de consultar a sessão, e `autorizarApi` repete a regra como segunda barreira.
+ */
+export function apiDeSecaoDesligada(path: string): boolean {
+  if (!path.startsWith("/api/")) return false;
+  const secao = sectionForApiPath(path);
+  return secao !== null && secaoDesligada(secao);
+}
 
 const PERMITIDO: DecisaoApi = { permitido: true };
 
 /**
  * A decisão do middleware de servidor (server/middleware/auth.ts), como função pura:
+ * 0. rota de uma seção DESLIGADA por configuração (a DIR sem `dirHabilitada`) → 404, com ou sem sessão (a rota "não existe");
  * 1. fora de `/api/` → permitido (o middleware não se aplica);
  * 2. prefixo público (`opcoes.prefixosPublicos`, hoje nenhum) → permitido;
  * 3. sem sessão → 401;
@@ -196,6 +214,7 @@ export function autorizarApi(
   opcoes: { prefixosPublicos?: readonly string[] } = {},
 ): DecisaoApi {
   if (!path.startsWith("/api/")) return PERMITIDO;
+  if (apiDeSecaoDesligada(path)) return { permitido: false, status: 404, mensagem: MENSAGEM_API_SECAO_DESLIGADA };
   if ((opcoes.prefixosPublicos ?? []).some((prefixo) => path.startsWith(prefixo))) return PERMITIDO;
 
   if (!user) return { permitido: false, status: 401, mensagem: MENSAGEM_API_NAO_AUTENTICADO };

@@ -15,12 +15,17 @@ export default defineNuxtConfig({
   //   NUXT_PUBLIC_SUPABASE_ANON_KEY  -> public.supabaseAnonKey
   //   NUXT_SUPABASE_SERVICE_ROLE_KEY -> supabaseServiceRoleKey (server-only)
   //   NUXT_ADMIN_EMAILS             -> adminEmails (server-only)
+  //   NUXT_PUBLIC_DIR_HABILITADA    -> public.dirHabilitada (liga a DIR; ver abaixo)
   runtimeConfig: {
     supabaseServiceRoleKey: "",
     adminEmails: "",
     public: {
       supabaseUrl: "",
       supabaseAnonKey: "",
+      // Chave que liga a DIR. PADRÃO false (falha fechada): sem NUXT_PUBLIC_DIR_HABILITADA=true a DIR some do menu, /dir redireciona,
+      // /api/dir* responde 404 e os textos que a citam são omitidos. Pública porque o menu precisa dela no navegador.
+      // Ver shared/utils/secoesDesligadas.ts e os plugins app/plugins/secoesDesligadas.ts e server/plugins/secoesDesligadas.ts.
+      dirHabilitada: false,
     },
   },
 

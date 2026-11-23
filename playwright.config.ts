@@ -39,6 +39,7 @@ export default defineConfig({
     // Nunca reaproveita um servidor já aberto: ele poderia estar apontando para a produção.
     reuseExistingServer: false,
     timeout: 90_000,
-    env: envE2E,
+    // Os e2e (dir*, compras*, menu) exercitam a DIR: o servidor de teste sobe com a chave da DIR LIGADA (o padrão do app é desligada).
+    env: { ...envE2E, NUXT_PUBLIC_DIR_HABILITADA: "true" },
   },
 });
