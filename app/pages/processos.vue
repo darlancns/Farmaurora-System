@@ -273,13 +273,20 @@ async function irParaProcesso(id: string): Promise<void> {
 // Consultores do Cadastro (formulário e ordem dos grupos). O cargo consultor vê lista plana e não edita: não precisa deles.
 const { consultores, carregarConsultores } = useConsultores();
 
-// Fornecedores, despachantes e transportadoras dos Cadastros, para os selects do formulário. Só leitura; o cargo
+// Fornecedores, despachantes, transportadoras e medicamentos dos Cadastros, para os selects e a sugestão do medicamento no formulário. Só leitura; o cargo
 // consultor, que não edita, não precisa deles.
-const { fornecedores: fornecedoresCadastro, despachantes: despachantesCadastro, transportadoras: transportadorasCadastro, carregar: carregarCadastros } = useCadastrosFollowUp();
+const {
+  fornecedores: fornecedoresCadastro,
+  despachantes: despachantesCadastro,
+  transportadoras: transportadorasCadastro,
+  medicamentos: medicamentosCadastro,
+  carregar: carregarCadastros,
+} = useCadastrosFollowUp();
 const cadastrosFollowUp = computed(() => ({
   fornecedores: fornecedoresCadastro.value,
   despachantes: despachantesCadastro.value,
   transportadoras: transportadorasCadastro.value,
+  medicamentos: medicamentosCadastro.value,
 }));
 
 onMounted(async () => {

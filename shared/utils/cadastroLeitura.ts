@@ -1,5 +1,5 @@
 import type { ItemCadastroPagamento } from "../types/Pagamento";
-import type { FornecedorLido } from "../types/Cadastro";
+import type { FornecedorLido, MedicamentoLido } from "../types/Cadastro";
 import { ordenarCadastro } from "./cadastroNome";
 
 // Como o Follow-Up (e quem mais só LÊ os Cadastros) transforma o que GET /api/cadastros/:lista devolve: SÓ o que as telas usam
@@ -50,4 +50,16 @@ export function itensLidos(lista: unknown): ItemCadastroPagamento[] {
 export function fornecedoresLidos(lista: unknown): FornecedorLido[] {
   if (!Array.isArray(lista)) return [];
   return ordenarCadastro(lista.map(fornecedorLido).filter((i): i is FornecedorLido => i !== null));
+}
+
+/** Medicamento: só nome e ativo (o id, a temperatura e quem gravou não interessam ao Follow-Up). */
+export function medicamentoLido(bruto: unknown): MedicamentoLido | null {
+  const d = dadosDoItem(bruto);
+  return d ? { nome: d.nome, ativo: d.ativo } : null;
+}
+
+/** A lista de medicamentos da resposta: ativos primeiro, alfabética pt-BR. Não-lista = []. */
+export function medicamentosLidos(lista: unknown): MedicamentoLido[] {
+  if (!Array.isArray(lista)) return [];
+  return ordenarCadastro(lista.map(medicamentoLido).filter((i): i is MedicamentoLido => i !== null));
 }

@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import type { MedicamentoLido } from "#shared/types/Cadastro";
 import type { BrandMedicamento, Medicamento } from "#shared/types/processo";
 import { LIMITE_LABORATORIO } from "#shared/constants/processos";
+import AppSearchSelect, { type OpcaoBusca } from "../AppSearchSelect.vue";
 import AppSelect from "../AppSelect.vue";
+import { sugerirMedicamentos } from "../../utils/processoMedicamentoSugestoes";
 import { BRAND_MEDICAMENTO_OPTIONS } from "../../utils/processoOptions";
 import {
   BOTAO_REMOVER_CLASS,
@@ -10,17 +13,24 @@ import {
   SELECT_CAMPO_CLASS,
 } from "../../utils/processoFormClasses";
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     items: Medicamento[];
     // Oculta o rótulo "Medicamentos" de cima (quando o bloco que envolve o componente já tem esse título na legenda).
     semRotulo?: boolean;
+    // Os medicamentos do Cadastro (já carregados): só para SUGERIR o nome ao digitar. O campo continua texto livre; vazio/não carregado = só texto.
+    medicamentosCadastro?: readonly MedicamentoLido[];
   }>(),
-  { semRotulo: false },
+  { semRotulo: false, medicamentosCadastro: () => [] },
 );
 
+// Sugestões do Cadastro (só ativos; filtro no cliente, sem rede). A lista pode chegar depois: lê a prop a cada busca.
+const buscarMedicamento = (q: string): Promise<OpcaoBusca[]> => Promise.resolve(sugerirMedicamentos(props.medicamentosCadastro, q));
+
 const emit = defineEmits<{
-  "nome-input": [index: number, event: Event];
+  // O nome digitado (texto livre, já em MAIÚSCULAS e com o cursor preservado pelo campo) e a sugestão do Cadastro escolhida: os dois só trocam o nome.
+  "nome-digitar": [index: number, texto: string];
+  "nome-escolher": [index: number, nome: string];
   "quantidade-input": [index: number, event: Event];
   "laboratorio-input": [index: number, event: Event];
   "laboratorio-blur": [index: number];
@@ -57,12 +67,19 @@ const emit = defineEmits<{
         </div>
         <div>
           <label :for="`pf-medicamento-nome-${index}`" :class="LABEL_CLASS">Medicamento</label>
-          <input
+          <!-- Texto livre COM sugestão do Cadastro (só ativos): digitar continua valendo; escolher uma sugestão só põe o nome dela. O texto vira
+               MAIÚSCULAS no valor, com o cursor onde estava. Sem sugestão, a lista nem aparece; o Enter só escolhe uma sugestão destacada
+               pelas setas (senão segue como sempre) e o Esc fecha só a lista. Não há "Pedir cadastro" nem "Fora do Cadastro" aqui (isso é do Compras). -->
+          <AppSearchSelect
             :id="`pf-medicamento-nome-${index}`"
-            :value="item.nome"
-            type="text"
-            :class="INPUT_COMPACTO_CLASS"
-            @input="emit('nome-input', index, $event)"
+            :model-value="item.nome"
+            :buscar="buscarMedicamento"
+            :input-class="INPUT_COMPACTO_CLASS"
+            :debounce-ms="0"
+            maiusculas
+            somente-sugestao
+            @digitar="(texto: string) => emit('nome-digitar', index, texto)"
+            @escolher="(opcao: OpcaoBusca) => emit('nome-escolher', index, opcao.rotulo)"
           />
         </div>
         <div class="col-span-2 flex gap-2 empty:hidden lg:col-span-1 lg:gap-1 lg:empty:flex">

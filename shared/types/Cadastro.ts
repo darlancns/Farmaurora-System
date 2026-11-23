@@ -44,10 +44,18 @@ export interface FornecedorLido extends ItemCadastroPagamento {
   semAlerta: boolean;
 }
 
+/** Medicamento do Cadastro como o Follow-Up o guarda: SÓ o nome (já em MAIÚSCULAS) e `ativo` (sem id, temperatura, quem gravou nem datas). */
+export interface MedicamentoLido {
+  nome: string;
+  ativo: boolean;
+}
+
 export interface CadastrosFollowUp {
   fornecedores: FornecedorLido[];
   despachantes: ItemCadastroPagamento[];
   transportadoras: ItemCadastroPagamento[];
+  /** Só para a SUGESTÃO do nome do medicamento no formulário (a digitação livre continua valendo). */
+  medicamentos: MedicamentoLido[];
 }
 
 /**

@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useState } from "#app";
 import type { ItemCadastroPagamento } from "../../shared/types/Pagamento";
-import { fornecedorLido, fornecedoresLidos, itemLido, itensLidos } from "../../shared/utils/cadastroLeitura";
+import { fornecedorLido, fornecedoresLidos, itemLido, itensLidos, medicamentoLido, medicamentosLidos } from "../../shared/utils/cadastroLeitura";
 import { fornecedoresFixos, montarOpcoesFornecedor } from "../../app/utils/pagamentoOptions";
 import { useCadastrosFollowUp } from "../../app/composables/useCadastrosFollowUp";
 
-// ETAPA 2: o Follow-Up LÊ fornecedores, despachantes e transportadoras dos Cadastros (GET /api/cadastros/:lista, aberto a todos os cargos).
+// ETAPA 2 (e 6: medicamentos): o Follow-Up LÊ fornecedores, despachantes, transportadoras e medicamentos dos Cadastros (GET /api/cadastros/:lista, aberto a todos os cargos).
 // (1) os mapeadores puros guardam só o que a tela usa e NUNCA a chave PIX; (2) o composable carrega as 3 listas, tolera falha e não repete
 // requisição; (3) os helpers de Pagamentos ganharam variações OPCIONAIS (o padrão não muda). Nomes "TESTE"; nada de chave PIX real.
 
@@ -44,6 +44,21 @@ describe("cadastroLeitura: só o que a tela usa, nunca a chave PIX", () => {
     expect(itemLido({ nome: "TESTE A" })!.ativo).toBe(false);
   });
 
+  it("medicamento: SÓ nome e ativo (id, temperatura, quem gravou e datas não passam)", () => {
+    const l = medicamentoLido({ id: "med_1", nome: " DIPIRONA TESTE ", ativo: true, temperatura: "2°C a 8°C", atualizadoPor: "Cris", createdAt: "x", updatedAt: "y", chavePix: PIX });
+    expect(l).toEqual({ nome: "DIPIRONA TESTE", ativo: true });
+    expect(Object.keys(l!).sort()).toEqual(["ativo", "nome"]);
+    expect(JSON.stringify(l)).not.toContain(PIX);
+    expect(medicamentoLido({ nome: "", ativo: true })).toBeNull();
+    expect(medicamentoLido({ nome: "TESTE A", ativo: "true" })!.ativo).toBe(false);
+  });
+
+  it("medicamentos: ativos primeiro, alfabética pt-BR; não-lista = []", () => {
+    const lista = medicamentosLidos([{ nome: "TESTE Z", ativo: true }, { nome: "TESTE A", ativo: false }, { nome: "TESTE M", ativo: true }]);
+    expect(lista.map((m) => `${m.nome}:${m.ativo}`)).toEqual(["TESTE M:true", "TESTE Z:true", "TESTE A:false"]);
+    for (const estranho of [null, undefined, {}, "x", 7]) expect(medicamentosLidos(estranho)).toEqual([]);
+  });
+
   it("listas: ativos primeiro, alfabética pt-BR; o que não é lista vira lista vazia", () => {
     const lista = itensLidos([{ nome: "TESTE Z", ativo: true }, { nome: "TESTE A", ativo: false }, { nome: "TESTE M", ativo: true }, { nome: "", ativo: true }]);
     expect(lista.map((i) => `${i.nome}:${i.ativo}`)).toEqual(["TESTE M:true", "TESTE Z:true", "TESTE A:false"]);
@@ -62,19 +77,25 @@ const FORNECEDORES = [
 ];
 const DESPACHANTES = [{ id: "d1", nome: "TESTE Despachante", ativo: true, chavePix: "pix-d", telefone: "", email: "", contatoNome: "" }];
 const TRANSPORTADORAS = [{ id: "t1", nome: "TESTE Transp", ativo: true, chavePix: "pix-t" }];
+const MEDICAMENTOS = [
+  { id: "med_1", nome: "DIPIRONA TESTE", ativo: true, temperatura: "2°C a 8°C", atualizadoPor: "Cris", createdAt: "a", updatedAt: "b" },
+  { id: "med_2", nome: "TESTE ANTIGO", ativo: false, temperatura: "", atualizadoPor: "", createdAt: "a", updatedAt: "b" },
+];
 
 const ESTADO_VAZIO = {
   fornecedores: [],
   despachantes: [],
   transportadoras: [],
+  medicamentos: [],
   fornecedoresCarregados: false,
   despachantesCarregados: false,
   transportadorasCarregadas: false,
+  medicamentosCarregados: false,
 };
 
 type Resposta = unknown | { __status: number; mensagem: string } | "rede";
-function simularFetch(respostas: Partial<Record<"fornecedores" | "despachantes" | "transportadoras", Resposta>>) {
-  const mapa = { fornecedores: FORNECEDORES, despachantes: DESPACHANTES, transportadoras: TRANSPORTADORAS, ...respostas };
+function simularFetch(respostas: Partial<Record<"fornecedores" | "despachantes" | "transportadoras" | "medicamentos", Resposta>>) {
+  const mapa = { fornecedores: FORNECEDORES, despachantes: DESPACHANTES, transportadoras: TRANSPORTADORAS, medicamentos: MEDICAMENTOS, ...respostas };
   const fn = vi.fn(async (url: string) => {
     const lista = url.replace("/api/cadastros/", "") as keyof typeof mapa;
     const r = mapa[lista] as Resposta;
@@ -96,31 +117,40 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("useCadastrosFollowUp: carrega as 3 listas por GET /api/cadastros/:lista", () => {
+describe("useCadastrosFollowUp: carrega as 4 listas por GET /api/cadastros/:lista", () => {
   it("antes de carregar: listas vazias e nada marcado como carregado", () => {
     const c = useCadastrosFollowUp();
     expect(c.fornecedores.value).toEqual([]);
     expect(c.fornecedoresCarregados.value).toBe(false);
     expect(c.despachantesCarregados.value).toBe(false);
     expect(c.transportadorasCarregadas.value).toBe(false);
+    expect(c.medicamentos.value).toEqual([]);
+    expect(c.medicamentosCarregados.value).toBe(false);
   });
 
-  it("carrega fornecedores, despachantes e transportadoras (ativos e inativos), sem chave PIX no estado", async () => {
+  it("carrega fornecedores, despachantes, transportadoras e medicamentos (ativos e inativos), sem chave PIX no estado", async () => {
     const fetchFn = simularFetch({});
     const c = useCadastrosFollowUp();
     expect(await c.carregar()).toBeNull();
-    expect(urls(fetchFn)).toEqual(["/api/cadastros/despachantes", "/api/cadastros/fornecedores", "/api/cadastros/transportadoras"]);
+    expect(urls(fetchFn)).toEqual(["/api/cadastros/despachantes", "/api/cadastros/fornecedores", "/api/cadastros/medicamentos", "/api/cadastros/transportadoras"]);
     expect(c.fornecedores.value).toEqual([
       { nome: "TESTE Alfa", ativo: true, pais: "Chile", prazoAlertaDias: 3, semAlerta: false },
       { nome: "TESTE Beta", ativo: false, pais: "Peru", prazoAlertaDias: null, semAlerta: true },
     ]);
     expect(c.despachantes.value).toEqual([{ nome: "TESTE Despachante", ativo: true, pais: "" }]);
     expect(c.transportadoras.value).toEqual([{ nome: "TESTE Transp", ativo: true, pais: "" }]);
-    expect(c.fornecedoresCarregados.value && c.despachantesCarregados.value && c.transportadorasCarregadas.value).toBe(true);
+    // Medicamento: só nome e ativo (nada de id, temperatura nem quem gravou), ativos primeiro.
+    expect(c.medicamentos.value).toEqual([
+      { nome: "DIPIRONA TESTE", ativo: true },
+      { nome: "TESTE ANTIGO", ativo: false },
+    ]);
+    expect(c.fornecedoresCarregados.value && c.despachantesCarregados.value && c.transportadorasCarregadas.value && c.medicamentosCarregados.value).toBe(true);
     const tudo = JSON.stringify(useState<unknown>("cadastros-followup").value);
     expect(tudo).not.toContain("pix-d");
     expect(tudo).not.toContain("pix-t");
     expect(tudo).not.toContain("chavePix");
+    expect(tudo).not.toContain("temperatura");
+    expect(tudo).not.toContain("atualizadoPor");
   });
 
   it("só GET (nunca escreve em Cadastros)", async () => {
@@ -140,15 +170,44 @@ describe("useCadastrosFollowUp: carrega as 3 listas por GET /api/cadastros/:list
     expect(await c.carregar()).toBeNull();
     expect(fetchFn).not.toHaveBeenCalled();
     await c.carregar({ forcar: true });
-    expect(fetchFn).toHaveBeenCalledTimes(3);
+    expect(fetchFn).toHaveBeenCalledTimes(4);
   });
 
-  it("chamadas SIMULTÂNEAS (formulário e sino) dividem a mesma carga: 3 requisições, não 6", async () => {
+  it("chamadas SIMULTÂNEAS (formulário e sino) dividem a mesma carga: 4 requisições, não 8", async () => {
     const fetchFn = simularFetch({});
     const a = useCadastrosFollowUp();
     const b = useCadastrosFollowUp();
     await Promise.all([a.carregar(), b.carregar()]);
-    expect(fetchFn).toHaveBeenCalledTimes(3);
+    expect(fetchFn).toHaveBeenCalledTimes(4);
+  });
+
+  it("`listas`: o sino pede SÓ os fornecedores, e a tela que pede tudo logo depois busca só o que falta (nenhuma lista é buscada duas vezes)", async () => {
+    const fetchFn = simularFetch({});
+    const sino = useCadastrosFollowUp();
+    const tela = useCadastrosFollowUp();
+    await Promise.all([sino.carregar({ listas: ["fornecedores"] }), tela.carregar()]);
+    expect(fetchFn).toHaveBeenCalledTimes(4);
+    expect(urls(fetchFn).filter((u) => u.endsWith("/fornecedores"))).toHaveLength(1);
+    expect(sino.medicamentosCarregados.value && sino.despachantesCarregados.value).toBe(true);
+  });
+
+  it("`listas`: pedir só os fornecedores NÃO busca despachantes, transportadoras nem medicamentos", async () => {
+    const fetchFn = simularFetch({});
+    const c = useCadastrosFollowUp();
+    await c.carregar({ listas: ["fornecedores"] });
+    expect(urls(fetchFn)).toEqual(["/api/cadastros/fornecedores"]);
+    expect(c.fornecedoresCarregados.value).toBe(true);
+    expect(c.medicamentosCarregados.value).toBe(false);
+    expect(c.medicamentos.value).toEqual([]);
+  });
+
+  it("a lista de medicamentos que falha (rede) não derruba as outras e o campo segue como texto livre (lista vazia, não carregada)", async () => {
+    simularFetch({ medicamentos: "rede" });
+    const c = useCadastrosFollowUp();
+    await expect(c.carregar()).resolves.toEqual(expect.any(String));
+    expect(c.medicamentosCarregados.value).toBe(false);
+    expect(c.medicamentos.value).toEqual([]);
+    expect(c.fornecedoresCarregados.value && c.despachantesCarregados.value && c.transportadorasCarregadas.value).toBe(true);
   });
 
   it("uma lista que falha NÃO derruba as outras: devolve a mensagem, as outras carregam e a falha não vira 'lista vazia carregada'", async () => {

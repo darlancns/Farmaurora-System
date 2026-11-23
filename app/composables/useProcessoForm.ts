@@ -185,7 +185,7 @@ export interface UseProcessoFormReturn {
   onPacienteInput: (event: Event) => void;
   onPastaInput: (event: Event) => void;
   onNumeroPoInput: (event: Event) => void;
-  onMedicamentoNomeInput: (index: number, event: Event) => void;
+  onMedicamentoNomeChange: (index: number, texto: string) => void;
   onMedicamentoQuantidadeInput: (index: number, event: Event) => void;
   onMedicamentoLaboratorioInput: (index: number, event: Event) => void;
   onMedicamentoLaboratorioBlur: (index: number) => void;
@@ -457,11 +457,12 @@ export function useProcessoForm(
     form.numeroPo = aplicarMascaraNumeroPo(event.target as HTMLInputElement, form.numeroPo);
   }
 
-  function onMedicamentoNomeInput(index: number, event: Event): void {
-    const target = event.target as HTMLInputElement;
+  // Nome do medicamento (digitado, colado ou escolhido entre as sugestões do Cadastro): sempre em MAIÚSCULAS no valor. O campo
+  // (AppSearchSelect, prop `maiusculas`) já entrega o texto transformado e cuida do cursor; o `toUpperCase` aqui é a garantia do modelo.
+  function onMedicamentoNomeChange(index: number, texto: string): void {
     const item = medicamentos[index];
     if (!item) return;
-    item.nome = target.value.toUpperCase();
+    item.nome = texto.toUpperCase();
   }
 
   function onMedicamentoQuantidadeInput(index: number, event: Event): void {
@@ -568,7 +569,7 @@ export function useProcessoForm(
     onPacienteInput,
     onPastaInput,
     onNumeroPoInput,
-    onMedicamentoNomeInput,
+    onMedicamentoNomeChange,
     onMedicamentoQuantidadeInput,
     onMedicamentoLaboratorioInput,
     onMedicamentoLaboratorioBlur,

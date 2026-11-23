@@ -272,3 +272,30 @@ describe("preservação dos itens existentes ao salvar", () => {
     expect(el.querySelector("[id*='dosagem']")).toBeNull();
   });
 });
+
+describe("o campo Medicamento agora é texto livre COM sugestão do Cadastro (o contrato da linha não muda)", () => {
+  it("é um <input> de texto (combobox) com o MESMO id e o mesmo rótulo 'Medicamento', e a classe compacta dos campos vizinhos", async () => {
+    const { el } = abrir(ITENS_ANTIGOS);
+    await nextTick();
+    for (let i = 0; i < ITENS_ANTIGOS.length; i++) {
+      const nome = el.querySelector<HTMLInputElement>(`#pf-medicamento-nome-${i}`)!;
+      const qtd = el.querySelector<HTMLInputElement>(`#pf-medicamento-quantidade-${i}`)!;
+      expect(nome.tagName).toBe("INPUT");
+      expect(nome.type).toBe("text");
+      expect(nome.getAttribute("role")).toBe("combobox");
+      expect(nome.getAttribute("autocomplete")).toBe("off");
+      expect(nome.className).toBe(qtd.className); // a mesma classe compacta (13px no desktop) do Qtd.
+      expect(el.querySelector(`label[for='pf-medicamento-nome-${i}']`)).not.toBeNull();
+      expect(nome.getAttribute("aria-expanded")).toBe("false"); // a lista só abre com sugestão
+    }
+  });
+
+  it("sem a lista do Cadastro (não carregou), não há lista nem erro: o campo é só texto", async () => {
+    const { el } = abrir([{ nome: "", quantidade: "" }]);
+    await nextTick();
+    await digitar(el, "pf-medicamento-nome-0", "dipirona");
+    await new Promise((r) => setTimeout(r, 15));
+    expect(el.querySelector("#pf-medicamento-nome-0-listbox")).toBeNull();
+    expect(texto(el.querySelector("#pf-medicamento-nome-0")!.closest("div"))).not.toMatch(/erro|Carregando|Nada encontrado/i);
+  });
+});

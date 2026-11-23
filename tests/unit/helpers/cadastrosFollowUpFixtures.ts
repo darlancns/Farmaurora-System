@@ -1,4 +1,4 @@
-import type { CadastrosFollowUp, FornecedorLido } from "../../../shared/types/Cadastro";
+import type { CadastrosFollowUp, FornecedorLido, MedicamentoLido } from "../../../shared/types/Cadastro";
 import type { ItemCadastroPagamento } from "../../../shared/types/Pagamento";
 
 // Fixtures do que o Follow-Up LÊ dos Cadastros (useCadastrosFollowUp): fornecedores com país e prazo do alerta, despachantes e
@@ -29,8 +29,22 @@ export const DESPACHANTES_FIXTURE: ItemCadastroPagamento[] = [item("STAR CUSTOMS
 
 export const TRANSPORTADORAS_FIXTURE: ItemCadastroPagamento[] = [item("AJC"), item("Doctor"), item("TESTE Transportadora Beta"), item("TESTE Transportadora Antiga", false)];
 
+// Medicamentos do Cadastro: só nome (já em MAIÚSCULAS, como o Cadastro grava) e ativo. Nomes de exemplo.
+const med = (nome: string, ativo = true): MedicamentoLido => ({ nome, ativo });
+
+export const MEDICAMENTOS_FIXTURE: MedicamentoLido[] = [
+  med("DIPIRONA TESTE"),
+  med("DIPIRONA TESTE GOTAS"),
+  med("KEYTRUDA"),
+  med("NIVOLUMABE"),
+  med("OPDIVO"),
+  med("XAROPE DIPIRONA TESTE"),
+  med("TESTE MEDICAMENTO ANTIGO", false),
+];
+
 export const CADASTROS_FOLLOWUP_FIXTURE: CadastrosFollowUp = {
   fornecedores: FORNECEDORES_FIXTURE,
   despachantes: DESPACHANTES_FIXTURE,
   transportadoras: TRANSPORTADORAS_FIXTURE,
+  medicamentos: MEDICAMENTOS_FIXTURE,
 };

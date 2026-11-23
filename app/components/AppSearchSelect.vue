@@ -39,11 +39,22 @@ const props = withDefaults(
     ariaLabel?: string;
     /** O texto digitado (ou colado) vira MAIÚSCULAS no próprio campo, com o cursor onde estava (o medicamento de Compras, como no Follow-Up). */
     maiusculas?: boolean;
+    /** Classe do <input> (padrão: a dos campos do app). O formulário do Follow-Up usa a compacta, como os campos vizinhos. */
+    inputClass?: string;
+    /**
+     * Modo "TEXTO LIVRE com sugestão" (o nome do medicamento do Follow-Up): a lista é só uma ajuda. Só aparece quando há sugestão (nada de
+     * "Carregando…" nem "Nada encontrado" sob um texto que pode ser livre); as sugestões antigas ficam até chegarem as novas (a lista não pisca
+     * a cada tecla); e o Enter SEM uma sugestão destacada pelas setas não escolhe nada sozinho: fecha a lista e segue o caminho de sempre do campo
+     * (enviar o formulário). Sem este modo (Compras), nada disso muda.
+     */
+    somenteSugestao?: boolean;
   }>(),
   {
     placeholder: "",
     disabled: false,
     maiusculas: false,
+    inputClass: undefined,
+    somenteSugestao: false,
     permitirNovo: false,
     rotuloNovo: (texto: string) => `Usar “${texto}”`,
     debounceMs: 250,
@@ -86,6 +97,8 @@ const chave = (s: string): string => s.trim().replace(/\s+/g, " ").toLowerCase()
 // A opção "Usar “X”" só aparece quando X não é exatamente uma das sugestões.
 const mostrarNovo = computed(() => props.permitirNovo && textoLimpo.value !== "" && !resultados.value.some((r) => chave(r.rotulo) === chave(textoLimpo.value)));
 const totalOpcoes = computed(() => resultados.value.length + (mostrarNovo.value ? 1 : 0));
+// A lista está na tela? (no modo `somenteSugestao`, só com sugestões)
+const listaVisivel = computed(() => aberto.value && (!props.somenteSugestao || resultados.value.length > 0));
 
 // O valor de fora mudou (outra compra, escolha aplicada): o campo mostra o novo texto.
 watch(
@@ -173,7 +186,7 @@ function aoDigitar(event: Event): void {
   emit("digitar", texto.value);
   cancelarBusca();
   destaque.value = -1;
-  resultados.value = []; // nada de sugestão velha: o Enter nunca escolhe o que era do texto de antes
+  if (!props.somenteSugestao) resultados.value = []; // nada de sugestão velha: o Enter nunca escolhe o que era do texto de antes (em `somenteSugestao` ele só escolhe a destacada)
   if (textoLimpo.value.length < props.minimo) {
     aberto.value = false;
     resultados.value = [];
@@ -245,6 +258,11 @@ function aoTeclar(event: KeyboardEvent): void {
       break;
     case "Enter":
       if (!aberto.value) return;
+      // Texto livre com sugestão: sem sugestão destacada, o Enter não escolhe sozinho (nem engole a tecla): a lista fecha e o Enter segue.
+      if (props.somenteSugestao && destaque.value < 0) {
+        fechar();
+        return;
+      }
       event.preventDefault();
       if (carregando.value) {
         // A busca ainda não voltou: pula o resto do debounce e escolhe quando ela voltar.
@@ -257,8 +275,10 @@ function aoTeclar(event: KeyboardEvent): void {
       } else aplicarEnter();
       break;
     case "Escape":
-      if (aberto.value) {
+      if (listaVisivel.value) {
         event.preventDefault();
+        // Fecha SÓ a lista: o Esc não sobe até o modal em que o campo estiver (o formulário do Follow-Up fecharia inteiro).
+        event.stopPropagation();
         fechar();
       }
       break;
@@ -304,22 +324,22 @@ onBeforeUnmount(cancelarBusca);
       type="text"
       role="combobox"
       autocomplete="off"
-      :class="INPUT_CLASS"
+      :class="inputClass ?? INPUT_CLASS"
       :value="texto"
       :placeholder="placeholder"
       :disabled="disabled"
       :aria-label="ariaLabel"
       aria-autocomplete="list"
-      :aria-expanded="aberto"
+      :aria-expanded="listaVisivel"
       :aria-controls="listaId"
-      :aria-activedescendant="aberto && destaque >= 0 ? idOpcao(destaque) : undefined"
+      :aria-activedescendant="listaVisivel && destaque >= 0 ? idOpcao(destaque) : undefined"
       @input="aoDigitar"
       @keydown="aoTeclar"
       @blur="aoSair"
       @focus="aoFocar"
     />
     <ul
-      v-if="aberto"
+      v-if="listaVisivel"
       :id="listaId"
       role="listbox"
       class="absolute z-50 w-full min-w-[12rem] overflow-y-auto overscroll-contain rounded-md border border-hairline bg-paper-raised py-1 text-[16px] shadow-lg lg:text-[13.5px]"

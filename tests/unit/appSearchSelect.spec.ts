@@ -30,7 +30,15 @@ interface Eventos {
 
 function montar(
   buscar: Buscar,
-  extra: { modelValue?: string; permitirNovo?: boolean; disabled?: boolean; maiusculas?: boolean; rotuloNovo?: (t: string) => string } = {},
+  extra: {
+    modelValue?: string;
+    permitirNovo?: boolean;
+    disabled?: boolean;
+    maiusculas?: boolean;
+    somenteSugestao?: boolean;
+    inputClass?: string;
+    rotuloNovo?: (t: string) => string;
+  } = {},
 ) {
   const ev: Eventos = { escolher: [], novo: [], limpar: 0, digitar: [] };
   const valor = ref(extra.modelValue ?? "");
@@ -46,6 +54,8 @@ function montar(
           permitirNovo: extra.permitirNovo ?? false,
           disabled: extra.disabled ?? false,
           ...(extra.maiusculas === undefined ? {} : { maiusculas: extra.maiusculas }),
+          ...(extra.somenteSugestao === undefined ? {} : { somenteSugestao: extra.somenteSugestao }),
+          ...(extra.inputClass === undefined ? {} : { inputClass: extra.inputClass }),
           ...(extra.rotuloNovo ? { rotuloNovo: extra.rotuloNovo } : {}),
           onEscolher: (o: OpcaoBusca) => {
             ev.escolher.push(o);
@@ -445,5 +455,140 @@ describe("prop `maiusculas` (o texto digitado vira MAIÚSCULAS no campo)", () =>
     await tecla("Enter");
     expect(ev.escolher.map((o) => o.rotulo)).toEqual(["DIPIRONA TESTE"]);
     expect(input().value).toBe("DIPIRONA TESTE");
+  });
+});
+
+describe("prop `inputClass`", () => {
+  it("troca a classe do <input> (o formulário do Follow-Up usa a compacta); sem ela, a dos campos do app", () => {
+    montar(buscaSimples(), { inputClass: "classe-compacta-teste" });
+    expect(input().className).toBe("classe-compacta-teste");
+    document.body.innerHTML = "";
+    montar(buscaSimples());
+    expect(input().className).toContain("min-h-11");
+  });
+});
+
+describe("prop `somenteSugestao` (texto livre com sugestão)", () => {
+  const SEM_RESULTADO = (): ReturnType<typeof vi.fn<Buscar>> => vi.fn<Buscar>(async () => []);
+
+  it("SEM resultado a lista nem aparece (nada de 'Carregando…' nem 'Nada encontrado' sob um texto que pode ser livre); no padrão ela aparece", async () => {
+    montar(SEM_RESULTADO(), { somenteSugestao: true });
+    await digitar("medicamento inventado");
+    expect(lista()).toBeNull(); // enquanto busca
+    await avancar(250);
+    expect(lista()).toBeNull(); // sem resultado
+    expect(input().getAttribute("aria-expanded")).toBe("false");
+    expect(document.body.textContent).not.toContain("Nada encontrado");
+    expect(document.body.textContent).not.toContain("Carregando");
+
+    document.body.innerHTML = "";
+    montar(SEM_RESULTADO());
+    await digitar("medicamento inventado");
+    await avancar(250);
+    expect(textos()).toEqual([]);
+    expect(lista()!.textContent).toContain("Nada encontrado"); // o comportamento de sempre (Compras)
+  });
+
+  it("COM resultado a lista aparece, com as sugestões", async () => {
+    montar(buscaSimples(), { somenteSugestao: true });
+    await digitar("dipi");
+    await avancar(250);
+    expect(textos()).toEqual(["DIPIRONA TESTE", "DIPIRONA GOTAS TESTE"]);
+    expect(input().getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("as sugestões antigas ficam enquanto a nova busca não volta (a lista não pisca a cada tecla); no padrão elas somem na hora", async () => {
+    montar(buscaSimples(), { somenteSugestao: true });
+    await digitar("dipi");
+    await avancar(250);
+    expect(textos()).toHaveLength(2);
+    await digitar("dipir"); // nova tecla, busca ainda não voltou
+    expect(textos()).toHaveLength(2);
+
+    document.body.innerHTML = "";
+    montar(buscaSimples());
+    await digitar("dipi");
+    await avancar(250);
+    await digitar("dipir");
+    expect(textos()).toEqual([]); // padrão: nada de sugestão velha
+  });
+
+  it("ENTER sem sugestão destacada NÃO escolhe nada sozinho, não engole a tecla (o formulário envia como sempre) e fecha a lista", async () => {
+    const { ev } = montar(buscaSimples(), { somenteSugestao: true });
+    await digitar("dipi");
+    await avancar(250);
+    const e = await tecla("Enter");
+    expect(e.defaultPrevented).toBe(false);
+    expect(ev.escolher).toEqual([]);
+    expect(lista()).toBeNull();
+  });
+
+  it("ENTER com uma sugestão destacada pelas setas escolhe essa sugestão (e aí engole a tecla)", async () => {
+    const { ev } = montar(buscaSimples(), { somenteSugestao: true });
+    await digitar("dipi");
+    await avancar(250);
+    await tecla("ArrowDown");
+    const e = await tecla("Enter");
+    expect(e.defaultPrevented).toBe(true);
+    expect(ev.escolher.map((o) => o.rotulo)).toEqual(["DIPIRONA TESTE"]);
+    expect(input().value).toBe("DIPIRONA TESTE");
+  });
+
+  it("no padrão (Compras) o Enter sem destaque escolhe a 1ª sugestão, como sempre", async () => {
+    const { ev } = montar(buscaSimples());
+    await digitar("dipi");
+    await avancar(250);
+    await tecla("Enter");
+    expect(ev.escolher.map((o) => o.rotulo)).toEqual(["DIPIRONA TESTE"]);
+  });
+
+  it("Tab sai SEM escolher e o texto digitado continua como está", async () => {
+    const { ev, valor } = montar(buscaSimples(), { somenteSugestao: true });
+    await digitar("dipi livre");
+    valor.value = ev.digitar.at(-1)!; // o pai (o formulário) guarda o que foi digitado
+    await avancar(250);
+    await tecla("Tab");
+    input().dispatchEvent(new Event("blur"));
+    await nextTick();
+    expect(ev.escolher).toEqual([]);
+    expect(input().value).toBe("dipi livre");
+  });
+});
+
+describe("Esc: fecha SÓ a lista (não sobe até o modal em que o campo estiver)", () => {
+  async function esc(): Promise<void> {
+    input().dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    await nextTick();
+  }
+
+  it("com a lista na tela, o Esc fecha a lista e NÃO chega ao document (o modal não fecha)", async () => {
+    const noDocumento = vi.fn();
+    document.addEventListener("keydown", noDocumento);
+    try {
+      montar(buscaSimples(), { somenteSugestao: true });
+      await digitar("dipi");
+      await avancar(250);
+      expect(lista()).not.toBeNull();
+      await esc();
+      expect(lista()).toBeNull();
+      expect(noDocumento).not.toHaveBeenCalled();
+    } finally {
+      document.removeEventListener("keydown", noDocumento);
+    }
+  });
+
+  it("sem lista na tela (nada sugerido), o Esc segue até o document (o modal fecha, como sempre)", async () => {
+    const noDocumento = vi.fn();
+    document.addEventListener("keydown", noDocumento);
+    try {
+      montar(vi.fn<Buscar>(async () => []), { somenteSugestao: true });
+      await digitar("texto livre");
+      await avancar(250);
+      expect(lista()).toBeNull();
+      await esc();
+      expect(noDocumento).toHaveBeenCalledTimes(1);
+    } finally {
+      document.removeEventListener("keydown", noDocumento);
+    }
   });
 });

@@ -42,8 +42,9 @@ const props = defineProps<{
   // Consultores do Cadastro (ativos e inativos): as opções do select são os ativos; o consultor atual do processo aparece
   // mesmo se já estiver inativo ou fora do Cadastro, sem apagar o dado.
   consultores?: ItemConsultor[];
-  // Fornecedores, despachantes e transportadoras dos Cadastros, ativos e inativos: os selects mostram os ativos (Fornecedor ainda com "Nacional" e
-  // "Outro") + o valor que o processo já tem gravado, sem apagar nem mudar nada (ver montarFornecedorOptions, montarDespachanteOptions).
+  // Fornecedores, despachantes, transportadoras e medicamentos dos Cadastros, ativos e inativos: os selects mostram os ativos (Fornecedor ainda com
+  // "Nacional" e "Outro") + o valor que o processo já tem gravado, sem apagar nem mudar nada (ver montarFornecedorOptions, montarDespachanteOptions);
+  // o nome do medicamento é texto livre com SUGESTÃO dos ativos (ver ProcessoFormMedicamentos).
   cadastros?: Partial<CadastrosFollowUp>;
   // Envio em andamento (criar ou salvar): desabilita o botão principal e ignora novos envios (Enter, clique).
   salvando?: boolean;
@@ -84,7 +85,7 @@ const {
   onPacienteInput,
   onPastaInput,
   onNumeroPoInput,
-  onMedicamentoNomeInput,
+  onMedicamentoNomeChange,
   onMedicamentoQuantidadeInput,
   onMedicamentoLaboratorioInput,
   onMedicamentoLaboratorioBlur,
@@ -338,8 +339,10 @@ function aoCancelarEntrega(): void {
             <div class="flex flex-col gap-3.5">
               <ProcessoFormMedicamentos
                 :items="medicamentos"
+                :medicamentos-cadastro="cadastros?.medicamentos ?? []"
                 sem-rotulo
-                @nome-input="onMedicamentoNomeInput"
+                @nome-digitar="onMedicamentoNomeChange"
+                @nome-escolher="onMedicamentoNomeChange"
                 @quantidade-input="onMedicamentoQuantidadeInput"
                 @laboratorio-input="onMedicamentoLaboratorioInput"
                 @laboratorio-blur="onMedicamentoLaboratorioBlur"

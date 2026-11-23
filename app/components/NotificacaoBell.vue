@@ -78,7 +78,7 @@ onMounted(() => {
   // quem nunca vê essas seções. Dedup de in-flight fica dentro de fetchProcessos().
   if (mostraAlertasProcesso.value) {
     fetchProcessos();
-    void carregarCadastros();
+    void carregarCadastros({ listas: ["fornecedores"] });
   }
   fetchNotificacoes();
   // As dispensas ("olhinho") são só do administrador.
@@ -89,7 +89,7 @@ onMounted(() => {
 watch(mostraAlertasProcesso, (mostra) => {
   if (mostra) {
     void fetchProcessos();
-    void carregarCadastros();
+    void carregarCadastros({ listas: ["fornecedores"] });
   }
 });
 
