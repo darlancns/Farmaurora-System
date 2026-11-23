@@ -16,6 +16,7 @@ import { NUMERO_REMESSA_PADRAO } from "#shared/utils/numeroRemessa";
 import { maskPastaCode } from "../utils/processoFormatters";
 import {
   montarPatchDiferencial,
+  precisaConfirmarEntrega as statusPrecisaConfirmarEntrega,
   precisaDespachanteTransportadora,
   validarProcessoForm,
   type EstadoEdicao,
@@ -67,6 +68,9 @@ export interface FormState {
   // Datas completas ("AAAA-MM-DD" ou ""): colunas `date` (vazio vai como null no patch, NULL no banco).
   msAnexadoEm: string;
   prazoAnvisa: string;
+  // Data de entrega ("AAAA-MM-DD" ou ""): sem campo na tela (etapa 4). Entra pelo modal de confirmação ao salvar um processo
+  // que vira Entregue e segue no patch diferencial como as demais datas.
+  dataEntrega: string;
   localEntrega: string;
   numeroProcesso: string;
   statusPagamento: StatusPagamentoProcesso | "";
@@ -117,6 +121,7 @@ function emptyForm(): FormState {
     supostaEstimativa: "",
     msAnexadoEm: "",
     prazoAnvisa: "",
+    dataEntrega: "",
     localEntrega: "",
     numeroProcesso: "",
     statusPagamento: "",
@@ -158,6 +163,10 @@ export interface UseProcessoFormReturn {
   onMedicamentoLaboratorioBlur: (index: number) => void;
   onMedicamentoBrandChange: (index: number, brand: BrandMedicamento | "") => void;
   onDataFieldChange: (field: DataField, value: string) => void;
+  // Modal da data de entrega ao salvar: o Salvar o abre só na transição para Entregue (ver precisaConfirmarEntrega).
+  precisaConfirmarEntrega: () => boolean;
+  dataEntregaParaConfirmar: () => string;
+  definirDataEntrega: (iso: string) => void;
   validar: () => ValidarProcessoFormResult;
   validarEdicao: () => ValidarEdicaoResult;
 }
@@ -242,6 +251,7 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     form.supostaEstimativa = processo.datas.supostaEstimativa ?? "";
     form.msAnexadoEm = processo.datas.msAnexadoEm ?? "";
     form.prazoAnvisa = processo.datas.prazoAnvisa ?? "";
+    form.dataEntrega = processo.datas.dataEntrega ?? "";
     form.localEntrega = processo.localEntrega ?? "";
     form.numeroProcesso = processo.numeroProcesso ?? "";
     form.statusPagamento = processo.statusPagamento ?? "";
@@ -375,6 +385,19 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     form[field] = value;
   }
 
+  // O status ORIGINAL é o do estado carregado (edição); na criação não há original (`inicial` nulo) e Entregue sempre confirma.
+  function precisaConfirmarEntrega(): boolean {
+    return statusPrecisaConfirmarEntrega(inicial?.form.status, form.status);
+  }
+
+  function dataEntregaParaConfirmar(): string {
+    return form.dataEntrega;
+  }
+
+  function definirDataEntrega(iso: string): void {
+    form.dataEntrega = iso;
+  }
+
   function validar(): ValidarProcessoFormResult {
     // Edição: compara com o estado carregado. Criação: com o formulário vazio (tudo que o usuário
     // digitou conta como alterado).
@@ -412,6 +435,9 @@ export function useProcessoForm(editingProcesso: () => Processo | null | undefin
     onMedicamentoLaboratorioBlur,
     onMedicamentoBrandChange,
     onDataFieldChange,
+    precisaConfirmarEntrega,
+    dataEntregaParaConfirmar,
+    definirDataEntrega,
     validar,
     validarEdicao,
   };

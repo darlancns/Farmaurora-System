@@ -255,6 +255,7 @@ describe("formulário", () => {
       supostaEstimativa: "",
       msAnexadoEm: "",
       prazoAnvisa: "",
+      dataEntrega: "",
       localEntrega: "",
       numeroProcesso: "",
       statusPagamento: "",

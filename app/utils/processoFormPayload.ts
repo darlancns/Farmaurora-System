@@ -55,6 +55,9 @@ export interface ProcessoFormState {
   supostaEstimativa: string;
   msAnexadoEm: string; // "AAAA-MM-DD" ou ""
   prazoAnvisa: string; // "AAAA-MM-DD" ou ""
+  // Data de entrega ("AAAA-MM-DD" ou ""). SEM campo visível ainda: é preenchida pelo modal "Confirme a data de entrega" ao
+  // SALVAR quando o status vira Entregue (ver precisaConfirmarEntrega) e carregada do processo; o campo na tela é a etapa 4.
+  dataEntrega: string;
   localEntrega: string;
   numeroProcesso: string;
   statusPagamento: StatusPagamentoProcesso | "";
@@ -77,7 +80,20 @@ export function buildDatas(form: ProcessoFormState): ProcessoDatas {
     supostaEstimativa: form.supostaEstimativa.trim() || undefined,
     msAnexadoEm: form.msAnexadoEm.trim() || undefined,
     prazoAnvisa: form.prazoAnvisa.trim() || undefined,
+    dataEntrega: form.dataEntrega.trim() || undefined,
   };
+}
+
+/**
+ * O Salvar precisa abrir o modal "Confirme a data de entrega"? Só na TRANSIÇÃO para Entregue: editando um processo cujo status
+ * original não era entregue, ou criando um já Entregue (`statusOriginal` null/undefined). Se o status original já era Entregue
+ * (inclusive Entregue antigo, sem data), nunca abre.
+ */
+export function precisaConfirmarEntrega(
+  statusOriginal: StatusProcesso | null | undefined,
+  statusAtual: StatusProcesso,
+): boolean {
+  return statusAtual === "entregue" && statusOriginal !== "entregue";
 }
 
 export function buildTransportadoraNacional(form: ProcessoFormState): TransportadoraNacional | undefined {
@@ -159,6 +175,7 @@ const CAMPOS_DATA: ReadonlyArray<keyof ProcessoDatas> = [
   "supostaEstimativa",
   "msAnexadoEm",
   "prazoAnvisa",
+  "dataEntrega",
 ];
 
 // Obrigatórios e opcionais de valor único: vão no patch SÓ se o valor mudou. A pasta é opcional, mas

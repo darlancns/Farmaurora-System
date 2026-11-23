@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { NewProcessoDTO, Processo, ProcessoFormPatchPayload } from "#shared/types/processo";
-import { computed } from "vue";
+import { computed, nextTick, ref } from "vue";
 import { MENSAGEM_CONFLITO_EDICAO } from "../../composables/useConflitoEdicaoProcesso";
 import { useProcessoForm } from "../../composables/useProcessoForm";
 import { BOTAO_FECHAR_HOVER_CLASS, BOTAO_ICONE_CLASS } from "../../utils/botaoIcone";
@@ -8,6 +8,7 @@ import { ICONES_PROCESSO } from "../../utils/processoIcones";
 import { useProverBloqueioDatas } from "../../composables/useBloqueioDatas";
 import AppSelect from "../AppSelect.vue";
 import BaseModal from "../BaseModal.vue";
+import ProcessoEntregaModal from "./ProcessoEntregaModal.vue";
 import ProcessoFormDatas from "./ProcessoFormDatas.vue";
 import ProcessoFormMedicamentos from "./ProcessoFormMedicamentos.vue";
 import ProcessoRemessaStepper from "./ProcessoRemessaStepper.vue";
@@ -80,6 +81,9 @@ const {
   onMedicamentoLaboratorioBlur,
   onMedicamentoBrandChange,
   onDataFieldChange,
+  precisaConfirmarEntrega,
+  dataEntregaParaConfirmar,
+  definirDataEntrega,
   validar,
   validarEdicao,
 } = useProcessoForm(() => props.editingProcesso);
@@ -91,10 +95,21 @@ const bloqueioDatas = useProverBloqueioDatas();
 // Nome do botão principal (cabeçalho). Abaixo de sm a tela mostra a forma curta, mas o nome acessível é este.
 const textoSalvarCompleto = computed(() => (props.editingProcesso ? "Salvar alterações" : "+ Adicionar processo"));
 
+// Modal "Confirme a data de entrega" (ProcessoEntregaModal): o Salvar o abre SÓ quando o status passa a Entregue (edição de um
+// processo que não era Entregue) ou ao criar já Entregue. Escolher o status no select NÃO abre nada. Confirmar preenche a data
+// e só então envia; Cancelar volta ao formulário intacto, sem enviar. Já era Entregue: o Salvar nunca o abre.
+const confirmandoEntrega = ref(false);
+
 function handleSubmit(): void {
-  // Já está salvando: ignora Enter, Enter duplo e clique + Enter (a trava síncrona está em processos.vue).
-  if (props.salvando) return;
+  // Já está salvando (ou o modal da data está aberto): ignora Enter, Enter duplo e clique + Enter (a trava síncrona do envio
+  // está em processos.vue; o modal da data tem a sua guarda).
+  if (props.salvando || confirmandoEntrega.value) return;
   if (!bloqueioDatas.liberado()) return;
+  enviar(false);
+}
+
+// Valida e envia. `entregaConfirmada`: a data de entrega já foi confirmada no modal (não pergunta de novo).
+function enviar(entregaConfirmada: boolean): void {
   if (props.editingProcesso) {
     // Edição: só vai o que o usuário alterou (patch diferencial, ver montarPatchDiferencial).
     const edicao = validarEdicao();
@@ -106,6 +121,10 @@ function handleSubmit(): void {
       emit("unchanged");
       return;
     }
+    if (!entregaConfirmada && precisaConfirmarEntrega()) {
+      confirmandoEntrega.value = true;
+      return;
+    }
     emit("update", props.editingProcesso.id, edicao.patch);
     return;
   }
@@ -115,8 +134,25 @@ function handleSubmit(): void {
     emit("invalid", resultado.erro);
     return;
   }
+  if (!entregaConfirmada && precisaConfirmarEntrega()) {
+    confirmandoEntrega.value = true;
+    return;
+  }
 
   emit("submit", { ...resultado.payload, atualizacoes: [] });
+}
+
+function aoConfirmarEntrega(dataEntrega: string): void {
+  confirmandoEntrega.value = false;
+  if (props.salvando) return;
+  definirDataEntrega(dataEntrega);
+  enviar(true);
+}
+
+// Cancelar (ou Esc): nada é enviado; o foco volta ao botão Salvar.
+function aoCancelarEntrega(): void {
+  confirmandoEntrega.value = false;
+  void nextTick(() => document.getElementById("btn-save-processo")?.focus());
 }
 </script>
 
@@ -437,5 +473,16 @@ function handleSubmit(): void {
            não ocupa espaço; o ancestral posicionado é o overlay do BaseModal (fixed), então não estica a página. -->
       <p id="processo-salvando-anuncio" class="sr-only" role="status" aria-live="polite">{{ salvando ? "Salvando…" : "" }}</p>
     </div>
+
+    <!-- Confirmação da data de entrega: FORA do cartão e do <form> (irmã do cartão dentro do overlay), z-950 — acima do
+         formulário (z-900) e abaixo do calendário (z-970). Só existe entre o Salvar e o Confirmar/Cancelar. -->
+    <ProcessoEntregaModal
+      v-if="confirmandoEntrega"
+      :paciente="form.paciente"
+      :pasta="form.pasta"
+      :data-inicial="dataEntregaParaConfirmar()"
+      @confirm="aoConfirmarEntrega"
+      @close="aoCancelarEntrega"
+    />
   </BaseModal>
 </template>
