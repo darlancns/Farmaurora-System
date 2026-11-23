@@ -7,6 +7,7 @@ import {
   erroNumeroPo,
   erroNumeroRemessa,
   erroDatasIso,
+  erroIdProcesso,
   erroStatusLegado,
   isValidProcessoPayload,
   medicamentosCanonicos,
@@ -39,6 +40,12 @@ export default defineEventHandler(async (event): Promise<Processo> => {
   const erroDatas = erroDatasIso(body);
   if (erroDatas) {
     throw createError({ statusCode: 400, statusMessage: erroDatas });
+  }
+
+  // `id` opcional (gerado pelo formulário ao abrir): só o formato proc_<uuid>; qualquer outro valor = 400.
+  const erroId = erroIdProcesso(body);
+  if (erroId) {
+    throw createError({ statusCode: 400, statusMessage: erroId });
   }
 
   if (!isValidProcessoPayload(body)) {
@@ -87,8 +94,9 @@ export default defineEventHandler(async (event): Promise<Processo> => {
     numeroPo: _poBruto,
     numeroRemessa: _remessaBruta,
     ordem: _ordemLegada,
+    statusDesde: _statusDesdeDoCliente, // do gatilho do banco: valor vindo do cliente é descartado
     ...resto
-  } = body as typeof body & { ordem?: unknown };
+  } = body as typeof body & { ordem?: unknown; statusDesde?: unknown };
   const criado = await createProcesso({
     ...resto,
     consultor,
@@ -101,7 +109,8 @@ export default defineEventHandler(async (event): Promise<Processo> => {
   });
 
   // Pendências e atualizações iniciais são todas novas (lista de antes vazia): avisa o consultor do processo,
-  // exceto se foi ele mesmo quem criou. Falha do aviso não desfaz o processo criado.
+  // exceto se foi ele mesmo quem criou. Falha do aviso não desfaz o processo criado. Só chega aqui depois do INSERT
+  // bem-sucedido: um 2º POST com o mesmo id (409 em createProcesso) nunca avisa de novo.
   const user: AuthUser | null | undefined = event.context?.user;
   await avisarConsultorDeItensNovos({
     processo: criado,

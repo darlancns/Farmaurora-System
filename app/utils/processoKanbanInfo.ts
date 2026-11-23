@@ -1,14 +1,18 @@
 import type { Processo } from "#shared/types/processo";
+import type { ChaveIconeCard } from "./processoIcones";
 import { nomeFornecedorCurto } from "./nomeFornecedorCurto";
+import { previsaoParaCard } from "./processoPrevisaoCard";
 
 // "Bloquinhos" do card do Kanban: decide o que aparece em cada linha/célula e já devolve os valores formatados.
 // O componente só renderiza. Regras:
 // - linha "pessoas": Responsável, Consultor, Pendências (esta só com quantidade > 0);
 // - linha "origem": Fornecedor (nome curto, sem o país) e Despachante;
-// - linha "aereo": uma célula "Cia · AWB" (só a cia, só a AWB, ou as duas);
+// - linha "aereo": a célula "Cia · AWB" (só a cia, só a AWB, ou as duas) e, à direita dela, a célula da previsão de
+//   entrega (sempre só DD/MM, sem ícone — ver processoPrevisaoCard.ts). Sem Cia e sem AWB mas com previsão: a linha
+//   existe só com a data. Sem previsão (vazia ou sem data reconhecível): nenhuma célula de data, nada muda;
 // - célula vazia (ausente ou só espaços) não existe; linha sem células não existe.
 
-export type ChaveCelulaKanban = "responsavel" | "consultor" | "pendencias" | "fornecedor" | "despachante" | "aereo";
+export type ChaveCelulaKanban = ChaveIconeCard | "previsao";
 export type ChaveLinhaKanban = "pessoas" | "origem" | "aereo";
 
 export interface CelulaInfoKanban {
@@ -28,6 +32,8 @@ export interface CelulaInfoKanban {
   // Não encolhe antes das outras (até 45% da linha): o Responsável, nome curto que viraria "Re…" ao lado de um
   // consultor longo.
   prioritaria?: boolean;
+  // Célula da data: nunca encolhe nem corta (são sempre 5 caracteres, "DD/MM"). Não tem ícone.
+  fixa?: boolean;
 }
 
 export interface LinhaInfoKanban {
@@ -42,6 +48,7 @@ export const ROTULOS_INFO_KANBAN: Record<ChaveCelulaKanban, string> = {
   fornecedor: "Fornecedor",
   despachante: "Despachante",
   aereo: "Cia. aérea · AWB",
+  previsao: "Previsão de entrega",
 };
 
 function limpo(valor: string | null | undefined): string {
@@ -80,6 +87,18 @@ function celulaAereo(cia: string, awb: string): CelulaInfoKanban | null {
   };
 }
 
+function celulaPrevisao(texto: string | undefined): CelulaInfoKanban | null {
+  const previsao = previsaoParaCard(texto);
+  if (!previsao) return null;
+  return {
+    chave: "previsao",
+    rotulo: ROTULOS_INFO_KANBAN.previsao,
+    texto: previsao.curto,
+    titulo: `${ROTULOS_INFO_KANBAN.previsao}: ${previsao.completo}`,
+    fixa: true,
+  };
+}
+
 function linha(chave: ChaveLinhaKanban, celulas: Array<CelulaInfoKanban | null>): LinhaInfoKanban | null {
   const presentes = celulas.filter((c): c is CelulaInfoKanban => c !== null);
   return presentes.length ? { chave, celulas: presentes } : null;
@@ -88,9 +107,10 @@ function linha(chave: ChaveLinhaKanban, celulas: Array<CelulaInfoKanban | null>)
 export type ProcessoInfoKanban = Pick<
   Processo,
   "responsavelOperacional" | "consultor" | "pendencias" | "fornecedor" | "despachante" | "companhiaAerea" | "numeroAwb"
->;
+> & { datas?: Pick<NonNullable<Processo["datas"]>, "previsaoEntrega"> };
 
 export function linhasInfoKanban(processo: ProcessoInfoKanban): LinhaInfoKanban[] {
+  const aereo = celulaAereo(limpo(processo.companhiaAerea), limpo(processo.numeroAwb));
   const qtdPendencias = Array.isArray(processo.pendencias) ? processo.pendencias.length : 0;
   return [
     linha("pessoas", [
@@ -102,6 +122,6 @@ export function linhasInfoKanban(processo: ProcessoInfoKanban): LinhaInfoKanban[
       celulaTexto("fornecedor", nomeFornecedorCurto(processo.fornecedor)),
       celulaTexto("despachante", limpo(processo.despachante)),
     ]),
-    linha("aereo", [celulaAereo(limpo(processo.companhiaAerea), limpo(processo.numeroAwb))]),
+    linha("aereo", [aereo, celulaPrevisao(processo.datas?.previsaoEntrega)]),
   ].filter((l): l is LinhaInfoKanban => l !== null);
 }

@@ -151,6 +151,8 @@ export default defineEventHandler(async (event): Promise<Processo> => {
   // mais é gravada) podem chegar de uma aba antiga: ignorados, sem erro e sem gravar.
   delete (patch as Record<string, unknown>).ordem;
   delete (patch as Record<string, unknown>).statusOutro;
+  // `statusDesde` (ordem do Kanban) é do gatilho do banco: um valor vindo do cliente é ignorado.
+  delete (patch as Record<string, unknown>).statusDesde;
 
   // Aviso ao consultor: só quando o patch mexe em pendências/atualizações. Lê a linha ANTES de gravar (a de
   // depois vem da gravação) para saber o que é novo. Se essa leitura falhar, a gravação segue sem aviso.

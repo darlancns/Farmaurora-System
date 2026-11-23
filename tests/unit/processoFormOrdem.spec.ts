@@ -448,7 +448,7 @@ describe("Botão principal no cabeçalho do modal", () => {
     const { el } = montarComEventos(null);
     await nextTick();
     const cls = (el.querySelector("#btn-save-processo")!.getAttribute("class") ?? "").split(/\s+/);
-    for (const c of ["bg-accent-dark", "text-white", "min-h-11", "lg:min-h-auto", "shrink-0", "whitespace-nowrap", "ml-auto"]) expect(cls, c).toContain(c);
+    for (const c of ["bg-accent-dark", "text-white", "min-h-11", "lg:min-h-auto", "shrink-0", "whitespace-nowrap", "ml-auto", "disabled:opacity-60", "disabled:cursor-not-allowed"]) expect(cls, c).toContain(c);
     expect(cls.filter((c) => /(^|:)w-/.test(c))).toEqual([]);
     expect(cls.filter((c) => /(^|[:!])-?order-/.test(c))).toEqual([]);
     // O título pode ceder espaço (min-w-0) e quebrar linha.

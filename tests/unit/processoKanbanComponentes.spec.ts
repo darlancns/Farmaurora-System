@@ -196,6 +196,87 @@ describe("ProcessoKanbanCard", () => {
     expect(nada.querySelector("#card-info-c")).toBeNull();
   });
 
+  it("previsão de entrega: com Cia + AWB, a data fica à direita, separada por divisória, sem ícone e sem encolher", () => {
+    const el = card(proc("p1", { companhiaAerea: "LATAM Cargo", numeroAwb: "957-12345678", datas: { previsaoEntrega: "25/11/2026" } }));
+    const linha = el.querySelector("#card-info-aereo-p1")!;
+    expect([...linha.children].map((c) => c.id)).toEqual(["card-aereo-p1", "card-previsao-p1"]);
+    expect(linha.className).toContain("divide-x"); // a divisória é a mesma dos outros bloquinhos
+    const data = el.querySelector("#card-previsao-p1")!;
+    expect(texto(data)).toBe("Previsão de entrega: 25/11");
+    expect(data.getAttribute("title")).toBe("Previsão de entrega: 25/11/2026");
+    for (const c of ["flex-none", "relative"]) expect(data.className).toContain(c);
+    expect(data.className).not.toContain("flex-auto");
+    expect(data.querySelector("svg")).toBeNull();
+    const visivel = data.querySelector("span.flex")!;
+    for (const c of ["whitespace-nowrap", "tabular-nums"]) expect(visivel.className).toContain(c);
+    // Sempre 5 caracteres: sem limite de largura e sem reticências.
+    expect(visivel.className).not.toContain("max-w-");
+    expect(data.querySelector(".truncate")).toBeNull();
+    expect(texto(visivel)).toBe("25/11");
+    // Quem corta é a Cia · AWB: continua flex-auto + min-w-0 + truncate, com title.
+    const aereo = el.querySelector("#card-aereo-p1")!;
+    expect(aereo.className).toContain("flex-auto");
+    expect(aereo.className).toContain("min-w-0");
+    expect(aereo.querySelector(".truncate")).not.toBeNull();
+    expect(aereo.getAttribute("title")).toBe("LATAM Cargo · 957-12345678");
+    // Continua uma só caixa de bloquinhos aérea (não cria linha nova).
+    expect([...el.querySelectorAll("#card-info-p1 > span")].map((l) => l.id)).toEqual(["card-info-pessoas-p1", "card-info-aereo-p1"]);
+  });
+
+  it("previsão de entrega: sem previsão o card é idêntico ao de hoje (sem divisória nem célula de data)", () => {
+    const base = { companhiaAerea: "LATAM Cargo", numeroAwb: "957-12345678" };
+    const sem = card(proc("p1", { ...base, datas: {} }));
+    const espacos = card(proc("p2", { ...base, datas: { previsaoEntrega: "   " } }));
+    for (const [el, id] of [[sem, "p1"], [espacos, "p2"]] as const) {
+      expect(el.querySelector(`#card-previsao-${id}`)).toBeNull();
+      expect([...el.querySelector(`#card-info-aereo-${id}`)!.children].map((c) => c.id)).toEqual([`card-aereo-${id}`]);
+    }
+    // Mesmo HTML do bloquinho aéreo (tirando o id) que o de um processo sem o campo `datas.previsaoEntrega`.
+    const html = (e: HTMLElement, id: string) => e.querySelector(`#card-info-aereo-${id}`)!.outerHTML.replaceAll(id, "X");
+    expect(html(sem, "p1")).toBe(html(espacos, "p2"));
+  });
+
+  it("previsão de entrega: sem Cia e sem AWB, um bloquinho só com a data, SEM ícone", () => {
+    const el = card(proc("p1", { datas: { previsaoEntrega: "25/11" } }));
+    const linha = el.querySelector("#card-info-aereo-p1")!;
+    expect([...linha.children].map((c) => c.id)).toEqual(["card-previsao-p1"]);
+    expect(el.querySelector("#card-aereo-p1")).toBeNull();
+    const data = el.querySelector("#card-previsao-p1")!;
+    expect(texto(data)).toBe("Previsão de entrega: 25/11");
+    expect(data.querySelector("svg")).toBeNull();
+  });
+
+  it("previsão de entrega: texto anotado mostra só a data (DD/MM) e o title tem o texto completo", () => {
+    for (const [anotado, curto] of [["20/11 (aguardando voo)", "20/11"], ["chega 20/11/2026", "20/11"], ["5/1", "05/01"]] as const) {
+      const el = card(proc("p1", { companhiaAerea: "LATAM Cargo", datas: { previsaoEntrega: anotado } }));
+      const data = el.querySelector("#card-previsao-p1")!;
+      expect(data.getAttribute("title")).toBe(`Previsão de entrega: ${anotado}`);
+      expect(texto(data)).toBe(`Previsão de entrega: ${curto}`);
+      expect(data.querySelector(".truncate")).toBeNull();
+    }
+  });
+
+  it("previsão de entrega: texto sem data reconhecível não cria célula nem divisória (card idêntico ao de hoje)", () => {
+    const base = { companhiaAerea: "LATAM Cargo", numeroAwb: "957-12345678" };
+    const sem = card(proc("p1", { ...base }));
+    const html = (e: HTMLElement, id: string) => e.querySelector(`#card-info-aereo-${id}`)!.outerHTML.replaceAll(id, "X");
+    for (const [i, previsaoEntrega] of ["aguardando confirmação", "32/13"].entries()) {
+      const id = `t${i}`;
+      const el = card(proc(id, { ...base, datas: { previsaoEntrega } }));
+      expect(el.querySelector(`#card-previsao-${id}`), previsaoEntrega).toBeNull();
+      expect(html(el, id), previsaoEntrega).toBe(html(sem, "p1"));
+    }
+    // Sem Cia/AWB e sem data reconhecível: nem o bloquinho aéreo existe.
+    expect(card(proc("v", { datas: { previsaoEntrega: "aguardando confirmação" } })).querySelector("#card-info-aereo-v")).toBeNull();
+  });
+
+  it("previsão de entrega: vale em todas as colunas, inclusive Entregue", () => {
+    for (const status of ["em_transito", "entregue"] as const) {
+      const el = card(proc(`s-${status}`, { status, companhiaAerea: "LATAM Cargo", datas: { previsaoEntrega: "25/11/2026" } }));
+      expect(texto(el.querySelector(`#card-previsao-s-${status}`))).toBe("Previsão de entrega: 25/11");
+    }
+  });
+
   it("hierarquia: nome 16px/600 é o maior (≥ 3px acima de qualquer outro) e o peso dele é ≥ o de qualquer texto; bloquinhos ≤ 12px", () => {
     const el = card(
       proc("p1", { statusPagamento: "pendente", responsavelOperacional: "Bruno", pendencias: ["x"], fornecedor: "Poros - Turquia", numeroAwb: "957-1" }),
@@ -309,6 +390,37 @@ describe("ProcessoKanban (quadro)", () => {
     const asd = agruparPorColuna(filtrarPorCotacao(todos, "asd"));
     expect(asd.entregue).toEqual([]);
     expect(asd.em_transito.map((p) => p.id)).toEqual(["a"]);
+  });
+
+  it("ordem dos cards no DOM: pela entrada na coluna (mais antigo em cima; Entregue, mais novo em cima); mover manda para o fim/topo", async () => {
+    const t = (dia: number, hora = 12) => `2026-11-${String(dia).padStart(2, "0")}T${String(hora).padStart(2, "0")}:00:00.000Z`;
+    const lista = ref<Processo[]>([
+      proc("t3", { status: "em_transito", pasta: "2026 - 1", statusDesde: t(3) }),
+      proc("t1", { status: "em_transito", pasta: "2026 - 9", statusDesde: t(1) }),
+      proc("t2", { status: "em_transito", pasta: "2026 - 5", statusDesde: t(2) }),
+      proc("sem", { status: "em_transito", pasta: "", statusDesde: t(2) }),
+      proc("e1", { status: "entregue", statusDesde: t(1) }),
+      proc("e3", { status: "entregue", statusDesde: t(3) }),
+      proc("d1", { status: "desembaraco", statusDesde: t(1) }),
+    ]);
+    const el = montar(defineComponent({ setup: () => () => h(ProcessoKanban, { processos: lista.value }) }));
+    const ordem = (coluna: string) =>
+      [...el.querySelectorAll<HTMLElement>(`#kanban-coluna-${coluna} article[id^='processo-card-']`)].map((a) =>
+        a.id.replace("processo-card-", ""),
+      );
+    // Empate t2 x sem (mesmo instante): Pasta crescente, sem Pasta no fim.
+    expect(ordem("em-transito")).toEqual(["t1", "t2", "sem", "t3"]);
+    expect(ordem("entregue")).toEqual(["e3", "e1"]);
+
+    // Mover "t1" (o do topo) para Desembaraço e "t3" para Entregue: a resposta do servidor traz status e statusDesde novos.
+    const agora = "2026-11-18T15:30:00.000Z";
+    lista.value = lista.value.map((p) =>
+      p.id === "t1" ? { ...p, status: "desembaraco", statusDesde: agora } : p.id === "t3" ? { ...p, status: "entregue", statusDesde: agora } : p,
+    );
+    await nextTick();
+    expect(ordem("desembaraco")).toEqual(["d1", "t1"]); // no FIM da coluna nova
+    expect(ordem("entregue")).toEqual(["t3", "e3", "e1"]); // no TOPO de Entregue
+    expect(ordem("em-transito")).toEqual(["t2", "sem"]);
   });
 
   it("realce do ?processo=<id> (focoId) só no card certo", () => {

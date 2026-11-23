@@ -124,11 +124,18 @@ export interface Processo {
   atualizacoes: AtualizacaoProcesso[];
   createdAt: string;
   updatedAt: string;
+  // Instante (ISO) em que o processo entrou na coluna (status normalizado) em que está agora: base da ordem do Kanban.
+  // Quem grava é o gatilho do banco (follow_up_status_desde): o código NUNCA o grava. O mapper preenche com
+  // `status_desde ?? created_at`; opcional aqui para tolerar linhas/fixtures sem a coluna.
+  statusDesde?: string;
 }
 
 // `numeroRemessa` é opcional na criação: ausente = 1 (o servidor preenche).
-export type NewProcessoDTO = Omit<Processo, "id" | "createdAt" | "updatedAt" | "numeroRemessa"> & {
+// `id` é opcional na criação: o formulário "Novo processo" gera `proc_<uuid>` UMA vez ao abrir (shared/utils/idNovoProcesso.ts)
+// e reenvia o mesmo em tentativas repetidas; o 2º POST com o mesmo id recebe 409 (nunca cria outro). Ausente = o servidor gera.
+export type NewProcessoDTO = Omit<Processo, "id" | "createdAt" | "updatedAt" | "numeroRemessa" | "statusDesde"> & {
   numeroRemessa?: number;
+  id?: string;
 };
 
 // Payload de edição não inclui `atualizacoes` — a timeline é gerenciada à parte,

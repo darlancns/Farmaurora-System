@@ -9,8 +9,9 @@ import KanbanColunaIcone from "./KanbanColunaIcone.vue";
 import ProcessoKanbanCard from "./ProcessoKanbanCard.vue";
 
 // Quadro do Follow-Up por status (só para quem pode editar processos). Recebe a lista JÁ filtrada pela página
-// (busca, Empresa, Responsável, Cotações ASD) e agrupa uma vez só; cada coluna vem ordenada por Pasta (o mais antigo
-// em cima). O número no cabeçalho reflete os filtros e a busca.
+// (busca, Empresa, Responsável, Cotações ASD) e agrupa uma vez só; cada coluna vem ordenada pelo momento em que o card
+// ENTROU nela (statusDesde; o mais antigo em cima, em Entregue o mais novo; empate: Pasta). O número no cabeçalho reflete os
+// filtros e a busca.
 //
 // Rolar de lado: arrastar com o mouse FORA dos cards (useArrastarParaRolar), os botões ‹ ›, Shift+roda ou trackpad.
 //

@@ -26,6 +26,7 @@ import { NUMERO_PO_ERRO, normalizarNumeroPo, numeroPoValido } from "../../shared
 import { NUMERO_REMESSA_ERRO, normalizarNumeroRemessa, numeroRemessaValido } from "../../shared/utils/numeroRemessa";
 import { normalizarLaboratorio, tamanhoLaboratorio } from "../../shared/utils/laboratorio";
 import { parseDataISO } from "../../shared/utils/dataBrasilia";
+import { isIdNovoProcessoValido, MENSAGEM_ID_PROCESSO_INVALIDO } from "../../shared/utils/idNovoProcesso";
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -287,6 +288,15 @@ export function erroNumeroRemessa(body: unknown): string | null {
   const valor = (body as Record<string, unknown>).numeroRemessa;
   if (valor === undefined) return null;
   return numeroRemessaValido(valor) ? null : NUMERO_REMESSA_ERRO;
+}
+
+// Mensagem de erro do `id` enviado pelo cliente na criação (POST), ou null se ausente (undefined/null) ou válido
+// (`proc_` + UUID em minúsculas). Qualquer outro valor (texto fora do formato, vazio, número) = erro (400).
+export function erroIdProcesso(body: unknown): string | null {
+  if (!body || typeof body !== "object" || !("id" in body)) return null;
+  const valor = (body as Record<string, unknown>).id;
+  if (valor === undefined || valor === null) return null;
+  return isIdNovoProcessoValido(valor) ? null : MENSAGEM_ID_PROCESSO_INVALIDO;
 }
 
 // Valor para gravar: inteiro >= 1 (null/""/0 → 1); chave ausente (ou inválida, já barrada antes) → undefined.

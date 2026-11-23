@@ -13,6 +13,7 @@ export const TETO_LINHAS_POR_CONSULTA = 1000;
 
 type Row = Record<string, unknown>;
 type Op = "select" | "insert" | "update" | "upsert" | "delete";
+type Gatilho = (op: "insert" | "update", antiga: Record<string, unknown> | null, nova: Record<string, unknown>) => void;
 interface Resultado {
   data: Row[] | Row | null;
   error: { message: string; code?: string } | null;
@@ -25,7 +26,9 @@ export type FuncaoRpc = (args: Record<string, unknown>, db: FakeSupabase) => { d
 
 export class FakeSupabase {
   readonly tabelas: Record<string, Row[]> = {};
-  private falhas: Array<{ tabela: string; op: Op; mensagem: string }> = [];
+  private falhas: Array<{ tabela: string; op: Op; mensagem: string; code?: string }> = [];
+  // Gatilhos BEFORE INSERT/UPDATE por tabela (opt-in): recebem (op, linha antiga | null, linha nova) e podem alterar a nova.
+  private gatilhos: Record<string, Gatilho> = {};
   readonly chamadas: Array<{ tabela: string; op: Op }> = [];
   // Colunas pedidas em cada select puro (o argumento de `.select(colunas)`); o fake NÃO projeta as linhas por elas.
   readonly selects: Array<{ tabela: string; colunas: string | undefined }> = [];
@@ -58,8 +61,26 @@ export class FakeSupabase {
     return i < 0 ? null : this.ganchos.splice(i, 1)[0]!.fn;
   }
 
-  falhar(tabela: string, op: Op, mensagem = "falha injetada"): void {
-    this.falhas.push({ tabela, op, mensagem });
+  /** Injeta um erro na próxima operação da tabela; `code` (ex.: "23505") vai junto no erro devolvido, como o PostgREST. */
+  falhar(tabela: string, op: Op, mensagem = "falha injetada", code?: string): void {
+    this.falhas.push({ tabela, op, mensagem, ...(code ? { code } : {}) });
+  }
+
+  // Liga um gatilho BEFORE INSERT OR UPDATE na `tabela` (ex.: gatilhoStatusDesde, helpers/gatilhoStatusDesde.ts).
+  gatilho(tabela: string, fn: Gatilho | null): void {
+    if (fn) this.gatilhos[tabela] = fn;
+    else delete this.gatilhos[tabela];
+  }
+
+  aplicarGatilho(tabela: string, op: "insert" | "update", antiga: Row | null, nova: Row): void {
+    this.gatilhos[tabela]?.(op, antiga, nova);
+  }
+
+  /** Unicidade de uma coluna só, como a chave primária do banco: o erro é o 23505 de `<tabela>_pkey`. Atalho de `unico`. */
+  chaveUnica(tabela: string, coluna: string): void {
+    const nome = `${tabela}_pkey`;
+    this.unicos = this.unicos.filter((u) => !(u.tabela === tabela && u.nome === nome)); // religar não duplica (beforeEach)
+    this.unico(tabela, [coluna], nome);
   }
 
   /** Liga a unicidade de `colunas` na `tabela` (linhas com alguma coluna nula não contam, como no Postgres). */
@@ -94,10 +115,11 @@ export class FakeSupabase {
     return { data: r.data ?? null, error: r.error ?? null };
   }
 
-  tirarFalha(tabela: string, op: Op): string | null {
+  tirarFalha(tabela: string, op: Op): { mensagem: string; code?: string } | null {
     const i = this.falhas.findIndex((f) => f.tabela === tabela && f.op === op);
     if (i < 0) return null;
-    return this.falhas.splice(i, 1)[0]!.mensagem;
+    const { mensagem, code } = this.falhas.splice(i, 1)[0]!;
+    return { mensagem, ...(code ? { code } : {}) };
   }
 
   asClient(): SupabaseClient {
@@ -209,7 +231,7 @@ class Consulta implements PromiseLike<Resultado> {
     this.db.chamadas.push({ tabela: this.tabela, op: this.op });
     this.db.tirarGancho(this.tabela, this.op)?.();
     const falha = this.db.tirarFalha(this.tabela, this.op);
-    if (falha) return { data: null, error: { message: falha } };
+    if (falha) return { data: null, error: { message: falha.mensagem, ...(falha.code ? { code: falha.code } : {}) } };
 
     const todas = (this.db.tabelas[this.tabela] ??= []);
     const casa = (r: Row) => this.filtros.every((f) => f(r));
@@ -227,6 +249,7 @@ class Consulta implements PromiseLike<Resultado> {
     if (this.op === "insert") {
       return comUnicidade(() => {
         const novas = this.payloads.map((p) => ({ ...p }));
+        for (const nova of novas) this.db.aplicarGatilho(this.tabela, "insert", null, nova);
         todas.push(...novas);
         return { data: this.retorna ? novas.map((n) => ({ ...n })) : null, error: null };
       });
@@ -249,7 +272,9 @@ class Consulta implements PromiseLike<Resultado> {
         const afetadas: Row[] = [];
         for (const r of todas) {
           if (!casa(r)) continue;
-          Object.assign(r, this.payload);
+          const nova = { ...r, ...this.payload };
+          this.db.aplicarGatilho(this.tabela, "update", r, nova);
+          Object.assign(r, nova);
           afetadas.push({ ...r });
         }
         return { data: this.retorna ? afetadas : null, error: null };

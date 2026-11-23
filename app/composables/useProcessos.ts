@@ -1,4 +1,5 @@
 import { useState } from "#app";
+import { MENSAGEM_PROCESSO_JA_CRIADO } from "#shared/utils/idNovoProcesso";
 import { ApiError, apiFetch, deleteTolerant } from "../utils/apiFetch";
 import {
   ConflitoVersaoError,
@@ -12,6 +13,15 @@ import type {
   ProcessoPatchDTO,
   StatusProcesso,
 } from "#shared/types/processo";
+
+// O servidor respondeu 409 ao criar: o id que o formulário gerou ao abrir já existe (o mesmo envio chegou duas vezes). Nada novo
+// foi gravado; quem chamou fecha o formulário e recarrega a lista (o processo já foi criado pelo 1º envio).
+export class ProcessoJaCriadoError extends Error {
+  constructor(message: string = MENSAGEM_PROCESSO_JA_CRIADO) {
+    super(message);
+    this.name = "ProcessoJaCriadoError";
+  }
+}
 
 // Módulo é singleton no bundle client — mesmo efeito de um useState, mas não
 // precisa ser serializado no payload SSR. Só é populado a partir de
@@ -33,14 +43,16 @@ export function useProcessos() {
   const loading = useState<boolean>("processos-loading", () => false);
   const error = useState<string | null>("processos-error", () => null);
 
-  function fetchProcessos(): Promise<void> {
+  // `forcar`: ignora a janela de reaproveitamento (e, com uma busca em voo, espera ela e busca de novo) — para quando se SABE
+  // que a lista mudou no servidor (ex.: "Esse processo já foi criado").
+  function fetchProcessos(forcar = false): Promise<void> {
     // 1) Já tem uma busca em voo? Reaproveita a mesma promise (o chamador
     //    pode até dar await nela, ao contrário do "return" mudo de antes).
-    if (fetchPromise) return fetchPromise;
+    if (fetchPromise) return forcar ? fetchPromise.then(() => fetchProcessos(true)) : fetchPromise;
 
     // 2) Buscou há poucos segundos? Não vale a pena repetir — o estado
     //    compartilhado já está fresco o suficiente pro 2º chamador.
-    if (Date.now() - lastFetchedAt < RECENT_FETCH_WINDOW_MS) return Promise.resolve();
+    if (!forcar && Date.now() - lastFetchedAt < RECENT_FETCH_WINDOW_MS) return Promise.resolve();
 
     loading.value = true;
     error.value = null;
@@ -58,16 +70,23 @@ export function useProcessos() {
     return fetchPromise;
   }
 
+  // `input.id` (gerado ao abrir o formulário): um 2º POST com o mesmo id volta 409 → ProcessoJaCriadoError (nada foi criado de novo).
   async function addProcesso(input: NewProcessoDTO): Promise<Processo> {
-    const created = await apiFetch<Processo>(
-      "/api/processos",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      },
-      "Erro ao criar processo."
-    );
+    let created: Processo;
+    try {
+      created = await apiFetch<Processo>(
+        "/api/processos",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(input),
+        },
+        "Erro ao criar processo."
+      );
+    } catch (e) {
+      if (input.id !== undefined && e instanceof ApiError && e.status === 409) throw new ProcessoJaCriadoError();
+      throw e;
+    }
     processos.value = [created, ...processos.value];
     return created;
   }

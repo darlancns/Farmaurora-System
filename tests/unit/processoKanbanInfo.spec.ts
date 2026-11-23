@@ -38,6 +38,51 @@ describe("linhasInfoKanban (bloquinhos do card)", () => {
     expect(resumo(linhasInfoKanban({ ...completo, despachante: undefined }))[1]).toEqual(["origem", ["fornecedor=Beldimed"]]);
   });
 
+  it("previsão de entrega: célula à direita da Cia · AWB, sempre DD/MM, e title com o texto completo", () => {
+    const aereo = linhasInfoKanban({ ...completo, datas: { previsaoEntrega: "25/11/2026" } })[2]!;
+    expect(resumo([aereo])).toEqual([["aereo", ["aereo=LATAM Cargo|957-12345678", "previsao=25/11"]]]);
+    expect(aereo.celulas[1]).toMatchObject({
+      rotulo: "Previsão de entrega",
+      titulo: "Previsão de entrega: 25/11/2026",
+      fixa: true,
+    });
+    expect(aereo.celulas[1]).not.toHaveProperty("semIcone");
+    expect(aereo.celulas[0]!.fixa).toBeUndefined();
+  });
+
+  it("sem previsão (ausente, vazia ou só espaços): idêntico ao de hoje, sem célula de data", () => {
+    const base = resumo(linhasInfoKanban(completo));
+    expect(resumo(linhasInfoKanban({ ...completo, datas: {} }))).toEqual(base);
+    expect(resumo(linhasInfoKanban({ ...completo, datas: { previsaoEntrega: "   " } }))).toEqual(base);
+    expect(linhasInfoKanban({ ...completo, datas: { previsaoEntrega: "" } })[2]!.celulas).toHaveLength(1);
+  });
+
+  it("só previsão (sem Cia e sem AWB): a linha aérea existe só com a data", () => {
+    const linhas = linhasInfoKanban({ ...completo, companhiaAerea: undefined, numeroAwb: undefined, datas: { previsaoEntrega: "25/11" } });
+    const aereo = linhas[2]!;
+    expect(aereo.chave).toBe("aereo");
+    expect(resumo([aereo])).toEqual([["aereo", ["previsao=25/11"]]]);
+    expect(aereo.celulas[0]!.fixa).toBe(true);
+  });
+
+  it("texto anotado com data: mostra só a data e o title tem o texto completo", () => {
+    const celula = linhasInfoKanban({ ...completo, datas: { previsaoEntrega: "chega 20/11/2026" } })[2]!.celulas[1]!;
+    expect(celula.texto).toBe("20/11");
+    expect(celula.titulo).toBe("Previsão de entrega: chega 20/11/2026");
+  });
+
+  it("texto sem data reconhecível (ou data fora de dia 1-31 / mês 1-12): sem célula de data, igual ao de hoje", () => {
+    const base = resumo(linhasInfoKanban(completo));
+    for (const previsaoEntrega of ["aguardando confirmação", "32/13"]) {
+      expect(resumo(linhasInfoKanban({ ...completo, datas: { previsaoEntrega } })), previsaoEntrega).toEqual(base);
+    }
+  });
+
+  it("só previsão sem data reconhecível e sem Cia/AWB: a linha aérea não existe", () => {
+    const chaves = linhasInfoKanban({ ...completo, companhiaAerea: undefined, numeroAwb: undefined, datas: { previsaoEntrega: "aguardando confirmação" } }).map((l) => l.chave);
+    expect(chaves).toEqual(["pessoas", "origem"]);
+  });
+
   it("sem fornecedor: a linha de origem só com o despachante", () => {
     expect(resumo(linhasInfoKanban({ ...completo, fornecedor: undefined }))[1]).toEqual(["origem", ["despachante=Aduaneira Sul"]]);
   });

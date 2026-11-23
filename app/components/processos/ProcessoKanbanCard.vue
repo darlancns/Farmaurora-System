@@ -17,7 +17,7 @@ import { etiquetaPagamentoDe } from "../../utils/processoPagamento";
 //
 // Linhas: (1) Pasta · PO e, à direita, Pago/Pendente (só com valor); (2) paciente (até 2 linhas); (3) medicamento
 // (até 2 linhas); (4) bloquinhos (ver app/utils/processoKanbanInfo.ts): [Responsável][Consultor][Pendências],
-// [Fornecedor][Despachante] e [Cia. aérea · AWB]. Só a ALTURA do card cresce: os bloquinhos cabem na largura dele.
+// [Fornecedor][Despachante] e [Cia. aérea · AWB | previsão de entrega]. Só a ALTURA do card cresce: os bloquinhos cabem na largura dele.
 // Hierarquia: o NOME DO PACIENTE é o texto maior (16px/600, cor ink; peso igual ao das pendências — o destaque
 // vem do tamanho e da cor); topo, medicamento e bloquinhos ficam abaixo (≤ 12px, peso ≤ 600). Bloquinhos discretos: fundo #f6f8f8, borda #e0e7e5, ícones #6b7f87 (gráficos, 3:1),
 // texto #44585f (7:1). O topo usa #5c6d74 — o #6b7f87 do mockup dá 4,2:1 como texto; #5c6d74 é o mínimo para 4,5:1
@@ -131,13 +131,14 @@ function onKeydown(event: KeyboardEvent): void {
           :key="celula.chave"
           class="relative flex min-w-0 items-center gap-1.5 px-[9px] py-1"
           :class="[
-            celula.estreita ? 'flex-none' : 'flex-auto',
+            celula.estreita || celula.fixa ? 'flex-none' : 'flex-auto',
             celula.prioritaria ? 'max-w-[45%] shrink-0' : '',
             celula.perigo ? 'text-danger' : 'text-[#44585f]',
           ]"
           :title="celula.titulo"
         >
           <svg
+            v-if="celula.chave !== 'previsao'"
             viewBox="0 0 24 24"
             class="h-3.5 w-3.5 shrink-0"
             :class="celula.perigo ? undefined : 'text-[#6b7f87]'"
@@ -151,12 +152,13 @@ function onKeydown(event: KeyboardEvent): void {
             <path v-for="(d, i) in ICONES_CARD[celula.chave]" :key="i" :d="d" />
           </svg>
           <span class="sr-only">{{ celula.rotulo }}: </span>
+          <!-- A célula da previsão (fixa) é sempre "DD/MM", sem ícone, e nunca encolhe nem corta: quem corta é a Cia · AWB. -->
           <!-- Na célula aérea, só a cia corta com "…": a AWB fica inteira (só corta se sozinha passar da célula). -->
           <span
             class="flex min-h-4 min-w-0 items-baseline overflow-hidden text-[12px] leading-4"
-            :class="celula.perigo ? 'font-semibold' : 'font-medium'"
+            :class="[celula.perigo ? 'font-semibold' : 'font-medium', celula.fixa ? 'whitespace-nowrap tabular-nums' : '']"
           >
-            <span v-if="celula.texto" class="min-w-0 truncate">{{ celula.texto }}</span>
+            <span v-if="celula.texto" :class="celula.fixa ? undefined : 'min-w-0 truncate'">{{ celula.texto }}</span>
             <span v-if="celula.texto && celula.awb" class="shrink-0 whitespace-pre"> · </span>
             <span v-if="celula.awb" class="max-w-full shrink-0 truncate font-mono text-[11.5px] leading-4 font-normal">{{ celula.awb }}</span>
           </span>
