@@ -178,15 +178,21 @@ describe("faixa de conflito e estados do formulário", () => {
     expect(q("#compra-cabecalho-bloco")!.contains(alerta)).toBe(true);
   });
 
-  it("o título nunca quebra no meio; as três ações ficam juntas (nowrap em lg+) e descem para a 2ª linha, à direita, se a coluna for estreita", () => {
+  it("o título nunca é cortado nem quebra (nowrap, sem truncate); o título e as três ações ficam na MESMA linha (flex-row) quando a coluna comporta, e nunca saem do cabeçalho", () => {
     formularioDireto("ocioso");
     expect(q("#compra-titulo")!.className).toContain("whitespace-nowrap");
-    expect(q("#compra-titulo")!.className).toContain("truncate");
-    expect(q("#compra-cabecalho")!.className).toContain("lg:flex-wrap");
+    expect(q("#compra-titulo")!.className).not.toContain("truncate");
+    const cabecalho = q("#compra-cabecalho")!;
+    expect(cabecalho.className).toContain("lg:@min-[28rem]:flex-row");
+    expect(cabecalho.className).toContain("lg:@min-[28rem]:items-center");
+    expect(cabecalho.className).toContain("lg:@min-[28rem]:justify-between");
+    expect(q("#compra-cabecalho-bloco")!.className).toContain("@container"); // é a largura da COLUNA que decide, não a da janela
+    expect(cabecalho.contains(q("#compra-titulo"))).toBe(true);
+    expect(cabecalho.contains(q("#compra-acoes"))).toBe(true);
     expect(q("#btn-duplicar-compra")!.parentElement).toBe(q("#btn-cancelar-compra")!.parentElement);
     expect(q("#btn-duplicar-compra")!.parentElement).toBe(q("#btn-apagar-compra")!.parentElement);
-    expect(q("#btn-duplicar-compra")!.parentElement!.className).toContain("lg:flex-nowrap");
-    expect(q("#btn-duplicar-compra")!.parentElement!.className).toContain("lg:shrink-0");
+    expect(q("#btn-duplicar-compra")!.parentElement!.className).toContain("lg:@min-[28rem]:flex-nowrap");
+    expect(q("#btn-duplicar-compra")!.parentElement!.className).toContain("lg:@min-[28rem]:shrink-0");
   });
 
   it("Duplicar, Cancelar e Apagar avisam (só para quem edita)", () => {

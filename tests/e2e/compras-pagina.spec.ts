@@ -239,6 +239,34 @@ for (const [rotulo, conta] of [
       await expect(page.locator("#btn-cancelar-compra")).toHaveCount(0);
     });
 
+    test("cabeçalho da compra por largura da janela: 1920 = título e botões (com texto) na mesma linha; 1440 = botões com texto numa linha própria à direita; 1280 = só ícone", async ({ page }) => {
+      const caixa = async (seletor: string) => (await page.locator(seletor).boundingBox())!;
+      for (const [largura, comTexto, mesmaLinha] of [
+        [1920, true, true],
+        [1440, true, false],
+        [1280, false, false],
+      ] as const) {
+        await page.setViewportSize({ width: largura, height: 900 });
+        await abrirCompras(page);
+        await criarCompraComPaciente(page, unico());
+        const titulo = await caixa("#compra-titulo");
+        for (const id of ["#btn-duplicar-compra", "#btn-cancelar-compra", "#btn-apagar-compra"]) {
+          const b = await caixa(id);
+          if (mesmaLinha) expect(Math.abs(b.y + b.height / 2 - (titulo.y + titulo.height / 2)), `${largura}px: ${id} na linha do título`).toBeLessThan(14);
+          else expect(b.y, `${largura}px: ${id} abaixo do título`).toBeGreaterThan(titulo.y + titulo.height - 2);
+        }
+        const rotulo = await caixa("#btn-duplicar-compra [data-rotulo]");
+        if (comTexto) expect(rotulo.width, `${largura}px: texto visível`).toBeGreaterThan(20);
+        else expect(rotulo.width, `${largura}px: só ícone`).toBeLessThanOrEqual(2);
+        // o título nunca é cortado (quando cabe numa linha) e os botões ficam dentro da coluna do meio
+        const coluna = await caixa("#compras-coluna-central");
+        const apagar = await caixa("#btn-apagar-compra");
+        expect(apagar.x + apagar.width).toBeLessThanOrEqual(coluna.x + coluna.width + 1);
+        if (largura >= 1440) expect(await page.locator("#compra-titulo").evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+        await expect(page.locator("#btn-duplicar-compra")).toHaveAttribute("aria-label", "Duplicar compra");
+      }
+    });
+
     test("Apagar compra: confirmação com o texto pedido; Cancelar não apaga; confirmar apaga, volta para a lista e libera o número", async ({ page }) => {
       await abrirCompras(page);
       const paciente = unico();

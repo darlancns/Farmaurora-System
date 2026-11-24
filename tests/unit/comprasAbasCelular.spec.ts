@@ -156,13 +156,14 @@ describe("cabeçalho do formulário no celular", () => {
     expect(texto(q("[data-selo-cancelada]"))).toBe("Cancelada");
   });
 
-  it("no celular as três ações aparecem (sem o menu '…'), com alvo de toque de 44px, e QUEBRAM de linha se não couberem (nada vai para fora da tela)", () => {
+  it("no celular as três ações aparecem (sem o menu '…') numa linha PRÓPRIA, à direita, com alvo de toque de 44px, e QUEBRAM de linha se não couberem (nada vai para fora da tela)", () => {
     cabecalho();
     expect(q("#btn-menu-compra")).toBeNull();
     expect(q("#menu-compra")).toBeNull();
     const acoes = q("#compra-acoes")!;
-    expect(acoes.className).toContain("flex-wrap"); // abaixo de lg quebra; em lg+ vira nowrap
-    expect(acoes.className).toContain("lg:flex-nowrap");
+    expect(acoes.className).toContain("flex-wrap"); // quebra de linha se não couber
+    expect(acoes.className).toContain("justify-end"); // alinhada à direita
+    expect(q("#compra-cabecalho")!.className).toContain("flex-col"); // abaixo de lg: o título numa linha e as ações em outra
     for (const id of ["#btn-duplicar-compra", "#btn-cancelar-compra", "#btn-apagar-compra"]) {
       const b = q<HTMLButtonElement>(id)!;
       expect(b.className, id).toContain("min-h-11");

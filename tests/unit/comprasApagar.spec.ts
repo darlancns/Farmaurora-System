@@ -63,12 +63,14 @@ function cabecalho(extra: Record<string, unknown> = {}) {
   return ev;
 }
 
-describe("os três botões do cabeçalho: Duplicar compra, Cancelar compra, Apagar compra", () => {
-  it("nesta ORDEM, lado a lado no mesmo bloco, com o texto exato", () => {
+describe("os três botões do cabeçalho: Duplicar, Cancelar, Apagar", () => {
+  it("nesta ORDEM, lado a lado no mesmo bloco, com o texto CURTO e o nome completo em aria-label e title", () => {
     cabecalho();
     const botoes = qa<HTMLButtonElement>("#compra-acoes > button");
     expect(botoes.map((b) => b.id)).toEqual(["btn-duplicar-compra", "btn-cancelar-compra", "btn-apagar-compra"]);
-    expect(botoes.map((b) => texto(b))).toEqual(["Duplicar compra", "Cancelar compra", "Apagar compra"]);
+    expect(botoes.map((b) => texto(b))).toEqual(["Duplicar", "Cancelar", "Apagar"]);
+    expect(botoes.map((b) => b.getAttribute("aria-label"))).toEqual(["Duplicar compra", "Cancelar compra", "Apagar compra"]);
+    expect(botoes.map((b) => b.getAttribute("title"))).toEqual(["Duplicar compra", "Cancelar compra", "Apagar compra"]);
     for (const b of botoes) expect(b.type).toBe("button");
   });
 
@@ -96,15 +98,18 @@ describe("os três botões do cabeçalho: Duplicar compra, Cancelar compra, Apag
     expect(ICONES_COMPRA.cancelar).toContain("m15 9-6 6"); // o X dentro do círculo
   });
 
-  it("o molde é o do 'Excluir processo' do Follow-Up: as MESMAS classes de tamanho, borda, fonte e espaçamento; o Apagar leva a cor de perigo discreta dele", () => {
+  it("o molde é o do 'Excluir processo' do Follow-Up: as MESMAS classes de altura, borda, fonte e cor (só o respiro lateral é menor, o tamanho compacto); o Apagar leva a cor de perigo discreta dele", () => {
     const fonte = readFileSync(join(process.cwd(), "app/components/processos/ProcessoPainel.vue"), "utf-8");
     const classeDoExcluir = /id="btn-painel-excluir"[\s\S]*?class="([^"]+)"/.exec(fonte)![1]!.split(/\s+/);
     cabecalho();
     const apagar = q<HTMLButtonElement>("#btn-apagar-compra")!.className.split(/\s+/);
-    for (const token of classeDoExcluir) expect(apagar, `Excluir processo usa "${token}"`).toContain(token);
+    const COMPACTO = ["gap-2", "px-3.5"]; // o "Excluir processo" é folgado; o do cabeçalho da compra usa gap-1.5 e px-3 para caber na coluna
+    for (const token of classeDoExcluir.filter((t) => !COMPACTO.includes(t))) expect(apagar, `Excluir processo usa "${token}"`).toContain(token);
+    expect(apagar).toContain("gap-1.5");
+    expect(apagar).toContain("px-3");
     // o neutro: o mesmo molde, mas sem as cores de perigo
     const duplicar = q<HTMLButtonElement>("#btn-duplicar-compra")!.className.split(/\s+/);
-    for (const token of ["inline-flex", "min-h-11", "items-center", "gap-2", "rounded-lg", "border", "bg-paper-raised", "px-3.5", "text-[12.5px]", "font-semibold", "lg:min-h-9"]) {
+    for (const token of ["inline-flex", "min-h-11", "items-center", "gap-1.5", "rounded-lg", "border", "bg-paper-raised", "px-3", "text-[12.5px]", "font-semibold", "lg:min-h-9"]) {
       expect(duplicar, token).toContain(token);
     }
     expect(duplicar).not.toContain("text-[#9a3828]");
@@ -122,12 +127,13 @@ describe("os três botões do cabeçalho: Duplicar compra, Cancelar compra, Apag
     expect(qa<HTMLButtonElement>("#compra-acoes > button").map((b) => b.disabled)).toEqual([true, true, true]);
   });
 
-  it("no celular os botões ficam no bloco que QUEBRA de linha e têm alvo de toque de 44px; em lg+ é uma linha só", () => {
+  it("no celular os botões ficam no bloco que QUEBRA de linha, à direita, com alvo de toque de 44px; em lg+ (coluna larga) é uma linha só, junto do título", () => {
     cabecalho();
     const bloco = q("#compra-acoes")!;
     expect(bloco.className).toContain("flex-wrap");
-    expect(bloco.className).toContain("lg:flex-nowrap");
-    expect(bloco.className).toContain("lg:shrink-0");
+    expect(bloco.className).toContain("justify-end");
+    expect(bloco.className).toContain("lg:@min-[28rem]:flex-nowrap");
+    expect(bloco.className).toContain("lg:@min-[28rem]:shrink-0");
     expect(qa<HTMLButtonElement>("#compra-acoes > button").every((b) => b.className.includes("min-h-11") && b.className.includes("lg:min-h-9"))).toBe(true);
   });
 

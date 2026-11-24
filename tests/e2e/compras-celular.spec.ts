@@ -109,7 +109,7 @@ test.describe("Compras (celular, 375x667) — um painel por vez", () => {
     expect(Math.abs(copiar.y - encaminhar.y)).toBeLessThan(4);
   });
 
-  test("o cabeçalho do formulário: o título numa linha e as três ações (ícone + texto) logo abaixo, dentro da tela", async ({ page }) => {
+  test("o cabeçalho do formulário: o título numa linha e as três ações (ícone + texto curto) logo abaixo, à direita, dentro da tela", async ({ page }) => {
     await abrir(page, CELULAR);
     await criarCompra(page, unico());
     const botoes = ["#btn-duplicar-compra", "#btn-cancelar-compra", "#btn-apagar-compra"];
@@ -123,6 +123,11 @@ test.describe("Compras (celular, 375x667) — um painel por vez", () => {
     const tituloTopo = (await page.locator("#compra-titulo").boundingBox())!.y;
     const acoesTopo = (await page.locator("#btn-duplicar-compra").boundingBox())!.y;
     expect(acoesTopo).toBeGreaterThan(tituloTopo + 10); // as ações estão abaixo do título
+    // alinhadas à direita, com o texto curto à vista (coluna de 327px: ícone + "Duplicar", "Cancelar", "Apagar")
+    const apagar = (await page.locator("#btn-apagar-compra").boundingBox())!;
+    expect(apagar.x + apagar.width).toBeGreaterThan(CELULAR.width - 40);
+    await expect(page.locator("#btn-duplicar-compra")).toHaveText("Duplicar");
+    await expect(page.locator("#btn-apagar-compra")).toHaveAttribute("aria-label", "Apagar compra");
     // Duplicar abre a caixinha do número; Esc fecha sem criar nada.
     await page.locator("#btn-duplicar-compra").click();
     await expect(page.locator("#compra-dialogo")).toBeVisible();
